@@ -1,30 +1,35 @@
 {
-  "version": "0.1.0",
+  "$comment": "PLACEHOLDER SCHEMA. The final catalog manifest schema (field names, required fields, checksums, ref/release shape, gateway compatibility encoding) will be defined in a follow-up issue. Treat the fields below as illustrative; consumers should not depend on this shape yet.",
+  "schemaVersion": "0.1.0-placeholder",
+  "policies": [
+    {
+      "path": "apps/slack/block-secrets",
+      "title": "Block secrets in outgoing Slack messages",
+      "summary": "Denies Slack send-message calls when the message body looks like an API key, password, token, or private key.",
+      "package": "slack.ingress.block_secrets",
+      "direction": "ingress",
+      "hook": "tool_pre_invoke",
+      "apps": ["slack"],
+      "industries": [],
+      "bundles": ["im-messaging"],
+      "tags": ["secrets", "dlp", "messaging", "compliance"],
+      "version": "0.1.0",
+      "minGatewayVersion": null
+    }
+  ],
   "apps": {
     "slack": {
       "title": "Slack",
       "summary": "Policies for Slack MCP servers — the official Anthropic Slack MCP server and compatible implementations.",
-      "path": "apps/slack",
-      "policies": [
-        {
-          "id": "slack/block-secrets",
-          "path": "apps/slack/block-secrets",
-          "title": "Block secrets in outgoing Slack messages",
-          "direction": "ingress",
-          "version": "0.1.0"
-        }
-      ]
+      "path": "apps/slack"
     }
   },
   "industries": {},
   "bundles": {
     "im-messaging": {
       "title": "IM messaging hygiene",
-      "summary": "Baseline policies for instant-messaging MCP servers.",
-      "path": "bundles/im-messaging",
-      "policies": [
-        "slack/block-secrets"
-      ]
+      "summary": "Baseline policies for instant-messaging MCP servers — prevents secret leaks and supports clean audit trails.",
+      "path": "bundles/im-messaging"
     }
   }
 }

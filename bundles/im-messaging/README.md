@@ -8,13 +8,13 @@ A curated bundle of policies for instant-messaging MCP servers (Slack today; Mic
 |---|---|---|---|
 | [block-secrets](../../apps/slack/block-secrets/README.md) | slack | ingress | Deny Slack send-message calls whose body looks like a secret (API key, password, token, private key). |
 
-> Policy bodies live under [`apps/`](../../apps/). This page only links to them — see [README.md](../../README.md#where-policies-live) for the rationale.
+> Policy bodies live under [`apps/`](../../apps/). This page only links to them — see the top-level [README](../../README.md#where-policies-live) for the rationale.
 
-## How to use the bundle
+## How bundle membership works
 
-The machine-readable bundle definition is in [`bundle.json`](./bundle.json). A DTwo gateway can import the bundle as a single unit; the gateway resolves each policy ID to its canonical `apps/<app>/<policy-slug>/policy.rego` and attaches them in the order listed.
+Bundle membership is declared on each policy's entry in the top-level [`catalog.json`](../../catalog.json) (the policy lists `"bundles": ["im-messaging"]`). This page is a human-readable landing page; the catalog is the machine-readable source of truth. There is intentionally no separate `bundle.json` artifact — one source of metadata avoids drift.
 
-The bundle's policies are designed to compose cleanly on the same ingress pipeline — none of them conflict with the others, and each is `default allow := false` only for the narrow concern it addresses (i.e., they don't accidentally deny tools they don't know about).
+The bundle's policies are designed to compose cleanly on the same ingress pipeline. None of them conflict with the others, and each is `default allow := false` only for the narrow concern it addresses (i.e., they don't accidentally deny tools they don't know about).
 
 ## What's intentionally not in the bundle
 
