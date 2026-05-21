@@ -1,0 +1,15 @@
+{
+  "id": "slack/block-secrets",
+  "title": "Block secrets in outgoing Slack messages",
+  "summary": "Denies Slack send-message calls when the message body looks like an API key, password, token, or private key.",
+  "app": "slack",
+  "direction": "ingress",
+  "hook": "tool_pre_invoke",
+  "package": "slack.ingress.block_secrets",
+  "version": "0.1.0",
+  "tags": ["secrets", "dlp", "messaging", "compliance"],
+  "files": {
+    "policy": "policy.rego",
+    "readme": "README.md"
+  }
+}

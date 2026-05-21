@@ -1,0 +1,30 @@
+{
+  "version": "0.1.0",
+  "apps": {
+    "slack": {
+      "title": "Slack",
+      "summary": "Policies for Slack MCP servers — the official Anthropic Slack MCP server and compatible implementations.",
+      "path": "apps/slack",
+      "policies": [
+        {
+          "id": "slack/block-secrets",
+          "path": "apps/slack/block-secrets",
+          "title": "Block secrets in outgoing Slack messages",
+          "direction": "ingress",
+          "version": "0.1.0"
+        }
+      ]
+    }
+  },
+  "industries": {},
+  "bundles": {
+    "im-messaging": {
+      "title": "IM messaging hygiene",
+      "summary": "Baseline policies for instant-messaging MCP servers.",
+      "path": "bundles/im-messaging",
+      "policies": [
+        "slack/block-secrets"
+      ]
+    }
+  }
+}
