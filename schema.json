@@ -1,0 +1,163 @@
+{
+  "schemaVersion": "1.0.0",
+  "description": "Describes the expected fields for the policy-store manifest.json index and the individual policy markdown files. Policy entries or md files which do not follow this schema will not be accepted into the repository.",
+  "manifest": {
+    "description": "The top-level manifest.json file: the searchable index of every published policy and the folder maps for apps, industries and bundles.",
+    "fields": {
+      "policies": {
+        "name": "policies",
+        "description": "Array of policy entries. Each entry holds the search metadata for one published policy and the path to its folder; see policyEntry for the shape of each entry. The full policy body lives in the policy's policy markdown file.",
+        "type": "PolicyEntry[]",
+        "required": true
+      },
+      "apps": {
+        "name": "apps",
+        "description": "Map of app slug to the relative path of the app's folder. Each folder includes, at least, a README.md file.",
+        "type": "Record<string, string>",
+        "required": true
+      },
+      "industries": {
+        "name": "industries",
+        "description": "Map of industry slug to the relative path of the industry's folder. Each folder includes, at least, a README.md file.",
+        "type": "Record<string, string>",
+        "required": true
+      },
+      "bundles": {
+        "name": "bundles",
+        "description": "Map of bundle slug to the relative path of the bundle's folder. Each folder includes, at least, a README.md file.",
+        "type": "Record<string, string>",
+        "required": true
+      }
+    },
+    "policyEntry": {
+      "description": "The shape of each object in manifest.policies. Carries just enough metadata to search the catalog and locate the policy; the description, policy body and checksum live in the policy markdown file rather than in the manifest.json file.",
+      "fields": {
+        "path": {
+          "name": "path",
+          "description": "The relative path from manifest.json to the policy folder.",
+          "type": "string",
+          "required": true
+        },
+        "name": {
+          "name": "name",
+          "description": "User-visible name of the policy.",
+          "type": "string",
+          "required": true
+        },
+        "tags": {
+          "name": "tags",
+          "description": "A list of tags associated with the policy.",
+          "type": "string[]",
+          "required": true
+        },
+        "publishedAt": {
+          "name": "publishedAt",
+          "description": "The date the policy was published, as an ISO 8601 date (e.g. 2026-06-02).",
+          "type": "string (ISO 8601 date)",
+          "required": true
+        },
+        "direction": {
+          "name": "direction",
+          "description": "Intended use for the policy. One of: egress, ingress.",
+          "type": "string (egress | ingress)",
+          "required": true
+        },
+        "apps": {
+          "name": "apps",
+          "description": "A list of applications this policy is designed for.",
+          "type": "string[]",
+          "required": true
+        },
+        "industries": {
+          "name": "industries",
+          "description": "An optional list of industries this policy may be useful for.",
+          "type": "string[]",
+          "required": false
+        },
+        "bundles": {
+          "name": "bundles",
+          "description": "An optional list of use-case bundles this policy is a part of.",
+          "type": "string[]",
+          "required": false
+        },
+        "schemaVersion": {
+          "name": "schemaVersion",
+          "description": "The schema version this policy was published with.",
+          "type": "string",
+          "required": true
+        }
+      }
+    }
+  },
+  "policy": {
+    "description": "An individual policy markdown file: YAML frontmatter holding the policy metadata, followed by the document body which contains the policy itself inside a fenced ```rego block.",
+    "fields": {
+      "name": {
+        "name": "name",
+        "description": "User-visible name of the policy.",
+        "type": "string",
+        "required": true
+      },
+      "tags": {
+        "name": "tags",
+        "description": "A list of tags associated with the policy.",
+        "type": "string[]",
+        "required": true
+      },
+      "publishedAt": {
+        "name": "publishedAt",
+        "description": "The date the policy was published, as an ISO 8601 date (e.g. 2026-06-02).",
+        "type": "string (ISO 8601 date)",
+        "required": true
+      },
+      "description": {
+        "name": "description",
+        "description": "A description of what the policy does. This should include the intent of the policy.",
+        "type": "string",
+        "required": true
+      },
+      "direction": {
+        "name": "direction",
+        "description": "Intended use for the policy. One of: egress, ingress.",
+        "type": "string (egress | ingress)",
+        "required": true
+      },
+      "apps": {
+        "name": "apps",
+        "description": "A list of applications this policy is designed for.",
+        "type": "string[]",
+        "required": true
+      },
+      "industries": {
+        "name": "industries",
+        "description": "An optional list of industries this policy may be useful for.",
+        "type": "string[]",
+        "required": false
+      },
+      "bundles": {
+        "name": "bundles",
+        "description": "An optional list of use-case bundles this policy is a part of.",
+        "type": "string[]",
+        "required": false
+      },
+      "policyChecksum": {
+        "name": "policyChecksum",
+        "description": "Checksum of the policy body, in the form sha256:<hex>. Used to verify policy integrity; it must equal the SHA-256 of the (trimmed) Rego body.",
+        "type": "string (sha256:<hex>)",
+        "required": true
+      },
+      "schemaVersion": {
+        "name": "schemaVersion",
+        "description": "The schema version this policy was published with.",
+        "type": "string",
+        "required": true
+      },
+      "policy": {
+        "name": "policy",
+        "description": "The plain-text Rego policy. This is not a frontmatter field; it is the document body inside the fenced ```rego block.",
+        "type": "string (Rego)",
+        "required": true
+      }
+    }
+  }
+}
