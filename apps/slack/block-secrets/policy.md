@@ -15,8 +15,8 @@ industries:
   - finance
 bundles:
   - slack-security-baseline
-policyChecksum: sha256:c694c2624700c1dd750e33b4ba1171f03cca77009977871a01d5d7dd8a9d1d99
 schemaVersion: 1.0.0
+minimumGatewayVersion: 1.0.0b24
 ---
 
 ```rego

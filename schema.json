@@ -30,7 +30,7 @@
       }
     },
     "policyEntry": {
-      "description": "The shape of each object in manifest.policies. Carries just enough metadata to search the catalog and locate the policy; the description, policy body and checksum live in the policy markdown file rather than in the manifest.json file.",
+      "description": "The shape of each object in manifest.policies. Carries the search metadata to find a policy, the policyChecksum that pins its body, and the path to its folder; the description and policy body live in the policy markdown file rather than in the manifest.json file.",
       "fields": {
         "path": {
           "name": "path",
@@ -80,11 +80,23 @@
           "type": "string[]",
           "required": false
         },
+        "policyChecksum": {
+          "name": "policyChecksum",
+          "description": "Checksum of the policy body, in the form sha256:<hex>. Used to verify the integrity of the policy markdown file; it must equal the SHA-256 of the (trimmed) Rego body.",
+          "type": "string (sha256:<hex>)",
+          "required": true
+        },
         "schemaVersion": {
           "name": "schemaVersion",
           "description": "The schema version this policy was published with.",
           "type": "string",
           "required": true
+        },
+        "minimumGatewayVersion": {
+          "name": "minimumGatewayVersion",
+          "description": "The minimum DTwo Gateway version required to use this policy.",
+          "type": "string",
+          "required": false
         }
       }
     }
@@ -140,17 +152,17 @@
         "type": "string[]",
         "required": false
       },
-      "policyChecksum": {
-        "name": "policyChecksum",
-        "description": "Checksum of the policy body, in the form sha256:<hex>. Used to verify policy integrity; it must equal the SHA-256 of the (trimmed) Rego body.",
-        "type": "string (sha256:<hex>)",
-        "required": true
-      },
       "schemaVersion": {
         "name": "schemaVersion",
         "description": "The schema version this policy was published with.",
         "type": "string",
         "required": true
+      },
+      "minimumGatewayVersion": {
+        "name": "minimumGatewayVersion",
+        "description": "The minimum DTwo Gateway version required to use this policy.",
+        "type": "string",
+        "required": false
       },
       "policy": {
         "name": "policy",
