@@ -27,7 +27,7 @@ The policy uses a small set of conservative regex patterns. Adding too many patt
 - OpenAI API keys (`sk-…`)
 - PEM private key headers (`-----BEGIN … PRIVATE KEY-----`)
 
-Tune this list for your environment. If your team uses other providers (Twilio, SendGrid, Datadog, etc.), add their token shapes to `secret_patterns` in `policy.rego`.
+Tune this list for your environment. If your team uses other providers (Twilio, SendGrid, Datadog, etc.), add their token shapes to `secret_patterns` in `policy.md`.
 
 ## Tool name matching
 
@@ -39,7 +39,7 @@ The policy matches the Slack send-message tool by suffix:
 
 The DTwo gateway prefixes tool names with the configured MCP server name (e.g. `slack-mcp-slack-post-message`), and that prefix is not standardized — different deployments use different server names. Matching on the suffix keeps the policy portable, but you should verify the exact name your gateway sends using the [dump-input debug technique](https://docs.dtwo.ai) before relying on this in production.
 
-If the Slack MCP server you use exposes a different tool name for send/post, add it to `is_slack_send_tool` in `policy.rego`.
+If the Slack MCP server you use exposes a different tool name for send/post, add it to `is_slack_send_tool` in `policy.md`.
 
 ## Argument shape
 

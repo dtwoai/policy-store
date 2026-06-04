@@ -12,7 +12,7 @@ A curated bundle of policies for instant-messaging MCP servers (Slack today; Mic
 
 ## How bundle membership works
 
-Bundle membership is declared on each policy's entry in the top-level [`catalog.json`](../../catalog.json) (the policy lists `"bundles": ["im-messaging"]`). This page is a human-readable landing page; the catalog is the machine-readable source of truth. There is intentionally no separate `bundle.json` artifact — one source of metadata avoids drift.
+Bundle membership is declared in each policy's `policy.md` frontmatter (the policy lists `bundles: ["im-messaging"]`). This page is a human-readable landing page; the generated `manifest.json` is the machine-readable source of truth. There is intentionally no separate `bundle.json` artifact — one source of metadata avoids drift.
 
 The bundle's policies are designed to compose cleanly on the same ingress pipeline. None of them conflict with the others, and each is `default allow := false` only for the narrow concern it addresses (i.e., they don't accidentally deny tools they don't know about).
 

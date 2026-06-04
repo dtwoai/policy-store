@@ -2,7 +2,7 @@
   "policies": [
     {
       "path": "apps/slack/block-secrets",
-      "name": "block-secrets",
+      "name": "Block Secrets in Slack Messages",
       "direction": "ingress",
       "publishedAt": "2026-06-02",
       "apps": [
@@ -13,10 +13,10 @@
         "im-messaging"
       ],
       "tags": [
+        "slack",
         "secrets",
         "dlp",
-        "messaging",
-        "compliance"
+        "ingress"
       ],
       "policyChecksum": "sha256:c694c2624700c1dd750e33b4ba1171f03cca77009977871a01d5d7dd8a9d1d99",
       "schemaVersion": "1.0.0",

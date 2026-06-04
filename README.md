@@ -21,7 +21,7 @@ apps/
   <app>/                      # one directory per MCP server / SaaS app (e.g. slack, jira, github)
     README.md                 # landing page listing policies for this app
     <policy>/
-      policy.rego             # the policy body — the only required artifact
+      policy.md               # metadata frontmatter plus the fenced Rego policy body
       README.md               # what it does, direction, assumptions, examples
       tests/                  # optional sample inputs / expected outcomes
         allow.json
@@ -35,7 +35,8 @@ bundles/
   <bundle>/                   # one directory per themed bundle (e.g. im-messaging, devtools)
     README.md                 # landing page linking to policies in apps/
 
-catalog.json                  # single source of truth for policy metadata (see below)
+manifest.json                 # generated policy index consumed by downstream APIs
+schema.json                   # schema contract for policy markdown and manifest entries
 ```
 
 ### Where policies live
@@ -44,27 +45,27 @@ catalog.json                  # single source of truth for policy metadata (see 
 
 ### Where policy metadata lives
 
-**All policy metadata — title, summary, package, direction, tags, apps/industries/bundles membership, version, minimum gateway version — lives in `catalog.json`.** Per-policy directories deliberately do not carry a `metadata.json`; one source of truth avoids drift between the manifest the gateway reads and a sidecar file a contributor might forget to update.
+**All policy metadata — name, description, direction, tags, apps/industries/bundles membership, schema version, and minimum gateway version — lives in each policy's `policy.md` frontmatter.** The generated `manifest.json` is the machine-readable index; do not edit it by hand except through the manifest generator.
 
-A policy declares its grouping by listing app/industry/bundle slugs in its catalog entry (e.g. `"bundles": ["im-messaging"]`). The same policy can belong to multiple apps, industries, and bundles without being duplicated.
+A policy declares its grouping by listing app/industry/bundle slugs in its frontmatter (e.g. `bundles: ["im-messaging"]`). The same policy can belong to multiple apps, industries, and bundles without being duplicated.
 
 
 ## Browsing model
 
-Three entry points, all backed by `catalog.json`:
+Three entry points, all backed by `manifest.json`:
 
 - **By app** — start at `apps/<app>/README.md` if you know which MCP server you're protecting.
 - **By industry** — start at `industries/<industry>/README.md` if you want a curated set of policies relevant to a regulatory or business domain.
 - **By bundle** — start at `bundles/<bundle>/README.md` if you want a themed pack (e.g., all IM messaging hygiene policies).
 
-The landing pages are human-readable curations; `catalog.json` is the machine-readable source the DTwo MCP and Hub consume.
+The landing pages are human-readable curations; `manifest.json` is the generated machine-readable source the DTwo MCP and Hub consume.
 
 ## Import model
 
 Catalog entries are addressed by **repository path** (e.g. `apps/slack/block-secrets/`), not by an ID assigned in this repo. A DTwo gateway or Hub:
 
-1. Reads `catalog.json` to discover available policies and their metadata.
-2. Fetches `apps/<app>/<policy>/policy.rego` from the requested ref.
+1. Reads `manifest.json` to discover available policies and their metadata.
+2. Fetches `apps/<app>/<policy>/policy.md` from the requested ref.
 3. Validates the Rego (compile + PARC-compatible package), then creates a **tenant-local draft** through the existing policy-creation API.
 
 Import is a copy operation, not a live subscription — imported policies remain tenant-scoped and editable. Catalog provenance (path, ref, checksum) is recorded on the imported policy so the gateway can later detect when an upstream update is available.
@@ -76,9 +77,10 @@ Import is a copy operation, not a live subscription — imported policies remain
 Contributions are welcome — see [CONTRIBUTING.md](./CONTRIBUTING.md) for the full process. The short version:
 
 1. Open an issue describing the policy you want to add (or the gap you want to fill).
-2. Fork the repo, add your policy under `apps/<app>/<policy-slug>/`, and register it in `catalog.json`.
+2. Fork the repo and add your policy under `apps/<app>/<policy-slug>/`.
 3. If the policy fits an existing app, industry, or bundle landing page, add a link from that page.
-4. Open a PR. A DTwo maintainer reviews for policy correctness, PARC compliance, and catalog hygiene before merge.
+4. Run `pnpm manifest` and commit the updated `manifest.json`.
+5. Open a PR. A DTwo maintainer reviews for policy correctness, PARC compliance, and catalog hygiene before merge.
 
 ## License
 

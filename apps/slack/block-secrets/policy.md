@@ -10,11 +10,9 @@ description: Blocks Slack send-message tool calls whose message body appears to 
 direction: ingress
 apps:
   - slack
-industries:
-  - technology
-  - finance
+industries: []
 bundles:
-  - slack-security-baseline
+  - im-messaging
 schemaVersion: 1.0.0
 minimumGatewayVersion: 1.0.0b24
 ---
