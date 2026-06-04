@@ -1,0 +1,12 @@
+{
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.1.3",
+  "scripts": {
+    "manifest": "node scripts/generate-manifest.mjs",
+    "manifest:check": "node scripts/generate-manifest.mjs --check"
+  },
+  "devDependencies": {
+    "yaml": "2.9.0"
+  }
+}

@@ -13,7 +13,7 @@ Thanks for considering a contribution. This catalog exists because reusable poli
 - One-off policies tied to a single tenant's internal data (project keys, channel IDs, employee emails). Keep those in your own private repo.
 - Policies that require gateway features that aren't generally available.
 - Policy bodies under `industries/` or `bundles/` — those directories are landing pages only. The canonical body lives under `apps/`.
-- Per-policy `metadata.json` files. Policy metadata lives in `catalog.json`. (See [Registering a new policy](#registering-a-new-policy) below.)
+- Per-policy `metadata.json` files. Policy metadata lives in `policy.md` frontmatter. (See [Registering a new policy](#registering-a-new-policy) below.)
 
 ## Policy authoring rules
 
@@ -36,7 +36,7 @@ A new policy looks like this:
 
 ```
 apps/<app>/<policy-slug>/
-  policy.rego        # required — the policy body
+  policy.md          # required — frontmatter plus the fenced Rego policy body
   README.md          # required — what it does, when to use it, assumptions, examples
   tests/             # optional but encouraged — sample inputs / expected outcomes
     allow.json
@@ -45,28 +45,29 @@ apps/<app>/<policy-slug>/
 
 - `<app>` is the lowercase, hyphenated MCP server name as it would commonly be configured on a gateway (e.g., `slack`, `jira`, `github`, `postgres`).
 - `<policy-slug>` is the lowercase, hyphenated purpose (`block-secrets`, `readonly`, `pii-redaction`).
-- **No `metadata.json` in the policy directory.** All metadata for the catalog lives in the top-level `catalog.json`.
+- **No `metadata.json` in the policy directory.** All metadata for the catalog lives in the policy markdown frontmatter.
 
 ## Registering a new policy
 
-1. **`catalog.json` entry** — add an object to `policies` with at minimum: `path`, `title`, `summary`, `package`, `direction`, `hook`, `apps`, `industries`, `bundles`, `tags`, `version`. Use the existing entries as a template. The schema is a placeholder (see [the schema note](#a-note-on-the-manifest-schema) below) — match the shape of existing entries and a maintainer will reconcile on review.
+1. **`policy.md` frontmatter** — add all required fields from [`schema.json`](./schema.json): `name`, `tags`, `publishedAt`, `description`, `direction`, `apps`, and `schemaVersion`. Include `industries`, `bundles`, and `minimumGatewayVersion` when they apply.
 2. **App landing page** — add a row to `apps/<app>/README.md` linking to the new policy.
-3. **Industry / bundle landing pages** — if the policy fits an existing industry or bundle, list `<industry>` / `<bundle>` slugs in the policy's catalog entry **and** add a link from the matching landing page. Do not duplicate the policy body.
-4. **New apps, industries, or bundles** — also add the new top-level entry to `catalog.json` (`apps.<slug>`, `industries.<slug>`, `bundles.<slug>` with at least `title`, `summary`, `path`) and create the corresponding landing page.
+3. **Industry / bundle landing pages** — if the policy fits an existing industry or bundle, list `<industry>` / `<bundle>` slugs in the policy's frontmatter **and** add a link from the matching landing page. Do not duplicate the policy body.
+4. **New apps, industries, or bundles** — create the corresponding directory and `README.md`; the manifest generator will add the top-level map entry.
+5. **Manifest generation** — run `pnpm manifest` and commit the generated `manifest.json`.
 
 ## A note on the manifest schema
 
-`catalog.json` is the single source of policy metadata for both this repo and downstream consumers (Hub, `dtwo-mcp`). The **final schema** — required fields, checksum format, ref/release encoding, gateway-compatibility shape, JSON Schema validation — will be defined in a follow-up issue and enforced in CI at that point. Until then:
+`manifest.json` is the generated policy index for both this repo and downstream consumers (Hub, `dtwo-mcp`). It is built from policy markdown frontmatter and validated against [`schema.json`](./schema.json). Until CI enforces this automatically:
 
-- Match the shape of existing policy entries when adding new ones.
-- Don't invent new top-level fields. Open an issue first if something is missing.
-- Expect the manifest to be migrated in a single coordinated change once the schema lands; PRs filed before that may need a small follow-up to align with the final shape.
+- Match the shape of existing policy frontmatter when adding new policies.
+- Don't invent new manifest fields. Open an issue first if something is missing.
+- Run `pnpm manifest:check` before opening a PR; it exits nonzero when `manifest.json` is stale or a policy is invalid.
 
 ## Testing
 
 There is no automated Rego test harness in this repo yet — that's a planned addition. Until then, contributors are expected to:
 
-- Validate Rego compiles with `opa parse policy.rego` (or `opa eval -d policy.rego ...`).
+- Validate Rego compiles with `opa parse` after extracting the fenced `rego` block from `policy.md` (or `opa eval -d ...` with the extracted policy).
 - Provide at least one positive and one negative sample in `tests/` (`allow.json`, `deny.json`) with the input shape and expected outcome — see [`apps/slack/block-secrets/tests/`](./apps/slack/block-secrets/tests/) for the current convention. The test-runner contract will be formalized alongside the manifest schema.
 - For policies that touch identity claims, document which IdP claim names are required and what defaults the policy uses when they're missing.
 
@@ -76,10 +77,10 @@ Maintainers review for:
 
 - **Correctness** — does the Rego do what the README claims? Are deny conditions tight, and is the `default allow` chosen correctly?
 - **PARC compliance** — only PARC fields, no deprecated legacy aliases, no stripped claims used for authorization.
-- **Catalog hygiene** — `catalog.json` is updated with the new entry, landing pages link rather than duplicate, no stray per-policy `metadata.json`.
+- **Catalog hygiene** — `manifest.json` is regenerated, landing pages link rather than duplicate, no stray per-policy `metadata.json`.
 - **Documentation** — a reader can understand the policy's effect and trade-offs without reading the Rego.
 
-PRs that change an existing policy must bump `version` on its `catalog.json` entry and note the change in the policy README.
+PRs that change an existing policy must regenerate `manifest.json` and note the change in the policy README.
 
 ## Code of conduct
 
