@@ -1,3 +1,25 @@
+---
+name: Block Secrets in Slack Messages
+tags:
+  - slack
+  - secrets
+  - dlp
+  - ingress
+publishedAt: 2026-06-02
+description: Blocks Slack send-message tool calls whose message body appears to contain a secret such as an API key, password, token, or private key.
+direction: ingress
+apps:
+  - slack
+industries:
+  - technology
+  - finance
+bundles:
+  - slack-security-baseline
+schemaVersion: 1.0.0
+minimumGatewayVersion: 1.0.0b24
+---
+
+```rego
 package slack.ingress.block_secrets
 
 # Deny-by-default: only the explicit allow rules below permit the request.
@@ -86,3 +108,4 @@ reason := joined if {
     reason_list := sort([r | some r in reasons])
     joined := concat("; ", reason_list)
 }
+```

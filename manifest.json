@@ -1,0 +1,33 @@
+{
+  "policies": [
+    {
+      "path": "apps/slack/block-secrets",
+      "name": "block-secrets",
+      "direction": "ingress",
+      "publishedAt": "2026-06-02",
+      "apps": [
+        "slack"
+      ],
+      "industries": [],
+      "bundles": [
+        "im-messaging"
+      ],
+      "tags": [
+        "secrets",
+        "dlp",
+        "messaging",
+        "compliance"
+      ],
+      "policyChecksum": "sha256:c694c2624700c1dd750e33b4ba1171f03cca77009977871a01d5d7dd8a9d1d99",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    }
+  ],
+  "apps": {
+    "slack": "apps/slack"
+  },
+  "industries": {},
+  "bundles": {
+    "im-messaging": "bundles/im-messaging"
+  }
+}
