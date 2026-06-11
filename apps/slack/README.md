@@ -4,9 +4,9 @@ Reusable DTwo policies for Slack MCP servers (the official Anthropic Slack MCP s
 
 ## Available policies
 
-| Policy | Direction | Purpose |
-|---|---|---|
-| [block-secrets](./block-secrets/README.md) | ingress | Deny send-message calls whose body looks like an API key, password, token, or private key. |
+| Policy                                     | Direction | Purpose                                                                                    |
+| ------------------------------------------ | --------- | ------------------------------------------------------------------------------------------ |
+| [block-secrets](./block-secrets/policy.md) | ingress   | Deny send-message calls whose body looks like an API key, password, token, or private key. |
 
 ## Tool naming on the DTwo gateway
 
@@ -20,7 +20,7 @@ These policies do not require any specific IdP claims. If you want to add identi
 
 To add a Slack policy:
 
-1. Create `apps/slack/<policy-slug>/` with `policy.md`, `README.md`, and optional `tests/` sample inputs.
+1. Create `apps/slack/<policy-slug>/` with `policy.md` and optional `tests/` sample inputs.
 2. Add a row to the table above.
 3. Declare `apps: ["slack"]` in the policy frontmatter, plus any industry / bundle slugs that apply.
 4. If the policy fits an industry or bundle (e.g. [`bundles/im-messaging`](../../bundles/im-messaging/README.md)), link to it from the matching landing page.

@@ -8,7 +8,7 @@ DTwo policies are [OPA/Rego](https://www.openpolicyagent.org/) rules that the DT
 
 The catalog is meant to be:
 
-- **Browsable** — a human can read a policy's README, understand what it does, and decide whether it fits.
+- **Browsable** — a human can read a policy's description, understand what it does, and decide whether it fits.
 - **Importable** — a DTwo gateway can fetch a policy directly from this repo (by path) and create a tenant-local draft from it.
 - **Composable** — policies are intentionally small and single-purpose. To build a comprehensive posture, attach several together (the gateway aggregates `allow`, `reasons`, and `transform` rules across attached policies).
 
@@ -22,7 +22,6 @@ apps/
     README.md                 # landing page listing policies for this app
     <policy>/
       policy.md               # metadata frontmatter plus the fenced Rego policy body
-      README.md               # what it does, direction, assumptions, examples
       tests/                  # optional sample inputs / expected outcomes
         allow.json
         deny.json
