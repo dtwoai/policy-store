@@ -4,9 +4,9 @@ A curated bundle of policies for instant-messaging MCP servers (Slack today; Mic
 
 ## Included policies
 
-| Policy | App | Direction | Purpose |
-|---|---|---|---|
-| [block-secrets](../../apps/slack/block-secrets/README.md) | slack | ingress | Deny Slack send-message calls whose body looks like a secret (API key, password, token, private key). |
+| Policy                                                    | App   | Direction | Purpose                                                                                               |
+| --------------------------------------------------------- | ----- | --------- | ----------------------------------------------------------------------------------------------------- |
+| [block-secrets](../../apps/slack/block-secrets/policy.md) | slack | ingress   | Deny Slack send-message calls whose body looks like a secret (API key, password, token, private key). |
 
 > Policy bodies live under [`apps/`](../../apps/). This page only links to them — see the top-level [README](../../README.md#where-policies-live) for the rationale.
 
