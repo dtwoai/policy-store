@@ -1,6 +1,31 @@
 {
   "policies": [
     {
+      "path": "apps/jira/redact-sensitive-info",
+      "name": "JIRA: Redact Sensitive Information from Issue Views",
+      "direction": "egress",
+      "publishedAt": "2026-06-15",
+      "apps": [
+        "jira"
+      ],
+      "industries": [],
+      "bundles": [
+        "atlassian"
+      ],
+      "tags": [
+        "jira",
+        "atlassian",
+        "pii",
+        "secrets",
+        "dlp",
+        "redaction",
+        "egress"
+      ],
+      "policyChecksum": "sha256:945085e97f36c83fd82b1f0f98e19a8f3aa20da8c5cfdaea859207aad6463a15",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
       "path": "apps/slack/block-secrets",
       "name": "Block Secrets in Slack Messages",
       "direction": "ingress",
@@ -24,10 +49,12 @@
     }
   ],
   "apps": {
+    "jira": "apps/jira",
     "slack": "apps/slack"
   },
   "industries": {},
   "bundles": {
+    "atlassian": "bundles/atlassian",
     "im-messaging": "bundles/im-messaging"
   }
 }
