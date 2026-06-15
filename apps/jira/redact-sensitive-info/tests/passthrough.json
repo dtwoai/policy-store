@@ -1,0 +1,27 @@
+{
+  "description": "Egress response from a JIRA tool that is NOT an issue-view tool. Out of scope, so the policy applies no transform and the response is returned unchanged.",
+  "input": {
+    "action": "tool_post_invoke",
+    "kind": "tool_post_invoke",
+    "mode": "output",
+    "resource": {
+      "type": "tool",
+      "name": "atlassian-jira-mcp-getjiraproject",
+      "uri": null
+    },
+    "tool_metadata": {
+      "name": "atlassian-jira-mcp-getjiraproject"
+    },
+    "payload": {
+      "name": "atlassian-jira-mcp-getjiraproject",
+      "result": {
+        "key": "OPS",
+        "name": "Operations"
+      }
+    }
+  },
+  "expected": {
+    "allow": true,
+    "transformApplied": false
+  }
+}
