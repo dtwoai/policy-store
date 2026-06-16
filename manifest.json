@@ -92,6 +92,96 @@
       "policyChecksum": "sha256:c694c2624700c1dd750e33b4ba1171f03cca77009977871a01d5d7dd8a9d1d99",
       "schemaVersion": "1.0.0",
       "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/slack/deny-channel-creation",
+      "name": "Slack: Deny Channel Creation",
+      "direction": "ingress",
+      "publishedAt": "2026-06-16",
+      "apps": [
+        "slack"
+      ],
+      "industries": [],
+      "bundles": [
+        "slack"
+      ],
+      "tags": [
+        "slack",
+        "access-control",
+        "governance",
+        "ingress"
+      ],
+      "policyChecksum": "sha256:613c04806d02f35c3cf0f7aa2d2223c5cc91504186e14d62332a1cb019b72f2b",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/slack/deny-direct-messages",
+      "name": "Slack: Deny Sending Direct Messages",
+      "direction": "ingress",
+      "publishedAt": "2026-06-16",
+      "apps": [
+        "slack"
+      ],
+      "industries": [],
+      "bundles": [
+        "slack"
+      ],
+      "tags": [
+        "slack",
+        "access-control",
+        "governance",
+        "ingress"
+      ],
+      "policyChecksum": "sha256:3bfcfdee14c1d8409123990b850b96ce507d93079e026b7c7d179b161c353910",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/slack/deny-read-search-summarize-sensitive-channels",
+      "name": "Slack: Deny Read/Search/Summarize of Sensitive Channels",
+      "direction": "ingress",
+      "publishedAt": "2026-06-16",
+      "apps": [
+        "slack"
+      ],
+      "industries": [],
+      "bundles": [
+        "slack"
+      ],
+      "tags": [
+        "slack",
+        "access-control",
+        "data-protection",
+        "ingress"
+      ],
+      "policyChecksum": "sha256:be0ecf31a6f6908191cd28f537364984fc5771a0c39a9990d141094155b8e47b",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/slack/redact-sensitive-info",
+      "name": "Slack: Redact Sensitive Information from Messages",
+      "direction": "ingress",
+      "publishedAt": "2026-06-16",
+      "apps": [
+        "slack"
+      ],
+      "industries": [],
+      "bundles": [
+        "slack"
+      ],
+      "tags": [
+        "slack",
+        "pii",
+        "secrets",
+        "dlp",
+        "redaction",
+        "ingress"
+      ],
+      "policyChecksum": "sha256:976bdeff0896b95f7de65af46091da56b58785028a747d64d87855b78ca72a60",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
     }
   ],
   "apps": {
@@ -101,6 +191,7 @@
   "industries": {},
   "bundles": {
     "atlassian": "bundles/atlassian",
-    "im-messaging": "bundles/im-messaging"
+    "im-messaging": "bundles/im-messaging",
+    "slack": "bundles/slack"
   }
 }
