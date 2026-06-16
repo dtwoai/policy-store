@@ -1,6 +1,52 @@
 {
   "policies": [
     {
+      "path": "apps/jira/deny-view-search-sensitive-projects",
+      "name": "JIRA: Deny Sensitive Project Search and View",
+      "direction": "ingress",
+      "publishedAt": "2026-06-16",
+      "apps": [
+        "jira"
+      ],
+      "industries": [],
+      "bundles": [
+        "atlassian"
+      ],
+      "tags": [
+        "jira",
+        "atlassian",
+        "access-control",
+        "data-protection",
+        "ingress"
+      ],
+      "policyChecksum": "sha256:3d14268530ccbaf2985ca1cfe913ded30b6f98f97c73ca8f362eb9dae8e207aa",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/jira/deny-write-sensitive-projects",
+      "name": "JIRA: Protect Sensitive Projects from Writes",
+      "direction": "ingress",
+      "publishedAt": "2026-06-16",
+      "apps": [
+        "jira"
+      ],
+      "industries": [],
+      "bundles": [
+        "atlassian"
+      ],
+      "tags": [
+        "jira",
+        "atlassian",
+        "access-control",
+        "data-protection",
+        "ingress"
+      ],
+      "policyChecksum": "sha256:4aa9ccaf2b1a21d2535ba07f2b472a4bde1a67dadcfe21aa25c7aab8a2845bf1",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
       "path": "apps/jira/redact-sensitive-info",
       "name": "JIRA: Redact Sensitive Information from Issue Views",
       "direction": "egress",

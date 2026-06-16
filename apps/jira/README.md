@@ -7,6 +7,8 @@ Reusable DTwo policies for Atlassian JIRA MCP servers (the Atlassian-hosted JIRA
 | Policy                                                       | Direction | Purpose                                                                                              |
 | ------------------------------------------------------------ | --------- | ---------------------------------------------------------------------------------------------------- |
 | [redact-sensitive-info](./redact-sensitive-info/policy.md)   | egress    | Redact PII, credentials, and secrets from JIRA issue-view responses (issues, JQL search, comments, worklogs, remote links). Transform-only — never denies. |
+| [deny-view-search-sensitive-projects](./deny-view-search-sensitive-projects/policy.md) | ingress | Deny direct views and explicit JQL searches of sensitive projects; silently filter generic searches to exclude them. |
+| [deny-write-sensitive-projects](./deny-write-sensitive-projects/policy.md) | ingress | Deny write operations (edit/transition/comment/create/move/link, etc.) on issues in sensitive projects. |
 
 ## Tool naming on the DTwo gateway
 
