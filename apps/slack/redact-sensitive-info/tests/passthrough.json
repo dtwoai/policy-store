@@ -1,0 +1,24 @@
+{
+  "description": "Slack post-message with a clean body (no sensitive patterns). Policy should allow and apply no transform.",
+  "input": {
+    "action": "tool_pre_invoke",
+    "kind": "tool_pre_invoke",
+    "mode": "input",
+    "resource": {
+      "type": "tool",
+      "name": "slack-mcp-slack-post-message",
+      "uri": null
+    },
+    "payload": {
+      "name": "slack-mcp-slack-post-message",
+      "args": {
+        "channel": "C0123456789",
+        "text": "lunch in 5"
+      }
+    }
+  },
+  "expected": {
+    "allow": true,
+    "transformApplied": false
+  }
+}
