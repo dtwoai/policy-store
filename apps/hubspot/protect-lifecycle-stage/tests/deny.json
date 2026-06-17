@@ -1,0 +1,33 @@
+{
+  "description": "Contact update sets lifecyclestage. Policy should deny with a reason.",
+  "input": {
+    "action": "tool_pre_invoke",
+    "kind": "tool_pre_invoke",
+    "mode": "input",
+    "resource": {
+      "type": "tool",
+      "name": "hubspot-manage-crm-objects",
+      "uri": null
+    },
+    "payload": {
+      "name": "hubspot-manage-crm-objects",
+      "args": {
+        "updateRequest": {
+          "objects": [
+            {
+              "objectType": "contacts",
+              "id": "12345",
+              "properties": {
+                "lifecyclestage": "customer"
+              }
+            }
+          ]
+        }
+      }
+    }
+  },
+  "expected": {
+    "allow": false,
+    "reasonContains": "Changing the lifecycle stage of a contact is not permitted"
+  }
+}
