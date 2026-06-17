@@ -1,0 +1,33 @@
+{
+  "description": "Deal update sets hubspot_owner_id (owner reassignment). Policy should deny with a reason.",
+  "input": {
+    "action": "tool_pre_invoke",
+    "kind": "tool_pre_invoke",
+    "mode": "input",
+    "resource": {
+      "type": "tool",
+      "name": "hubspot-manage-crm-objects",
+      "uri": null
+    },
+    "payload": {
+      "name": "hubspot-manage-crm-objects",
+      "args": {
+        "updateRequest": {
+          "objects": [
+            {
+              "objectType": "deals",
+              "id": "12345",
+              "properties": {
+                "hubspot_owner_id": "99887766"
+              }
+            }
+          ]
+        }
+      }
+    }
+  },
+  "expected": {
+    "allow": false,
+    "reasonContains": "Changing the owner of a deal is not permitted"
+  }
+}
