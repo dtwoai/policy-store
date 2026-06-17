@@ -1,0 +1,27 @@
+---
+import type { Policy } from '../lib/catalog';
+interface Props {
+  policy: Policy;
+  /** Heading level for the card title (default 3). */
+  level?: 2 | 3 | 4;
+}
+const { policy, level = 3 } = Astro.props;
+const Heading = `h${level}` as const;
+---
+
+<article class="policy-card">
+  <Heading>
+    <a href={`/policies/${policy.slug}`}>{policy.name}</a>
+  </Heading>
+  <p>{policy.summary}</p>
+  <p class="policy-card-meta">
+    <a href={`/apps/${policy.app}`}>{policy.app}</a>
+    · <span>{policy.direction}</span>
+    {policy.packageName && <> · <code>{policy.packageName}</code></>}
+  </p>
+  <p>
+    {policy.tags.map((t) => (
+      <a class="tag" href={`/tags/${t}`}>{t}</a>
+    ))}
+  </p>
+</article>

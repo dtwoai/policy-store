@@ -1,0 +1,42 @@
+---
+import Base from '../../layouts/Base.astro';
+import PolicyCard from '../../components/PolicyCard.astro';
+import { getTags, getPoliciesByTag } from '../../lib/catalog';
+
+export function getStaticPaths() {
+  return getTags().map(({ tag }) => ({ params: { tag }, props: { tag } }));
+}
+
+const { tag } = Astro.props as { tag: string };
+const policies = getPoliciesByTag(tag);
+const site = Astro.site!;
+const title = `Policies tagged "${tag}"`;
+const description = `${policies.length} DTwo ${policies.length === 1 ? 'policy' : 'policies'} tagged "${tag}".`;
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'CollectionPage',
+  name: title,
+  description,
+  url: new URL(`/tags/${tag}`, site).href,
+  mainEntity: {
+    '@type': 'ItemList',
+    itemListElement: policies.map((p, i) => ({
+      '@type': 'ListItem',
+      position: i + 1,
+      url: new URL(`/policies/${p.slug}`, site).href,
+      name: p.name,
+    })),
+  },
+};
+---
+
+<Base
+  title={title}
+  description={description}
+  jsonLd={jsonLd}
+  breadcrumbs={[{ name: 'Home', path: '/' }, { name: 'Tags', path: '/tags' }, { name: tag }]}
+>
+  <h1>{title}</h1>
+  {policies.map((p) => <PolicyCard policy={p} level={2} />)}
+</Base>

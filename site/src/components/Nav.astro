@@ -1,0 +1,33 @@
+---
+// Primary site navigation. Plain semantic <nav> + <ul>; the current section is
+// marked with aria-current for both a11y and as a styling hook.
+const path = Astro.url.pathname;
+const links = [
+  { href: '/', label: 'Home' },
+  { href: '/stories', label: 'Stories' },
+  { href: '/apps', label: 'Apps' },
+  { href: '/bundles', label: 'Bundles' },
+  { href: '/policies', label: 'Policies' },
+  { href: '/tags', label: 'Tags' },
+];
+function active(href: string): boolean {
+  if (href === '/') return path === '/';
+  return path === href || path.startsWith(href + '/');
+}
+---
+
+<header class="site">
+  <nav aria-label="Primary">
+    <ul>
+      {
+        links.map((l) => (
+          <li>
+            <a href={l.href} aria-current={active(l.href) ? 'page' : undefined}>
+              {l.label}
+            </a>
+          </li>
+        ))
+      }
+    </ul>
+  </nav>
+</header>

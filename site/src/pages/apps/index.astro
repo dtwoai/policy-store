@@ -1,0 +1,45 @@
+---
+import Base from '../../layouts/Base.astro';
+import { getApps } from '../../lib/catalog';
+
+const apps = getApps();
+const title = 'Policies by app';
+const description =
+  'Browse DTwo policies by the MCP server they protect — Slack, Jira, Salesforce, and HubSpot. Start here if you know which app you are governing.';
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'CollectionPage',
+  name: title,
+  description,
+  url: new URL('/apps', Astro.site!).href,
+  mainEntity: {
+    '@type': 'ItemList',
+    itemListElement: apps.map((a, i) => ({
+      '@type': 'ListItem',
+      position: i + 1,
+      url: new URL(`/apps/${a.slug}`, Astro.site!).href,
+      name: a.title,
+    })),
+  },
+};
+---
+
+<Base
+  title={title}
+  description={description}
+  jsonLd={jsonLd}
+  breadcrumbs={[{ name: 'Home', path: '/' }, { name: 'Apps' }]}
+>
+  <h1>{title}</h1>
+  <p>{description}</p>
+  <ul>
+    {
+      apps.map((a) => (
+        <li>
+          <a href={`/apps/${a.slug}`}>{a.title}</a> — {a.policies.length} policies
+        </li>
+      ))
+    }
+  </ul>
+</Base>

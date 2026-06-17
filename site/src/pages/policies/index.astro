@@ -1,0 +1,65 @@
+---
+import Base from '../../layouts/Base.astro';
+import { getPolicies } from '../../lib/catalog';
+
+const policies = getPolicies();
+const site = Astro.site!;
+const title = 'All policies';
+const description = `Every policy in the DTwo Policy Store — ${policies.length} reviewed OPA/Rego policies for governing MCP tool calls, browsable by app, direction, and tag.`;
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'CollectionPage',
+  name: title,
+  description,
+  url: new URL('/policies', site).href,
+  mainEntity: {
+    '@type': 'ItemList',
+    numberOfItems: policies.length,
+    itemListElement: policies.map((p, i) => ({
+      '@type': 'ListItem',
+      position: i + 1,
+      url: new URL(`/policies/${p.slug}`, site).href,
+      name: p.name,
+    })),
+  },
+};
+---
+
+<Base
+  title={title}
+  description={description}
+  jsonLd={jsonLd}
+  breadcrumbs={[{ name: 'Home', path: '/' }, { name: 'Policies' }]}
+>
+  <h1>{title}</h1>
+  <p>{description}</p>
+  <table>
+    <thead>
+      <tr>
+        <th>Policy</th>
+        <th>App</th>
+        <th>Direction</th>
+        <th>Bundles</th>
+        <th>Purpose</th>
+      </tr>
+    </thead>
+    <tbody>
+      {
+        policies.map((p) => (
+          <tr>
+            <td><a href={`/policies/${p.slug}`}>{p.name}</a></td>
+            <td><a href={`/apps/${p.app}`}>{p.app}</a></td>
+            <td>{p.direction}</td>
+            <td>
+              {p.bundles.map((b) => (
+                <a href={`/bundles/${b}`}>{b}</a>
+              ))}
+            </td>
+            <td>{p.summary}</td>
+          </tr>
+        ))
+      }
+    </tbody>
+  </table>
+</Base>

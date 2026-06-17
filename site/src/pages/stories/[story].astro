@@ -1,0 +1,69 @@
+---
+import { marked } from 'marked';
+import Base from '../../layouts/Base.astro';
+import PolicyCard from '../../components/PolicyCard.astro';
+import { stories, type Story } from '../../data/stories';
+import { getPolicyBySlug } from '../../lib/catalog';
+
+export function getStaticPaths() {
+  return stories.map((story) => ({ params: { story: story.slug }, props: { story } }));
+}
+
+const { story } = Astro.props as { story: Story };
+
+// Resolve referenced policies — fail the build loudly on a bad reference so a
+// renamed/removed catalog entry can never produce a dangling story.
+const policies = story.policySlugs.map((slug) => {
+  const p = getPolicyBySlug(slug);
+  if (!p) throw new Error(`Story "${story.slug}" references unknown policy "${slug}"`);
+  return p;
+});
+
+const bodyHtml = marked.parse(story.body, { async: false }) as string;
+const site = Astro.site!;
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'Article',
+  headline: story.title,
+  description: story.dek,
+  url: new URL(`/stories/${story.slug}`, site).href,
+  audience: { '@type': 'Audience', audienceType: story.persona },
+  about: policies.map((p) => ({
+    '@type': 'SoftwareSourceCode',
+    name: p.name,
+    url: new URL(`/policies/${p.slug}`, site).href,
+  })),
+  publisher: { '@type': 'Organization', name: 'DTwo', url: 'https://dtwo.ai' },
+};
+---
+
+<Base
+  title={story.title}
+  description={story.dek}
+  ogType="article"
+  jsonLd={jsonLd}
+  breadcrumbs={[{ name: 'Home', path: '/' }, { name: 'Stories', path: '/stories' }, { name: story.title }]}
+>
+  <article>
+    <h1>{story.title}</h1>
+    <p><strong>{story.dek}</strong></p>
+    <p><small>For: {story.persona}</small></p>
+
+    <Fragment set:html={bodyHtml} />
+
+    <section aria-labelledby="policies-h">
+      <h2 id="policies-h">Policies in this guide</h2>
+      {policies.map((p) => <PolicyCard policy={p} level={3} />)}
+    </section>
+
+    <footer>
+      {story.related?.bundle && (
+        <p>See the full <a href={`/bundles/${story.related.bundle}`}>{story.related.bundle} bundle</a>.</p>
+      )}
+      {story.related?.app && (
+        <p>All <a href={`/apps/${story.related.app}`}>{story.related.app} policies</a>.</p>
+      )}
+    </footer>
+  </article>
+</Base>

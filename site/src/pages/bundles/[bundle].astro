@@ -1,0 +1,50 @@
+---
+import Base from '../../layouts/Base.astro';
+import PolicyCard from '../../components/PolicyCard.astro';
+import { getBundles, type BundlePage } from '../../lib/catalog';
+
+export function getStaticPaths() {
+  return getBundles().map((bundle) => ({ params: { bundle: bundle.slug }, props: { bundle } }));
+}
+
+const { bundle } = Astro.props as { bundle: BundlePage };
+const site = Astro.site!;
+const description = `The ${bundle.title} bundle: ${bundle.policies.length} DTwo policies that compose into a sensible default posture for this use case.`;
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'CollectionPage',
+  name: `${bundle.title} bundle`,
+  description,
+  url: new URL(`/bundles/${bundle.slug}`, site).href,
+  mainEntity: {
+    '@type': 'ItemList',
+    itemListElement: bundle.policies.map((p, i) => ({
+      '@type': 'ListItem',
+      position: i + 1,
+      url: new URL(`/policies/${p.slug}`, site).href,
+      name: p.name,
+    })),
+  },
+};
+---
+
+<Base
+  title={`${bundle.title} bundle`}
+  description={description}
+  jsonLd={jsonLd}
+  breadcrumbs={[{ name: 'Home', path: '/' }, { name: 'Bundles', path: '/bundles' }, { name: bundle.title }]}
+>
+  <h1>{bundle.title} bundle</h1>
+
+  <section aria-labelledby="catalog-h">
+    <h2 id="catalog-h">Included policies ({bundle.policies.length})</h2>
+    {bundle.policies.map((p) => <PolicyCard policy={p} level={3} />)}
+  </section>
+
+  <section aria-labelledby="readme-h">
+    <h2 id="readme-h">About this bundle</h2>
+    <!-- Rendered from the catalog's bundles/<bundle>/README.md -->
+    <Fragment set:html={bundle.readmeHtml} />
+  </section>
+</Base>

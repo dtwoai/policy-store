@@ -1,0 +1,117 @@
+---
+import Base from '../layouts/Base.astro';
+import { getPolicies, getApps, getBundles } from '../lib/catalog';
+import { stories } from '../data/stories';
+
+const policies = getPolicies();
+const apps = getApps();
+const bundles = getBundles();
+const site = Astro.site!;
+
+const title = 'DTwo Policy Store';
+const description =
+  'A curated catalog of reusable OPA/Rego policies for governing MCP tool calls — block, deny, redact, and rewrite the requests AI agents make to Slack, Jira, Salesforce, HubSpot and more.';
+
+const jsonLd = [
+  {
+    '@context': 'https://schema.org',
+    '@type': 'WebSite',
+    name: title,
+    url: site.href,
+    description,
+    publisher: { '@type': 'Organization', name: 'DTwo', url: 'https://dtwo.ai' },
+  },
+  {
+    '@context': 'https://schema.org',
+    '@type': 'CollectionPage',
+    name: title,
+    description,
+    url: site.href,
+    isPartOf: { '@type': 'WebSite', name: title, url: site.href },
+    mainEntity: {
+      '@type': 'ItemList',
+      name: 'Policy guides',
+      itemListElement: stories.map((s, i) => ({
+        '@type': 'ListItem',
+        position: i + 1,
+        url: new URL(`/stories/${s.slug}`, site).href,
+        name: s.title,
+      })),
+    },
+  },
+];
+---
+
+<Base title={title} description={description} jsonLd={jsonLd}>
+  <h1>DTwo Policy Store</h1>
+  <p>
+    When you put an AI agent in front of Slack, Jira, or your CRM, you hand it
+    real tools with real side effects. The DTwo MCP Gateway evaluates an
+    <strong>OPA/Rego policy</strong> on every tool call — to <em>allow</em>,
+    <em>deny</em>, <em>redact</em>, or <em>rewrite</em> the request or response.
+    This is the catalog of reviewed, reusable policies you can attach to do
+    exactly that.
+  </p>
+  <p>
+    {policies.length} policies across {apps.length} apps and {bundles.length} bundles.
+    Each one is small and single-purpose, so you compose a posture by attaching
+    several together. Start with a <a href="/stories">story</a> if you have a
+    problem in mind, or <a href="/policies">browse every policy</a> if you know
+    what you're looking for.
+  </p>
+
+  <section aria-labelledby="stories-h">
+    <h2 id="stories-h">Start with a story</h2>
+    <p>Each guide walks a real problem to the policies that solve it.</p>
+    <ul>
+      {
+        stories.map((s) => (
+          <li>
+            <a href={`/stories/${s.slug}`}>{s.title}</a> — {s.dek}
+          </li>
+        ))
+      }
+    </ul>
+  </section>
+
+  <section aria-labelledby="apps-h">
+    <h2 id="apps-h">Browse by app</h2>
+    <p>Start here if you know which MCP server you're protecting.</p>
+    <ul>
+      {
+        apps.map((a) => (
+          <li>
+            <a href={`/apps/${a.slug}`}>{a.title}</a> — {a.policies.length} policies
+          </li>
+        ))
+      }
+    </ul>
+  </section>
+
+  <section aria-labelledby="bundles-h">
+    <h2 id="bundles-h">Browse by bundle</h2>
+    <p>Themed packs that compose cleanly on the same pipeline.</p>
+    <ul>
+      {
+        bundles.map((b) => (
+          <li>
+            <a href={`/bundles/${b.slug}`}>{b.title}</a> — {b.policies.length} policies
+          </li>
+        ))
+      }
+    </ul>
+  </section>
+
+  <section aria-labelledby="machine-h">
+    <h2 id="machine-h">For machines</h2>
+    <p>
+      This catalog is built to be read by agents as well as people:
+      <a href="/llms.txt">/llms.txt</a> (index),
+      <a href="/llms-full.txt">/llms-full.txt</a> (every policy inline), and
+      <a href="/catalog.json">/catalog.json</a> (structured). The canonical
+      source of truth is the
+      <a href="https://github.com/dtwoai/dtwo-policy-store">dtwo-policy-store</a>
+      repository.
+    </p>
+  </section>
+</Base>

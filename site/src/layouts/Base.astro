@@ -1,0 +1,120 @@
+---
+import '../styles/global.css';
+import Nav from '../components/Nav.astro';
+import { repoLinks } from '../lib/catalog';
+
+export interface Crumb {
+  name: string;
+  /** Site-absolute path. Omit on the current (last) item. */
+  path?: string;
+}
+
+interface Props {
+  title: string;
+  description: string;
+  /** Site-absolute canonical path. Defaults to the current pathname. */
+  canonical?: string;
+  ogType?: 'website' | 'article';
+  /** ISO date for article:published_time. */
+  publishedTime?: string;
+  /** Visible breadcrumbs; also emitted as BreadcrumbList JSON-LD. */
+  breadcrumbs?: Crumb[];
+  /** Extra JSON-LD object(s) for this page. */
+  jsonLd?: object | object[];
+}
+
+const {
+  title,
+  description,
+  canonical,
+  ogType = 'website',
+  publishedTime,
+  breadcrumbs = [],
+  jsonLd,
+} = Astro.props;
+
+const SITE_NAME = 'DTwo Policy Store';
+const site = Astro.site ?? new URL('https://policies.dtwo.ai');
+const canonicalUrl = new URL(canonical ?? Astro.url.pathname, site).href;
+const fullTitle = title === SITE_NAME ? title : `${title} — ${SITE_NAME}`;
+
+// Build BreadcrumbList structured data from the same crumbs we render visibly.
+const breadcrumbJsonLd =
+  breadcrumbs.length > 1
+    ? {
+        '@context': 'https://schema.org',
+        '@type': 'BreadcrumbList',
+        itemListElement: breadcrumbs.map((c, i) => ({
+          '@type': 'ListItem',
+          position: i + 1,
+          name: c.name,
+          ...(c.path ? { item: new URL(c.path, site).href } : {}),
+        })),
+      }
+    : null;
+
+const extra = jsonLd ? (Array.isArray(jsonLd) ? jsonLd : [jsonLd]) : [];
+const allJsonLd = [breadcrumbJsonLd, ...extra].filter(Boolean);
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{fullTitle}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonicalUrl} />
+    <meta name="generator" content={Astro.generator} />
+
+    <!-- OpenGraph -->
+    <meta property="og:site_name" content={SITE_NAME} />
+    <meta property="og:type" content={ogType} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonicalUrl} />
+    {publishedTime && <meta property="article:published_time" content={publishedTime} />}
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+
+    <!-- Agentic discovery: point machines at the structured + full-text indexes -->
+    <link rel="alternate" type="text/markdown" href={new URL('/llms.txt', site).href} title="llms.txt" />
+    <link rel="alternate" type="application/json" href={new URL('/catalog.json', site).href} title="Machine-readable catalog" />
+
+    {allJsonLd.map((obj) => (
+      <script type="application/ld+json" set:html={JSON.stringify(obj)} />
+    ))}
+  </head>
+  <body>
+    <Nav />
+    <main class="page">
+      {
+        breadcrumbs.length > 0 && (
+          <nav class="breadcrumbs" aria-label="Breadcrumb">
+            <ol>
+              {breadcrumbs.map((c) => (
+                <li>{c.path ? <a href={c.path}>{c.name}</a> : <span aria-current="page">{c.name}</span>}</li>
+              ))}
+            </ol>
+          </nav>
+        )
+      }
+      <slot />
+    </main>
+    <footer class="site">
+      <p>
+        <strong>{SITE_NAME}</strong> — a discovery layer over the
+        <a href={repoLinks.repo}>dtwo-policy-store</a> catalog.
+      </p>
+      <p>
+        Machine-readable: <a href="/llms.txt">/llms.txt</a> ·
+        <a href="/llms-full.txt">/llms-full.txt</a> ·
+        <a href="/catalog.json">/catalog.json</a> ·
+        <a href="/sitemap-index.xml">/sitemap-index.xml</a>
+      </p>
+    </footer>
+  </body>
+</html>

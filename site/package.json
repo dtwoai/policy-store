@@ -1,0 +1,22 @@
+{
+  "name": "dtwo-policy-store-site",
+  "type": "module",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Discovery + narrative site for the DTwo Policy Store catalog. Optimized for SEO and agentic search.",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "check": "astro check"
+  },
+  "dependencies": {
+    "@astrojs/sitemap": "^3.2.1",
+    "astro": "^5.6.1",
+    "gray-matter": "^4.0.3",
+    "marked": "^15.0.7"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.3"
+  }
+}

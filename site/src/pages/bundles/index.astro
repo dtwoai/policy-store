@@ -1,0 +1,45 @@
+---
+import Base from '../../layouts/Base.astro';
+import { getBundles } from '../../lib/catalog';
+
+const bundles = getBundles();
+const title = 'Policy bundles';
+const description =
+  'Themed packs of DTwo policies that compose cleanly on the same gateway pipeline — CRM, Atlassian, IM messaging, and Slack hygiene.';
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'CollectionPage',
+  name: title,
+  description,
+  url: new URL('/bundles', Astro.site!).href,
+  mainEntity: {
+    '@type': 'ItemList',
+    itemListElement: bundles.map((b, i) => ({
+      '@type': 'ListItem',
+      position: i + 1,
+      url: new URL(`/bundles/${b.slug}`, Astro.site!).href,
+      name: b.title,
+    })),
+  },
+};
+---
+
+<Base
+  title={title}
+  description={description}
+  jsonLd={jsonLd}
+  breadcrumbs={[{ name: 'Home', path: '/' }, { name: 'Bundles' }]}
+>
+  <h1>{title}</h1>
+  <p>{description}</p>
+  <ul>
+    {
+      bundles.map((b) => (
+        <li>
+          <a href={`/bundles/${b.slug}`}>{b.title}</a> — {b.policies.length} policies
+        </li>
+      ))
+    }
+  </ul>
+</Base>

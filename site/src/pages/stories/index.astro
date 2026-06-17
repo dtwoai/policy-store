@@ -1,0 +1,46 @@
+---
+import Base from '../../layouts/Base.astro';
+import { stories } from '../../data/stories';
+
+const title = 'Policy stories';
+const description =
+  'Problem-first guides to governing AI agents: each story walks a real risk — leaked secrets, CRM PII, runaway writes — to the DTwo policies that solve it.';
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'CollectionPage',
+  name: title,
+  description,
+  url: new URL('/stories', Astro.site!).href,
+  mainEntity: {
+    '@type': 'ItemList',
+    itemListElement: stories.map((s, i) => ({
+      '@type': 'ListItem',
+      position: i + 1,
+      url: new URL(`/stories/${s.slug}`, Astro.site!).href,
+      name: s.title,
+    })),
+  },
+};
+---
+
+<Base
+  title={title}
+  description={description}
+  jsonLd={jsonLd}
+  breadcrumbs={[{ name: 'Home', path: '/' }, { name: 'Stories' }]}
+>
+  <h1>{title}</h1>
+  <p>{description}</p>
+  <ul>
+    {
+      stories.map((s) => (
+        <li>
+          <h2><a href={`/stories/${s.slug}`}>{s.title}</a></h2>
+          <p>{s.dek}</p>
+          <p><small>For: {s.persona}</small></p>
+        </li>
+      ))
+    }
+  </ul>
+</Base>

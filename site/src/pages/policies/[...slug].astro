@@ -1,0 +1,113 @@
+---
+import Base from '../../layouts/Base.astro';
+import PolicyCard from '../../components/PolicyCard.astro';
+import { getPolicies, getPolicyBySlug, type Policy } from '../../lib/catalog';
+import { stories } from '../../data/stories';
+
+export function getStaticPaths() {
+  return getPolicies().map((p) => ({ params: { slug: p.slug }, props: { policy: p } }));
+}
+
+const { policy } = Astro.props as { policy: Policy };
+const site = Astro.site!;
+
+// Related = shares an app or a bundle, excluding self.
+const related = getPolicies()
+  .filter(
+    (p) =>
+      p.slug !== policy.slug &&
+      (p.apps.some((a) => policy.apps.includes(a)) || p.bundles.some((b) => policy.bundles.includes(b))),
+  )
+  .slice(0, 6);
+
+const inStories = stories.filter((s) => s.policySlugs.includes(policy.slug));
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'SoftwareSourceCode',
+  name: policy.name,
+  description: policy.summary,
+  url: new URL(`/policies/${policy.slug}`, site).href,
+  programmingLanguage: 'Rego',
+  codeRepository: policy.links.github,
+  dateCreated: policy.publishedAt,
+  datePublished: policy.publishedAt,
+  keywords: policy.tags.join(', '),
+  isAccessibleForFree: true,
+  license: 'https://opensource.org/licenses/MIT',
+  publisher: { '@type': 'Organization', name: 'DTwo', url: 'https://dtwo.ai' },
+};
+---
+
+<Base
+  title={policy.name}
+  description={policy.summary}
+  ogType="article"
+  publishedTime={policy.publishedAt}
+  jsonLd={jsonLd}
+  breadcrumbs={[
+    { name: 'Home', path: '/' },
+    { name: 'Apps', path: '/apps' },
+    { name: policy.app, path: `/apps/${policy.app}` },
+    { name: policy.name },
+  ]}
+>
+  <article>
+    <h1>{policy.name}</h1>
+    <p><strong>{policy.summary}</strong></p>
+
+    <dl>
+      <dt>Direction</dt><dd>{policy.direction}</dd>
+      {policy.packageName && (<><dt>Rego package</dt><dd><code>{policy.packageName}</code></dd></>)}
+      <dt>App{policy.apps.length > 1 ? 's' : ''}</dt>
+      <dd>{policy.apps.map((a) => <a href={`/apps/${a}`}>{a}</a>)}</dd>
+      {policy.bundles.length > 0 && (
+        <><dt>Bundle{policy.bundles.length > 1 ? 's' : ''}</dt>
+        <dd>{policy.bundles.map((b) => <a href={`/bundles/${b}`}>{b}</a>)}</dd></>
+      )}
+      <dt>Published</dt><dd><time datetime={policy.publishedAt}>{policy.publishedAt}</time></dd>
+      {policy.minimumGatewayVersion && (<><dt>Minimum gateway</dt><dd>{policy.minimumGatewayVersion}</dd></>)}
+      <dt>Schema version</dt><dd>{policy.schemaVersion}</dd>
+      <dt>Checksum</dt><dd><code>{policy.policyChecksum}</code></dd>
+    </dl>
+
+    <p>
+      {policy.tags.map((t) => <a class="tag" href={`/tags/${t}`}>{t}</a>)}
+    </p>
+
+    <!-- Full description rendered from the policy's policy.md frontmatter -->
+    <section aria-labelledby="about-h">
+      <h2 id="about-h">What this policy does</h2>
+      <Fragment set:html={policy.descriptionHtml} />
+    </section>
+
+    <section aria-labelledby="rego-h">
+      <h2 id="rego-h">Policy source (Rego)</h2>
+      <pre><code class="language-rego">{policy.rego}</code></pre>
+      <p>
+        Canonical source:
+        <a href={policy.links.github}>policy.md on GitHub</a> ·
+        <a href={policy.links.raw}>raw</a> ·
+        <a href={`/policies/${policy.slug}.md`}>raw on this site (.md)</a>
+      </p>
+    </section>
+
+    {inStories.length > 0 && (
+      <section aria-labelledby="stories-h">
+        <h2 id="stories-h">Used in these guides</h2>
+        <ul>
+          {inStories.map((s) => (
+            <li><a href={`/stories/${s.slug}`}>{s.title}</a></li>
+          ))}
+        </ul>
+      </section>
+    )}
+
+    {related.length > 0 && (
+      <section aria-labelledby="related-h">
+        <h2 id="related-h">Related policies</h2>
+        {related.map((p) => <PolicyCard policy={p} level={3} />)}
+      </section>
+    )}
+  </article>
+</Base>

@@ -1,0 +1,53 @@
+---
+import Base from '../../layouts/Base.astro';
+import PolicyCard from '../../components/PolicyCard.astro';
+import { getApps, type AppPage } from '../../lib/catalog';
+
+export function getStaticPaths() {
+  return getApps().map((app) => ({ params: { app: app.slug }, props: { app } }));
+}
+
+const { app } = Astro.props as { app: AppPage };
+const site = Astro.site!;
+const description = `DTwo policies for ${app.title} MCP servers: ${app.policies
+  .map((p) => p.name)
+  .slice(0, 4)
+  .join(', ')}${app.policies.length > 4 ? ', and more' : ''}.`;
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'CollectionPage',
+  name: `${app.title} policies`,
+  description,
+  url: new URL(`/apps/${app.slug}`, site).href,
+  mainEntity: {
+    '@type': 'ItemList',
+    itemListElement: app.policies.map((p, i) => ({
+      '@type': 'ListItem',
+      position: i + 1,
+      url: new URL(`/policies/${p.slug}`, site).href,
+      name: p.name,
+    })),
+  },
+};
+---
+
+<Base
+  title={`${app.title} policies`}
+  description={description}
+  jsonLd={jsonLd}
+  breadcrumbs={[{ name: 'Home', path: '/' }, { name: 'Apps', path: '/apps' }, { name: app.title }]}
+>
+  <h1>{app.title} policies</h1>
+
+  <section aria-labelledby="catalog-h">
+    <h2 id="catalog-h">Policies ({app.policies.length})</h2>
+    {app.policies.map((p) => <PolicyCard policy={p} level={3} />)}
+  </section>
+
+  <section aria-labelledby="readme-h">
+    <h2 id="readme-h">About these policies</h2>
+    <!-- Rendered from the catalog's apps/<app>/README.md -->
+    <Fragment set:html={app.readmeHtml} />
+  </section>
+</Base>

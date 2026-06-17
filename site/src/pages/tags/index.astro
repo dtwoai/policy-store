@@ -1,0 +1,34 @@
+---
+import Base from '../../layouts/Base.astro';
+import { getTags } from '../../lib/catalog';
+
+const tags = getTags();
+const title = 'Policy tags';
+const description =
+  'Browse DTwo policies by tag — access-control, dlp, pii, secrets, redaction, governance, ingress, egress, and the apps they cover.';
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'CollectionPage',
+  name: title,
+  description,
+  url: new URL('/tags', Astro.site!).href,
+};
+---
+
+<Base
+  title={title}
+  description={description}
+  jsonLd={jsonLd}
+  breadcrumbs={[{ name: 'Home', path: '/' }, { name: 'Tags' }]}
+>
+  <h1>{title}</h1>
+  <p>{description}</p>
+  <p>
+    {
+      tags.map(({ tag, count }) => (
+        <a class="tag" href={`/tags/${tag}`}>{tag} ({count})</a>
+      ))
+    }
+  </p>
+</Base>
