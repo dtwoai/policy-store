@@ -1,0 +1,24 @@
+{
+  "description": "Call to a Salesforce write tool (createsobjectrecord). Policy should deny with a reason.",
+  "input": {
+    "action": "tool_pre_invoke",
+    "kind": "tool_pre_invoke",
+    "mode": "input",
+    "resource": {
+      "type": "tool",
+      "name": "salesforce-createsobjectrecord",
+      "uri": null
+    },
+    "payload": {
+      "name": "salesforce-createsobjectrecord",
+      "args": {
+        "sobject-name": "Account",
+        "body": { "Name": "Acme" }
+      }
+    }
+  },
+  "expected": {
+    "allow": false,
+    "reasonContains": "write operations (create/modify) are blocked"
+  }
+}

@@ -1,6 +1,6 @@
 # CRM bundle
 
-A curated bundle of policies for CRM MCP servers. The goal is a sensible default posture for any organization fronting a CRM through the DTwo gateway: keep high-impact CRM writes (like closing deals or reassigning records) under control and keep customer PII from leaking out, while leaving everyday CRM work unaffected. Today the bundle covers HubSpot; equivalents for other CRM apps can be added under the same theme.
+A curated bundle of policies for CRM MCP servers. The goal is a sensible default posture for any organization fronting a CRM through the DTwo gateway: keep high-impact CRM writes (like closing deals or reassigning records) under control and keep customer PII from leaking out, while leaving everyday CRM work unaffected. The bundle spans CRM apps — HubSpot and Salesforce today, with room for more under the same theme.
 
 ## Included policies
 
@@ -12,6 +12,10 @@ A curated bundle of policies for CRM MCP servers. The goal is a sensible default
 | [protect-lifecycle-stage](../../apps/hubspot/protect-lifecycle-stage/policy.md) | hubspot | ingress   | Deny contact create/update calls that set or change `lifecyclestage`; all other calls pass through. |
 | [read-only](../../apps/hubspot/read-only/policy.md)                          | hubspot | ingress   | Block all HubSpot writes (the `*-manage-crm-objects` tool); read/search/list tools pass through. |
 | [redact-pii](../../apps/hubspot/redact-pii/policy.md)                        | hubspot | egress    | Redact contact PII (phone, email, fax, SSN) from HubSpot tool responses. Transform-only — never denies. |
+| [protect-contact-fields](../../apps/salesforce/protect-contact-fields/policy.md) | salesforce | ingress   | Deny Salesforce Contact updates that modify protected fields (ownership, account linkage, PII, name, consent flags); other field updates and tools pass through. |
+| [query-allowlist](../../apps/salesforce/query-allowlist/policy.md)           | salesforce | ingress   | Restrict Salesforce SOQL queries to Account, Contact, and Opportunity objects; other tools pass through. |
+| [read-only](../../apps/salesforce/read-only/policy.md)                       | salesforce | ingress   | Allowlist Salesforce read tools and deny all writes (fail-closed); non-Salesforce tools pass through. |
+| [redact-pii](../../apps/salesforce/redact-pii/policy.md)                     | salesforce | egress    | Redact contact PII (email, phone, fax, mailing address, birthdate, SSN, card numbers) from Salesforce responses. Transform-only — never denies. |
 
 > Policy bodies live under [`apps/`](../../apps/). This page only links to them — see the top-level [README](../../README.md#where-policies-live) for the rationale.
 
@@ -23,7 +27,7 @@ The bundle's ingress policies are designed to compose cleanly on the same pipeli
 
 `read-only` is the broad-strokes alternative: it blocks the entire `*-manage-crm-objects` write tool, which supersedes all four narrow deny policies above (they each gate a subset of the same tool). Pick `read-only` when you want a fully read-only connection, or the narrow policies when you want to allow most writes but block specific high-impact ones — combining both is redundant but harmless.
 
-`redact-pii` is the bundle's only **egress** policy — it attaches to the egress (response) pipeline rather than ingress, is transform-only (`default allow := true`), and is orthogonal to the ingress write controls above, so it composes cleanly alongside any of them.
+The two `redact-pii` policies (one for HubSpot, one for Salesforce) are the bundle's **egress** members — they attach to the egress (response) pipeline rather than ingress, are transform-only (`default allow := true`), and are orthogonal to the ingress write controls above, so they compose cleanly alongside any of them. Each is scoped to its own app, so they don't interfere with each other.
 
 ## What's intentionally not in the bundle
 

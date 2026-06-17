@@ -211,6 +211,99 @@
       "minimumGatewayVersion": "1.0.0b24"
     },
     {
+      "path": "apps/salesforce/protect-contact-fields",
+      "name": "Salesforce Protect Contact Fields",
+      "direction": "ingress",
+      "publishedAt": "2026-06-16",
+      "apps": [
+        "salesforce"
+      ],
+      "industries": [],
+      "bundles": [
+        "crm"
+      ],
+      "tags": [
+        "salesforce",
+        "contacts",
+        "pii",
+        "access-control",
+        "governance",
+        "ingress"
+      ],
+      "policyChecksum": "sha256:79693cf553dae7659bbe8832bab9932b5d07f693437d06c7433d396c3a5b053f",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/salesforce/query-allowlist",
+      "name": "Salesforce Query Allowlist",
+      "direction": "ingress",
+      "publishedAt": "2026-06-16",
+      "apps": [
+        "salesforce"
+      ],
+      "industries": [],
+      "bundles": [
+        "crm"
+      ],
+      "tags": [
+        "salesforce",
+        "access-control",
+        "data-protection",
+        "governance",
+        "ingress"
+      ],
+      "policyChecksum": "sha256:ff472238e1c75b0a9ecb1fd117ec46f104765f2b6c9b180755de142db1385c36",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/salesforce/read-only",
+      "name": "Salesforce Read-Only Access",
+      "direction": "ingress",
+      "publishedAt": "2026-06-16",
+      "apps": [
+        "salesforce"
+      ],
+      "industries": [],
+      "bundles": [
+        "crm"
+      ],
+      "tags": [
+        "salesforce",
+        "access-control",
+        "governance",
+        "read-only",
+        "ingress"
+      ],
+      "policyChecksum": "sha256:e66f0db4e835bc2684182230aea05bed5200658e4db8b81f27ffaa8134e5e696",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/salesforce/redact-pii",
+      "name": "Salesforce Redact PII",
+      "direction": "egress",
+      "publishedAt": "2026-06-16",
+      "apps": [
+        "salesforce"
+      ],
+      "industries": [],
+      "bundles": [
+        "crm"
+      ],
+      "tags": [
+        "salesforce",
+        "pii",
+        "dlp",
+        "redaction",
+        "egress"
+      ],
+      "policyChecksum": "sha256:d700be6a442140fe01b25e7f50b089f086007a6d92691ae19a54133261913a08",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
       "path": "apps/slack/block-secrets",
       "name": "Block Secrets in Slack Messages",
       "direction": "ingress",
@@ -326,6 +419,7 @@
   "apps": {
     "hubspot": "apps/hubspot",
     "jira": "apps/jira",
+    "salesforce": "apps/salesforce",
     "slack": "apps/slack"
   },
   "industries": {},
