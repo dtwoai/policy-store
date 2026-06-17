@@ -1,0 +1,22 @@
+{
+  "description": "SOQL query targeting an allowlisted object (Account). Policy should allow.",
+  "input": {
+    "action": "tool_pre_invoke",
+    "kind": "tool_pre_invoke",
+    "mode": "input",
+    "resource": {
+      "type": "tool",
+      "name": "salesforce-soqlquery",
+      "uri": null
+    },
+    "payload": {
+      "name": "salesforce-soqlquery",
+      "args": {
+        "q": "SELECT Id, Name FROM Account WHERE Industry = 'Tech'"
+      }
+    }
+  },
+  "expected": {
+    "allow": true
+  }
+}
