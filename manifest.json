@@ -20,25 +20,6 @@
         "ingress"
       ],
       "policyChecksum": "sha256:610b7a15cb9dfc53c0eef487b0bd786f47de31f4528493d2697b77913e50ea5e",
-      "path": "apps/jira/deny-view-search-sensitive-projects",
-      "name": "JIRA: Deny Sensitive Project Search and View",
-      "direction": "ingress",
-      "publishedAt": "2026-06-16",
-      "apps": [
-        "jira"
-      ],
-      "industries": [],
-      "bundles": [
-        "atlassian"
-      ],
-      "tags": [
-        "jira",
-        "atlassian",
-        "access-control",
-        "data-protection",
-        "ingress"
-      ],
-      "policyChecksum": "sha256:3d14268530ccbaf2985ca1cfe913ded30b6f98f97c73ca8f362eb9dae8e207aa",
       "schemaVersion": "1.0.0",
       "minimumGatewayVersion": "1.0.0b24"
     },
@@ -155,6 +136,33 @@
         "egress"
       ],
       "policyChecksum": "sha256:e3d625ade165040504699ef68968a4216ee16ebb5bce8626126c07dfaaef27e6",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/jira/deny-view-search-sensitive-projects",
+      "name": "JIRA: Deny Sensitive Project Search and View",
+      "direction": "ingress",
+      "publishedAt": "2026-06-16",
+      "apps": [
+        "jira"
+      ],
+      "industries": [],
+      "bundles": [
+        "atlassian"
+      ],
+      "tags": [
+        "jira",
+        "atlassian",
+        "access-control",
+        "data-protection",
+        "ingress"
+      ],
+      "policyChecksum": "sha256:3d14268530ccbaf2985ca1cfe913ded30b6f98f97c73ca8f362eb9dae8e207aa",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
       "path": "apps/jira/deny-write-sensitive-projects",
       "name": "JIRA: Protect Sensitive Projects from Writes",
       "direction": "ingress",
@@ -324,8 +332,6 @@
   "bundles": {
     "atlassian": "bundles/atlassian",
     "crm": "bundles/crm",
-    "hubspot": "bundles/hubspot",
-    "im-messaging": "bundles/im-messaging"
     "im-messaging": "bundles/im-messaging",
     "slack": "bundles/slack"
   }
