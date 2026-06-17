@@ -10,7 +10,7 @@
       ],
       "industries": [],
       "bundles": [
-        "hubspot"
+        "crm"
       ],
       "tags": [
         "hubspot",
@@ -33,7 +33,7 @@
       ],
       "industries": [],
       "bundles": [
-        "hubspot"
+        "crm"
       ],
       "tags": [
         "hubspot",
@@ -56,7 +56,7 @@
       ],
       "industries": [],
       "bundles": [
-        "hubspot"
+        "crm"
       ],
       "tags": [
         "hubspot",
@@ -79,7 +79,7 @@
       ],
       "industries": [],
       "bundles": [
-        "hubspot"
+        "crm"
       ],
       "tags": [
         "hubspot",
@@ -103,7 +103,7 @@
       ],
       "industries": [],
       "bundles": [
-        "hubspot"
+        "crm"
       ],
       "tags": [
         "hubspot",
@@ -126,7 +126,7 @@
       ],
       "industries": [],
       "bundles": [
-        "hubspot"
+        "crm"
       ],
       "tags": [
         "hubspot",
@@ -195,6 +195,7 @@
   "industries": {},
   "bundles": {
     "atlassian": "bundles/atlassian",
+    "crm": "bundles/crm",
     "hubspot": "bundles/hubspot",
     "im-messaging": "bundles/im-messaging"
   }

@@ -28,7 +28,7 @@ To add a HubSpot policy:
 1. Create `apps/hubspot/<policy-slug>/` with `policy.md` and optional `tests/` sample inputs.
 2. Add a row to the table above.
 3. Declare `apps: ["hubspot"]` in the policy frontmatter, plus any industry / bundle slugs that apply.
-4. If the policy fits an industry or bundle (e.g. [`bundles/hubspot`](../../bundles/hubspot/README.md)), link to it from the matching landing page.
+4. If the policy fits an industry or bundle (e.g. [`bundles/crm`](../../bundles/crm/README.md)), link to it from the matching landing page.
 5. Run `pnpm manifest` from the repo root.
 
 See [CONTRIBUTING.md](../../CONTRIBUTING.md) for the full process.
