@@ -1,0 +1,23 @@
+{
+  "description": "Edit on an issue in a non-sensitive project. Policy should allow.",
+  "input": {
+    "action": "tool_pre_invoke",
+    "kind": "tool_pre_invoke",
+    "mode": "input",
+    "resource": {
+      "type": "tool",
+      "name": "atlassian-jira-mcp-editjiraissue",
+      "uri": null
+    },
+    "payload": {
+      "name": "atlassian-jira-mcp-editjiraissue",
+      "args": {
+        "issueIdOrKey": "DEV-7",
+        "fields": { "summary": "updated summary" }
+      }
+    }
+  },
+  "expected": {
+    "allow": true
+  }
+}

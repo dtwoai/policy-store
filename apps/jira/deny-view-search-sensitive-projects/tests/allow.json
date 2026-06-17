@@ -1,0 +1,25 @@
+{
+  "description": "Generic JQL search with no sensitive-project reference. Policy should allow and silently rewrite the JQL to exclude sensitive projects.",
+  "input": {
+    "action": "tool_pre_invoke",
+    "kind": "tool_pre_invoke",
+    "mode": "input",
+    "resource": {
+      "type": "tool",
+      "name": "atlassian-jira-mcp-searchjiraissuesusingjql",
+      "uri": null
+    },
+    "payload": {
+      "name": "atlassian-jira-mcp-searchjiraissuesusingjql",
+      "args": {
+        "jql": "assignee = currentUser() ORDER BY created DESC"
+      }
+    }
+  },
+  "expected": {
+    "allow": true,
+    "transformedArgsContain": {
+      "jql": "project NOT IN (PROJA, PROJB) AND (assignee = currentUser()) ORDER BY created DESC"
+    }
+  }
+}

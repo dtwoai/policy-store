@@ -1,0 +1,24 @@
+{
+  "description": "Posting a message to a 1:1 DM channel (channel ID begins with D). Policy should deny with a reason.",
+  "input": {
+    "action": "tool_pre_invoke",
+    "kind": "tool_pre_invoke",
+    "mode": "input",
+    "resource": {
+      "type": "tool",
+      "name": "slack-mcp-slack-post-message",
+      "uri": null
+    },
+    "payload": {
+      "name": "slack-mcp-slack-post-message",
+      "args": {
+        "channel": "D0123456789",
+        "text": "hi"
+      }
+    }
+  },
+  "expected": {
+    "allow": false,
+    "reasonContains": "Sending direct messages via Slack is not permitted"
+  }
+}
