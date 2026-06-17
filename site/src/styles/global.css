@@ -1,91 +1,306 @@
 /*
- * Intentionally minimal. The brief was "unstyled, but with nav" — this is a
- * bare readability baseline (system font, a readable measure, sensible
- * spacing) and nothing more. Swap it for the DTwo design system later; no
- * page depends on class names, only on semantic HTML (header/nav/main/article).
+ * DTwo brand layer.
+ *
+ * Design tokens are lifted verbatim from the d2 hub's design system
+ * (@workspace/ui globals.css) — the same oklch palette, Figtree / JetBrains
+ * Mono type, and 0.625rem radius — so this catalog reads as part of the DTwo
+ * product. Fonts are loaded in the document <head>. Light + dark follow the
+ * OS preference, mirroring the hub's light/.dark token sets.
+ *
+ * Still deliberately lightweight: plain CSS, no framework, semantic HTML.
  */
 :root {
-  --measure: 70ch;
   color-scheme: light dark;
+
+  /* d2 light tokens */
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.141 0.005 285.823);
+  --card: oklch(0.98 0.007 247.446);
+  --muted-foreground: oklch(0.552 0.016 285.938);
+  --primary: oklch(0.4626 0.1229 247.446);
+  --primary-foreground: oklch(0.98 0.01 237);
+  --border: oklch(0.92 0.01 247.446);
+  --accent: oklch(0.96 0.028 247.446);
+  --d2-light-shade: oklch(0.716 0.112 230.3);
+  --d2-dark-shade: oklch(0.4626 0.1229 247.446);
+
+  --radius: 0.625rem;
+  --measure: 72ch;
+  --font-sans: 'Figtree Variable', 'Figtree', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* d2 .dark tokens */
+    --background: oklch(0.17 0.008 247.446);
+    --foreground: oklch(0.985 0 0);
+    --card: oklch(0.21 0.008 247.446);
+    --muted-foreground: oklch(0.705 0.015 286.067);
+    --primary: oklch(0.62 0.13 247.446);
+    --primary-foreground: oklch(0.985 0 0);
+    --border: oklch(0.92 0.01 247.446 / 14%);
+    --accent: oklch(0.27 0.04 247.446);
+    --d2-light-shade: oklch(0.78 0.11 230.3);
+  }
+}
+
+* {
+  box-sizing: border-box;
 }
 
 body {
-  font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  font-family: var(--font-sans);
   line-height: 1.6;
   margin: 0;
+  background: var(--background);
+  color: var(--foreground);
+  -webkit-font-smoothing: antialiased;
 }
 
 .page {
   max-width: var(--measure);
   margin-inline: auto;
-  padding: 1rem 1.25rem 4rem;
+  padding: 2rem 1.25rem 5rem;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-weight: 650;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+}
+
+h1 {
+  font-size: 2rem;
+  margin-block: 0.2em 0.4em;
+}
+
+a {
+  color: var(--primary);
+  text-underline-offset: 2px;
+  text-decoration-thickness: 1px;
+}
+
+a:hover {
+  text-decoration-color: var(--d2-light-shade);
+}
+
+hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 2rem 0;
+}
+
+/* ---- Header / brand bar ---- */
+header.site {
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in oklch, var(--card) 70%, var(--background));
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  backdrop-filter: saturate(1.4) blur(6px);
+}
+
+.site-bar {
+  max-width: var(--measure);
+  margin-inline: auto;
+  padding: 0.75rem 1.25rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1.5rem;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-weight: 750;
+  font-size: 1.05rem;
+  text-decoration: none;
+  color: var(--foreground);
+  letter-spacing: -0.02em;
+}
+
+.brand img {
+  height: 26px;
+  width: auto;
+  display: block;
+}
+
+.brand .brand-accent {
+  background: linear-gradient(100deg, var(--d2-light-shade), var(--d2-dark-shade));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 
 header.site nav ul {
   list-style: none;
   display: flex;
   flex-wrap: wrap;
-  gap: 1rem;
+  gap: 0.35rem;
   padding: 0;
   margin: 0;
 }
 
-header.site {
-  border-bottom: 1px solid;
-  margin-bottom: 1.5rem;
+header.site nav a {
+  display: inline-block;
+  padding: 0.3rem 0.7rem;
+  border-radius: calc(var(--radius) - 0.2rem);
+  color: var(--muted-foreground);
+  text-decoration: none;
+  font-weight: 550;
+  font-size: 0.95rem;
 }
 
+header.site nav a:hover {
+  background: var(--accent);
+  color: var(--foreground);
+}
+
+header.site nav a[aria-current='page'] {
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+
+/* ---- Breadcrumbs ---- */
 nav.breadcrumbs ol {
   list-style: none;
   display: flex;
   flex-wrap: wrap;
   gap: 0.4rem;
   padding: 0;
-  font-size: 0.9rem;
+  margin: 0 0 1rem;
+  font-size: 0.85rem;
+  color: var(--muted-foreground);
+}
+
+nav.breadcrumbs a {
+  color: var(--muted-foreground);
 }
 
 nav.breadcrumbs li:not(:last-child)::after {
   content: '/';
   margin-left: 0.4rem;
-  opacity: 0.5;
+  opacity: 0.4;
 }
 
+/* ---- Cards ---- */
+.policy-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem 1.25rem;
+  margin: 1rem 0;
+  background: var(--card);
+}
+
+.policy-card :is(h2, h3, h4) {
+  margin-top: 0;
+}
+
+.policy-card-meta {
+  color: var(--muted-foreground);
+  font-size: 0.9rem;
+}
+
+/* ---- Code ---- */
 pre {
   overflow-x: auto;
-  padding: 1rem;
-  border: 1px solid;
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card);
   font-size: 0.85rem;
+  line-height: 1.5;
 }
 
 code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
+  font-size: 0.9em;
 }
 
+:not(pre) > code {
+  background: var(--accent);
+  padding: 0.1rem 0.35rem;
+  border-radius: 0.3rem;
+}
+
+/* ---- Tables ---- */
 table {
   border-collapse: collapse;
   width: 100%;
+  font-size: 0.95rem;
 }
 
 th,
 td {
-  border: 1px solid;
-  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--border);
+  padding: 0.5rem 0.7rem;
   text-align: left;
   vertical-align: top;
 }
 
-footer.site {
-  margin-top: 3rem;
-  border-top: 1px solid;
-  padding-top: 1rem;
-  font-size: 0.9rem;
+thead th {
+  background: var(--card);
 }
 
+/* ---- Definition lists (policy metadata) ---- */
+dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.3rem 1rem;
+  font-size: 0.95rem;
+}
+
+dt {
+  font-weight: 600;
+  color: var(--muted-foreground);
+}
+
+dd {
+  margin: 0;
+}
+
+dd a {
+  margin-right: 0.4rem;
+}
+
+/* ---- Tags ---- */
 .tag {
   display: inline-block;
-  border: 1px solid;
-  padding: 0 0.4rem;
-  margin: 0 0.2rem 0.2rem 0;
+  border: 1px solid var(--border);
+  background: var(--accent);
+  color: var(--primary);
+  padding: 0.05rem 0.5rem;
+  margin: 0 0.25rem 0.3rem 0;
   font-size: 0.8rem;
-  border-radius: 3px;
+  font-weight: 550;
+  border-radius: 999px;
+  text-decoration: none;
+}
+
+.tag:hover {
+  border-color: var(--primary);
+}
+
+/* ---- Footer ---- */
+footer.site {
+  max-width: var(--measure);
+  margin: 4rem auto 0;
+  border-top: 1px solid var(--border);
+  padding: 1.25rem;
+  font-size: 0.9rem;
+  color: var(--muted-foreground);
+}
+
+footer.site a {
+  color: var(--muted-foreground);
+}
+
+small {
+  color: var(--muted-foreground);
 }

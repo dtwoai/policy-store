@@ -42,6 +42,8 @@ build:
 SITE_URL="https://dtwoai.github.io/dtwo-policy-store" pnpm build
 ```
 
-> Styling is intentionally minimal (`src/styles/global.css`) — semantic HTML
-> with a readability baseline and nothing more. No page depends on class names,
-> so a design system can be dropped in without touching content.
+> Styling is a light DTwo brand layer (`src/styles/global.css`): the design
+> tokens (oklch palette, Figtree / JetBrains Mono type, radius) are lifted from
+> the d2 hub's `@workspace/ui` so the catalog reads as part of the product, with
+> light/dark following the OS preference. It's still plain CSS over semantic
+> HTML — no framework — so it stays easy to replace or extend.
