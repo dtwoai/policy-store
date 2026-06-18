@@ -1,0 +1,41 @@
+name: Policy defect (correctness)
+description: Report a non-sensitive correctness bug in a catalog policy (false positive, false negative, doc mismatch).
+title: "[defect]: <policy path>"
+labels: ["defect"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this for ordinary correctness bugs. **If the defect is itself
+        sensitive** (e.g. a working evasion of a widely used policy), do **not**
+        file it here — report it privately per
+        [SECURITY.md](https://github.com/dtwoai/dtwo-policy-store/blob/main/SECURITY.md).
+  - type: input
+    id: policy
+    attributes:
+      label: Policy path
+      description: e.g. apps/slack/block-secrets/
+    validations:
+      required: true
+  - type: textarea
+    id: input
+    attributes:
+      label: Minimal PARC input
+      description: The input that demonstrates the problem.
+      render: json
+    validations:
+      required: true
+  - type: textarea
+    id: observed
+    attributes:
+      label: Observed vs. expected
+      description: The allow / reason / transform you got, and what you expected.
+    validations:
+      required: true
+  - type: input
+    id: opa
+    attributes:
+      label: OPA version
+      placeholder: "1.17.1"
+    validations:
+      required: false

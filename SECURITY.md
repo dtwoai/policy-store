@@ -20,8 +20,8 @@ Defects in the **catalog policies and tooling** published here, including:
   `apps/slack/block-secrets`).
 - **False positives / over-blocking** — a benign input a catalog policy
   wrongly denies or mangles.
-- **Incorrect or misleading policy documentation** — a policy README or tag
-  that overstates what the Rego actually enforces.
+- **Incorrect or misleading policy documentation** — a policy's `description`
+  or tag that overstates what the Rego actually enforces.
 - **Vulnerabilities in the repository tooling** — the manifest generator,
   CI workflows, or anything under `scripts/` and `.github/`.
 
@@ -75,4 +75,5 @@ These policies are reviewed by DTwo maintainers, but they are **starting
 points and examples, not warranties**. They compile and pass their own tests
 and a maintainer review, but you are responsible for validating that a policy
 meets your requirements before relying on it. See the repository README's trust
-model and each policy's README for its specific limits and assumptions.
+model and each policy's `description` (in its `policy.md` frontmatter) for its
+specific limits and assumptions.

@@ -1,4 +1,4 @@
-name: Manifest
+name: CI
 
 on:
   pull_request:
@@ -6,27 +6,36 @@ on:
     branches:
       - main
 
+permissions: read-all
+
 jobs:
   check:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
       - name: Set up pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 11.1.3
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
+        # Version comes from the "packageManager" field in package.json.
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: 24
+          node-version-file: .tool-versions
           cache: pnpm
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --ignore-scripts
 
       - name: Check manifest
         run: pnpm manifest:check
+
+      - name: Set up OPA
+        uses: open-policy-agent/setup-opa@b2b258e089860efaadaaf71bf6e3aecb4a3eeff1 # v2.4.0
+        with:
+          version: "1.17.1"
+
+      - name: Test policies (opa check + fixtures)
+        run: pnpm test

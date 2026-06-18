@@ -12,7 +12,7 @@ The catalog is meant to be:
 - **Importable** — a DTwo gateway can fetch a policy directly from this repo (by path) and create a tenant-local draft from it.
 - **Composable** — policies are intentionally small and single-purpose. To build a comprehensive posture, attach several together (the gateway aggregates `allow`, `reasons`, and `transform` rules across attached policies).
 
-All policies in this catalog must be **PARC-compatible**: they reference `input.resource`, `input.subject`, `input.action`, and `input.context` rather than the deprecated legacy aliases. This is the catalog's baseline input contract — see the DTwo `dtwo-policy-rego` skill for the schema.
+All policies in this catalog must be **PARC-compatible**: they reference `input.resource`, `input.subject`, `input.action`, and `input.context` rather than the deprecated legacy aliases. This is the catalog's baseline input contract. The full input schema and authoring conventions are documented in the public [`dtwo-policy-rego` skill](https://github.com/dtwoai/plugins/blob/main/dtwo/skills/dtwo-policy-rego/SKILL.md) — a Markdown reference anyone can read in the [`dtwoai/plugins`](https://github.com/dtwoai/plugins) repo (and install as a Claude Code plugin).
 
 ## Repository layout
 
