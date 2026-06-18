@@ -146,7 +146,12 @@ function runFixture(fixturePath, regoFile, pkg) {
 
   const expected = fixture.expected;
 
-  if (typeof expected.allow === "boolean" && decision.allow !== expected.allow) {
+  if (typeof expected.allow !== "boolean") {
+    failures.push(`${rel}: missing "expected.allow" boolean`);
+    return;
+  }
+
+  if (decision.allow !== expected.allow) {
     failures.push(`${rel}: expected allow=${expected.allow}, got ${JSON.stringify(decision.allow)}`);
   }
 
