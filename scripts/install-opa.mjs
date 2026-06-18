@@ -80,7 +80,7 @@ function sha256File(file) {
 }
 
 // Allow running directly: `node scripts/install-opa.mjs`
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   ensureOpa().catch((error) => {
     console.error(error.message);
     process.exit(1);
