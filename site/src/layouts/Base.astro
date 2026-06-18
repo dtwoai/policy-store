@@ -42,6 +42,7 @@ const canonicalPath = canonical ?? Astro.url.pathname;
 // Root must match the sitemap's bare-origin <loc> (no trailing slash); other
 // paths already have none under trailingSlash:'never'.
 const canonicalUrl = canonicalPath === '/' ? site.origin : new URL(canonicalPath, site).href;
+const ogImage = new URL('/og-default.png', site).href;
 // Drop the brand suffix on long titles so the meaningful part survives SERP truncation.
 const fullTitle = title === SITE_NAME || title.length > 48 ? title : `${title} — ${SITE_NAME}`;
 
@@ -96,12 +97,18 @@ const allJsonLd = [breadcrumbJsonLd, ...extra].filter(Boolean);
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:url" content={canonicalUrl} />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:image" content={ogImage} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="DTwo Policy Store — govern what your agents do" />
     {publishedTime && <meta property="article:published_time" content={publishedTime} />}
 
     <!-- Twitter -->
-    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content={title} />
     <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={ogImage} />
 
     <!-- Agentic discovery: point machines at the structured + full-text indexes -->
     <link rel="alternate" type="text/markdown" href={new URL('/llms.txt', site).href} title="llms.txt" />
