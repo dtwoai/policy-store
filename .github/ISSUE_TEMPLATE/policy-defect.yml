@@ -9,7 +9,7 @@ body:
         Use this for ordinary correctness bugs. **If the defect is itself
         sensitive** (e.g. a working evasion of a widely used policy), do **not**
         file it here — report it privately per
-        [SECURITY.md](../blob/main/SECURITY.md).
+        [SECURITY.md](https://github.com/dtwoai/dtwo-policy-store/blob/main/SECURITY.md).
   - type: input
     id: policy
     attributes:
