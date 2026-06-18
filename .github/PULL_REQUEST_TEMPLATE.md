@@ -11,7 +11,7 @@ external contributions (see GOVERNANCE.md). To propose a policy, open a
 
 ## Checklist
 
-- [ ] Commits are signed off (`git commit -s`) per the [DCO](../blob/main/CONTRIBUTING.md#developer-certificate-of-origin-dco).
+- [ ] Commits are signed off (`git commit -s`) per the [DCO](https://github.com/dtwoai/dtwo-policy-store/blob/main/CONTRIBUTING.md#developer-certificate-of-origin-dco).
 - [ ] `pnpm manifest:check` passes (manifest regenerated if policies changed).
 - [ ] `pnpm test` passes (`opa check --strict` + fixtures).
 - [ ] New/changed policies include at least one positive and one negative fixture.
