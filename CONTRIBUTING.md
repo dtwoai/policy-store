@@ -110,15 +110,16 @@ A new policy looks like this:
 
 ```text
 apps/<app>/<policy-slug>/
-  policy.md          # required — frontmatter plus the fenced Rego policy body
-  README.md          # required — what it does, when to use it, assumptions, examples
-  tests/             # optional but encouraged — sample inputs / expected outcomes
-    allow.json
+  policy.md          # required — frontmatter (incl. the human docs) plus the fenced Rego policy body
+  tests/             # required — at least one positive and one negative fixture
+    allow.json       # deny policies: a request the policy allows / denies
     deny.json
+    # (transform policies use passthrough.json / redact.json instead)
 ```
 
 - `<app>` is the lowercase, hyphenated MCP server name as it would commonly be configured on a gateway (e.g., `slack`, `jira`, `github`, `postgres`).
 - `<policy-slug>` is the lowercase, hyphenated purpose (`block-secrets`, `readonly`, `pii-redaction`).
+- **No per-policy `README.md`.** A policy's human documentation — what it does, when to use it, assumptions, limitations, examples — lives in the `description` field of the `policy.md` frontmatter. (App, industry, and bundle directories do have `README.md` landing pages; individual policies do not.)
 - **No `metadata.json` in the policy directory.** All metadata for the catalog lives in the policy markdown frontmatter.
 
 ## Registering a new policy
@@ -127,7 +128,9 @@ apps/<app>/<policy-slug>/
 2. **App landing page** — add a row to `apps/<app>/README.md` linking to the new policy.
 3. **Industry / bundle landing pages** — if the policy fits an existing industry or bundle, list `<industry>` / `<bundle>` slugs in the policy's frontmatter **and** add a link from the matching landing page. Do not duplicate the policy body.
 4. **New apps, industries, or bundles** — create the corresponding directory and `README.md`; the manifest generator will add the top-level map entry.
-5. **Manifest generation** — run `pnpm manifest` and commit the generated `manifest.json`.
+5. **Tests** — add at least one positive and one negative fixture under `tests/` (see [Testing](#testing)).
+6. **Manifest generation** — run `pnpm manifest` and commit the generated `manifest.json`, then run `pnpm manifest:check` to confirm it is current (this is what CI enforces).
+7. **Run the policy tests** — `pnpm test` (requires the `opa` CLI). CI runs the same command.
 
 ## A note on the manifest schema
 
@@ -139,22 +142,43 @@ apps/<app>/<policy-slug>/
 
 ## Testing
 
-There is no automated Rego test harness in this repo yet — that's a planned addition. Until then, contributors are expected to:
+Every policy ships with fixtures, and CI compiles and runs them. Install the [`opa` CLI](https://www.openpolicyagent.org/docs/latest/#running-opa) (v1.x), then:
 
-- Validate Rego compiles with `opa parse` after extracting the fenced `rego` block from `policy.md` (or `opa eval -d ...` with the extracted policy).
-- Provide at least one positive and one negative sample in `tests/` (`allow.json`, `deny.json`) with the input shape and expected outcome — see [`apps/slack/block-secrets/tests/`](./apps/slack/block-secrets/tests/) for the current convention. The test-runner contract will be formalized alongside the manifest schema.
-- For policies that touch identity claims, document which IdP claim names are required and what defaults the policy uses when they're missing.
+```bash
+pnpm test          # opa check --strict on every policy + run all fixtures
+```
+
+The runner (`scripts/test-policies.mjs`) extracts the Rego from each `policy.md`, type-checks it with `opa check --strict`, and evaluates every `tests/*.json` fixture against the documented outcome.
+
+**Fixture contract.** Each fixture is a JSON object:
+
+```jsonc
+{
+  "description": "what this case demonstrates",
+  "input":    { /* the PARC decision object: input.resource / subject / action / payload ... */ },
+  "expected": {
+    "allow": true,                         // required
+    "reasonContains": "substring",         // optional — data.<pkg>.reason must contain it
+    "transformApplied": true,              // optional — whether a transform is returned
+    "transform": { "replacement": "..." }  // optional — asserted field by field
+  }
+}
+```
+
+- Provide **at least one positive and one negative** fixture. Deny policies conventionally use `allow.json` / `deny.json`; transform-only policies use `passthrough.json` / `redact.json`.
+- The PARC object lives under the `input` key. **Do not run `opa eval -i fixture.json` directly** — OPA would treat the whole file (including `expected`) as the input document, so the policy would read `input.input.*`, every rule would miss, and a deny policy would *wrongly report `allow = true`*. `pnpm test` feeds only `fixture.input`, which is why you should use it rather than evaluating fixtures by hand.
+- For policies that touch identity claims, document (in the `description`) which IdP claim names are required and what defaults the policy uses when they're missing.
 
 ## PR review
 
 Maintainers review for:
 
-- **Correctness** — does the Rego do what the README claims? Are deny conditions tight, and is the `default allow` chosen correctly?
+- **Correctness** — does the Rego do what the policy's `description` claims? Are deny conditions tight, and is the `default allow` chosen correctly? Do the fixtures pass under `pnpm test`?
 - **PARC compliance** — only PARC fields, no deprecated legacy aliases, no stripped claims used for authorization.
 - **Catalog hygiene** — `manifest.json` is regenerated, landing pages link rather than duplicate, no stray per-policy `metadata.json`.
-- **Documentation** — a reader can understand the policy's effect and trade-offs without reading the Rego.
+- **Documentation** — a reader can understand the policy's effect and trade-offs from the `description` frontmatter without reading the Rego.
 
-PRs that change an existing policy must regenerate `manifest.json` and note the change in the policy README.
+PRs that change an existing policy must regenerate `manifest.json` and note the change in the policy's `description` frontmatter.
 
 ## Code of conduct
 
