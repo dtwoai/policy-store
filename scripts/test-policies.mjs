@@ -25,16 +25,24 @@ import { execFileSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { ensureOpa } from "./install-opa.mjs";
 
 const root = process.cwd();
 const appsDir = path.join(root, "apps");
-const opa = process.env.OPA_BIN ?? "opa";
 
 const failures = [];
 let policyCount = 0;
 let fixtureCount = 0;
 
-assertOpaAvailable();
+// Self-provision a pinned, checksum-verified OPA (downloads into .opa/ on first
+// run). Set OPA_BIN to use your own. No global `opa` install required.
+let opa;
+try {
+  opa = await ensureOpa();
+} catch (error) {
+  console.error(error.message);
+  process.exit(1);
+}
 
 for (const policyFilePath of findPolicyFiles(appsDir)) {
   policyCount += 1;
@@ -209,16 +217,6 @@ function sortedDirNames(dir) {
   return readdirSync(dir)
     .filter((entry) => statSync(path.join(dir, entry)).isDirectory())
     .sort(compareStrings);
-}
-
-function assertOpaAvailable() {
-  try {
-    execFileSync(opa, ["version"], { stdio: "pipe" });
-  } catch {
-    console.error(`Could not run '${opa}'. Install OPA (v1.x) and put it on PATH, or set OPA_BIN.`);
-    console.error("See https://www.openpolicyagent.org/docs/latest/#running-opa");
-    process.exit(1);
-  }
 }
 
 function stderr(error) {

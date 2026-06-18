@@ -8,9 +8,6 @@ on:
 
 permissions: read-all
 
-env:
-  OPA_VERSION: v1.17.1
-
 jobs:
   check:
     runs-on: ubuntu-latest
@@ -32,17 +29,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --ignore-scripts
 
-      - name: Install OPA
-        run: |
-          set -euo pipefail
-          mkdir -p "$HOME/.local/bin"
-          curl -fsSL "https://openpolicyagent.org/downloads/${OPA_VERSION}/opa_linux_amd64_static" -o "$HOME/.local/bin/opa"
-          chmod +x "$HOME/.local/bin/opa"
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-          "$HOME/.local/bin/opa" version
-
       - name: Check manifest
         run: pnpm manifest:check
 
       - name: Test policies (opa check + fixtures)
-        run: pnpm test
+        run: pnpm test # self-provisions a pinned, checksum-verified OPA into .opa/
