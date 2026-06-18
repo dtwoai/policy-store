@@ -42,8 +42,9 @@ build:
 SITE_URL="https://dtwoai.github.io/dtwo-policy-store" pnpm build
 ```
 
-> Styling is a light DTwo brand layer (`src/styles/global.css`): the design
-> tokens (oklch palette, Figtree / JetBrains Mono type, radius) are lifted from
-> the d2 hub's `@workspace/ui` so the catalog reads as part of the product, with
-> light/dark following the OS preference. It's still plain CSS over semantic
-> HTML — no framework — so it stays easy to replace or extend.
+> Styling matches [blog.dtwo.ai](https://blog.dtwo.ai): a dark-first navy theme
+> (light variant via the header toggle, remembered per visitor), Archivo display
+> caps, Figtree body, JetBrains Mono eyebrows/meta, faint-blue-bordered cards,
+> and a grid-dot backdrop. Tokens are lifted from the blog's compiled CSS; the
+> three variable fonts are self-hosted via `@fontsource-variable` (no CDN). Still
+> plain CSS over semantic HTML — no framework — so it's easy to extend.

@@ -89,7 +89,7 @@ function read(rel: string): string {
   return fs.readFileSync(path.join(REPO_ROOT, rel), 'utf8');
 }
 
-function titleCase(slug: string): string {
+export function titleCase(slug: string): string {
   return slug.replace(/[-_]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
@@ -125,11 +125,70 @@ function deriveSummary(description: string, max = 158): string {
     if (line.startsWith('```')) break;
     buf.push(line);
   }
-  let text = toPlain(buf.join(' '));
-  if (text.length > max) {
-    text = text.slice(0, max).replace(/\s+\S*$/, '') + '…';
+  const text = toPlain(buf.join(' '));
+  if (text.length <= max) return text;
+  // Prefer whole sentences within the limit so the snippet reads complete —
+  // no mid-sentence cut with a dangling ellipsis in search results / cards.
+  const sentences = text.match(/[^.!?]+[.!?]+/g) ?? [text];
+  let acc = '';
+  for (const s of sentences) {
+    if ((acc + s).trim().length > max) break;
+    acc += s;
   }
-  return text;
+  acc = acc.trim();
+  if (acc) return acc;
+  // First sentence alone exceeds the limit: hard-cut on a word boundary.
+  return text.slice(0, max).replace(/\s+\S*$/, '') + '…';
+}
+
+/**
+ * Rewrite repo-relative links inside rendered catalog markdown so they resolve
+ * on the site. README/policy bodies link with paths like `./block-secrets/policy.md`
+ * or `../../bundles/crm/README.md`, which 404 when served. We resolve each link
+ * against its source directory and map it to the matching site route, sending
+ * non-published repo files (CONTRIBUTING.md, the root README, LICENSE) to GitHub.
+ */
+function rewriteContentLinks(html: string, baseDir: string): string {
+  return html.replace(/href="([^"]+)"/g, (m, href: string) => {
+    if (/^(https?:|mailto:|#|\/)/.test(href)) return m; // external, anchor, already-rooted
+    const hashIdx = href.indexOf('#');
+    const rawPath = hashIdx >= 0 ? href.slice(0, hashIdx) : href;
+    const hash = hashIdx >= 0 ? href.slice(hashIdx) : '';
+    if (!rawPath) return m;
+    const resolved = path.posix.normalize(path.posix.join(baseDir, rawPath)).replace(/^\.?\//, '');
+    const policy = resolved.match(/^apps\/([^/]+)\/([^/]+)\/policy\.md$/);
+    const app = resolved.match(/^apps\/([^/]+)\/README\.md$/);
+    const bundle = resolved.match(/^bundles\/([^/]+)\/README\.md$/);
+    let target: string;
+    if (policy) target = `/policies/${policy[1]}/${policy[2]}`;
+    else if (app) target = `/apps/${app[1]}`;
+    else if (bundle) target = `/bundles/${bundle[1]}`;
+    else target = `${GITHUB_BLOB}/${resolved}`;
+    return `href="${target}${hash}"`;
+  });
+}
+
+/**
+ * Nest rendered markdown under the page's own <h2>: drop the redundant leading
+ * <h1> (the title is already the page <h1>) and shift the rest down one level
+ * so the document keeps a single, ordered heading outline (h1 → h2 → h3 …).
+ */
+function nestHeadings(html: string): string {
+  let out = html.replace(/^\s*<h1[^>]*>[\s\S]*?<\/h1>\s*/, '');
+  for (const [from, to] of [
+    ['h5', 'h6'],
+    ['h4', 'h5'],
+    ['h3', 'h4'],
+    ['h2', 'h3'],
+  ] as const) {
+    out = out.replaceAll(`<${from}`, `<${to}`).replaceAll(`</${from}>`, `</${to}>`);
+  }
+  return out;
+}
+
+/** Render catalog markdown to site-ready HTML: rewrite links, then nest headings. */
+function renderBody(md: string, baseDir: string): string {
+  return nestHeadings(rewriteContentLinks(marked.parse(md, { async: false }) as string, baseDir));
 }
 
 function extractRego(body: string): string {
@@ -167,7 +226,7 @@ export function getPolicies(): Policy[] {
         packageName: extractPackage(rego),
         summary: deriveSummary(description),
         description,
-        descriptionHtml: marked.parse(description, { async: false }) as string,
+        descriptionHtml: renderBody(description, entry.path),
         rego,
         links: {
           github: `${GITHUB_BLOB}/${entry.path}/policy.md`,
@@ -191,7 +250,7 @@ export function getApps(): AppPage[] {
     .map(([slug, dir]): AppPage => ({
       slug,
       title: titleCase(slug),
-      readmeHtml: marked.parse(read(path.join(dir, 'README.md')), { async: false }) as string,
+      readmeHtml: renderBody(read(path.join(dir, 'README.md')), dir),
       policies: policies.filter((p) => p.apps.includes(slug)),
     }))
     .sort((a, b) => a.title.localeCompare(b.title));
@@ -204,7 +263,7 @@ export function getBundles(): BundlePage[] {
     .map(([slug, dir]): BundlePage => ({
       slug,
       title: titleCase(slug),
-      readmeHtml: marked.parse(read(path.join(dir, 'README.md')), { async: false }) as string,
+      readmeHtml: renderBody(read(path.join(dir, 'README.md')), dir),
       policies: policies.filter((p) => p.bundles.includes(slug)),
     }))
     .sort((a, b) => a.title.localeCompare(b.title));

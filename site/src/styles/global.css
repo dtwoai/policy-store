@@ -1,91 +1,158 @@
 /*
- * DTwo brand layer.
+ * DTwo Policy Store — brand layer matching blog.dtwo.ai.
  *
- * Design tokens are lifted verbatim from the d2 hub's design system
- * (@workspace/ui globals.css) — the same oklch palette, Figtree / JetBrains
- * Mono type, and 0.625rem radius — so this catalog reads as part of the DTwo
- * product. Fonts are loaded in the document <head>. Light + dark follow the
- * OS preference, mirroring the hub's light/.dark token sets.
+ * Dark-first: the near-black navy theme IS the brand identity. A light
+ * variant rides along on [data-theme="light"] set on <html>. Tokens, the
+ * glow + grid-dot backdrop, and the type ramp are lifted from the blog's
+ * compiled CSS (Archivo display, Figtree body, JetBrains Mono for meta).
  *
- * Still deliberately lightweight: plain CSS, no framework, semantic HTML.
+ * Plain CSS, custom properties, no framework. Fonts come from
+ * @fontsource-variable (self-hosted), imported in the layout — NOT a CDN.
  */
+
+/* ============================================================= TOKENS */
 :root {
-  color-scheme: light dark;
+  color-scheme: dark;
 
-  /* d2 light tokens */
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.141 0.005 285.823);
-  --card: oklch(0.98 0.007 247.446);
-  --muted-foreground: oklch(0.552 0.016 285.938);
-  --primary: oklch(0.4626 0.1229 247.446);
-  --primary-foreground: oklch(0.98 0.01 237);
-  --border: oklch(0.92 0.01 247.446);
-  --accent: oklch(0.96 0.028 247.446);
-  --d2-light-shade: oklch(0.716 0.112 230.3);
-  --d2-dark-shade: oklch(0.4626 0.1229 247.446);
+  /* Brand constants (stable across themes) */
+  --d2-dark-shade: oklch(46.26% 0.1229 247.446);  /* primary blue   */
+  --d2-light-shade: oklch(71.6% 0.112 230.3);     /* sky / accent   */
 
-  --radius: 0.625rem;
+  /* DARK is the default brand surface */
+  --background: oklch(0.16 0.01 247.446);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0.012 247.446);
+  --card-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.24 0.01 247.446);
+  --muted-foreground: oklch(0.705 0.015 286.067);
+  --accent: oklch(0.274 0.006 286.033);
+  --border: oklch(0.4626 0.1229 247.446 / 16%);
+  --primary: var(--d2-light-shade);
+  --primary-foreground: oklch(0.14 0.02 247.446);
+  --brand: var(--d2-light-shade);
+  --brand-soft: oklch(0.82 0.09 230);
+
+  /* Backdrop atmosphere */
+  --glow-opacity: 0.16;
+  --grid-dot: oklch(0.92 0.01 247.446 / 0.07);
+
+  /* Geometry + type */
+  --radius: 0.75rem;
   --measure: 72ch;
+  --font-display: 'Archivo Variable', 'Archivo', system-ui, sans-serif;
   --font-sans: 'Figtree Variable', 'Figtree', system-ui, -apple-system, sans-serif;
   --font-mono: 'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    /* d2 .dark tokens */
-    --background: oklch(0.17 0.008 247.446);
-    --foreground: oklch(0.985 0 0);
-    --card: oklch(0.21 0.008 247.446);
-    --muted-foreground: oklch(0.705 0.015 286.067);
-    --primary: oklch(0.62 0.13 247.446);
-    --primary-foreground: oklch(0.985 0 0);
-    --border: oklch(0.92 0.01 247.446 / 14%);
-    --accent: oklch(0.27 0.04 247.446);
-    --d2-light-shade: oklch(0.78 0.11 230.3);
-  }
+[data-theme='light'] {
+  color-scheme: light;
+
+  --background: oklch(0.985 0.004 240);
+  --foreground: oklch(0.21 0.03 250);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.21 0.03 250);
+  --muted: oklch(0.96 0.006 247.446);
+  --muted-foreground: oklch(0.46 0.025 250);
+  --accent: oklch(0.96 0.028 247.446);
+  --border: oklch(0.4626 0.1229 247.446 / 16%);
+  --primary: var(--d2-dark-shade);
+  --primary-foreground: oklch(0.98 0.01 237);
+  --brand: var(--d2-dark-shade);
+  --brand-soft: var(--d2-light-shade);
+
+  --glow-opacity: 0.1;
+  --grid-dot: oklch(0.4626 0.1229 247.446 / 0.2);
 }
 
+/* ============================================================= RESET */
 * {
   box-sizing: border-box;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 body {
+  position: relative;
+  margin: 0;
+  min-height: 100svh;
   font-family: var(--font-sans);
   line-height: 1.6;
-  margin: 0;
   background: var(--background);
   color: var(--foreground);
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
+/* Twin fixed layers: a soft blue glow + a masked grid-dot texture. */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(900px 480px at 50% -120px,
+      oklch(0.716 0.112 230.3 / var(--glow-opacity)), transparent 70%),
+    radial-gradient(700px 500px at 85% 110%,
+      oklch(0.4626 0.1229 247.446 / calc(var(--glow-opacity) * 0.75)), transparent 70%);
+}
+
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image: radial-gradient(var(--grid-dot) 1px, transparent 1px);
+  background-size: 28px 28px;
+  -webkit-mask-image: linear-gradient(to bottom, black 0%, transparent 75%);
+  mask-image: linear-gradient(to bottom, black 0%, transparent 75%);
+}
+
+::selection {
+  background: var(--d2-light-shade);
+  color: oklch(0.14 0.02 247.446);
+}
+
+/* ============================================================= LAYOUT */
 .page {
   max-width: var(--measure);
   margin-inline: auto;
   padding: 2rem 1.25rem 5rem;
 }
 
-h1,
-h2,
-h3,
-h4 {
-  font-weight: 650;
-  line-height: 1.2;
-  letter-spacing: -0.01em;
+/* ============================================================= TYPE */
+h1, h2, h3, h4 {
+  font-family: var(--font-display);
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
 }
 
 h1 {
-  font-size: 2rem;
+  font-size: clamp(2rem, 1.2rem + 3vw, 3rem);
+  text-transform: uppercase;
   margin-block: 0.2em 0.4em;
 }
 
+h2 { font-size: 1.6rem; }
+h3 { font-size: 1.25rem; }
+
+p { margin-block: 0.75rem; }
+
 a {
-  color: var(--primary);
-  text-underline-offset: 2px;
+  color: var(--brand);
+  text-decoration: none;
+  text-underline-offset: 4px;
   text-decoration-thickness: 1px;
 }
 
 a:hover {
-  text-decoration-color: var(--d2-light-shade);
+  text-decoration-line: underline;
+  text-decoration-color: color-mix(in oklab, var(--brand) 40%, transparent);
 }
 
 hr {
@@ -94,94 +161,183 @@ hr {
   margin: 2rem 0;
 }
 
-/* ---- Header / brand bar ---- */
+/* Reusable mono eyebrow / category label */
+.eyebrow {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: var(--brand);
+}
+
+/* ====================================================== HEADER / PILL */
 header.site {
-  border-bottom: 1px solid var(--border);
-  background: color-mix(in oklch, var(--card) 70%, var(--background));
   position: sticky;
-  top: 0;
-  z-index: 10;
-  backdrop-filter: saturate(1.4) blur(6px);
+  top: 0.75rem;
+  z-index: 40;
+  padding: 0 1rem;
+  /* keep the pill clear of the sticky edge */
+  margin-top: 0.75rem;
 }
 
 .site-bar {
-  max-width: var(--measure);
+  /* wider than the reading column so the wordmark + nav sit on one line,
+     matching the blog's wide header pill */
+  max-width: min(60rem, 100% - 1.5rem);
   margin-inline: auto;
-  padding: 0.75rem 1.25rem;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.75rem 1.5rem;
+  gap: 0.5rem 1.25rem;
+  padding: 0.55rem 0.85rem 0.55rem 1.1rem;
+  border: 1px solid color-mix(in oklab, var(--brand) 30%, transparent);
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--card) 60%, transparent);
+  -webkit-backdrop-filter: saturate(1.4) blur(16px);
+  backdrop-filter: saturate(1.4) blur(16px);
+  box-shadow: 0 16px 36px -16px oklch(0 0 0 / 0.45);
 }
 
 .brand {
   display: inline-flex;
   align-items: center;
-  gap: 0.6rem;
-  font-weight: 750;
-  font-size: 1.05rem;
-  text-decoration: none;
+  gap: 0.55rem;
+  margin-right: auto;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 0.95rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
   color: var(--foreground);
-  letter-spacing: -0.02em;
 }
 
+.brand:hover { text-decoration: none; }
+
 .brand img {
-  height: 26px;
+  height: 24px;
   width: auto;
   display: block;
 }
 
 .brand .brand-accent {
-  background: linear-gradient(100deg, var(--d2-light-shade), var(--d2-dark-shade));
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  color: var(--brand);
 }
 
 header.site nav ul {
   list-style: none;
   display: flex;
   flex-wrap: wrap;
-  gap: 0.35rem;
+  align-items: center;
+  gap: 0.15rem;
   padding: 0;
   margin: 0;
 }
 
 header.site nav a {
   display: inline-block;
-  padding: 0.3rem 0.7rem;
-  border-radius: calc(var(--radius) - 0.2rem);
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
   color: var(--muted-foreground);
-  text-decoration: none;
-  font-weight: 550;
-  font-size: 0.95rem;
+  transition: color 0.15s, background-color 0.15s;
 }
 
 header.site nav a:hover {
-  background: var(--accent);
   color: var(--foreground);
+  background: color-mix(in oklab, var(--brand) 12%, transparent);
+  text-decoration: none;
 }
 
 header.site nav a[aria-current='page'] {
-  background: var(--primary);
-  color: var(--primary-foreground);
+  color: var(--foreground);
+  background: color-mix(in oklab, var(--brand) 18%, transparent);
 }
 
-/* ---- Breadcrumbs ---- */
+/* Theme toggle button (sun/moon) */
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  margin-left: 0.25rem;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.theme-toggle:hover {
+  color: var(--foreground);
+  border-color: color-mix(in oklab, var(--brand) 40%, transparent);
+}
+
+.theme-toggle svg { width: 1rem; height: 1rem; display: block; }
+.theme-toggle .icon-sun { display: none; }
+.theme-toggle .icon-moon { display: block; }
+[data-theme='light'] .theme-toggle .icon-sun { display: block; }
+[data-theme='light'] .theme-toggle .icon-moon { display: none; }
+
+/* ============================================================= HERO */
+.hero {
+  text-align: center;
+  padding: clamp(3rem, 6vw, 6rem) 0 2.5rem;
+}
+
+.hero h1 {
+  font-size: clamp(2.5rem, 1rem + 7vw, 5rem);
+  line-height: 0.95;
+  letter-spacing: -0.03em;
+  text-transform: uppercase;
+  margin: 0;
+}
+
+.hero h1 .line-1 { display: block; color: var(--foreground); }
+.hero h1 .line-2 { display: block; color: var(--brand); }
+
+.hero .dek {
+  max-width: 46ch;
+  margin: 1.25rem auto 0;
+  color: var(--muted-foreground);
+  font-size: 1.05rem;
+  text-wrap: balance;
+}
+
+/* Thin centered glow divider */
+.glow-divider {
+  height: 1px;
+  width: min(420px, 70%);
+  margin: 2.5rem auto;
+  border: none;
+  background: linear-gradient(to right, transparent, var(--brand), transparent);
+  opacity: 0.5;
+}
+
+/* ============================================================= BREADCRUMBS */
 nav.breadcrumbs ol {
   list-style: none;
   display: flex;
   flex-wrap: wrap;
   gap: 0.4rem;
   padding: 0;
-  margin: 0 0 1rem;
-  font-size: 0.85rem;
+  margin: 0 0 1.5rem;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
   color: var(--muted-foreground);
 }
 
-nav.breadcrumbs a {
-  color: var(--muted-foreground);
-}
+nav.breadcrumbs a { color: var(--muted-foreground); }
 
 nav.breadcrumbs li:not(:last-child)::after {
   content: '/';
@@ -189,31 +345,74 @@ nav.breadcrumbs li:not(:last-child)::after {
   opacity: 0.4;
 }
 
-/* ---- Cards ---- */
+/* ============================================================= CARDS */
 .policy-card {
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 1rem 1.25rem;
-  margin: 1rem 0;
-  background: var(--card);
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.25rem;
+  align-items: center;
+  border: 1px solid color-mix(in oklab, var(--brand) 25%, transparent);
+  border-radius: calc(var(--radius) + 8px);
+  padding: 1.5rem;
+  margin: 1.25rem 0;
+  background: color-mix(in oklab, var(--card) 60%, transparent);
+  box-shadow: 0 16px 36px -16px oklch(0 0 0 / 0.35);
+  transition: border-color 0.15s, transform 0.15s;
+}
+
+@media (min-width: 46rem) {
+  .policy-card.has-visual {
+    grid-template-columns: 1fr minmax(160px, 220px);
+  }
+}
+
+.policy-card:hover {
+  border-color: color-mix(in oklab, var(--brand) 40%, transparent);
 }
 
 .policy-card :is(h2, h3, h4) {
-  margin-top: 0;
+  margin-top: 0.35rem;
+  text-transform: uppercase;
 }
+
+.policy-card :is(h2, h3, h4) a { color: var(--foreground); }
+.policy-card :is(h2, h3, h4) a:hover { color: var(--brand); }
 
 .policy-card-meta {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   color: var(--muted-foreground);
-  font-size: 0.9rem;
 }
 
-/* ---- Code ---- */
+.policy-card-meta a { color: var(--muted-foreground); }
+.policy-card-meta a:hover { color: var(--brand); }
+
+/* The visual tile lives in the right column */
+.card-visual {
+  display: none;
+}
+
+@media (min-width: 46rem) {
+  .card-visual {
+    display: block;
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    border-radius: var(--radius);
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }
+  .card-visual svg { width: 100%; height: 100%; display: block; }
+}
+
+/* ============================================================= CODE */
 pre {
   overflow-x: auto;
   padding: 1rem 1.1rem;
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  background: var(--card);
+  background: color-mix(in oklab, var(--card) 70%, var(--background));
   font-size: 0.85rem;
   line-height: 1.5;
 }
@@ -229,15 +428,14 @@ code {
   border-radius: 0.3rem;
 }
 
-/* ---- Tables ---- */
+/* ============================================================= TABLES */
 table {
   border-collapse: collapse;
   width: 100%;
   font-size: 0.95rem;
 }
 
-th,
-td {
+th, td {
   border: 1px solid var(--border);
   padding: 0.5rem 0.7rem;
   text-align: left;
@@ -245,62 +443,139 @@ td {
 }
 
 thead th {
-  background: var(--card);
+  background: color-mix(in oklab, var(--card) 70%, var(--background));
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
 }
 
-/* ---- Definition lists (policy metadata) ---- */
+/* ============================================================= DEFINITION LISTS */
 dl {
   display: grid;
   grid-template-columns: max-content 1fr;
-  gap: 0.3rem 1rem;
+  gap: 0.4rem 1rem;
   font-size: 0.95rem;
 }
 
 dt {
-  font-weight: 600;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   color: var(--muted-foreground);
 }
 
-dd {
-  margin: 0;
-}
+dd { margin: 0; }
+dd a { margin-right: 0.4rem; }
 
-dd a {
-  margin-right: 0.4rem;
-}
-
-/* ---- Tags ---- */
+/* ============================================================= TAGS */
 .tag {
   display: inline-block;
   border: 1px solid var(--border);
-  background: var(--accent);
-  color: var(--primary);
-  padding: 0.05rem 0.5rem;
-  margin: 0 0.25rem 0.3rem 0;
-  font-size: 0.8rem;
-  font-weight: 550;
+  background: color-mix(in oklab, var(--brand) 10%, transparent);
+  color: var(--brand);
+  padding: 0.1rem 0.6rem;
+  margin: 0 0.3rem 0.35rem 0;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   border-radius: 999px;
-  text-decoration: none;
 }
 
 .tag:hover {
-  border-color: var(--primary);
+  border-color: color-mix(in oklab, var(--brand) 40%, transparent);
+  text-decoration: none;
 }
 
-/* ---- Footer ---- */
+/* ============================================================= CTA / PILL BUTTON */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1.25rem;
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  /* solid --primary (not a gradient) so the foreground clears AA in both themes */
+  color: var(--primary-foreground);
+  background: var(--primary);
+  transition: opacity 0.15s;
+}
+
+.btn:hover { opacity: 0.9; text-decoration: none; }
+
+/* ============================================================= FOCUS + SKIP LINK */
+:where(a, button, [tabindex]):focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+  border-radius: inherit;
+}
+
+.skip-link {
+  position: absolute;
+  left: 0.5rem;
+  top: -3rem;
+  z-index: 100;
+  padding: 0.5rem 0.9rem;
+  border-radius: 999px;
+  background: var(--card);
+  border: 1px solid var(--brand);
+  color: var(--foreground);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  transition: top 0.15s;
+}
+
+.skip-link:focus {
+  top: 0.5rem;
+  text-decoration: none;
+}
+
+#main:focus { outline: none; }
+
+/* ============================================================= FOOTER */
 footer.site {
-  max-width: var(--measure);
+  max-width: min(60rem, 100% - 1.5rem);
   margin: 4rem auto 0;
   border-top: 1px solid var(--border);
   padding: 1.25rem;
-  font-size: 0.9rem;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
   color: var(--muted-foreground);
 }
 
-footer.site a {
-  color: var(--muted-foreground);
+footer.site a { color: var(--muted-foreground); }
+footer.site a:hover { color: var(--brand); }
+
+small { color: var(--muted-foreground); }
+
+@media (prefers-reduced-motion: reduce) {
+  * { scroll-behavior: auto; transition: none !important; }
 }
 
-small {
-  color: var(--muted-foreground);
-}
+/* ============================================================= SITE ADDITIONS */
+/* concentric-ring card tile: always sky-blue on its dark panel (both themes) */
+.card-visual { color: var(--d2-light-shade); }
+.hero .eyebrow { margin-bottom: 1.1rem; }
+.section-eyebrow { display: block; margin-bottom: 0.3rem; }
+/* section intro paragraphs */
+.lede { font-size: 1.05rem; color: var(--muted-foreground); max-width: 60ch; }
+/* plain index lists read as rows, not bullets */
+ul.rows { list-style: none; padding: 0; margin: 1rem 0; }
+ul.rows > li { padding: 0.7rem 0; border-bottom: 1px solid var(--border); }
+ul.rows > li:first-child { border-top: 1px solid var(--border); }
+.card-body > :first-child { margin-top: 0; }

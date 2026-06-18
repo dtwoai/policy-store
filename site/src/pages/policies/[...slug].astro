@@ -1,7 +1,7 @@
 ---
 import Base from '../../layouts/Base.astro';
 import PolicyCard from '../../components/PolicyCard.astro';
-import { getPolicies, getPolicyBySlug, type Policy } from '../../lib/catalog';
+import { getPolicies, getPolicyBySlug, titleCase, type Policy } from '../../lib/catalog';
 import { stories } from '../../data/stories';
 
 export function getStaticPaths() {
@@ -48,7 +48,7 @@ const jsonLd = {
   breadcrumbs={[
     { name: 'Home', path: '/' },
     { name: 'Apps', path: '/apps' },
-    { name: policy.app, path: `/apps/${policy.app}` },
+    { name: titleCase(policy.app), path: `/apps/${policy.app}` },
     { name: policy.name },
   ]}
 >

@@ -1,4 +1,7 @@
 ---
+import '@fontsource-variable/archivo';
+import '@fontsource-variable/figtree';
+import '@fontsource-variable/jetbrains-mono';
 import '../styles/global.css';
 import Nav from '../components/Nav.astro';
 import { repoLinks } from '../lib/catalog';
@@ -35,10 +38,13 @@ const {
 
 const SITE_NAME = 'DTwo Policy Store';
 const site = Astro.site ?? new URL('https://policies.dtwo.ai');
-const canonicalUrl = new URL(canonical ?? Astro.url.pathname, site).href;
-const fullTitle = title === SITE_NAME ? title : `${title} — ${SITE_NAME}`;
+const canonicalPath = canonical ?? Astro.url.pathname;
+// Root must match the sitemap's bare-origin <loc> (no trailing slash); other
+// paths already have none under trailingSlash:'never'.
+const canonicalUrl = canonicalPath === '/' ? site.origin : new URL(canonicalPath, site).href;
+// Drop the brand suffix on long titles so the meaningful part survives SERP truncation.
+const fullTitle = title === SITE_NAME || title.length > 48 ? title : `${title} — ${SITE_NAME}`;
 
-// Build BreadcrumbList structured data from the same crumbs we render visibly.
 const breadcrumbJsonLd =
   breadcrumbs.length > 1
     ? {
@@ -60,18 +66,24 @@ const allJsonLd = [breadcrumbJsonLd, ...extra].filter(Boolean);
 <!doctype html>
 <html lang="en">
   <head>
+    <script is:inline>
+      // Set the theme before first paint to avoid a flash. Dark is the brand
+      // default; light is opt-in via [data-theme="light"] and remembered.
+      (() => {
+        try {
+          const saved = localStorage.getItem('theme');
+          const sysLight = window.matchMedia('(prefers-color-scheme: light)').matches;
+          const theme = saved ?? (sysLight ? 'light' : 'dark');
+          if (theme === 'light') document.documentElement.setAttribute('data-theme', 'light');
+        } catch (_) {
+          /* dark is the CSS default */
+        }
+      })();
+    </script>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" type="image/svg+xml" href="/dtwo.svg" />
-    <meta name="theme-color" content="#1f6fb2" />
-
-    <!-- DTwo brand type: Figtree (sans) + JetBrains Mono, matching the d2 hub -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=Figtree:wght@300..900&family=JetBrains+Mono:wght@400;500;700&display=swap"
-    />
+    <meta name="theme-color" content="#15202b" />
 
     <title>{fullTitle}</title>
     <meta name="description" content={description} />
@@ -100,8 +112,9 @@ const allJsonLd = [breadcrumbJsonLd, ...extra].filter(Boolean);
     ))}
   </head>
   <body>
+    <a href="#main" class="skip-link">Skip to content</a>
     <Nav />
-    <main class="page">
+    <main class="page" id="main" tabindex="-1">
       {
         breadcrumbs.length > 0 && (
           <nav class="breadcrumbs" aria-label="Breadcrumb">
@@ -116,16 +129,33 @@ const allJsonLd = [breadcrumbJsonLd, ...extra].filter(Boolean);
       <slot />
     </main>
     <footer class="site">
-      <p>
-        <strong>{SITE_NAME}</strong> — a discovery layer over the
-        <a href={repoLinks.repo}>dtwo-policy-store</a> catalog.
-      </p>
-      <p>
-        Machine-readable: <a href="/llms.txt">/llms.txt</a> ·
-        <a href="/llms-full.txt">/llms-full.txt</a> ·
-        <a href="/catalog.json">/catalog.json</a> ·
-        <a href="/sitemap-index.xml">/sitemap-index.xml</a>
-      </p>
+      <span>© 2026 DTwo · Policy Store</span>
+      <span>
+        <a href="/llms.txt">llms.txt</a> ·
+        <a href="/llms-full.txt">llms-full</a> ·
+        <a href="/catalog.json">catalog.json</a> ·
+        <a href="/sitemap-index.xml">sitemap</a> ·
+        <a href={repoLinks.repo}>GitHub</a>
+      </span>
     </footer>
+    <script is:inline>
+      (() => {
+        const btn = document.querySelector('.theme-toggle');
+        if (!btn) return;
+        const sync = () => {
+          const light = document.documentElement.getAttribute('data-theme') === 'light';
+          btn.setAttribute('aria-pressed', String(light));
+          btn.setAttribute('aria-label', light ? 'Switch to dark theme' : 'Switch to light theme');
+        };
+        sync();
+        btn.addEventListener('click', () => {
+          const light = document.documentElement.getAttribute('data-theme') === 'light';
+          if (light) document.documentElement.removeAttribute('data-theme');
+          else document.documentElement.setAttribute('data-theme', 'light');
+          try { localStorage.setItem('theme', light ? 'dark' : 'light'); } catch (_) {}
+          sync();
+        });
+      })();
+    </script>
   </body>
 </html>

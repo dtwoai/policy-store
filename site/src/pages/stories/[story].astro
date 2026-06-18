@@ -46,8 +46,9 @@ const jsonLd = {
   breadcrumbs={[{ name: 'Home', path: '/' }, { name: 'Stories', path: '/stories' }, { name: story.title }]}
 >
   <article>
+    <span class="eyebrow">{story.eyebrow}</span>
     <h1>{story.title}</h1>
-    <p><strong>{story.dek}</strong></p>
+    <p class="lede">{story.dek}</p>
     <p><small>For: {story.persona}</small></p>
 
     <Fragment set:html={bodyHtml} />

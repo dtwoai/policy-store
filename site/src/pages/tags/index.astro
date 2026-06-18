@@ -5,7 +5,7 @@ import { getTags } from '../../lib/catalog';
 const tags = getTags();
 const title = 'Policy tags';
 const description =
-  'Browse DTwo policies by tag — access-control, dlp, pii, secrets, redaction, governance, ingress, egress, and the apps they cover.';
+  'Find policies by what they do — access-control, dlp, pii, secrets, redaction, governance — and by ingress or egress. Useful when the shape of the control matters more than the app.';
 
 const jsonLd = {
   '@context': 'https://schema.org',
@@ -23,7 +23,7 @@ const jsonLd = {
   breadcrumbs={[{ name: 'Home', path: '/' }, { name: 'Tags' }]}
 >
   <h1>{title}</h1>
-  <p>{description}</p>
+  <p class="lede">{description}</p>
   <p>
     {
       tags.map(({ tag, count }) => (

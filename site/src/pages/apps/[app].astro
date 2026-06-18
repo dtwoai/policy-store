@@ -9,10 +9,8 @@ export function getStaticPaths() {
 
 const { app } = Astro.props as { app: AppPage };
 const site = Astro.site!;
-const description = `DTwo policies for ${app.title} MCP servers: ${app.policies
-  .map((p) => p.name)
-  .slice(0, 4)
-  .join(', ')}${app.policies.length > 4 ? ', and more' : ''}.`;
+const directions = [...new Set(app.policies.map((p) => p.direction))].sort().join(' + ');
+const description = `${app.policies.length} reviewed DTwo policies for ${app.title} MCP servers — ${directions} controls for governing what AI agents can do with ${app.title}.`;
 
 const jsonLd = {
   '@context': 'https://schema.org',

@@ -5,7 +5,7 @@ import { getBundles } from '../../lib/catalog';
 const bundles = getBundles();
 const title = 'Policy bundles';
 const description =
-  'Themed packs of DTwo policies that compose cleanly on the same gateway pipeline — CRM, Atlassian, IM messaging, and Slack hygiene.';
+  'Grouped DTwo policies you can attach together on one gateway, organized around CRM, Atlassian, IM messaging, and Slack hygiene. Attach a bundle to cover a surface, then tune.';
 
 const jsonLd = {
   '@context': 'https://schema.org',
@@ -32,7 +32,7 @@ const jsonLd = {
   breadcrumbs={[{ name: 'Home', path: '/' }, { name: 'Bundles' }]}
 >
   <h1>{title}</h1>
-  <p>{description}</p>
+  <p class="lede">{description}</p>
   <ul>
     {
       bundles.map((b) => (

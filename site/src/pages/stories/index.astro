@@ -4,7 +4,7 @@ import { stories } from '../../data/stories';
 
 const title = 'Policy stories';
 const description =
-  'Problem-first guides to governing AI agents: each story walks a real risk — leaked secrets, CRM PII, runaway writes — to the DTwo policies that solve it.';
+  'Problem-first guides to governing AI agents. Each one takes a specific risk — a leaked secret, exposed CRM data, an unwanted write — and names the DTwo policies that address it.';
 
 const jsonLd = {
   '@context': 'https://schema.org',
@@ -31,11 +31,12 @@ const jsonLd = {
   breadcrumbs={[{ name: 'Home', path: '/' }, { name: 'Stories' }]}
 >
   <h1>{title}</h1>
-  <p>{description}</p>
-  <ul>
+  <p class="lede">{description}</p>
+  <ul class="rows">
     {
       stories.map((s) => (
         <li>
+          <span class="eyebrow">{s.eyebrow}</span>
           <h2><a href={`/stories/${s.slug}`}>{s.title}</a></h2>
           <p>{s.dek}</p>
           <p><small>For: {s.persona}</small></p>

@@ -5,7 +5,7 @@ import { getApps } from '../../lib/catalog';
 const apps = getApps();
 const title = 'Policies by app';
 const description =
-  'Browse DTwo policies by the MCP server they protect — Slack, Jira, Salesforce, and HubSpot. Start here if you know which app you are governing.';
+  "Browse by the MCP server you're protecting: Slack, Jira, Salesforce, HubSpot. Start here when you already know which app the agent is touching.";
 
 const jsonLd = {
   '@context': 'https://schema.org',
@@ -32,7 +32,7 @@ const jsonLd = {
   breadcrumbs={[{ name: 'Home', path: '/' }, { name: 'Apps' }]}
 >
   <h1>{title}</h1>
-  <p>{description}</p>
+  <p class="lede">{description}</p>
   <ul>
     {
       apps.map((a) => (

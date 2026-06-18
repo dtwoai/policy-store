@@ -11,7 +11,8 @@ const { tag } = Astro.props as { tag: string };
 const policies = getPoliciesByTag(tag);
 const site = Astro.site!;
 const title = `Policies tagged "${tag}"`;
-const description = `${policies.length} DTwo ${policies.length === 1 ? 'policy' : 'policies'} tagged "${tag}".`;
+const examples = policies.slice(0, 2).map((p) => p.name).join(', ');
+const description = `${policies.length} DTwo ${policies.length === 1 ? 'policy' : 'policies'} tagged "${tag}"${examples ? `, including ${examples}` : ''}. Browse by what the control does rather than which app it targets.`;
 
 const jsonLd = {
   '@context': 'https://schema.org',

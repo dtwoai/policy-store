@@ -9,19 +9,42 @@ const { policy, level = 3 } = Astro.props;
 const Heading = `h${level}` as const;
 ---
 
-<article class="policy-card">
-  <Heading>
-    <a href={`/policies/${policy.slug}`}>{policy.name}</a>
-  </Heading>
-  <p>{policy.summary}</p>
-  <p class="policy-card-meta">
-    <a href={`/apps/${policy.app}`}>{policy.app}</a>
-    · <span>{policy.direction}</span>
-    {policy.packageName && <> · <code>{policy.packageName}</code></>}
-  </p>
-  <p>
-    {policy.tags.map((t) => (
-      <a class="tag" href={`/tags/${t}`}>{t}</a>
-    ))}
-  </p>
+<article class="policy-card has-visual">
+  <div class="card-body">
+    <span class="eyebrow">{policy.app} · {policy.direction}</span>
+    <Heading>
+      <a href={`/policies/${policy.slug}`}>{policy.name}</a>
+    </Heading>
+    <p>{policy.summary}</p>
+    {policy.packageName && (
+      <p class="policy-card-meta"><code>{policy.packageName}</code></p>
+    )}
+    <p>
+      {policy.tags.map((t) => (
+        <a class="tag" href={`/tags/${t}`}>{t}</a>
+      ))}
+    </p>
+  </div>
+  <div class="card-visual" aria-hidden="true">
+    <svg viewBox="0 0 220 165" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <radialGradient id="tileGlow" cx="50%" cy="38%" r="70%">
+          <stop offset="0%" stop-color="oklch(0.716 0.112 230.3 / 0.32)" />
+          <stop offset="100%" stop-color="oklch(0.716 0.112 230.3 / 0)" />
+        </radialGradient>
+        <pattern id="tileDots" width="14" height="14" patternUnits="userSpaceOnUse">
+          <circle cx="1" cy="1" r="1" fill="oklch(0.4626 0.1229 247.446 / 0.22)" />
+        </pattern>
+      </defs>
+      <rect width="220" height="165" fill="oklch(0.205 0.012 247.446)" />
+      <rect width="220" height="165" fill="url(#tileDots)" />
+      <rect width="220" height="165" fill="url(#tileGlow)" />
+      <g fill="none" stroke="currentColor" stroke-width="1.25">
+        <circle cx="110" cy="74" r="20" />
+        <circle cx="110" cy="74" r="38" stroke-opacity="0.6" />
+        <circle cx="110" cy="74" r="56" stroke-opacity="0.35" />
+      </g>
+      <circle cx="110" cy="74" r="5" fill="currentColor" />
+    </svg>
+  </div>
 </article>
