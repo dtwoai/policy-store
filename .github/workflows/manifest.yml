@@ -32,5 +32,10 @@ jobs:
       - name: Check manifest
         run: pnpm manifest:check
 
+      - name: Set up OPA
+        uses: open-policy-agent/setup-opa@b2b258e089860efaadaaf71bf6e3aecb4a3eeff1 # v2.4.0
+        with:
+          version: "1.17.1"
+
       - name: Test policies (opa check + fixtures)
-        run: pnpm test # self-provisions a pinned, checksum-verified OPA into .opa/
+        run: pnpm test

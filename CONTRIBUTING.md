@@ -130,7 +130,7 @@ apps/<app>/<policy-slug>/
 4. **New apps, industries, or bundles** — create the corresponding directory and `README.md`; the manifest generator will add the top-level map entry.
 5. **Tests** — add at least one positive and one negative fixture under `tests/` (see [Testing](#testing)).
 6. **Manifest generation** — run `pnpm manifest` and commit the generated `manifest.json`, then run `pnpm manifest:check` to confirm it is current (this is what CI enforces).
-7. **Run the policy tests** — `pnpm test` (downloads a pinned OPA automatically). CI runs the same command.
+7. **Run the policy tests** — `pnpm test` (requires the OPA CLI on your `PATH`). CI runs the same command.
 
 ## A note on the manifest schema
 
@@ -142,13 +142,13 @@ apps/<app>/<policy-slug>/
 
 ## Testing
 
-Every policy ships with fixtures, and CI compiles and runs them:
+Every policy ships with fixtures, and CI compiles and runs them. Install the [OPA CLI](https://www.openpolicyagent.org/docs/latest/#running-opa) (v1.x) — e.g. `brew install opa`, or download a release binary — then:
 
 ```bash
 pnpm test          # opa check --strict on every policy + run all fixtures
 ```
 
-You do **not** need to install OPA yourself — `pnpm test` downloads a pinned, checksum-verified OPA into `.opa/` on first run (`pnpm install` also fetches it via the `prepare` script). Set `OPA_BIN` to use your own OPA binary instead. The pinned version lives in [`scripts/install-opa.mjs`](./scripts/install-opa.mjs).
+`pnpm test` requires the `opa` binary on your `PATH`; set `OPA_BIN` to point at a specific binary if it isn't. CI installs OPA with the [`open-policy-agent/setup-opa`](https://github.com/open-policy-agent/setup-opa) action.
 
 The runner (`scripts/test-policies.mjs`) extracts the Rego from each `policy.md`, type-checks it with `opa check --strict`, and evaluates every `tests/*.json` fixture against the documented outcome.
 
