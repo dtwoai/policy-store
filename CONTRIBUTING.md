@@ -2,6 +2,80 @@
 
 Thanks for considering a contribution. This catalog exists because reusable policies are most valuable when they're reviewed, well-documented, and trustworthy — please read this guide before opening a PR.
 
+By contributing, you agree to our [Code of Conduct](./CODE_OF_CONDUCT.md), and you certify and sign off your work under the [Developer Certificate of Origin](#developer-certificate-of-origin-dco). See [GOVERNANCE.md](./GOVERNANCE.md) for how the catalog is maintained.
+
+## How contributions work (curated launch)
+
+The catalog launches **curated-only**. Because every policy here runs inside other people's gateway decision paths, we do not merge arbitrary external Rego until an automated trust gate (`opa check` + test execution + a security-review checklist in CI) is in place. Until then:
+
+1. **Open an issue** proposing the policy — the app, the problem it solves, the intended `allow` / `deny` / `transform` behavior, and example inputs.
+2. **A DTwo maintainer authors or transcribes** the policy, takes it through the review below, and merges it. You are credited as the proposer.
+3. **External pull requests are not merged directly** during this phase — merge access is restricted to maintainers via [`CODEOWNERS`](./.github/CODEOWNERS) and branch protection. You may still open a PR for discussion.
+
+We will open the catalog to external, DCO-signed pull requests **once the trust gate exists** — the trigger is the gate, not a date. The authoring rules and review criteria below apply either way.
+
+## Developer Certificate of Origin (DCO)
+
+All contributions to this repository are made under the **Developer Certificate of Origin (DCO)**. The DCO is a lightweight, CLA-free way to certify that you wrote, or otherwise have the right to submit, the code you contribute. We do **not** use a CLA.
+
+You certify the DCO by adding a `Signed-off-by` line to every commit:
+
+```text
+Signed-off-by: Your Name <your.email@example.com>
+```
+
+Git adds this line automatically when you commit with the `-s` flag:
+
+```bash
+git commit -s -m "Add slack.ingress.block_secrets policy"
+```
+
+The name and email must match your Git author identity. Sign-off is **required on every commit** and is enforced by a DCO status check on pull requests. To add sign-off to the most recent commit, use `git commit --amend -s`; to sign off a series, use an interactive rebase with `--signoff`.
+
+The full text you are certifying:
+
+```text
+Developer Certificate of Origin
+Version 1.1
+
+Copyright (C) 2004, 2006 The Linux Foundation and its contributors.
+1 Letterman Drive
+Suite D4700
+San Francisco, CA, 94129
+
+Everyone is permitted to copy and distribute verbatim copies of this
+license document, but changing it is not allowed.
+
+
+Developer's Certificate of Origin 1.1
+
+By making a contribution to this project, I certify that:
+
+(a) The contribution was created in whole or in part by me and I
+    have the right to submit it under the open source license
+    indicated in the file; or
+
+(b) The contribution is based upon previous work that, to the best
+    of my knowledge, is covered under an appropriate open source
+    license and I have the right under that license to submit that
+    work with modifications, whether created in whole or in part
+    by me, under the same open source license (unless I am
+    permitted to submit under a different license), as indicated
+    in the file; or
+
+(c) The contribution was provided directly to me by some other
+    person who certified (a), (b) or (c) and I have not modified
+    it.
+
+(d) I understand and agree that this project and the contribution
+    are public and that a record of the contribution (including all
+    personal information I submit with it, including my sign-off) is
+    maintained indefinitely and may be redistributed consistent with
+    this project or the open source license(s) involved.
+```
+
+Contributions are accepted under the repository's [Apache-2.0 license](./LICENSE), which includes an express patent grant from contributors.
+
 ## What belongs here
 
 - **Reusable policies** for popular MCP servers (Slack, Jira, GitHub, databases, etc.) that solve a recurring security, privacy, or governance problem.
@@ -34,7 +108,7 @@ The DTwo `dtwo-policy-rego` skill is the authoritative reference for these conve
 
 A new policy looks like this:
 
-```
+```text
 apps/<app>/<policy-slug>/
   policy.md          # required — frontmatter plus the fenced Rego policy body
   README.md          # required — what it does, when to use it, assumptions, examples
@@ -84,4 +158,4 @@ PRs that change an existing policy must regenerate `manifest.json` and note the 
 
 ## Code of conduct
 
-Be kind. Reviews are about the policy, not the contributor.
+This project follows the [Contributor Covenant Code of Conduct](./CODE_OF_CONDUCT.md). Be kind — reviews are about the policy, not the contributor. Report unacceptable behavior to [conduct@dtwo.ai](mailto:conduct@dtwo.ai).

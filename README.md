@@ -16,7 +16,7 @@ All policies in this catalog must be **PARC-compatible**: they reference `input.
 
 ## Repository layout
 
-```
+```text
 apps/
   <app>/                      # one directory per MCP server / SaaS app (e.g. slack, jira, github)
     README.md                 # landing page listing policies for this app
@@ -48,7 +48,6 @@ schema.json                   # schema contract for policy markdown and manifest
 
 A policy declares its grouping by listing app/industry/bundle slugs in its frontmatter (e.g. `bundles: ["im-messaging"]`). The same policy can belong to multiple apps, industries, and bundles without being duplicated.
 
-
 ## Browsing model
 
 Three entry points, all backed by `manifest.json`:
@@ -73,14 +72,19 @@ Import is a copy operation, not a live subscription — imported policies remain
 
 ## Contribution path
 
-Contributions are welcome — see [CONTRIBUTING.md](./CONTRIBUTING.md) for the full process. The short version:
+Contributions are welcome — see [CONTRIBUTING.md](./CONTRIBUTING.md) for the full process, and [GOVERNANCE.md](./GOVERNANCE.md) for how the catalog is run.
 
-1. Open an issue describing the policy you want to add (or the gap you want to fill).
-2. Fork the repo and add your policy under `apps/<app>/<policy-slug>/`.
-3. If the policy fits an existing app, industry, or bundle landing page, add a link from that page.
-4. Run `pnpm manifest` and commit the updated `manifest.json`.
-5. Open a PR. A DTwo maintainer reviews for policy correctness, PARC compliance, and catalog hygiene before merge.
+The catalog launches **curated-only**: because these policies run inside other people's decision paths, external pull requests are not merged directly yet. The short version:
+
+1. **Open an issue** describing the policy you want to add (or the gap you want to fill) — the app, the intended `allow`/`deny`/`transform` behavior, and example inputs.
+2. A **DTwo maintainer authors or transcribes** the policy under `apps/<app>/<policy-slug>/`, links it from any relevant app/industry/bundle landing page, regenerates `manifest.json`, and reviews it for correctness, PARC compliance, and catalog hygiene before merge. Proposers are credited.
+
+All commits are made under the [Developer Certificate of Origin](./CONTRIBUTING.md#developer-certificate-of-origin-dco) (`git commit -s`). We will open the catalog to external DCO-signed pull requests once the automated trust gate (`opa check` + tests + security review in CI) is in place. By participating you agree to our [Code of Conduct](./CODE_OF_CONDUCT.md).
 
 ## License
 
-MIT — see [LICENSE](./LICENSE). Policies are intended to be copied, modified, and redistributed.
+**Apache-2.0** — see [LICENSE](./LICENSE) and [NOTICE](./NOTICE). The license includes an express patent grant; policies are intended to be copied, modified, and redistributed.
+
+"DTwo" is a trademark of DTwo, Inc. The license covers copyright only and does not grant rights to the DTwo marks. Third-party dependency notices are in [THIRD-PARTY-NOTICES.md](./THIRD-PARTY-NOTICES.md).
+
+These policies are reviewed examples and starting points, **not warranties**. They compile, pass their tests, and are maintainer-reviewed, but you are responsible for validating that any policy meets your requirements before relying on it. See [SECURITY.md](./SECURITY.md).
