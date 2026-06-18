@@ -102,7 +102,7 @@ Every policy must follow the DTwo Rego conventions:
 - Use `object.get(obj, key, default)` instead of direct access for any field that might be missing.
 - Do not rely on stripped claims (`is_admin`, `teams`, `user` inside `subject.claims`). Use IdP-supplied claims (`groups`, `roles`, namespaced custom claims).
 
-The DTwo `dtwo-policy-rego` skill is the authoritative reference for these conventions.
+The authoritative reference for these conventions is the public [`dtwo-policy-rego` skill](https://github.com/dtwoai/plugins/blob/main/dtwo/skills/dtwo-policy-rego/SKILL.md) in the [`dtwoai/plugins`](https://github.com/dtwoai/plugins) repo. It's a Markdown document you can read directly — it covers the PARC input schema, the `allow`/`reasons`/`reason`/`transform` rule shape, and allow/deny/transform patterns. It also installs as a Claude Code plugin (see that repo's README) if you author policies with Claude Code.
 
 ## Directory and file conventions
 
