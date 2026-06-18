@@ -8,7 +8,7 @@ body:
       value: |
         Thanks for proposing a policy! The catalog launches **curated-only** — a
         maintainer authors or transcribes the Rego from this proposal (see
-        [GOVERNANCE.md](../blob/main/GOVERNANCE.md)). The more concrete the
+        [GOVERNANCE.md](https://github.com/dtwoai/dtwo-policy-store/blob/main/GOVERNANCE.md)). The more concrete the
         behavior and example inputs below, the faster it can be built.
   - type: input
     id: app
