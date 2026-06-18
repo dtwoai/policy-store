@@ -1,0 +1,12 @@
+# Code owners for the DTwo Policy Store.
+#
+# Every file is owned by the DTwo maintainers team. Combined with branch
+# protection that requires Code Owner review (see the repo's branch ruleset),
+# this enforces the curated-only contribution model: no change merges without a
+# maintainer's approval, and external/fork pull requests cannot be merged
+# directly. See GOVERNANCE.md.
+#
+# NOTE: the team slug below must exist in the dtwoai org and have write access
+# to this repository for CODEOWNERS enforcement to take effect.
+
+* @dtwoai/policy-store-maintainers
