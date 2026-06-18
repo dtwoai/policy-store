@@ -87,7 +87,7 @@ function runPolicy(policyFilePath) {
 
     const fixtures = readdirSync(testsDir)
       .filter((name) => name.endsWith(".json"))
-      .sort((a, b) => a.localeCompare(b));
+      .sort(compareStrings);
 
     if (fixtures.length === 0) {
       failures.push(`${rel}: tests/ contains no .json fixtures`);
@@ -166,9 +166,13 @@ function runFixture(fixturePath, regoFile, pkg) {
 }
 
 function extractRego(markdown, context) {
-  const blocks = [...markdown.matchAll(/```rego\r?\n([\s\S]*?)\r?\n```/g)];
+  // Mirror the manifest generator: extract from the body AFTER the frontmatter,
+  // so a ```rego example inside the `description` isn't miscounted as the policy.
+  const fmMatch = markdown.match(/^---\r?\n[\s\S]*?\r?\n---\r?\n/);
+  const body = fmMatch ? markdown.slice(fmMatch[0].length) : markdown;
+  const blocks = [...body.matchAll(/```rego\r?\n([\s\S]*?)\r?\n```/g)];
   if (blocks.length !== 1) {
-    failures.push(`${context}: expected exactly one fenced rego block, found ${blocks.length}`);
+    failures.push(`${context}: expected exactly one fenced rego block in the policy body, found ${blocks.length}`);
     return null;
   }
   return blocks[0][1].trim();
@@ -204,7 +208,7 @@ function findPolicyFiles(dir) {
 function sortedDirNames(dir) {
   return readdirSync(dir)
     .filter((entry) => statSync(path.join(dir, entry)).isDirectory())
-    .sort((a, b) => a.localeCompare(b));
+    .sort(compareStrings);
 }
 
 function assertOpaAvailable() {
@@ -231,4 +235,15 @@ function plural(n, one, many) {
 
 function toPosix(value) {
   return value.split(path.sep).join("/");
+}
+
+// Deterministic, locale-independent ordering by UTF-16 code unit.
+function compareStrings(a, b) {
+  if (a < b) {
+    return -1;
+  }
+  if (a > b) {
+    return 1;
+  }
+  return 0;
 }

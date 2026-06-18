@@ -21,7 +21,7 @@ const policies = policyPaths.map((policyFilePath) => buildPolicyEntry(policyFile
 validateUniquePolicyPaths(policies);
 
 const manifest = {
-  policies: policies.sort((a, b) => a.path.localeCompare(b.path)),
+  policies: policies.sort((a, b) => compareStrings(a.path, b.path)),
   apps: buildFolderMap("apps"),
   industries: buildFolderMap("industries"),
   bundles: buildFolderMap("bundles"),
@@ -48,7 +48,8 @@ if (checkOnly) {
   console.log("manifest.json is up to date.");
 } else {
   writeFileSync(manifestPath, output);
-  console.log(`Wrote manifest.json with ${manifest.policies.length} policy entry.`);
+  const count = manifest.policies.length;
+  console.log(`Wrote manifest.json with ${count} policy ${count === 1 ? "entry" : "entries"}.`);
 }
 
 function readJson(filePath) {
@@ -86,7 +87,7 @@ function sortedDirectoryNames(directoryPath) {
       const entryPath = path.join(directoryPath, entry);
       return statSync(entryPath).isDirectory();
     })
-    .sort((a, b) => a.localeCompare(b));
+    .sort(compareStrings);
 }
 
 function buildPolicyEntry(policyFilePath) {
@@ -136,9 +137,12 @@ function parsePolicyMarkdown(markdown, relativePolicyPath) {
     errors.push(`${relativePolicyPath}: invalid YAML frontmatter: ${error.message}`);
   }
 
-  const regoBlocks = [...markdown.matchAll(/```rego\r?\n([\s\S]*?)\r?\n```/g)];
+  // Only look for the policy body AFTER the frontmatter, so a ```rego example
+  // inside the `description` field can't be miscounted as the policy.
+  const body = markdown.slice(frontmatterMatch[0].length);
+  const regoBlocks = [...body.matchAll(/```rego\r?\n([\s\S]*?)\r?\n```/g)];
   if (regoBlocks.length !== 1) {
-    errors.push(`${relativePolicyPath}: expected exactly one fenced rego block, found ${regoBlocks.length}`);
+    errors.push(`${relativePolicyPath}: expected exactly one fenced rego block in the policy body, found ${regoBlocks.length}`);
   }
 
   return {
@@ -346,4 +350,17 @@ function sha256(value) {
 
 function toPosix(value) {
   return value.split(path.sep).join("/");
+}
+
+// Deterministic, locale-independent ordering by UTF-16 code unit. Using
+// String.prototype.localeCompare here would let manifest.json ordering vary
+// across environments and cause spurious `manifest:check` failures.
+function compareStrings(a, b) {
+  if (a < b) {
+    return -1;
+  }
+  if (a > b) {
+    return 1;
+  }
+  return 0;
 }
