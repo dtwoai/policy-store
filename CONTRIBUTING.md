@@ -111,7 +111,7 @@ A new policy looks like this:
 ```text
 apps/<app>/<policy-slug>/
   policy.md          # required — frontmatter (incl. the human docs) plus the fenced Rego policy body
-  tests.md           # required — a YAML-frontmatter array of test cases (at least one positive and one negative)
+  tests.yaml         # required — a YAML array of test cases (at least one positive and one negative)
 ```
 
 - `<app>` is the lowercase, hyphenated MCP server name as it would commonly be configured on a gateway (e.g., `slack`, `jira`, `github`, `postgres`).
@@ -125,7 +125,7 @@ apps/<app>/<policy-slug>/
 2. **App landing page** — add a row to `apps/<app>/README.md` linking to the new policy.
 3. **Industry / bundle landing pages** — if the policy fits an existing industry or bundle, list `<industry>` / `<bundle>` slugs in the policy's frontmatter **and** add a link from the matching landing page. Do not duplicate the policy body.
 4. **New apps, industries, or bundles** — create the corresponding directory and `README.md`; the manifest generator will add the top-level map entry.
-5. **Tests** — add at least one positive and one negative test case to the policy's `tests.md` (see [Testing](#testing)).
+5. **Tests** — add at least one positive and one negative test case to the policy's `tests.yaml` (see [Testing](#testing)).
 6. **Manifest generation** — run `pnpm manifest` and commit the generated `manifest.json`, then run `pnpm manifest:check` to confirm it is current (this is what CI enforces).
 7. **Run the policy tests** — `pnpm test` (requires the OPA CLI on your `PATH`). CI runs the same command.
 
@@ -139,7 +139,7 @@ apps/<app>/<policy-slug>/
 
 ## Testing
 
-Every policy ships with a `tests.md`, and CI compiles and runs the cases in the file. Install the [OPA CLI](https://www.openpolicyagent.org/docs/latest/#running-opa) (v1.x) — e.g. `brew install opa`, or download a release binary — then:
+Every policy ships with a `tests.yaml`, and CI compiles and runs the cases in the file. Install the [OPA CLI](https://www.openpolicyagent.org/docs/latest/#running-opa) (v1.x) — e.g. `brew install opa`, or download a release binary — then:
 
 ```bash
 pnpm test          # opa check --strict on every policy + run all test cases
@@ -147,12 +147,11 @@ pnpm test          # opa check --strict on every policy + run all test cases
 
 `pnpm test` requires the `opa` binary on your `PATH`; set `OPA_BIN` to point at a specific binary if it isn't. CI installs OPA with the [`open-policy-agent/setup-opa`](https://github.com/open-policy-agent/setup-opa) action.
 
-The runner (`scripts/test-policies.mjs`) extracts the Rego from each `policy.md`, type-checks it with `opa check --strict`, and evaluates every test case in the policy's `tests.md` against the documented outcome.
+The runner (`scripts/test-policies.mjs`) extracts the Rego from each `policy.md`, type-checks it with `opa check --strict`, and evaluates every test case in the policy's `tests.yaml` against the documented outcome.
 
-**Test contract.** A `tests.md` is a Markdown file whose YAML frontmatter is a top-level array of test cases (the body below the frontmatter is for human readers; the runner ignores it). Each entry:
+**Test contract.** A `tests.yaml` is a YAML file holding a top-level array of test cases. Each entry:
 
 ```yaml
----
 - description: what this case demonstrates
   input: # the PARC decision object: input.resource / subject / action / payload ...
     resource: { ... }
@@ -163,10 +162,6 @@ The runner (`scripts/test-policies.mjs`) extracts the Rego from each `policy.md`
   transformApplied: true          # optional — whether data.<pkg>.transform is returned
   transform: { replacement: "..." }       # optional — asserted field by field
   transformedArgsContain: { jql: "..." }          # optional — data.<pkg>.transform.transformed_payload must contain these
----
-
-# Test fixtures
-...human-readable notes...
 ```
 
 - Provide **at least one positive and one negative** case. Deny policies use an allow case and a deny case; transform-only policies use a passthrough case (`transformApplied: false`) and a redact case (`transformApplied: true`).

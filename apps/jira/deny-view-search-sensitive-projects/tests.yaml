@@ -1,4 +1,3 @@
----
 - description: Generic JQL search with no sensitive-project reference. Policy
     should allow and silently rewrite the JQL to exclude sensitive projects.
   input:
@@ -35,9 +34,3 @@
   output:
     expectedResult: deny
     expectedReason: Searching for issues in protected project(s) (PROJA) is not permitted
----
-
-# Test fixtures
-
-These fixtures are defined in the YAML frontmatter above and run by `pnpm test`
-(`scripts/test-policies.mjs`) against the policy in `policy.md`.

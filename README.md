@@ -22,7 +22,7 @@ apps/
     README.md                 # landing page listing policies for this app
     <policy>/
       policy.md               # metadata frontmatter plus the fenced Rego policy body
-      tests.md                # test cases (inputs + expected outcomes) in YAML frontmatter
+      tests.yaml              # test cases (inputs + expected outcomes), a YAML array
 
 industries/
   <industry>/                 # one directory per industry (e.g. healthcare, finance)

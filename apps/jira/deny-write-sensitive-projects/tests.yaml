@@ -1,4 +1,3 @@
----
 - description: Edit on an issue in a non-sensitive project. Policy should allow.
   input:
     action: tool_pre_invoke
@@ -35,9 +34,3 @@
   output:
     expectedResult: deny
     expectedReason: Modifying issues in the 'PROJECT_KEY1' project is not permitted
----
-
-# Test fixtures
-
-These fixtures are defined in the YAML frontmatter above and run by `pnpm test`
-(`scripts/test-policies.mjs`) against the policy in `policy.md`.

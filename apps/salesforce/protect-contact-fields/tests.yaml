@@ -1,4 +1,3 @@
----
 - description: Contact update touching only a non-protected field (Description).
     Policy should allow.
   input:
@@ -39,9 +38,3 @@
   output:
     expectedResult: deny
     expectedReason: protected fields on a Contact
----
-
-# Test fixtures
-
-These fixtures are defined in the YAML frontmatter above and run by `pnpm test`
-(`scripts/test-policies.mjs`) against the policy in `policy.md`.

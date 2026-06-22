@@ -1,4 +1,3 @@
----
 - description: A non-create Slack tool (post message). Policy should allow.
   input:
     action: tool_pre_invoke
@@ -32,9 +31,3 @@
   output:
     expectedResult: deny
     expectedReason: Creating Slack channels is not permitted
----
-
-# Test fixtures
-
-These fixtures are defined in the YAML frontmatter above and run by `pnpm test`
-(`scripts/test-policies.mjs`) against the policy in `policy.md`.

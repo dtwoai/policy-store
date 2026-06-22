@@ -1,4 +1,3 @@
----
 - description: Contact update with no lifecyclestage field (other properties
     only). Policy should allow.
   input:
@@ -41,9 +40,3 @@
   output:
     expectedResult: deny
     expectedReason: Changing the lifecycle stage of a contact is not permitted
----
-
-# Test fixtures
-
-These fixtures are defined in the YAML frontmatter above and run by `pnpm test`
-(`scripts/test-policies.mjs`) against the policy in `policy.md`.
