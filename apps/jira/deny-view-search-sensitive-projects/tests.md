@@ -1,0 +1,43 @@
+---
+- description: Generic JQL search with no sensitive-project reference. Policy
+    should allow and silently rewrite the JQL to exclude sensitive projects.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-jira-mcp-searchjiraissuesusingjql
+      uri: null
+    payload:
+      name: atlassian-jira-mcp-searchjiraissuesusingjql
+      args:
+        jql: assignee = currentUser() ORDER BY created DESC
+  output:
+    expectedResult: allow
+  transformedArgsContain:
+    jql: project NOT IN (PROJA, PROJB) AND (assignee = currentUser()) ORDER BY
+      created DESC
+- description: JQL search that explicitly references a sensitive project. Policy
+    should deny with a reason naming the project.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-jira-mcp-searchjiraissuesusingjql
+      uri: null
+    payload:
+      name: atlassian-jira-mcp-searchjiraissuesusingjql
+      args:
+        jql: project = PROJA ORDER BY created DESC
+  output:
+    expectedResult: deny
+    expectedReason: Searching for issues in protected project(s) (PROJA) is not permitted
+---
+
+# Test fixtures
+
+These fixtures are defined in the YAML frontmatter above and run by `pnpm test`
+(`scripts/test-policies.mjs`) against the policy in `policy.md`.

@@ -1,0 +1,47 @@
+---
+- description: Contact update touching only a non-protected field (Description).
+    Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: salesforce-updatesobjectrecord
+      uri: null
+    payload:
+      name: salesforce-updatesobjectrecord
+      args:
+        sobject-name: Contact
+        record-id: 003xx0000000001
+        body:
+          Description: Met at conference
+  output:
+    expectedResult: allow
+- description: Contact update whose body includes a protected field (Email).
+    Policy should deny with a reason naming the field.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: salesforce-updatesobjectrecord
+      uri: null
+    payload:
+      name: salesforce-updatesobjectrecord
+      args:
+        sobject-name: Contact
+        record-id: 003xx0000000001
+        body:
+          Email: new@example.com
+          Description: Updated after call
+  output:
+    expectedResult: deny
+    expectedReason: protected fields on a Contact
+---
+
+# Test fixtures
+
+These fixtures are defined in the YAML frontmatter above and run by `pnpm test`
+(`scripts/test-policies.mjs`) against the policy in `policy.md`.

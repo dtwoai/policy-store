@@ -1,0 +1,49 @@
+---
+- description: Egress response from a non-Salesforce tool. Out of scope, so the
+    policy applies no transform and the response is returned unchanged.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: slack-mcp-slack-post-message
+      uri: null
+    payload:
+      name: slack-mcp-slack-post-message
+      result:
+        ok: true
+        channel: C0123456789
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Egress response from a Salesforce tool on the output path. Policy
+    is in scope, so it returns a redaction transform that masks PII in the
+    response body.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: salesforce-soqlquery
+      uri: null
+    payload:
+      name: salesforce-soqlquery
+      result:
+        records:
+          - Id: 003xx0000000001
+            Name: Jane Doe
+            Email: jane@example.com
+            Phone: 555-666-7777
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transform:
+    replacement: "[REDACTED]"
+---
+
+# Test fixtures
+
+These fixtures are defined in the YAML frontmatter above and run by `pnpm test`
+(`scripts/test-policies.mjs`) against the policy in `policy.md`.

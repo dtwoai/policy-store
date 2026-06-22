@@ -1,0 +1,42 @@
+---
+- description: Posting a message to a regular channel (channel ID begins with C).
+    Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-slack-post-message
+      uri: null
+    payload:
+      name: slack-mcp-slack-post-message
+      args:
+        channel: C0123456789
+        text: hi team
+  output:
+    expectedResult: allow
+- description: Posting a message to a 1:1 DM channel (channel ID begins with D).
+    Policy should deny with a reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-slack-post-message
+      uri: null
+    payload:
+      name: slack-mcp-slack-post-message
+      args:
+        channel: D0123456789
+        text: hi
+  output:
+    expectedResult: deny
+    expectedReason: Sending direct messages via Slack is not permitted
+---
+
+# Test fixtures
+
+These fixtures are defined in the YAML frontmatter above and run by `pnpm test`
+(`scripts/test-policies.mjs`) against the policy in `policy.md`.

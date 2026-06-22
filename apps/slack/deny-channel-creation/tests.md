@@ -1,0 +1,40 @@
+---
+- description: A non-create Slack tool (post message). Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-slack-post-message
+      uri: null
+    payload:
+      name: slack-mcp-slack-post-message
+      args:
+        channel: C0123456789
+        text: hello team
+  output:
+    expectedResult: allow
+- description: Slack channel-creation call (conversations.create shape). Policy
+    should deny with a reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-conversations-create
+      uri: null
+    payload:
+      name: slack-mcp-conversations-create
+      args:
+        name: incident-2026-06
+  output:
+    expectedResult: deny
+    expectedReason: Creating Slack channels is not permitted
+---
+
+# Test fixtures
+
+These fixtures are defined in the YAML frontmatter above and run by `pnpm test`
+(`scripts/test-policies.mjs`) against the policy in `policy.md`.

@@ -1,0 +1,43 @@
+---
+- description: Edit on an issue in a non-sensitive project. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-jira-mcp-editjiraissue
+      uri: null
+    payload:
+      name: atlassian-jira-mcp-editjiraissue
+      args:
+        issueIdOrKey: DEV-7
+        fields:
+          summary: updated summary
+  output:
+    expectedResult: allow
+- description: Edit on an issue in a sensitive project. Policy should deny with a
+    reason naming the project.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-jira-mcp-editjiraissue
+      uri: null
+    payload:
+      name: atlassian-jira-mcp-editjiraissue
+      args:
+        issueIdOrKey: PROJECT_KEY1-42
+        fields:
+          summary: updated summary
+  output:
+    expectedResult: deny
+    expectedReason: Modifying issues in the 'PROJECT_KEY1' project is not permitted
+---
+
+# Test fixtures
+
+These fixtures are defined in the YAML frontmatter above and run by `pnpm test`
+(`scripts/test-policies.mjs`) against the policy in `policy.md`.

@@ -37,5 +37,5 @@ jobs:
         with:
           version: "1.17.1"
 
-      - name: Test policies (opa check + fixtures)
+      - name: Test policies (opa check + test cases)
         run: pnpm test

@@ -22,7 +22,7 @@ These policies do not require any specific IdP claims. If you want identity-base
 
 To add a JIRA policy:
 
-1. Create `apps/jira/<policy-slug>/` with `policy.md` and optional `tests/` sample inputs.
+1. Create `apps/jira/<policy-slug>/` with `policy.md` and a `tests.md` test file.
 2. Add a row to the table above.
 3. Declare `apps: ["jira"]` in the policy frontmatter, plus any industry / bundle slugs that apply.
 4. If the policy fits an industry or bundle (e.g. [`bundles/atlassian`](../../bundles/atlassian/README.md)), link to it from the matching landing page.

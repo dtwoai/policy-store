@@ -1,23 +1,25 @@
 // Compiles every catalog policy with `opa check --strict` and runs its test
-// fixtures against the real OPA evaluator, asserting the documented outcome.
+// cases against the real OPA evaluator, asserting the documented outcome.
 //
-// Fixture contract (apps/<app>/<policy>/tests/*.json):
-//   {
-//     "description": "...",
-//     "input":    { ...the PARC decision input (input.resource/subject/action/...) },
-//     "expected": {
-//       "allow": true | false,                 // required
-//       "reasonContains": "substring",         // optional: data.<pkg>.reason must contain it
-//       "transformApplied": true | false,      // optional: whether data.<pkg>.transform is present
-//       "transform": { "replacement": "..." }  // optional: asserted field-by-field
-//     }
-//   }
+// Each policy ships a `tests.md` next to its `policy.md`. The tests live in the
+// file's YAML frontmatter as a top-level array (the same frontmatter convention
+// policy.md uses for its metadata). Each entry:
+//   - description: string                        // what the case demonstrates
+//   - input:       { ...PARC decision object }   // input.resource/subject/action/...
+//   - output:                                    // the published-schema outcome
+//       expectedResult: "allow" | "deny"         // required: data.<pkg>.allow
+//       expectedReason: "substring"              // optional: data.<pkg>.reason must contain it
+//   # Gate-only assertions below. These are NOT part of the published test
+//   # schema (d2 strips them when importing tests.md); they let this runner keep
+//   # checking transform behaviour, which expectedResult cannot express.
+//   - transformApplied:       true | false       // optional: whether data.<pkg>.transform is present
+//   - transform:              { ... }            // optional: asserted field by field
+//   - transformedArgsContain: { ... }            // optional: data.<pkg>.transform.transformed_payload must contain these
 //
-// IMPORTANT: the fixture's PARC object lives under the `input` key, and this
-// runner feeds ONLY that object to OPA as the input document. Do not run
-// `opa eval -i fixture.json` directly — OPA would treat the whole file
-// (including `expected`) as input, so the policy would read input.input.* ,
-// every rule would miss, and a deny policy would wrongly report allow=true.
+// IMPORTANT: the test's PARC object lives under the `input` key, and this runner
+// feeds ONLY that object to OPA as the input document. Do not hand OPA the whole
+// test object — it would read input.input.*, every rule would miss, and a deny
+// policy would wrongly report allow=true.
 //
 // Requires the `opa` binary (v1.x) on PATH, or set OPA_BIN to its path.
 
@@ -25,6 +27,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { parse } from "yaml";
 
 const root = process.cwd();
 const appsDir = path.join(root, "apps");
@@ -32,7 +35,7 @@ const opa = process.env.OPA_BIN ?? "opa";
 
 const failures = [];
 let policyCount = 0;
-let fixtureCount = 0;
+let testCount = 0;
 
 assertOpaAvailable();
 
@@ -49,7 +52,7 @@ if (failures.length > 0) {
   process.exit(1);
 }
 
-console.log(`\nOK: ${policyCount} ${plural(policyCount, "policy", "policies")}, ${fixtureCount} ${plural(fixtureCount, "fixture", "fixtures")} passed.`);
+console.log(`\nOK: ${policyCount} ${plural(policyCount, "policy", "policies")}, ${testCount} ${plural(testCount, "test", "tests")} passed.`);
 
 function runPolicy(policyFilePath) {
   const rel = toPosix(path.relative(root, policyFilePath));
@@ -79,47 +82,73 @@ function runPolicy(policyFilePath) {
       return;
     }
 
-    const testsDir = path.join(policyDir, "tests");
-    if (!existsSync(testsDir)) {
-      failures.push(`${rel}: no tests/ directory (at least one fixture is required)`);
+    const testsFile = path.join(policyDir, "tests.md");
+    if (!existsSync(testsFile)) {
+      failures.push(`${rel}: no tests.md alongside policy.md (at least one test is required)`);
       return;
     }
 
-    const fixtures = readdirSync(testsDir)
-      .filter((name) => name.endsWith(".json"))
-      .sort(compareStrings);
-
-    if (fixtures.length === 0) {
-      failures.push(`${rel}: tests/ contains no .json fixtures`);
+    const testsRel = toPosix(path.relative(root, testsFile));
+    const tests = parseTests(readFileSync(testsFile, "utf8"), testsRel);
+    if (tests === null) {
+      return;
+    }
+    if (tests.length === 0) {
+      failures.push(`${testsRel}: frontmatter contains no tests`);
       return;
     }
 
-    for (const fixtureName of fixtures) {
-      fixtureCount += 1;
-      runFixture(path.join(testsDir, fixtureName), regoFile, pkg);
-    }
+    tests.forEach((test, index) => {
+      testCount += 1;
+      runTest(test, `${testsRel} [${index}]`, regoFile, pkg);
+    });
   } finally {
     rmSync(work, { recursive: true, force: true });
   }
 }
 
-function runFixture(fixturePath, regoFile, pkg) {
-  const rel = toPosix(path.relative(root, fixturePath));
-
-  let fixture;
-  try {
-    fixture = JSON.parse(readFileSync(fixturePath, "utf8"));
-  } catch (error) {
-    failures.push(`${rel}: invalid JSON: ${error.message}`);
-    return;
+// Parses a tests.md file's YAML frontmatter into the array of test cases.
+// Returns null (recording a failure) when the frontmatter is missing, invalid,
+// or not a top-level array.
+function parseTests(markdown, context) {
+  const frontmatterMatch = markdown.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n/);
+  if (!frontmatterMatch) {
+    failures.push(`${context}: missing YAML frontmatter delimited by ---`);
+    return null;
   }
 
-  if (fixture.input === undefined) {
+  let data;
+  try {
+    data = parse(frontmatterMatch[1]);
+  } catch (error) {
+    failures.push(`${context}: invalid YAML frontmatter: ${error.message}`);
+    return null;
+  }
+
+  if (!Array.isArray(data)) {
+    failures.push(`${context}: frontmatter must be an array of tests`);
+    return null;
+  }
+  return data;
+}
+
+function runTest(test, rel, regoFile, pkg) {
+  if (!isPlainObject(test)) {
+    failures.push(`${rel}: test must be an object`);
+    return;
+  }
+  if (test.input === undefined) {
     failures.push(`${rel}: missing "input" (the PARC decision object)`);
     return;
   }
-  if (!isPlainObject(fixture.expected)) {
-    failures.push(`${rel}: missing "expected" object`);
+  if (!isPlainObject(test.output)) {
+    failures.push(`${rel}: missing "output" object`);
+    return;
+  }
+
+  const expectedResult = test.output.expectedResult;
+  if (expectedResult !== "allow" && expectedResult !== "deny") {
+    failures.push(`${rel}: "output.expectedResult" must be "allow" or "deny"`);
     return;
   }
 
@@ -128,7 +157,7 @@ function runFixture(fixturePath, regoFile, pkg) {
     const out = execFileSync(
       opa,
       ["eval", "--format", "json", "--data", regoFile, "--stdin-input", `data.${pkg}`],
-      { input: JSON.stringify(fixture.input), stdio: ["pipe", "pipe", "pipe"] },
+      { input: JSON.stringify(test.input), stdio: ["pipe", "pipe", "pipe"] },
     );
     decision = JSON.parse(out).result?.[0]?.expressions?.[0]?.value ?? {};
   } catch (error) {
@@ -136,35 +165,42 @@ function runFixture(fixturePath, regoFile, pkg) {
     return;
   }
 
-  const expected = fixture.expected;
-
-  if (typeof expected.allow !== "boolean") {
-    failures.push(`${rel}: missing "expected.allow" boolean`);
-    return;
+  const expectAllow = expectedResult === "allow";
+  if (decision.allow !== expectAllow) {
+    failures.push(`${rel}: expected ${expectedResult} (allow=${expectAllow}), got allow=${JSON.stringify(decision.allow)}`);
   }
 
-  if (decision.allow !== expected.allow) {
-    failures.push(`${rel}: expected allow=${expected.allow}, got ${JSON.stringify(decision.allow)}`);
-  }
-
-  if (typeof expected.reasonContains === "string") {
-    if (typeof decision.reason !== "string" || !decision.reason.includes(expected.reasonContains)) {
-      failures.push(`${rel}: expected reason to contain "${expected.reasonContains}", got ${JSON.stringify(decision.reason)}`);
+  if (typeof test.output.expectedReason === "string") {
+    if (typeof decision.reason !== "string" || !decision.reason.includes(test.output.expectedReason)) {
+      failures.push(`${rel}: expected reason to contain "${test.output.expectedReason}", got ${JSON.stringify(decision.reason)}`);
     }
   }
 
-  if (typeof expected.transformApplied === "boolean") {
+  // Gate-only transform assertions (not part of the published test schema).
+  if (typeof test.transformApplied === "boolean") {
     const applied = isPlainObject(decision.transform) && Object.keys(decision.transform).length > 0;
-    if (applied !== expected.transformApplied) {
-      failures.push(`${rel}: expected transformApplied=${expected.transformApplied}, got ${applied}`);
+    if (applied !== test.transformApplied) {
+      failures.push(`${rel}: expected transformApplied=${test.transformApplied}, got ${applied}`);
     }
   }
 
-  if (isPlainObject(expected.transform)) {
-    for (const [key, want] of Object.entries(expected.transform)) {
+  if (isPlainObject(test.transform)) {
+    for (const [key, want] of Object.entries(test.transform)) {
       const got = decision.transform?.[key];
       if (JSON.stringify(got) !== JSON.stringify(want)) {
         failures.push(`${rel}: expected transform.${key}=${JSON.stringify(want)}, got ${JSON.stringify(got)}`);
+      }
+    }
+  }
+
+  // The transform rewrites the call's args under transform.transformed_payload;
+  // assert the expected key/values survived the rewrite.
+  if (isPlainObject(test.transformedArgsContain)) {
+    const args = decision.transform?.transformed_payload;
+    for (const [key, want] of Object.entries(test.transformedArgsContain)) {
+      const got = args?.[key];
+      if (JSON.stringify(got) !== JSON.stringify(want)) {
+        failures.push(`${rel}: expected transformed_payload.${key}=${JSON.stringify(want)}, got ${JSON.stringify(got)}`);
       }
     }
   }

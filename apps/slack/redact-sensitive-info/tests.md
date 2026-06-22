@@ -1,0 +1,45 @@
+---
+- description: Slack post-message with a clean body (no sensitive patterns).
+    Policy should allow and apply no transform.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-slack-post-message
+      uri: null
+    payload:
+      name: slack-mcp-slack-post-message
+      args:
+        channel: C0123456789
+        text: lunch in 5
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Slack post-message whose text contains an AWS access key. Policy
+    should allow and rewrite the text to redact the secret.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-slack-post-message
+      uri: null
+    payload:
+      name: slack-mcp-slack-post-message
+      args:
+        channel: C0123456789
+        text: "deploy creds: AKIAIOSFODNN7EXAMPLE"
+  output:
+    expectedResult: allow
+  transformedArgsContain:
+    channel: C0123456789
+    text: "deploy creds: [REDACTED]"
+---
+
+# Test fixtures
+
+These fixtures are defined in the YAML frontmatter above and run by `pnpm test`
+(`scripts/test-policies.mjs`) against the policy in `policy.md`.

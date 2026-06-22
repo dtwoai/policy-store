@@ -1,0 +1,41 @@
+---
+- description: Normal Slack message — no secret patterns. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-slack-post-message
+      uri: null
+    payload:
+      name: slack-mcp-slack-post-message
+      args:
+        channel: C0123456789
+        text: lunch in 5
+  output:
+    expectedResult: allow
+- description: Slack message body contains an OpenAI-shaped API key. Policy should
+    deny with a reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-slack-post-message
+      uri: null
+    payload:
+      name: slack-mcp-slack-post-message
+      args:
+        channel: C0123456789
+        text: "here's the api_key: sk-abcdef0123456789abcdef0123456789"
+  output:
+    expectedResult: deny
+    expectedReason: looks like it contains a secret
+---
+
+# Test fixtures
+
+These fixtures are defined in the YAML frontmatter above and run by `pnpm test`
+(`scripts/test-policies.mjs`) against the policy in `policy.md`.
