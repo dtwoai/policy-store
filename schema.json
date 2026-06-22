@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0.0",
-  "description": "Describes the expected fields for the policy-store manifest.json index and the individual policy markdown files. Policy entries or md files which do not follow this schema will not be accepted into the repository.",
+  "description": "Describes the expected fields for the policy-store manifest.json index, the individual policy markdown files, and the optional per-policy tests file. Policy entries, md files, or tests which do not follow this schema will not be accepted into the repository.",
   "manifest": {
     "description": "The top-level manifest.json file: the searchable index of every published policy and the folder maps for apps, industries and bundles.",
     "fields": {
@@ -169,6 +169,46 @@
         "description": "The plain-text Rego policy. This is not a frontmatter field; it is the document body inside the fenced ```rego block.",
         "type": "string (Rego)",
         "required": true
+      }
+    }
+  },
+  "policyTest": {
+    "description": "Each object in a policy folder's optional tests array (the file is an array of these). Imported alongside the policy as a runnable policy test case.",
+    "fields": {
+      "description": {
+        "name": "description",
+        "description": "A description of what this test verifies.",
+        "type": "string",
+        "required": true
+      },
+      "input": {
+        "name": "input",
+        "description": "The input object for the test. The shape of the input should match what the policy expects, but ultimately it's up to the user to define valid tests.",
+        "type": "object (JSON)",
+        "required": true
+      },
+      "output": {
+        "name": "output",
+        "description": "The expected outcome of evaluating the policy against the input.",
+        "type": "TestOutput",
+        "required": true
+      }
+    },
+    "testOutput": {
+      "description": "The expected outcome of evaluating a policy against a test input.",
+      "fields": {
+        "expectedResult": {
+          "name": "expectedResult",
+          "description": "The decision the policy is expected to return for this input. One of: allow, deny.",
+          "type": "string (allow | deny)",
+          "required": true
+        },
+        "expectedReason": {
+          "name": "expectedReason",
+          "description": "An optional reason which might be returned with the policy decision.",
+          "type": "string",
+          "required": false
+        }
       }
     }
   }
