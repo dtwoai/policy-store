@@ -31,4 +31,4 @@
           Name: Acme
   output:
     expectedResult: deny
-    expectedReason: write operations (create/modify) are blocked
+    expectedReason: Salesforce write operations (create/modify) are blocked on this gateway. Only read-only Salesforce tools are permitted.

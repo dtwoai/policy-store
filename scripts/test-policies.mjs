@@ -7,7 +7,7 @@
 //   - input:       { ...PARC decision object }   // input.resource/subject/action/...
 //   - output:                                    // the published-schema outcome
 //       expectedResult: "allow" | "deny"         // required: data.<pkg>.allow
-//       expectedReason: "substring"              // optional: data.<pkg>.reason must contain it
+//       expectedReason: "exact reason"           // optional: data.<pkg>.reason must equal it exactly
 //   # Gate-only assertions below. These are NOT part of the published test
 //   # schema (d2 strips them when importing tests.yaml); they let this runner keep
 //   # checking transform behaviour, which expectedResult cannot express.
@@ -185,12 +185,9 @@ function runTest(test, rel, regoFile, pkg) {
 	}
 
 	if (typeof test.output.expectedReason === "string") {
-		if (
-			typeof decision.reason !== "string" ||
-			!decision.reason.includes(test.output.expectedReason)
-		) {
+		if (decision.reason !== test.output.expectedReason) {
 			failures.push(
-				`${rel}: expected reason to contain "${test.output.expectedReason}", got ${JSON.stringify(decision.reason)}`,
+				`${rel}: expected reason ${JSON.stringify(test.output.expectedReason)}, got ${JSON.stringify(decision.reason)}`,
 			);
 		}
 	}

@@ -31,4 +31,4 @@
         limit: 50
   output:
     expectedResult: deny
-    expectedReason: is not permitted via this gateway
+    expectedReason: Reading, searching, or summarizing this Slack channel is not permitted via this gateway. Contact your InfoSec team if this needs to change.

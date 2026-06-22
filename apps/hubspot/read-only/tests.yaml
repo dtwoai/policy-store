@@ -34,4 +34,4 @@
                 amount: "500"
   output:
     expectedResult: deny
-    expectedReason: read-only
+    expectedReason: HubSpot write operations are disabled on this gateway. This connection is read-only.

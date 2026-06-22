@@ -32,4 +32,4 @@
         text: hi
   output:
     expectedResult: deny
-    expectedReason: Sending direct messages via Slack is not permitted
+    expectedReason: Sending direct messages via Slack is not permitted via this gateway. Contact your InfoSec team if this needs to change.

@@ -33,4 +33,4 @@
         jql: project = PROJA ORDER BY created DESC
   output:
     expectedResult: deny
-    expectedReason: Searching for issues in protected project(s) (PROJA) is not permitted
+    expectedReason: Searching for issues in protected project(s) (PROJA) is not permitted. Contact your InfoSec team if this needs to change.

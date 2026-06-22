@@ -37,4 +37,4 @@
           Description: Updated after call
   output:
     expectedResult: deny
-    expectedReason: protected fields on a Contact
+    expectedReason: "Updating these protected fields on a Contact is not permitted through this gateway: email."

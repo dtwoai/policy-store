@@ -39,4 +39,4 @@
                 dealstage: closedwon
   output:
     expectedResult: deny
-    expectedReason: Closing deals is not allowed
+    expectedReason: Closing deals is not allowed. Contact your InfoSec team to get access.

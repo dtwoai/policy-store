@@ -31,4 +31,4 @@
         text: "here's the api_key: sk-abcdef0123456789abcdef0123456789"
   output:
     expectedResult: deny
-    expectedReason: looks like it contains a secret
+    expectedReason: This Slack message looks like it contains a secret (API key, password, token, or private key). Send credentials through your secret manager instead. Contact your InfoSec team if this was a false positive.

@@ -30,4 +30,4 @@
         name: incident-2026-06
   output:
     expectedResult: deny
-    expectedReason: Creating Slack channels is not permitted
+    expectedReason: Creating Slack channels is not permitted via this gateway. Contact your InfoSec team if this needs to change.

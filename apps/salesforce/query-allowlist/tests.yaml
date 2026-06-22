@@ -29,4 +29,4 @@
         q: SELECT Id, Username FROM User
   output:
     expectedResult: deny
-    expectedReason: only permits querying Account, Contact, and Opportunity
+    expectedReason: This gateway only permits querying Account, Contact, and Opportunity objects in Salesforce. Your query targets user.

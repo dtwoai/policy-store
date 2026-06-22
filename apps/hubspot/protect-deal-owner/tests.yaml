@@ -39,4 +39,4 @@
                 hubspot_owner_id: "99887766"
   output:
     expectedResult: deny
-    expectedReason: Changing the owner of a deal is not permitted
+    expectedReason: Changing the owner of a deal is not permitted through this gateway. Contact your admin to reassign deals.

@@ -158,7 +158,7 @@ The runner (`scripts/test-policies.mjs`) extracts the Rego from each `policy.md`
     action: ...
   output:
     expectedResult: deny          # required — "allow" or "deny" (asserts data.<pkg>.allow)
-    expectedReason: substring     # optional — data.<pkg>.reason must contain it
+    expectedReason: exact reason  # optional — data.<pkg>.reason must equal it exactly
   transformApplied: true          # optional — whether data.<pkg>.transform is returned
   transform: { replacement: "..." }       # optional — asserted field by field
   transformedArgsContain: { jql: "..." }          # optional — data.<pkg>.transform.transformed_payload must contain these

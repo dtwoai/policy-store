@@ -33,4 +33,4 @@
           summary: updated summary
   output:
     expectedResult: deny
-    expectedReason: Modifying issues in the 'PROJECT_KEY1' project is not permitted
+    expectedReason: Modifying issues in the 'PROJECT_KEY1' project is not permitted. Contact your InfoSec team if this needs to change.

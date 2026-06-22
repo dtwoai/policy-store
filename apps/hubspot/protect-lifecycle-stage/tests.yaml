@@ -39,4 +39,4 @@
                 lifecyclestage: customer
   output:
     expectedResult: deny
-    expectedReason: Changing the lifecycle stage of a contact is not permitted
+    expectedReason: Changing the lifecycle stage of a contact is not permitted through this gateway. Contact your admin to update lifecycle stages.
