@@ -1,0 +1,18 @@
+version: 2
+updates:
+  # Keep SHA-pinned GitHub Actions current. Dependabot understands SHA pins and
+  # bumps both the commit SHA and the `# vX.Y.Z` comment when a new release ships.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns:
+          - "*"
+
+  # Keep the (single) dev dependency current.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly

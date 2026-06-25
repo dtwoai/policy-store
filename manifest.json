@@ -1,0 +1,432 @@
+{
+  "policies": [
+    {
+      "path": "apps/hubspot/block-deal-closure",
+      "name": "HubSpot Block Deal Closure",
+      "direction": "ingress",
+      "publishedAt": "2026-06-16",
+      "apps": [
+        "hubspot"
+      ],
+      "industries": [],
+      "bundles": [
+        "crm"
+      ],
+      "tags": [
+        "hubspot",
+        "deals",
+        "access-control",
+        "governance",
+        "ingress"
+      ],
+      "policyChecksum": "sha256:610b7a15cb9dfc53c0eef487b0bd786f47de31f4528493d2697b77913e50ea5e",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/hubspot/protect-associations",
+      "name": "HubSpot Protect Associations",
+      "direction": "ingress",
+      "publishedAt": "2026-06-16",
+      "apps": [
+        "hubspot"
+      ],
+      "industries": [],
+      "bundles": [
+        "crm"
+      ],
+      "tags": [
+        "hubspot",
+        "associations",
+        "access-control",
+        "governance",
+        "ingress"
+      ],
+      "policyChecksum": "sha256:682a9be175d987f3cb60dfabf940b2e5bac03da616a8a3539696c080d99d5d52",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/hubspot/protect-deal-owner",
+      "name": "HubSpot Protect Deal Owner",
+      "direction": "ingress",
+      "publishedAt": "2026-06-16",
+      "apps": [
+        "hubspot"
+      ],
+      "industries": [],
+      "bundles": [
+        "crm"
+      ],
+      "tags": [
+        "hubspot",
+        "deals",
+        "access-control",
+        "governance",
+        "ingress"
+      ],
+      "policyChecksum": "sha256:9b850e272d771fce7b98056fbe73fae4aeadb5e8b79e940b4e7f643a925a36a0",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/hubspot/protect-lifecycle-stage",
+      "name": "HubSpot Protect Lifecycle Stage",
+      "direction": "ingress",
+      "publishedAt": "2026-06-16",
+      "apps": [
+        "hubspot"
+      ],
+      "industries": [],
+      "bundles": [
+        "crm"
+      ],
+      "tags": [
+        "hubspot",
+        "contacts",
+        "lifecycle",
+        "access-control",
+        "governance",
+        "ingress"
+      ],
+      "policyChecksum": "sha256:16f9e6e25e396ba938081c793f12d3bfbc0eb030440fa04e871885e6fcc3697f",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/hubspot/read-only",
+      "name": "HubSpot Read-Only",
+      "direction": "ingress",
+      "publishedAt": "2026-06-16",
+      "apps": [
+        "hubspot"
+      ],
+      "industries": [],
+      "bundles": [
+        "crm"
+      ],
+      "tags": [
+        "hubspot",
+        "access-control",
+        "governance",
+        "read-only",
+        "ingress"
+      ],
+      "policyChecksum": "sha256:c4ef50764a959af252cfbd5474bfea02a57b207fa3d352636dc70b8f11b45de0",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/hubspot/redact-pii",
+      "name": "HubSpot Redact PII",
+      "direction": "egress",
+      "publishedAt": "2026-06-16",
+      "apps": [
+        "hubspot"
+      ],
+      "industries": [],
+      "bundles": [
+        "crm"
+      ],
+      "tags": [
+        "hubspot",
+        "pii",
+        "dlp",
+        "redaction",
+        "egress"
+      ],
+      "policyChecksum": "sha256:e3d625ade165040504699ef68968a4216ee16ebb5bce8626126c07dfaaef27e6",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/jira/deny-view-search-sensitive-projects",
+      "name": "JIRA: Deny Sensitive Project Search and View",
+      "direction": "ingress",
+      "publishedAt": "2026-06-16",
+      "apps": [
+        "jira"
+      ],
+      "industries": [],
+      "bundles": [
+        "atlassian"
+      ],
+      "tags": [
+        "jira",
+        "atlassian",
+        "access-control",
+        "data-protection",
+        "ingress"
+      ],
+      "policyChecksum": "sha256:3d14268530ccbaf2985ca1cfe913ded30b6f98f97c73ca8f362eb9dae8e207aa",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/jira/deny-write-sensitive-projects",
+      "name": "JIRA: Protect Sensitive Projects from Writes",
+      "direction": "ingress",
+      "publishedAt": "2026-06-16",
+      "apps": [
+        "jira"
+      ],
+      "industries": [],
+      "bundles": [
+        "atlassian"
+      ],
+      "tags": [
+        "jira",
+        "atlassian",
+        "access-control",
+        "data-protection",
+        "ingress"
+      ],
+      "policyChecksum": "sha256:4aa9ccaf2b1a21d2535ba07f2b472a4bde1a67dadcfe21aa25c7aab8a2845bf1",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/jira/redact-sensitive-info",
+      "name": "JIRA: Redact Sensitive Information from Issue Views",
+      "direction": "egress",
+      "publishedAt": "2026-06-15",
+      "apps": [
+        "jira"
+      ],
+      "industries": [],
+      "bundles": [
+        "atlassian"
+      ],
+      "tags": [
+        "jira",
+        "atlassian",
+        "pii",
+        "secrets",
+        "dlp",
+        "redaction",
+        "egress"
+      ],
+      "policyChecksum": "sha256:945085e97f36c83fd82b1f0f98e19a8f3aa20da8c5cfdaea859207aad6463a15",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/salesforce/protect-contact-fields",
+      "name": "Salesforce Protect Contact Fields",
+      "direction": "ingress",
+      "publishedAt": "2026-06-16",
+      "apps": [
+        "salesforce"
+      ],
+      "industries": [],
+      "bundles": [
+        "crm"
+      ],
+      "tags": [
+        "salesforce",
+        "contacts",
+        "pii",
+        "access-control",
+        "governance",
+        "ingress"
+      ],
+      "policyChecksum": "sha256:79693cf553dae7659bbe8832bab9932b5d07f693437d06c7433d396c3a5b053f",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/salesforce/query-allowlist",
+      "name": "Salesforce Query Allowlist",
+      "direction": "ingress",
+      "publishedAt": "2026-06-16",
+      "apps": [
+        "salesforce"
+      ],
+      "industries": [],
+      "bundles": [
+        "crm"
+      ],
+      "tags": [
+        "salesforce",
+        "access-control",
+        "data-protection",
+        "governance",
+        "ingress"
+      ],
+      "policyChecksum": "sha256:ff472238e1c75b0a9ecb1fd117ec46f104765f2b6c9b180755de142db1385c36",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/salesforce/read-only",
+      "name": "Salesforce Read-Only Access",
+      "direction": "ingress",
+      "publishedAt": "2026-06-16",
+      "apps": [
+        "salesforce"
+      ],
+      "industries": [],
+      "bundles": [
+        "crm"
+      ],
+      "tags": [
+        "salesforce",
+        "access-control",
+        "governance",
+        "read-only",
+        "ingress"
+      ],
+      "policyChecksum": "sha256:e66f0db4e835bc2684182230aea05bed5200658e4db8b81f27ffaa8134e5e696",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/salesforce/redact-pii",
+      "name": "Salesforce Redact PII",
+      "direction": "egress",
+      "publishedAt": "2026-06-16",
+      "apps": [
+        "salesforce"
+      ],
+      "industries": [],
+      "bundles": [
+        "crm"
+      ],
+      "tags": [
+        "salesforce",
+        "pii",
+        "dlp",
+        "redaction",
+        "egress"
+      ],
+      "policyChecksum": "sha256:d700be6a442140fe01b25e7f50b089f086007a6d92691ae19a54133261913a08",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/slack/block-secrets",
+      "name": "Block Secrets in Slack Messages",
+      "direction": "ingress",
+      "publishedAt": "2026-06-02",
+      "apps": [
+        "slack"
+      ],
+      "industries": [],
+      "bundles": [
+        "im-messaging"
+      ],
+      "tags": [
+        "slack",
+        "secrets",
+        "dlp",
+        "ingress"
+      ],
+      "policyChecksum": "sha256:c694c2624700c1dd750e33b4ba1171f03cca77009977871a01d5d7dd8a9d1d99",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/slack/deny-channel-creation",
+      "name": "Slack: Deny Channel Creation",
+      "direction": "ingress",
+      "publishedAt": "2026-06-16",
+      "apps": [
+        "slack"
+      ],
+      "industries": [],
+      "bundles": [
+        "slack"
+      ],
+      "tags": [
+        "slack",
+        "access-control",
+        "governance",
+        "ingress"
+      ],
+      "policyChecksum": "sha256:613c04806d02f35c3cf0f7aa2d2223c5cc91504186e14d62332a1cb019b72f2b",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/slack/deny-direct-messages",
+      "name": "Slack: Deny Sending Direct Messages",
+      "direction": "ingress",
+      "publishedAt": "2026-06-16",
+      "apps": [
+        "slack"
+      ],
+      "industries": [],
+      "bundles": [
+        "slack"
+      ],
+      "tags": [
+        "slack",
+        "access-control",
+        "governance",
+        "ingress"
+      ],
+      "policyChecksum": "sha256:3bfcfdee14c1d8409123990b850b96ce507d93079e026b7c7d179b161c353910",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/slack/deny-read-search-summarize-sensitive-channels",
+      "name": "Slack: Deny Read/Search/Summarize of Sensitive Channels",
+      "direction": "ingress",
+      "publishedAt": "2026-06-16",
+      "apps": [
+        "slack"
+      ],
+      "industries": [],
+      "bundles": [
+        "slack"
+      ],
+      "tags": [
+        "slack",
+        "access-control",
+        "data-protection",
+        "ingress"
+      ],
+      "policyChecksum": "sha256:be0ecf31a6f6908191cd28f537364984fc5771a0c39a9990d141094155b8e47b",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/slack/redact-sensitive-info",
+      "name": "Slack: Redact Sensitive Information from Messages",
+      "direction": "ingress",
+      "publishedAt": "2026-06-16",
+      "apps": [
+        "slack"
+      ],
+      "industries": [],
+      "bundles": [
+        "slack"
+      ],
+      "tags": [
+        "slack",
+        "pii",
+        "secrets",
+        "dlp",
+        "redaction",
+        "ingress"
+      ],
+      "policyChecksum": "sha256:976bdeff0896b95f7de65af46091da56b58785028a747d64d87855b78ca72a60",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    }
+  ],
+  "apps": {
+    "hubspot": "apps/hubspot",
+    "jira": "apps/jira",
+    "salesforce": "apps/salesforce",
+    "slack": "apps/slack"
+  },
+  "industries": {},
+  "bundles": {
+    "atlassian": "bundles/atlassian",
+    "crm": "bundles/crm",
+    "im-messaging": "bundles/im-messaging",
+    "slack": "bundles/slack"
+  }
+}

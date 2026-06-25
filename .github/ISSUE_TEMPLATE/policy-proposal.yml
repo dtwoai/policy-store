@@ -1,0 +1,56 @@
+name: Policy proposal
+description: Propose a new catalog policy (or a change to an existing one).
+title: "[policy]: <app> / <what it does>"
+labels: ["policy-proposal"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for proposing a policy! The catalog launches **curated-only** — a
+        maintainer authors or transcribes the Rego from this proposal (see
+        [GOVERNANCE.md](https://github.com/dtwoai/dtwo-policy-store/blob/main/GOVERNANCE.md)). The more concrete the
+        behavior and example inputs below, the faster it can be built.
+  - type: input
+    id: app
+    attributes:
+      label: App / MCP server
+      description: The MCP server this policy protects (e.g. slack, jira, github, salesforce).
+      placeholder: slack
+    validations:
+      required: true
+  - type: dropdown
+    id: direction
+    attributes:
+      label: Direction
+      description: Ingress inspects/blocks the request; egress redacts/rewrites the response.
+      options:
+        - ingress
+        - egress
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Intended behavior
+      description: What should the policy allow, deny, or transform? Be specific about the matching condition.
+      placeholder: |
+        Deny slack send-message calls whose body contains a secret (API key, token, password).
+        Allow everything else.
+    validations:
+      required: true
+  - type: textarea
+    id: examples
+    attributes:
+      label: Example inputs
+      description: One case that should be denied/transformed and one that should pass through. PARC shape if you have it.
+    validations:
+      required: true
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope check
+      options:
+        - label: This is a reusable policy, not tied to one tenant's internal data (channel IDs, project keys, employee emails).
+          required: true
+        - label: It does not rely on gateway features that aren't generally available.
+          required: true
