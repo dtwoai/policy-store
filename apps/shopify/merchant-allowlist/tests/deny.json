@@ -1,0 +1,34 @@
+{
+  "description": "complete_checkout where the gateway-resolved merchant (input.context.merchant) is NOT on the buyer's allowlist. Policy should deny with a reason.",
+  "input": {
+    "action": "tool_pre_invoke",
+    "kind": "tool_pre_invoke",
+    "mode": "input",
+    "resource": {
+      "type": "tool",
+      "name": "ucp-shopify-complete_checkout",
+      "uri": null
+    },
+    "payload": {
+      "name": "ucp-shopify-complete_checkout",
+      "args": {
+        "id": "chk_999"
+      }
+    },
+    "context": {
+      "merchant": "random-marketplace",
+      "mandate": {
+        "merchant_allowlist": ["approved-airline", "approved-hotel"]
+      }
+    },
+    "subject": {
+      "claims": {
+        "sub": "agent-7"
+      }
+    }
+  },
+  "expected": {
+    "allow": false,
+    "reasonContains": "is not on the approved-merchant allowlist"
+  }
+}

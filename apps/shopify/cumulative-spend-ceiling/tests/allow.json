@@ -1,0 +1,48 @@
+{
+  "_comment": "Under-ceiling complete_checkout. Prior session state (running_total=4000) is pre-populated at input.context.session.policies.<writer_id> per the session-state contract — this is the running total committed by earlier checkouts in the same session. 4000 + 3000 = 7000 <= budget 10000, so allow=true and the policy emits a session write advancing running_total to 7000. input.context.mandate.session_budget is DTwo-supplied policy input, NOT a UCP field.",
+  "input": {
+    "mode": "input",
+    "subject": {
+      "claims": {
+        "sub": "agent-buyer-7",
+        "iss": "https://idp.example.com/"
+      }
+    },
+    "resource": {
+      "name": "shopify_prod__complete_checkout"
+    },
+    "payload": {
+      "args": {
+        "checkout": {
+          "status": "ready_for_complete",
+          "currency": "USD",
+          "totals": [
+            { "type": "subtotal", "amount": 2800, "display_text": "Subtotal" },
+            { "type": "tax", "amount": 200, "display_text": "Tax" },
+            { "type": "total", "amount": 3000, "display_text": "Total" }
+          ]
+        }
+      }
+    },
+    "context": {
+      "mandate": {
+        "session_budget": 10000,
+        "currency": "USD"
+      },
+      "session": {
+        "_meta": {},
+        "policies": {
+          "shopify.ingress.cumulative_spend_ceiling": {
+            "running_total": 4000
+          }
+        }
+      }
+    }
+  },
+  "expected": {
+    "allow": true,
+    "expectedSessionWrites": {
+      "running_total": 7000
+    }
+  }
+}

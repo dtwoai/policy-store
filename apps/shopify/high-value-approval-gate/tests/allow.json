@@ -1,0 +1,52 @@
+{
+  "description": "create_checkout response whose grand total ($45.00 = 4500 minor units) is below the gateway-supplied approval threshold ($500.00 = 50000). Sub-threshold, so the agent may proceed autonomously. Policy should allow with no reason.",
+  "input": {
+    "action": "tool_post_invoke",
+    "kind": "tool_post_invoke",
+    "mode": "output",
+    "resource": {
+      "type": "tool",
+      "name": "shopify-mcp-create_checkout",
+      "uri": null
+    },
+    "payload": {
+      "name": "shopify-mcp-create_checkout",
+      "args": {
+        "cart_id": "cart_01J8Z3K9"
+      },
+      "result": {
+        "id": "checkout_01J9ABCD",
+        "status": "ready_for_complete",
+        "currency": "USD",
+        "continue_url": "https://shop.example.com/checkouts/01J9ABCD",
+        "totals": [
+          { "type": "subtotal", "amount": 4200, "display_text": "Subtotal" },
+          { "type": "tax", "amount": 300, "display_text": "Tax" },
+          { "type": "total", "amount": 4500, "display_text": "Total" }
+        ],
+        "line_items": [
+          {
+            "id": "li_1",
+            "quantity": 1,
+            "item": { "id": "prod_1", "title": "Wool scarf", "price": 4200 },
+            "totals": [{ "type": "total", "amount": 4200 }]
+          }
+        ]
+      }
+    },
+    "context": {
+      "mandate": {
+        "max_total": 50000,
+        "currency": "USD"
+      }
+    },
+    "subject": {
+      "claims": {
+        "sub": "agent-runner-01"
+      }
+    }
+  },
+  "expected": {
+    "allow": true
+  }
+}

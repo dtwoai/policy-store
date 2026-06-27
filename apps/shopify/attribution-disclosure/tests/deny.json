@@ -1,0 +1,57 @@
+{
+  "description": "complete_checkout with disclosed routing attribution but a submitted grand total (5999 cents) that does NOT match the advertised price the buyer was shown (4999). Price was changed between display and submit. Policy should deny with a reason.",
+  "input": {
+    "action": "tool_pre_invoke",
+    "kind": "tool_pre_invoke",
+    "mode": "input",
+    "resource": {
+      "type": "tool",
+      "name": "ucp-acme-complete_checkout",
+      "uri": null
+    },
+    "subject": {
+      "claims": {
+        "sub": "agent-7f3c",
+        "groups": ["commerce-agents"]
+      }
+    },
+    "payload": {
+      "name": "ucp-acme-complete_checkout",
+      "args": {
+        "checkout": {
+          "status": "ready_for_complete",
+          "currency": "USD",
+          "continue_url": "https://shop.example.com/c/abc123",
+          "attribution": {
+            "dev.acme.route": "aggregator-hub"
+          },
+          "totals": [
+            { "type": "items", "amount": 4499, "display_text": "Subtotal" },
+            { "type": "shipping", "amount": 1500, "display_text": "Shipping" },
+            { "type": "total", "amount": 5999, "display_text": "Total" }
+          ],
+          "line_items": [
+            {
+              "id": "li_1",
+              "quantity": 1,
+              "item": { "id": "p_1", "title": "Widget", "price": 4499 },
+              "totals": [{ "type": "total", "amount": 4499 }]
+            }
+          ]
+        }
+      }
+    },
+    "context": {
+      "advertised_total": 4999,
+      "mandate": {
+        "max_total": 20000,
+        "currency": "USD",
+        "merchant_allowlist": ["shop.example.com"]
+      }
+    }
+  },
+  "expected": {
+    "allow": false,
+    "reasonContains": "does not match the price the buyer was shown"
+  }
+}
