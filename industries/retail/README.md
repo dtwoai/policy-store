@@ -11,4 +11,4 @@ The canonical policy bodies live under [`apps/shopify/`](../../apps/shopify/READ
 - [order-pii-egress-redaction](../../apps/shopify/order-pii-egress-redaction/policy.md) — mask buyer PII in order/checkout responses before an agent sees them.
 - [high-value-approval-gate](../../apps/shopify/high-value-approval-gate/policy.md) — require human approval above a purchase threshold.
 - [restricted-category-block](../../apps/shopify/restricted-category-block/policy.md) — block autonomous purchase of restricted categories/SKUs.
-- [attribution-disclosure](../../apps/shopify/attribution-disclosure/policy.md) — internal-platform routing disclosure and price-equivalence.
+- [attribution-disclosure](../../apps/shopify/attribution-disclosure/policy.md) — internal-platform routing disclosure and no-overcharge (never charge more than the buyer was shown).

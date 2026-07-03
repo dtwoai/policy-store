@@ -15,6 +15,6 @@ Canonical policy bodies live under [`apps/shopify/`](../../apps/shopify/README.m
 | [order-pii-egress-redaction](../../apps/shopify/order-pii-egress-redaction/policy.md) | shopify | egress | Redact buyer PII from order/checkout responses |
 | [high-value-approval-gate](../../apps/shopify/high-value-approval-gate/policy.md) | shopify | egress | Require human approval above a threshold |
 | [restricted-category-block](../../apps/shopify/restricted-category-block/policy.md) | shopify | ingress | Block restricted categories / SKUs |
-| [attribution-disclosure](../../apps/shopify/attribution-disclosure/policy.md) | shopify | ingress | Internal-platform routing disclosure + price equivalence |
+| [attribution-disclosure](../../apps/shopify/attribution-disclosure/policy.md) | shopify | ingress | Internal-platform routing disclosure + no-overcharge |
 
 **Suggested starting set:** `checkout-spend-cap` + `merchant-allowlist` (stateless, the two flagships), then `order-pii-egress-redaction`. Add the stateful pair (`cumulative-spend-ceiling`, `approved-cart-integrity`) on a session-state-capable gateway build.

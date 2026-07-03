@@ -1,5 +1,5 @@
 ---
-name: "Shopify/UCP: Internal Routing Disclosure and Price-Equivalence Check"
+name: "Shopify/UCP: Internal Routing Disclosure and No-Overcharge Check"
 tags:
   - shopify
   - ucp
@@ -13,7 +13,7 @@ description: |
   # shopify / attribution-disclosure
 
   **Direction:** ingress (`tool_pre_invoke`)
-  **Default:** deny on a `complete_checkout` that is undisclosed or price-mismatched; allow everything else
+  **Default:** deny on a `complete_checkout` that is undisclosed or overcharged; allow everything else
   **Package:** `shopify.ingress.attribution_disclosure`
 
   ## What it does
@@ -30,12 +30,24 @@ description: |
      present and non-empty. `attribution` is UCP's only referral surface (an
      open string-map), so a completed checkout with empty/absent attribution is
      undisclosed routing.
-  2. **Price equivalence.** The submitted grand total — the entry in
-     `checkout.totals[]` whose `type == "total"` — must equal the price the
-     buyer was shown, carried as `input.context.advertised_total`. This catches
-     the price changing between what was displayed and what is submitted.
+  2. **No overcharge.** The submitted grand total — the entry in
+     `checkout.totals[]` whose `type == "total"` — must not **exceed** the
+     price the buyer was shown, carried as
+     `input.context.advertised_total`. The guarantee is that the buyer is
+     never charged *more* than they were shown. A submitted total **lower**
+     than the advertised one (a coupon, a promo, a merchant repricing down)
+     is allowed — denying it would punish the buyer for getting a better
+     deal.
 
   Any tool other than `complete_checkout` passes through untouched.
+
+  This policy deliberately owns only the overcharge direction. Cart-content
+  tampering (swapped SKUs, injected items) is `approved-cart-integrity`'s
+  job, and the absolute upper bound on spend is `checkout-spend-cap`'s —
+  composing the three covers content, ceiling, and overcharge without
+  double-owning any of them. Deployments that want a strict any-drift
+  stance (deny on *any* difference, lower included) can get it with a
+  one-comparison change: replace the `<=` in `not_overcharged` with `==`.
 
   ## What `input.context.advertised_total` is (and is not)
 
@@ -43,7 +55,8 @@ description: |
   the gateway**, not a UCP field. UCP carries no "price the buyer was shown"
   on the checkout object; the only authoritative price on the wire is the
   submitted `totals[]` grand total. The policy needs an independent reference
-  for the displayed price, and the gateway supplies it under `input.context`.
+  for the displayed price to bound the charge, and the gateway supplies it
+  under `input.context`.
 
   The buyer's spending caps / budget / velocity constraints also do not exist
   as UCP fields — in UCP they live only inside an opaque AP2 SD-JWT
@@ -53,7 +66,7 @@ description: |
   ## Why ingress
 
   Completing a checkout has permanent side effects (it is a purchase). The only
-  place to stop an undisclosed or price-mismatched completion is *before* the
+  place to stop an undisclosed or overcharged completion is *before* the
   call reaches the merchant, so the policy runs at `tool_pre_invoke` and denies.
 
   ## Tool name matching
@@ -78,7 +91,7 @@ description: |
 
   ## Examples
 
-  ### Allowed (disclosed + price matches)
+  ### Allowed (disclosed + not overcharged)
 
   ```jsonc
   {
@@ -101,7 +114,7 @@ description: |
 
   `allow = true`, no reason.
 
-  ### Denied (price changed between display and submit)
+  ### Denied (charged more than the buyer was shown)
 
   ```jsonc
   {
@@ -123,7 +136,10 @@ description: |
   ```
 
   `allow = false`,
-  `reason = "Submitted grand total (5999) does not match the price the buyer was shown (4999, minor units). ..."`.
+  `reason = "Submitted grand total (5999) exceeds the price the buyer was shown (4999, minor units). ..."`.
+
+  A submitted grand total of `4499` against the same `advertised_total: 4999`
+  (a discount applied between display and submit) is **allowed**.
 
   ## Scope and honest limitations
 
@@ -131,9 +147,15 @@ description: |
     `continue_url` handoff (where a buyer finishes a checkout in a hosted page)
     is not visible to it. This governs the agent-driven completion, not a
     human-in-browser completion.
-  - **`advertised_total` must be supplied.** Price equivalence can only be
-    checked when the gateway injects `input.context.advertised_total`. If it is
-    absent the call is denied (cannot-verify), not silently allowed.
+  - **`advertised_total` must be supplied.** The overcharge check can only be
+    performed when the gateway injects `input.context.advertised_total`. If it
+    is absent the call is denied (cannot-verify), not silently allowed.
+  - **Overcharge only, by design.** A submitted total lower than the
+    advertised one is allowed. Cart-content tampering is
+    `approved-cart-integrity`'s job and the absolute spend ceiling is
+    `checkout-spend-cap`'s; this policy owns only the overcharge direction.
+    A strict any-drift stance is a one-comparison change (`<=` to `==` in
+    `not_overcharged`).
   - **Exactly one grand total.** A `totals[]` with zero or multiple
     `type == "total"` entries is treated as unverifiable and denied — an
     ambiguous totals array must not collapse to a single "matching" total.
@@ -145,7 +167,7 @@ description: |
 
   ## Composition
 
-  This policy does one job (disclosure + price equivalence on completion). Pair
+  This policy does one job (disclosure + no-overcharge on completion). Pair
   it with separate policies for mandate-cap enforcement
   (`input.context.mandate.max_total`), merchant allowlisting, or egress review
   of `complete_checkout` results (`input.mode == "output"`,
@@ -165,8 +187,8 @@ minimumGatewayVersion: 1.0.0
 package shopify.ingress.attribution_disclosure
 
 # Deny-by-default: a complete_checkout call is allowed only when routing
-# attribution is disclosed AND the submitted grand total matches the price
-# the buyer was shown (carried in DTwo-supplied input.context).
+# attribution is disclosed AND the submitted grand total does not exceed the
+# price the buyer was shown (carried in DTwo-supplied input.context).
 default allow := false
 
 # -----------------------------------------------------------------------------
@@ -221,7 +243,7 @@ attribution_disclosed if {
 }
 
 # -----------------------------------------------------------------------------
-# Price-equivalence check.
+# No-overcharge check.
 #
 # UCP's grand total is the entry in the totals[] array whose type == "total".
 # `amount` is a SIGNED INTEGER in the currency minor unit (cents). There is no
@@ -229,7 +251,12 @@ attribution_disclosed if {
 #
 # `input.context.advertised_total` is the minor-unit price the buyer was shown.
 # It is DTwo-supplied policy input injected by the gateway, NOT a UCP field. We
-# assert the submitted grand total equals it (price shown == price submitted).
+# assert the submitted grand total does not EXCEED it: the buyer must never be
+# charged more than they were shown. A lower submitted total (coupon, promo,
+# merchant repricing down) is allowed. Cart-content tampering is
+# approved-cart-integrity's job and the absolute ceiling is
+# checkout-spend-cap's, so this policy owns only the overcharge direction.
+# For a strict any-drift stance, change the `<=` below to `==`.
 # -----------------------------------------------------------------------------
 totals := object.get(checkout, "totals", [])
 
@@ -252,9 +279,9 @@ grand_total_amount := totals[i].amount if {
 
 advertised_total := object.get(input.context, "advertised_total", null)
 
-price_matches if {
+not_overcharged if {
 	is_number(advertised_total)
-	grand_total_amount == advertised_total
+	grand_total_amount <= advertised_total
 }
 
 # -----------------------------------------------------------------------------
@@ -266,12 +293,12 @@ allow if {
 	not is_complete_checkout
 }
 
-# complete_checkout is allowed only when routing is disclosed AND the price
-# the buyer was shown equals the price being submitted.
+# complete_checkout is allowed only when routing is disclosed AND the
+# submitted total does not exceed the price the buyer was shown.
 allow if {
 	is_complete_checkout
 	attribution_disclosed
-	price_matches
+	not_overcharged
 }
 
 # -----------------------------------------------------------------------------
@@ -286,16 +313,15 @@ reasons contains "This checkout is being completed without disclosed routing att
 reasons contains msg if {
 	is_complete_checkout
 	attribution_disclosed
-	not price_matches
 	is_number(advertised_total)
 	count(grand_total_indices) == 1
-	msg := sprintf("Submitted grand total (%d) does not match the price the buyer was shown (%d, minor units). The price presented to the buyer and the price submitted must be equal.", [grand_total_amount, advertised_total])
+	grand_total_amount > advertised_total
+	msg := sprintf("Submitted grand total (%d) exceeds the price the buyer was shown (%d, minor units). The buyer must not be charged more than the advertised total.", [grand_total_amount, advertised_total])
 }
 
-reasons contains "Cannot verify price equivalence: the checkout does not carry exactly one totals entry with type == \"total\" (and a numeric amount), or no advertised price was supplied in policy context. Completing a checkout whose grand total cannot be unambiguously verified against the price shown is not permitted." if {
+reasons contains "Cannot verify the submitted total against the price shown: the checkout does not carry exactly one totals entry with type == \"total\" (and a numeric amount), or no advertised price was supplied in policy context. Completing a checkout whose grand total cannot be unambiguously checked against the price shown is not permitted." if {
 	is_complete_checkout
 	attribution_disclosed
-	not price_matches
 	not single_grand_total_with_advertised
 }
 

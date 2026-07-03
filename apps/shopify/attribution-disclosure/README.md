@@ -1,11 +1,11 @@
 # shopify / attribution-disclosure
 
-Internal Routing Disclosure and Price-Equivalence Check for UCP (Universal
+Internal Routing Disclosure and No-Overcharge Check for UCP (Universal
 Commerce Protocol) checkouts.
 
 - **Direction:** ingress (`tool_pre_invoke`)
 - **Default:** deny on a `complete_checkout` that is undisclosed or
-  price-mismatched; allow everything else
+  overcharged; allow everything else
 - **Package:** `shopify.ingress.attribution_disclosure`
 
 ## Framing: govern the agents you run
@@ -27,12 +27,23 @@ On every `complete_checkout` call, before it reaches the merchant:
    present and non-empty. `attribution` is UCP's only referral surface — an open
    string-map on the checkout. A completed checkout with empty or absent
    attribution is undisclosed routing and is denied.
-2. **Price equivalence.** The submitted grand total — the `checkout.totals[]`
-   entry whose `type == "total"` — must equal the price the buyer was shown,
-   carried as `input.context.advertised_total`. If the price submitted differs
-   from the price displayed, the call is denied.
+2. **No overcharge.** The submitted grand total — the `checkout.totals[]`
+   entry whose `type == "total"` — must not **exceed** the price the buyer was
+   shown, carried as `input.context.advertised_total`. If the total submitted
+   is higher than the price displayed, the call is denied.
 
 Any tool that is not `complete_checkout` passes through untouched.
+
+The guarantee is deliberately directional: **the buyer is not charged more
+than they were shown.** A submitted total *lower* than the advertised one — a
+coupon, a promo code, a merchant repricing down between display and submit —
+is allowed; denying it would punish the buyer for getting a better deal. This
+policy owns only the overcharge direction because its companions own the rest:
+cart-content tampering (swapped SKUs, injected items) is
+`approved-cart-integrity`'s job, and the absolute upper bound on spend is
+`checkout-spend-cap`'s. Deployments that want a strict any-drift stance (deny
+on *any* difference from the advertised total, lower included) can get it with
+a one-comparison change: replace the `<=` in `not_overcharged` with `==`.
 
 ## `input.context.*` is DTwo-supplied, not UCP
 
@@ -81,12 +92,13 @@ with the dump-input debug technique before deploying.
 
 ## Decision matrix
 
-| Tool | attribution | totals `type=="total"` | `advertised_total` | submitted == advertised | Decision |
+| Tool | attribution | totals `type=="total"` | `advertised_total` | submitted vs advertised | Decision |
 | --- | --- | --- | --- | --- | --- |
 | not `complete_checkout` | — | — | — | — | **allow** (passthrough) |
-| `complete_checkout` | non-empty | exactly one | present | yes | **allow** |
+| `complete_checkout` | non-empty | exactly one | present | equal | **allow** |
+| `complete_checkout` | non-empty | exactly one | present | lower (discount) | **allow** |
 | `complete_checkout` | empty / absent | — | — | — | **deny** (undisclosed) |
-| `complete_checkout` | non-empty | exactly one | present | no | **deny** (price mismatch) |
+| `complete_checkout` | non-empty | exactly one | present | higher | **deny** (overcharge) |
 | `complete_checkout` | non-empty | zero / multiple | — | — | **deny** (cannot verify) |
 | `complete_checkout` | non-empty | exactly one | absent | — | **deny** (cannot verify) |
 
@@ -95,7 +107,7 @@ advertised price denies rather than letting the completion through.
 
 ## Examples
 
-### Allowed — disclosed routing, price matches
+### Allowed — disclosed routing, not overcharged
 
 ```jsonc
 {
@@ -123,7 +135,7 @@ advertised price denies rather than letting the completion through.
 
 `allow = true`, no reason.
 
-### Denied — price changed between display and submit
+### Denied — charged more than the buyer was shown
 
 ```jsonc
 {
@@ -145,8 +157,11 @@ advertised price denies rather than letting the completion through.
 }
 ```
 
-`allow = false`, `reason = "Submitted grand total (5999) does not match the
-price the buyer was shown (4999, minor units). …"`.
+`allow = false`, `reason = "Submitted grand total (5999) exceeds the price the
+buyer was shown (4999, minor units). …"`.
+
+The same request with a grand total of `4499` — lower than the advertised
+`4999` because a discount landed between display and submit — is **allowed**.
 
 ### Denied — undisclosed routing
 
@@ -157,7 +172,7 @@ the disclosure reason, regardless of price.
 
 Completing a checkout is a purchase — a write with permanent side effects. Once
 the call reaches the merchant the order exists. The only place to prevent an
-undisclosed or price-mismatched completion is *before* the call leaves the
+undisclosed or overcharged completion is *before* the call leaves the
 gateway, so this runs at `tool_pre_invoke` and denies. An egress
 (`input.mode == "output"`) check could only inspect the result after the fact.
 
@@ -167,10 +182,15 @@ gateway, so this runs at `tool_pre_invoke` and denies. An egress
   `continue_url` handoff — where a buyer finishes in a hosted checkout page — is
   not visible to it. It governs agent-driven completion, not human-in-browser
   completion.
-- **`advertised_total` must be supplied.** Price equivalence can only be checked
-  when the gateway injects `input.context.advertised_total`. If it is absent the
-  call is denied (cannot-verify), not silently allowed. Make sure your gateway
-  populates it for the `complete_checkout` hook.
+- **`advertised_total` must be supplied.** The overcharge check can only be
+  performed when the gateway injects `input.context.advertised_total`. If it is
+  absent the call is denied (cannot-verify), not silently allowed. Make sure
+  your gateway populates it for the `complete_checkout` hook.
+- **Overcharge only, by design.** A submitted total lower than the advertised
+  one is allowed. Cart-content tampering is `approved-cart-integrity`'s job and
+  the absolute spend ceiling is `checkout-spend-cap`'s — that is why this
+  policy owns only the overcharge direction. A strict any-drift stance is a
+  one-comparison change (`<=` to `==` in `not_overcharged`).
 - **Exactly one grand total.** A `totals[]` carrying zero or more than one
   `type == "total"` entry is treated as unverifiable and denied. This prevents a
   malformed or ambiguous totals array from collapsing to a single "matching"
@@ -185,11 +205,13 @@ gateway, so this runs at `tool_pre_invoke` and denies. An egress
 
 ## Testing
 
-The cases in [`tests.yaml`](./tests.yaml) — `allow` (disclosed + matching price), `deny` (disclosed
-but price-mismatched), and `deny-slugified` (the same mismatch via a
-federated, slugified tool name, `ucp-acme-complete-checkout`) — carry the PARC
-document under each case's `input` key. Run them all with the repo test
-runner from the repo root:
+The cases in [`tests.yaml`](./tests.yaml) — `allow` (disclosed + total equal to
+the advertised price), `allow-discount` (disclosed + total *lower* than
+advertised: the overcharge-only stance in action), `deny` (disclosed but
+overcharged), and `deny-slugified` (the same overcharge via a federated,
+slugified tool name, `ucp-acme-complete-checkout`) — carry the PARC document
+under each case's `input` key. Run them all with the repo test runner from the
+repo root:
 
 ```sh
 pnpm test
@@ -208,7 +230,7 @@ opa eval -d policy.rego -i /tmp/in.json \
 
 ## Composition
 
-This policy does one job: disclosure plus price equivalence on completion. Pair
+This policy does one job: disclosure plus no-overcharge on completion. Pair
 it with separate single-purpose policies for:
 
 - **Mandate caps** — deny when the grand total exceeds

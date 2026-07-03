@@ -1,7 +1,7 @@
 # case: allow
 - description: complete_checkout with disclosed routing attribution and a
-    submitted grand total (4999 cents) that matches the advertised price the
-    buyer was shown (4999). Policy should allow.
+    submitted grand total (4999 cents) equal to the advertised price the buyer
+    was shown (4999) — no overcharge. Policy should allow.
   input:
     action: tool_pre_invoke
     kind: tool_pre_invoke
@@ -54,15 +54,76 @@
           - shop.example.com
   output:
     expectedResult: allow
+# case: allow-discount
+- description: complete_checkout with disclosed routing attribution and a
+    submitted grand total (4499 cents) LOWER than the advertised price the
+    buyer was shown (4999) — a discount/promo applied between display and
+    submit. The policy guards the overcharge direction only, so a cheaper
+    charge than advertised is allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ucp-acme-complete_checkout
+      uri: null
+    subject:
+      claims:
+        sub: agent-7f3c
+        groups:
+          - commerce-agents
+    payload:
+      name: ucp-acme-complete_checkout
+      args:
+        checkout:
+          status: ready_for_complete
+          currency: USD
+          continue_url: https://shop.example.com/c/abc123
+          attribution:
+            dev.acme.route: aggregator-hub
+            dev.acme.campaign: spring-sale
+          totals:
+            - type: items
+              amount: 4499
+              display_text: Subtotal
+            - type: discount
+              amount: -500
+              display_text: Spring promo
+            - type: shipping
+              amount: 500
+              display_text: Shipping
+            - type: total
+              amount: 4499
+              display_text: Total
+          line_items:
+            - id: li_1
+              quantity: 1
+              item:
+                id: p_1
+                title: Widget
+                price: 4499
+              totals:
+                - type: total
+                  amount: 4499
+    context:
+      advertised_total: 4999
+      mandate:
+        max_total: 20000
+        currency: USD
+        merchant_allowlist:
+          - shop.example.com
+  output:
+    expectedResult: allow
 # case: deny-slugified
 - description: 'Live-gateway shape: the gateway federates tools as
     "<server-prefix>-<op>" and slugifies underscores to hyphens, so the tool
     arrives as "ucp-acme-complete-checkout" — no underscore survives. This
     fixture proves the policy still matches (an underscore-only suffix match
-    would fail open here). Scenario otherwise identical to deny.json:
+    would fail open here). Scenario otherwise identical to the deny case:
     complete_checkout with disclosed routing attribution but a submitted grand
-    total (5999 cents) that does NOT match the advertised price the buyer was
-    shown (4999). Price was changed between display and submit. Policy should
+    total (5999 cents) that EXCEEDS the advertised price the buyer was shown
+    (4999). The buyer would be charged more than displayed. Policy should
     deny with a reason.'
   input:
     action: tool_pre_invoke
@@ -115,13 +176,13 @@
           - shop.example.com
   output:
     expectedResult: deny
-    expectedReason: Submitted grand total (5999) does not match the price the buyer
-      was shown (4999, minor units). The price presented to the buyer and the
-      price submitted must be equal.
+    expectedReason: Submitted grand total (5999) exceeds the price the buyer was
+      shown (4999, minor units). The buyer must not be charged more than the
+      advertised total.
 # case: deny
 - description: complete_checkout with disclosed routing attribution but a
-    submitted grand total (5999 cents) that does NOT match the advertised price
-    the buyer was shown (4999). Price was changed between display and submit.
+    submitted grand total (5999 cents) that EXCEEDS the advertised price the
+    buyer was shown (4999). The buyer would be charged more than displayed.
     Policy should deny with a reason.
   input:
     action: tool_pre_invoke
@@ -174,6 +235,6 @@
           - shop.example.com
   output:
     expectedResult: deny
-    expectedReason: Submitted grand total (5999) does not match the price the buyer
-      was shown (4999, minor units). The price presented to the buyer and the
-      price submitted must be equal.
+    expectedReason: Submitted grand total (5999) exceeds the price the buyer was
+      shown (4999, minor units). The buyer must not be charged more than the
+      advertised total.

@@ -328,13 +328,13 @@
         "governance",
         "ingress"
       ],
-      "policyChecksum": "sha256:29717f256ca9f9ca82698a2a2e94fdcec90c96b1f36e373408ea39f5c212f718",
+      "policyChecksum": "sha256:4cfb03b77660828edf06186e38169800968a518ef94a6ee91f28f307d3b9da79",
       "schemaVersion": "1.0.0",
       "minimumGatewayVersion": "1.0.0-session-state"
     },
     {
       "path": "apps/shopify/attribution-disclosure",
-      "name": "Shopify/UCP: Internal Routing Disclosure and Price-Equivalence Check",
+      "name": "Shopify/UCP: Internal Routing Disclosure and No-Overcharge Check",
       "direction": "ingress",
       "publishedAt": "2026-06-27",
       "apps": [
@@ -355,7 +355,7 @@
         "governance",
         "ingress"
       ],
-      "policyChecksum": "sha256:6f9baafef2ee9ff14a5869eb8fca40d102bb506ef68306067fc5f4ca01eb908e",
+      "policyChecksum": "sha256:d3d8aa2fe6156335bddd1e33fb835e92fd03447191d96aadf53a84f3398ed7ef",
       "schemaVersion": "1.0.0",
       "minimumGatewayVersion": "1.0.0"
     },
