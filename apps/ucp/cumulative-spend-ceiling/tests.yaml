@@ -1,0 +1,248 @@
+# expectedSessionWrites is the session-state contract (session_writes emitted on
+# an allowed call and on the observe leg). The repo test runner ignores the key;
+# it is asserted by the end-to-end gateway run.
+# case: allow
+- description: ENFORCE leg, under ceiling. Prior running_total 4000 was committed
+    by earlier checkouts this session; the completing checkout chk_a was observed
+    at 3000; budget 10000. Projected 7000 is within budget, so the policy allows,
+    advances running_total to 7000, and consumes chk_a from ceiling_observations
+    so it cannot be counted twice. session_budget is gateway-supplied policy
+    input, not a UCP field.
+  input:
+    mode: input
+    subject:
+      claims:
+        sub: agent-buyer-7
+        iss: https://idp.example.com/
+    resource:
+      name: ucp-shop-complete_checkout
+    payload:
+      args:
+        id: chk_a
+    context:
+      mandate:
+        session_budget: 10000
+        currency: USD
+      session:
+        _meta: {}
+        policies:
+          cumulative-spend-ceiling:
+            running_total: 4000
+            ceiling_observations:
+              chk_a:
+                total: 3000
+  output:
+    expectedResult: allow
+  expectedSessionWrites:
+    running_total: 7000
+    ceiling_observations: {}
+# case: observe-records-total
+- description: OBSERVE leg. An update_checkout RESPONSE (mode output) prices chk_a
+    at 3000. The policy passes the response through (allow) and records the
+    checkout id mapped to total 3000 into its ceiling_observations namespace,
+    merged with prior observations. This is the observation the enforce leg later
+    reads.
+  input:
+    mode: output
+    subject:
+      claims:
+        sub: agent-buyer-7
+        iss: https://idp.example.com/
+    resource:
+      name: ucp-shop-update_checkout
+    payload:
+      args:
+        id: chk_a
+        checkout:
+          line_items:
+            - id: li_1
+              item:
+                id: prod_1
+              quantity: 1
+      result:
+        id: chk_a
+        status: ready_for_complete
+        currency: USD
+        totals:
+          - type: subtotal
+            amount: 2800
+            display_text: Subtotal
+          - type: tax
+            amount: 200
+            display_text: Tax
+          - type: total
+            amount: 3000
+            display_text: Total
+    context:
+      session:
+        _meta: {}
+        policies: {}
+  output:
+    expectedResult: allow
+  expectedSessionWrites:
+    ceiling_observations:
+      chk_a:
+        total: 3000
+# case: deny-slugified
+- description: 'Live-gateway shape: the gateway federates tools as
+    "<server-prefix>-<op>" and slugifies underscores to hyphens, so the tool
+    arrives as "ucp-shop-complete-checkout" — no underscore survives. This
+    fixture proves the enforce leg still matches. Over-ceiling completion: prior
+    running_total 8500 plus this checkout observed at 3000 projects to 11500,
+    which exceeds budget 10000, so the policy denies and makes no write (a
+    blocked checkout must not advance the running total).'
+  input:
+    mode: input
+    subject:
+      claims:
+        sub: agent-buyer-7
+        iss: https://idp.example.com/
+    resource:
+      name: ucp-shop-complete-checkout
+    payload:
+      args:
+        id: chk_b
+    context:
+      mandate:
+        session_budget: 10000
+        currency: USD
+      session:
+        _meta: {}
+        policies:
+          cumulative-spend-ceiling:
+            running_total: 8500
+            ceiling_observations:
+              chk_b:
+                total: 3000
+  output:
+    expectedResult: deny
+    expectedReason: "session spend ceiling exceeded: prior=8500 + this=3000 = 11500
+      > budget=10000 (minor units)"
+  expectedSessionWrites: {}
+# case: deny
+- description: ENFORCE leg, over ceiling. Prior running_total 8500 plus this
+    checkout observed at 3000 projects to 11500 > budget 10000, so the policy
+    denies and makes no write.
+  input:
+    mode: input
+    subject:
+      claims:
+        sub: agent-buyer-7
+        iss: https://idp.example.com/
+    resource:
+      name: ucp-shop-complete_checkout
+    payload:
+      args:
+        id: chk_b
+    context:
+      mandate:
+        session_budget: 10000
+        currency: USD
+      session:
+        _meta: {}
+        policies:
+          cumulative-spend-ceiling:
+            running_total: 8500
+            ceiling_observations:
+              chk_b:
+                total: 3000
+  output:
+    expectedResult: deny
+    expectedReason: "session spend ceiling exceeded: prior=8500 + this=3000 = 11500
+      > budget=10000 (minor units)"
+  expectedSessionWrites: {}
+# case: deny-second-checkout-accumulated
+- description: ENFORCE leg, the accumulation property. A first checkout already
+    advanced running_total to 7000 this session. A SECOND checkout chk_c, itself
+    observed at 4000 and individually under budget, projects to 7000 + 4000 =
+    11000 > budget 10000. The running total carried across calls is what tips it
+    over, so the second completion is denied even though its own total is small.
+  input:
+    mode: input
+    subject:
+      claims:
+        sub: agent-buyer-7
+        iss: https://idp.example.com/
+    resource:
+      name: ucp-shop-complete_checkout
+    payload:
+      args:
+        id: chk_c
+    context:
+      mandate:
+        session_budget: 10000
+        currency: USD
+      session:
+        _meta: {}
+        policies:
+          cumulative-spend-ceiling:
+            running_total: 7000
+            ceiling_observations:
+              chk_c:
+                total: 4000
+  output:
+    expectedResult: deny
+    expectedReason: "session spend ceiling exceeded: prior=7000 + this=4000 = 11000
+      > budget=10000 (minor units)"
+  expectedSessionWrites: {}
+# case: deny-replay-after-complete
+- description: ENFORCE leg, replay / double-count guard. A prior complete_checkout
+    for chk_a already succeeded and advanced running_total to 7000, and CONSUMED
+    chk_a from ceiling_observations. An identical completion is replayed for
+    chk_a. With no observation on file for that id, the projected total cannot be
+    recomputed, so the policy fails closed and denies — chk_a can never add to
+    the running total twice.
+  input:
+    mode: input
+    subject:
+      claims:
+        sub: agent-buyer-7
+        iss: https://idp.example.com/
+    resource:
+      name: ucp-shop-complete_checkout
+    payload:
+      args:
+        id: chk_a
+    context:
+      mandate:
+        session_budget: 10000
+        currency: USD
+      session:
+        _meta: {}
+        policies:
+          cumulative-spend-ceiling:
+            running_total: 7000
+            ceiling_observations: {}
+  output:
+    expectedResult: deny
+    expectedReason: No observed total for this checkout id in the session, so the
+      projected session spend cannot be computed. Read or update the checkout
+      through the gateway before completing it.
+# case: allow-no-budget
+- description: ENFORCE leg with no ceiling configured. The gateway supplied no
+    session_budget, so there is nothing to enforce and the policy does not gate
+    (fail-open on a missing mandate). complete_checkout is allowed.
+  input:
+    mode: input
+    subject:
+      claims:
+        sub: agent-buyer-7
+        iss: https://idp.example.com/
+    resource:
+      name: ucp-shop-complete_checkout
+    payload:
+      args:
+        id: chk_a
+    context:
+      mandate:
+        currency: USD
+      session:
+        _meta: {}
+        policies:
+          cumulative-spend-ceiling:
+            running_total: 4000
+            ceiling_observations:
+              chk_a:
+                total: 3000
+  output:
+    expectedResult: allow

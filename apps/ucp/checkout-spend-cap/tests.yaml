@@ -1,0 +1,327 @@
+# expectedSessionWrites is the session-state contract (session_writes emitted on
+# the observe leg). The repo test runner ignores the key; it is asserted by the
+# end-to-end gateway run.
+# case: allow
+- description: ENFORCE leg. complete_checkout targets chk_9f2b; a prior
+    create/update/get response was observed at $980.00 (98000, USD) and is
+    pre-populated under this policy's own writer namespace in
+    input.context.session.policies.observed_checkouts. The observed total is
+    under the mandate cap (120000) and the currency matches, so completion is
+    allowed. complete_checkout carries the id at the TOP LEVEL of args and no
+    totals.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    subject:
+      claims:
+        sub: agent|travel-bot
+        iss: https://login.example.com/
+    resource:
+      type: tool
+      name: ucp-shop-complete_checkout
+      uri: null
+    context:
+      mandate:
+        max_total: 120000
+        currency: USD
+      session:
+        _meta: {}
+        policies:
+          checkout-spend-cap:
+            observed_checkouts:
+              chk_9f2b:
+                total: 98000
+                currency: usd
+    payload:
+      name: ucp-shop-complete_checkout
+      args:
+        id: chk_9f2b
+        checkout:
+          payment:
+            token: tok_visa
+  output:
+    expectedResult: allow
+# case: observe-records-total
+- description: OBSERVE leg. An update_checkout RESPONSE (mode output) prices the
+    checkout at $980.00 (98000, USD). The policy passes the response through
+    (allow) and records the checkout id mapped to total 98000 and currency usd
+    into its own observed_checkouts namespace, merged with any prior
+    observations. This is the write the enforce leg later reads. (session_writes
+    is asserted by the gateway run; the repo runner ignores
+    expectedSessionWrites.)
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    subject:
+      claims:
+        sub: agent|travel-bot
+        iss: https://login.example.com/
+    resource:
+      type: tool
+      name: ucp-shop-update_checkout
+      uri: null
+    context:
+      session:
+        _meta: {}
+        policies: {}
+    payload:
+      name: ucp-shop-update_checkout
+      args:
+        id: chk_9f2b
+        checkout:
+          line_items:
+            - id: li_1
+              item:
+                id: flight_sfo_jfk
+                title: SFO to JFK, economy
+              quantity: 1
+      result:
+        id: chk_9f2b
+        status: ready_for_complete
+        currency: USD
+        continue_url: https://shop.example.com/checkouts/9f2b/continue
+        totals:
+          - type: subtotal
+            amount: 92000
+            display_text: Subtotal
+          - type: tax
+            amount: 6000
+            display_text: Tax
+          - type: total
+            amount: 98000
+            display_text: Total
+  output:
+    expectedResult: allow
+  expectedSessionWrites:
+    observed_checkouts:
+      chk_9f2b:
+        total: 98000
+        currency: usd
+# case: deny-slugified
+- description: 'Live-gateway shape: the gateway federates tools as
+    "<server-prefix>-<op>" and slugifies underscores to hyphens, so the tool
+    arrives as "ucp-shop-complete-checkout" — no underscore survives. This
+    fixture proves the enforce leg still matches (an underscore-only suffix match
+    would fail open here). Procurement: the checkout was observed at $1,390.00
+    (139000, USD), above the PO ceiling of $1,200.00 (max_total 120000). The
+    completion targets that checkout id, so the observed total is read from
+    session state and the policy denies with a human-readable reason.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    subject:
+      claims:
+        sub: agent|procurement-bot
+        iss: https://login.example.com/
+    resource:
+      type: tool
+      name: ucp-shop-complete-checkout
+      uri: null
+    context:
+      mandate:
+        max_total: 120000
+        currency: USD
+      session:
+        _meta: {}
+        policies:
+          checkout-spend-cap:
+            observed_checkouts:
+              chk_desk:
+                total: 139000
+                currency: usd
+    payload:
+      name: ucp-shop-complete-checkout
+      args:
+        id: chk_desk
+  output:
+    expectedResult: deny
+    expectedReason: This purchase totals $1,390.00 but the agent's limit is $1,200.00.
+# case: deny
+- description: ENFORCE leg. The checkout was observed at $1,390.00 (139000, USD),
+    above the PO ceiling of $1,200.00 (max_total 120000). The completion targets
+    that checkout id; the observed total exceeds the cap, so the policy denies
+    and the charge never reaches the merchant.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    subject:
+      claims:
+        sub: agent|procurement-bot
+        iss: https://login.example.com/
+    resource:
+      type: tool
+      name: ucp-shop-complete_checkout
+      uri: null
+    context:
+      mandate:
+        max_total: 120000
+        currency: USD
+      session:
+        _meta: {}
+        policies:
+          checkout-spend-cap:
+            observed_checkouts:
+              chk_desk:
+                total: 139000
+                currency: usd
+    payload:
+      name: ucp-shop-complete_checkout
+      args:
+        id: chk_desk
+  output:
+    expectedResult: deny
+    expectedReason: This purchase totals $1,390.00 but the agent's limit is $1,200.00.
+# case: deny-no-observation
+- description: ENFORCE leg, fail-closed. complete_checkout targets chk_never, for
+    which the session carries no observation (the flow never read or updated the
+    checkout through the gateway). With no observed total to check against the
+    cap, the policy denies rather than letting an unverifiable charge through.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    subject:
+      claims:
+        sub: agent|procurement-bot
+        iss: https://login.example.com/
+    resource:
+      type: tool
+      name: ucp-shop-complete_checkout
+      uri: null
+    context:
+      mandate:
+        max_total: 120000
+        currency: USD
+      session:
+        _meta: {}
+        policies:
+          checkout-spend-cap:
+            observed_checkouts:
+              chk_other:
+                total: 5000
+                currency: usd
+    payload:
+      name: ucp-shop-complete_checkout
+      args:
+        id: chk_never
+  output:
+    expectedResult: deny
+    expectedReason: No observed checkout state for this checkout id in the session.
+      Read or update the checkout through the gateway (create_checkout /
+      update_checkout / get_checkout) before completing it, so the spend cap can
+      be checked against the observed total.
+# case: deny-unresolvable-total
+- description: ENFORCE leg, fail-closed on an ambiguous total. The observed
+    response for chk_ambig carried two totals[] entries with type == "total", so
+    the observe leg recorded an unresolvable marker instead of a numeric total.
+    At completion the grand total cannot be resolved to exactly one numeric
+    entry, so the spend cap cannot be enforced and the policy denies. This is the
+    duplicate-type==total scenario, enforced at completion time.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    subject:
+      claims:
+        sub: agent|procurement-bot
+        iss: https://login.example.com/
+    resource:
+      type: tool
+      name: ucp-shop-complete_checkout
+      uri: null
+    context:
+      mandate:
+        max_total: 120000
+        currency: USD
+      session:
+        _meta: {}
+        policies:
+          checkout-spend-cap:
+            observed_checkouts:
+              chk_ambig:
+                unresolvable: true
+    payload:
+      name: ucp-shop-complete_checkout
+      args:
+        id: chk_ambig
+  output:
+    expectedResult: deny
+    expectedReason: The observed grand total for this checkout could not be
+      resolved to exactly one numeric total, so the spend cap cannot be enforced;
+      completion is refused.
+# case: deny-currency-mismatch
+- description: ENFORCE leg. The checkout was observed in EUR but the mandate cap
+    is denominated in USD. A cap in one currency must not be satisfied by a total
+    in another, so the policy denies on the currency mismatch even though the
+    numeric amount is under the cap.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    subject:
+      claims:
+        sub: agent|travel-bot
+        iss: https://login.example.com/
+    resource:
+      type: tool
+      name: ucp-shop-complete_checkout
+      uri: null
+    context:
+      mandate:
+        max_total: 120000
+        currency: USD
+      session:
+        _meta: {}
+        policies:
+          checkout-spend-cap:
+            observed_checkouts:
+              chk_eur:
+                total: 90000
+                currency: eur
+    payload:
+      name: ucp-shop-complete_checkout
+      args:
+        id: chk_eur
+  output:
+    expectedResult: deny
+    expectedReason: Checkout currency EUR does not match the agent's mandate currency USD.
+# case: deny-no-cap
+- description: ENFORCE leg, fail-closed. The checkout was observed at $50.00
+    (5000, USD) but the gateway supplied no mandate cap (max_total absent). A
+    spend-cap gate with no ceiling to enforce would be no gate at all, so the
+    policy denies.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    subject:
+      claims:
+        sub: agent|travel-bot
+        iss: https://login.example.com/
+    resource:
+      type: tool
+      name: ucp-shop-complete_checkout
+      uri: null
+    context:
+      mandate:
+        currency: USD
+      session:
+        _meta: {}
+        policies:
+          checkout-spend-cap:
+            observed_checkouts:
+              chk_small:
+                total: 5000
+                currency: usd
+    payload:
+      name: ucp-shop-complete_checkout
+      args:
+        id: chk_small
+  output:
+    expectedResult: deny
+    expectedReason: Completing a checkout requires a spend cap, but no mandate
+      limit was supplied to the policy.

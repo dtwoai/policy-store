@@ -1,0 +1,341 @@
+# expectedSessionWrites is the session-state contract (session_writes emitted on
+# the observe leg). The repo test runner ignores the key; it is asserted by the
+# end-to-end gateway run.
+# case: allow
+- description: ENFORCE leg. complete_checkout for chk_1 carries disclosed routing
+    attribution, and the observed grand total for chk_1 (4999, recorded from an
+    earlier checkout response and pre-populated under this policy's own writer
+    namespace) equals the advertised price the buyer was shown (4999) — no
+    overcharge. Policy allows.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ucp-shop-complete_checkout
+      uri: null
+    subject:
+      claims:
+        sub: agent-7f3c
+        groups:
+          - commerce-agents
+    payload:
+      name: ucp-shop-complete_checkout
+      args:
+        id: chk_1
+        checkout:
+          attribution:
+            dev.acme.route: aggregator-hub
+            dev.acme.campaign: spring-sale
+          payment:
+            token: tok_visa
+    context:
+      mandate:
+        advertised_total: 4999
+        currency: USD
+      session:
+        _meta: {}
+        policies:
+          attribution-disclosure:
+            priced_observations:
+              chk_1:
+                total: 4999
+  output:
+    expectedResult: allow
+# case: allow-discount
+- description: ENFORCE leg. Disclosed attribution, and the observed grand total
+    for chk_1 (4499) is LOWER than the advertised price (4999) — a discount/promo
+    applied between display and completion. The policy guards the overcharge
+    direction only, so a cheaper charge than advertised is allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ucp-shop-complete_checkout
+      uri: null
+    subject:
+      claims:
+        sub: agent-7f3c
+        groups:
+          - commerce-agents
+    payload:
+      name: ucp-shop-complete_checkout
+      args:
+        id: chk_1
+        checkout:
+          attribution:
+            dev.acme.route: aggregator-hub
+    context:
+      mandate:
+        advertised_total: 4999
+        currency: USD
+      session:
+        _meta: {}
+        policies:
+          attribution-disclosure:
+            priced_observations:
+              chk_1:
+                total: 4499
+  output:
+    expectedResult: allow
+# case: observe-records-total
+- description: OBSERVE leg. An update_checkout RESPONSE (mode output) prices chk_1
+    at 4999. The policy passes the response through (allow) and records the
+    checkout id mapped to total 4999 into its priced_observations namespace. This
+    is the observation the enforce leg later compares to the advertised price.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: ucp-shop-update_checkout
+      uri: null
+    subject:
+      claims:
+        sub: agent-7f3c
+        groups:
+          - commerce-agents
+    payload:
+      name: ucp-shop-update_checkout
+      args:
+        id: chk_1
+      result:
+        id: chk_1
+        status: ready_for_complete
+        currency: USD
+        totals:
+          - type: items
+            amount: 4499
+            display_text: Subtotal
+          - type: shipping
+            amount: 500
+            display_text: Shipping
+          - type: total
+            amount: 4999
+            display_text: Total
+    context:
+      session:
+        _meta: {}
+        policies: {}
+  output:
+    expectedResult: allow
+  expectedSessionWrites:
+    priced_observations:
+      chk_1:
+        total: 4999
+# case: deny-slugified
+- description: 'Live-gateway shape: the gateway federates tools as
+    "<server-prefix>-<op>" and slugifies underscores to hyphens, so the tool
+    arrives as "ucp-shop-complete-checkout" — no underscore survives. This
+    fixture proves the enforce leg still matches. Disclosed attribution, but the
+    observed grand total for chk_1 (5999) EXCEEDS the advertised price (4999). The
+    buyer would be charged more than displayed, so the policy denies.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ucp-shop-complete-checkout
+      uri: null
+    subject:
+      claims:
+        sub: agent-7f3c
+        groups:
+          - commerce-agents
+    payload:
+      name: ucp-shop-complete-checkout
+      args:
+        id: chk_1
+        checkout:
+          attribution:
+            dev.acme.route: aggregator-hub
+    context:
+      mandate:
+        advertised_total: 4999
+        currency: USD
+      session:
+        _meta: {}
+        policies:
+          attribution-disclosure:
+            priced_observations:
+              chk_1:
+                total: 5999
+  output:
+    expectedResult: deny
+    expectedReason: Observed checkout grand total (5999) exceeds the price the
+      buyer was shown (4999, minor units). The buyer must not be charged more
+      than the advertised total.
+# case: deny
+- description: ENFORCE leg. Disclosed attribution, but the observed grand total
+    for chk_1 (5999) exceeds the advertised price (4999). Policy denies.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ucp-shop-complete_checkout
+      uri: null
+    subject:
+      claims:
+        sub: agent-7f3c
+        groups:
+          - commerce-agents
+    payload:
+      name: ucp-shop-complete_checkout
+      args:
+        id: chk_1
+        checkout:
+          attribution:
+            dev.acme.route: aggregator-hub
+    context:
+      mandate:
+        advertised_total: 4999
+        currency: USD
+      session:
+        _meta: {}
+        policies:
+          attribution-disclosure:
+            priced_observations:
+              chk_1:
+                total: 5999
+  output:
+    expectedResult: deny
+    expectedReason: Observed checkout grand total (5999) exceeds the price the
+      buyer was shown (4999, minor units). The buyer must not be charged more
+      than the advertised total.
+# case: deny-undisclosed
+- description: ENFORCE leg. The completion carries no routing attribution (empty
+    map). Even though the observed total is under the advertised price, undisclosed
+    routing is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ucp-shop-complete_checkout
+      uri: null
+    subject:
+      claims:
+        sub: agent-7f3c
+        groups:
+          - commerce-agents
+    payload:
+      name: ucp-shop-complete_checkout
+      args:
+        id: chk_1
+        checkout:
+          attribution: {}
+    context:
+      mandate:
+        advertised_total: 4999
+        currency: USD
+      session:
+        _meta: {}
+        policies:
+          attribution-disclosure:
+            priced_observations:
+              chk_1:
+                total: 4999
+  output:
+    expectedResult: deny
+    expectedReason: This checkout is being completed without disclosed routing
+      attribution. Populate checkout.attribution with the referral/aggregation
+      trail before completing. Contact your commerce-governance owner if this
+      needs to change.
+# case: deny-no-observation
+- description: ENFORCE leg, fail-closed. Disclosed attribution, but there is no
+    observation on file for the completing checkout id (the flow never read or
+    updated the checkout through the gateway). The overcharge check cannot be
+    performed, so the policy denies.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ucp-shop-complete_checkout
+      uri: null
+    subject:
+      claims:
+        sub: agent-7f3c
+        groups:
+          - commerce-agents
+    payload:
+      name: ucp-shop-complete_checkout
+      args:
+        id: chk_missing
+        checkout:
+          attribution:
+            dev.acme.route: aggregator-hub
+    context:
+      mandate:
+        advertised_total: 4999
+        currency: USD
+      session:
+        _meta: {}
+        policies:
+          attribution-disclosure:
+            priced_observations:
+              chk_other:
+                total: 4999
+  output:
+    expectedResult: deny
+    expectedReason: "Cannot verify the observed total against the price shown:
+      there is no resolvable observed grand total for this checkout in the
+      session, or no advertised price was supplied in policy context. Read or
+      update the checkout through the gateway before completing it, and supply
+      the advertised price. Completing a checkout whose grand total cannot be
+      unambiguously checked against the price shown is not permitted."
+# case: deny-unresolvable
+- description: ENFORCE leg, fail-closed on an ambiguous total. Disclosed
+    attribution, but the observed response for the checkout carried two totals
+    entries with type == "total", so the observe leg recorded an unresolvable
+    marker. The grand total cannot be resolved to one numeric entry, so the
+    overcharge check cannot be performed and the policy denies. This is the
+    duplicate-type==total scenario, enforced at completion time.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ucp-shop-complete_checkout
+      uri: null
+    subject:
+      claims:
+        sub: agent-7f3c
+        groups:
+          - commerce-agents
+    payload:
+      name: ucp-shop-complete_checkout
+      args:
+        id: chk_ambig
+        checkout:
+          attribution:
+            dev.acme.route: aggregator-hub
+    context:
+      mandate:
+        advertised_total: 4999
+        currency: USD
+      session:
+        _meta: {}
+        policies:
+          attribution-disclosure:
+            priced_observations:
+              chk_ambig:
+                unresolvable: true
+  output:
+    expectedResult: deny
+    expectedReason: "Cannot verify the observed total against the price shown:
+      there is no resolvable observed grand total for this checkout in the
+      session, or no advertised price was supplied in policy context. Read or
+      update the checkout through the gateway before completing it, and supply
+      the advertised price. Completing a checkout whose grand total cannot be
+      unambiguously checked against the price shown is not permitted."
