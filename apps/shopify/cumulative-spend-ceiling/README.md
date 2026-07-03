@@ -39,8 +39,10 @@ enforce a *cumulative* limit.
 On each request the policy:
 
 1. Gates on the tool name. The tool name is read from `input.resource.name`
-   (lowercased) and **suffix-matched** against `complete_checkout`, because the
-   gateway prepends a non-standard server prefix (e.g.
+   (lowercased) and matched against hyphenated, underscored, and collapsed
+   shapes of `complete_checkout` (plus the bare name), because the gateway
+   prepends a non-standard server prefix and commonly slugifies underscores to
+   hyphens when federating tool names (e.g. `ucp-shop-complete-checkout` or
    `shopify_prod__complete_checkout`). Tool args are read from
    `input.payload.args`. Non-checkout tools are not gated.
 2. Reads this checkout's grand total from `checkout.totals[]` — the entry where
@@ -72,21 +74,22 @@ This policy follows the gateway's session-state contract:
   to `policies.<writer_id>.running_total` and validates it against the
   writable-key schema before committing.
 - **`writer_id` is server-derived.** A policy **cannot** hardcode its real
-  writer id — the gateway derives it from the OPA URL and the SOTW config. The
+  writer id — the gateway derives it from its policy configuration. The
   `writer_id := "shopify.ingress.cumulative_spend_ceiling"` literal in the
-  policy is the authoring-time alias the deploy pipeline aligns with the
-  resolved writer id. Correctness depends on policy uids being **immutable and
-  non-reusable** (enforced by the d2 policy store): if a retired uid were
+  policy is the authoring-time alias: **the identifier the gateway attributes
+  this policy's writes to must equal that literal exactly**, or the read-back
+  misses and the ceiling never accumulates (see Deployment requirements
+  below). Correctness also depends on policy uids being **immutable and
+  non-reusable** (enforced by the policy store): if a retired uid were
   reissued to a different policy, that policy would inherit this one's running
-  total. The session-state contract explicitly rejects single-policy self-read *within one
-  evaluation*; this policy relies on the supported cross-evaluation form —
-  request N writes, request N+1 reads — which is exactly the marker-based
-  pattern the session-state contract commits to.
+  total. The session-state contract explicitly rejects single-policy self-read
+  *within one evaluation*; this policy relies on the supported
+  cross-evaluation form — request N writes, request N+1 reads.
 
 ### Writable-key schema
 
-The session write must be declared in the policy's writable-key schema (Hub
-policy form → Session Writes step). For this policy:
+The session write must be declared in the policy's writable-key schema,
+shipped to the gateway in its policy configuration. For this policy:
 
 | Key             | JSON Schema             | TTL (s) | On drop |
 | --------------- | ----------------------- | ------- | ------- |
@@ -97,6 +100,24 @@ matches your session lifetime; `drop` is appropriate here because a dropped
 write only loses accumulation (it never opens the ceiling). The integer type
 matches the signed-minor-unit convention of `totals[].amount`.
 
+### Deployment requirements (verified end-to-end)
+
+Session-write enforcement for this policy has been verified end-to-end behind
+a live gateway against a mock UCP MCP server: an allowed `complete_checkout`
+committed `running_total`, the next evaluation in the same session read it
+back as pre-state, and the over-budget follow-up was denied with the running
+total unchanged. Two configuration preconditions are load-bearing:
+
+1. **Declare the writable-key schema.** The gateway's policy configuration
+   must declare this policy's writable session key (`running_total`,
+   integer). Writes to undeclared keys are dropped.
+2. **The namespace must match the attributed writer.** This policy hard-codes
+   its read namespace (`writer_id := "shopify.ingress.cumulative_spend_ceiling"`).
+   The session-state identifier the gateway attributes this policy's writes
+   to must equal that literal exactly — otherwise writes land under a
+   different namespace, every read-back misses, and the ceiling silently
+   never accumulates.
+
 ## Files
 
 - `policy.md` — frontmatter plus the single Rego block.
@@ -104,6 +125,9 @@ matches the signed-minor-unit convention of `totals[].amount`.
   `7000` ≤ budget `10000`): `allow=true`, write `running_total=7000`.
 - `tests/deny.json` — over-ceiling checkout (prior `8500` + this `3000` =
   `11500` > budget `10000`): `allow=false`, reason emitted, no write.
+- `tests/deny-slugified.json` — the same over-ceiling checkout via a
+  federated, slugified tool name (`ucp-shop-complete-checkout`):
+  `allow=false`, no write.
 
 Both fixtures wrap the PARC object under a top-level `input` key and seed the
 prior running total at `input.context.session.policies.<writer_id>` per the
@@ -129,10 +153,10 @@ static-test recipe. The fixtures carry `expectedSessionWrites` (and, on deny,
   organization's spend governance over the agents you operate. It does not
   arbitrate trust between Shopify and the buyer, and it does not duplicate the
   AP2 mandate's own constraints.
-- **Single-process scope.** Policy-accessible session state targets the current runtime:
-  one uvicorn process per gateway. The running total is durable across MCP
-  reconnects within that scope; multi-worker / multi-node behavior is explicit
-  planned follow-up work, not a guarantee here.
+- **Single-process scope.** Policy-accessible session state targets a single
+  gateway process. The running total is durable across MCP reconnects within
+  that scope (verified end-to-end behind a live gateway); do not assume
+  multi-worker / multi-node aggregation.
 - **Fail-open on missing budget.** With no `session_budget` supplied the policy
   does not gate. If you want a missing budget to block instead, pair this with
   a separate deny-by-default policy that requires the mandate to be present.

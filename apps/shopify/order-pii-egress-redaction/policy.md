@@ -40,13 +40,15 @@ description: |
 
   ## Scope / tool matching
 
-  The tool name is read from `input.resource.name`, lowercased, and matched by
-  **suffix** against the UCP OpenRPC op names `get_order` and `get_checkout`
-  (e.g. `endswith(lower(name), "get_order")`). The DTwo gateway prepends a
-  non-standard server prefix to the registered tool name, so a suffix match
-  stays portable across whatever prefix your gateway emits. Confirm the exact
-  tool names your gateway sends with the dump-input debug technique before
-  relying on this in production.
+  The tool name is read from `input.resource.name`, lowercased, and matched
+  against hyphenated (`-get-order`), underscored (`-get_order`), and collapsed
+  (`-getorder`) suffix shapes of the UCP OpenRPC op names `get_order` and
+  `get_checkout`, plus the bare un-prefixed names. The DTwo gateway prepends a
+  non-standard server prefix and commonly slugifies underscores to hyphens
+  when federating tool names (`ucp-shop-get-order`), so the underscored form
+  alone would never match there. Confirm the exact tool names your gateway
+  sends with the dump-input debug technique before relying on this in
+  production.
 
   This policy intentionally does **not** read `input.payload.name` for the tool
   name — the canonical PARC source is `input.resource.name`.
@@ -116,6 +118,10 @@ description: |
 
   ## Known limitations
 
+  - **Structured-result redaction only.** The transform rewrites the structured
+    tool result; the same JSON serialized into the MCP `content[].text` channel
+    is not rewritten. Redact or suppress the text channel at the gateway, or
+    treat this policy as structured-result-only.
   - **MCP path only.** This sees the response that returns through the gateway.
     The browser `continue_url` handoff — and anything the buyer enters there — is
     not visible to DTwo and is not governed by this policy.
@@ -123,9 +129,10 @@ description: |
     merchant MCP server that returns buyer PII under different keys, or nests it
     elsewhere, won't be covered until `redact_fields` is adjusted. Confirm the
     response shape with dump-input before relying on it.
-  - **Suffix-scoped tool match.** Matching is `endswith` on `get_order` /
-    `get_checkout`. It will not cover other read ops; extend `target_tools` if
-    your deployment surfaces buyer PII through additional UCP reads.
+  - **Suffix-scoped tool match.** Matching covers the known name shapes of
+    `get_order` / `get_checkout` only. It will not cover other read ops; extend
+    `target_tool_shapes` if your deployment surfaces buyer PII through
+    additional UCP reads.
   - **No identity-based exemptions.** All callers get the same redaction. Add an
     `input.subject.claims`-gated branch (using IdP-supplied claims, never
     stripped `is_admin` / `teams` / `user`) if a break-glass role needs raw
@@ -149,16 +156,42 @@ package shopify.egress.order_pii_redaction
 # of get_order / get_checkout before it reaches the agent you run.
 default allow := true
 
-# UCP OpenRPC op names this policy applies to. The gateway prepends a
-# non-standard server prefix to the registered tool name, so we suffix-match.
-target_tools := {"get_order", "get_checkout"}
+# UCP OpenRPC op names this policy applies to, in hyphenated, underscored,
+# and collapsed shape. The gateway prepends a non-standard server prefix and
+# commonly slugifies underscores to hyphens when federating tool names
+# ("ucp-shop-get-order"), so the underscored form alone would never match
+# there. Shapes are matched as suffixes anchored at a "-"/"_" separator,
+# plus the bare un-prefixed name for direct deployments.
+target_tool_shapes := {
+    "get_order",
+    "get-order",
+    "getorder",
+    "get_checkout",
+    "get-checkout",
+    "getcheckout",
+}
 
-# In scope when on the egress/output path AND the (lowercased) tool name from
-# input.resource.name ends with one of the target op names.
+tool_matches(shapes) if {
+    shapes[lower(object.get(input.resource, "name", ""))]
+}
+
+tool_matches(shapes) if {
+    name := lower(object.get(input.resource, "name", ""))
+    some shape in shapes
+    endswith(name, sprintf("-%s", [shape]))
+}
+
+tool_matches(shapes) if {
+    name := lower(object.get(input.resource, "name", ""))
+    some shape in shapes
+    endswith(name, sprintf("_%s", [shape]))
+}
+
+# In scope when on the egress/output path AND the tool name matches a target
+# op shape.
 in_scope if {
     input.mode == "output"
-    some op in target_tools
-    endswith(lower(object.get(input.resource, "name", "")), op)
+    tool_matches(target_tool_shapes)
 }
 
 transform := {

@@ -84,13 +84,20 @@ policy will catch for you. If the gateway supplies no `max_total`, the policy
 
 All paths below are the real UCP shapes — none are invented:
 
-- **Tool name:** `input.resource.name`, lowercased and suffix-matched
-  (`endswith(..., "create_checkout")` / `"update_checkout"`). The gateway
-  prepends a non-standard server prefix (e.g. `shopify-mcp-create_checkout`), so
-  matching on the suffix keeps the policy portable. The tool name is **not**
-  read from `input.payload.name`.
+- **Tool name:** `input.resource.name`, lowercased and matched against
+  hyphenated, underscored, and collapsed shapes of `create_checkout` /
+  `update_checkout` (plus the bare names). The gateway prepends a non-standard
+  server prefix and commonly slugifies underscores to hyphens when federating
+  tool names (e.g. `ucp-shop-update-checkout`), so shape matching keeps the
+  policy portable. The tool name is **not** read from `input.payload.name`.
 - **Mode:** `input.mode == "output"` — this is an egress / response gate.
 - **Checkout result:** `input.payload.result` (the returned checkout object).
+  **Gateway-supplied contract:** the gateway must present the tool's
+  structured result object at `input.payload.result` when it evaluates egress
+  policies. If your gateway's post-invoke hook hands policies extracted text
+  content instead of the result object, the deployment must map it back into
+  `input.payload.result` in the gateway configuration — that reconstruction
+  is not part of this policy.
 - **Grand total:** the entry in `result.totals[]` where `type == "total"`; its
   `amount` is a signed integer in minor units. There is no `totals.grand_total`
   and no `totals.tax` path — `totals` is a flat array of
@@ -195,6 +202,9 @@ bundle for the curated set.
   cap → `allow = true`.
 - `tests/deny.json` — an `update_checkout` response at $742.50, at/above a
   $500.00 cap, with no `continue_url` → `allow = false` with a reason.
+- `tests/deny-slugified.json` — the same over-threshold response via a
+  federated, slugified tool name (`ucp-shop-update-checkout`) →
+  `allow = false`.
 
 Both wrap the PARC object under a top-level `input` key. Evaluate by unwrapping
 `.input` first (a naive `opa eval` that feeds the whole file double-nests under

@@ -37,8 +37,8 @@ import rego.v1
 
 # Self-reference for this policy's own write namespace under
 # input.context.session.policies. A policy CANNOT hardcode its real
-# writer_id — the gateway derives writer_id server-side from the OPA URL
-# and the SOTW config, then auto-namespaces this policy's writes under
+# writer_id — the gateway derives writer_id server-side from its policy
+# configuration, then auto-namespaces this policy's writes under
 # policies.<writer_id>. The literal below is the authoring-time alias the
 # deploy pipeline aligns with the resolved writer_id; correctness depends
 # on policy uids being immutable and non-reusable. See README
@@ -47,10 +47,31 @@ writer_id := "shopify.ingress.cumulative_spend_ceiling"
 
 # --- tool gate ---------------------------------------------------------------
 # Tool name comes from input.resource.name (lowercased). The gateway prepends
-# a non-standard server prefix, so suffix-match the OpenRPC op name.
+# a non-standard server prefix and commonly slugifies underscores to hyphens
+# when federating tool names ("ucp-shop-complete-checkout"), so match
+# hyphenated, underscored, and collapsed shapes of the OpenRPC op — anchored
+# at a "-"/"_" separator — plus the bare un-prefixed name.
 tool_name := lower(object.get(input.resource, "name", ""))
 
-is_complete_checkout if endswith(tool_name, "complete_checkout")
+complete_checkout_shapes := {
+	"complete_checkout",
+	"complete-checkout",
+	"completecheckout",
+}
+
+tool_matches(shapes) if shapes[tool_name]
+
+tool_matches(shapes) if {
+	some shape in shapes
+	endswith(tool_name, sprintf("-%s", [shape]))
+}
+
+tool_matches(shapes) if {
+	some shape in shapes
+	endswith(tool_name, sprintf("_%s", [shape]))
+}
+
+is_complete_checkout if tool_matches(complete_checkout_shapes)
 
 # --- this checkout's grand total --------------------------------------------
 # Tool args live at input.payload.args (canonical). The checkout's grand total

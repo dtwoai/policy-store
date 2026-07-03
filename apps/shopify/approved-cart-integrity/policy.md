@@ -76,8 +76,9 @@ description: |
 
   All of:
 
-  - **Tool match.** Lowercased `input.resource.name` ends with
-    `update_checkout`.
+  - **Tool match.** Lowercased `input.resource.name` matches a known shape of
+    `update_checkout` (hyphenated / underscored / collapsed suffix, or the
+    bare name).
   - **Approval transition.** `input.payload.args.checkout.status` is
     `ready_for_complete` (the buyer-approved, ready-to-finalize state in
     the UCP checkout status enum).
@@ -96,8 +97,9 @@ description: |
 
   ### Enforce (deny divergence at completion)
 
-  - **Tool match.** Lowercased `input.resource.name` ends with
-    `complete_checkout`.
+  - **Tool match.** Lowercased `input.resource.name` matches a known shape of
+    `complete_checkout` (hyphenated / underscored / collapsed suffix, or the
+    bare name).
   - **Read baseline.** The policy reads `approved_line_items` from its own
     namespace under `input.context.session.policies` (the gateway injected
     it from the observe step).
@@ -120,17 +122,19 @@ description: |
 
   ## Tool naming on the gateway
 
-  DTwo prepends the configured MCP server name to tool names, and that
-  prefix is not standardized across deployments. This policy matches on the
-  **suffix** of the OpenRPC operation (`update_checkout`,
-  `complete_checkout`) so it stays portable. Confirm the exact tool names
+  DTwo prepends the configured MCP server name to tool names, that prefix is
+  not standardized across deployments, and federated names are commonly
+  slugified (underscores become hyphens, e.g. `ucp-shop-complete-checkout`).
+  This policy matches hyphenated, underscored, and collapsed suffix shapes of
+  the OpenRPC operations (`update_checkout`, `complete_checkout`), plus the
+  bare un-prefixed names, so it stays portable. Confirm the exact tool names
   your gateway sends with the dump-input debug technique before deploying.
 
   ## Session writes and the writable-key schema
 
   This policy writes two keys; both must be declared in the policy's
-  writable-key schema (authored alongside the policy in the Hub policy
-  form, shipped to the gateway via SOTW):
+  writable-key schema (authored alongside the policy and shipped to the
+  gateway in its policy configuration):
 
   | key | JSON Schema | suggested TTL | on_drop |
   | --- | --- | --- | --- |
@@ -297,18 +301,46 @@ package shopify.ingress.approved_cart_integrity
 
 default allow := false
 
-# ---- tool-name matching (suffix; gateway prepends a server prefix) ----
+# ---- tool-name matching ----
+# The gateway prepends a server prefix and commonly slugifies underscores to
+# hyphens when federating tool names ("ucp-shop-complete-checkout"), so match
+# hyphenated, underscored, and collapsed shapes of each op — anchored at a
+# "-"/"_" separator — plus the bare un-prefixed name.
 
 tool_name := lower(object.get(input.resource, "name", ""))
 
+update_checkout_shapes := {
+	"update_checkout",
+	"update-checkout",
+	"updatecheckout",
+}
+
+complete_checkout_shapes := {
+	"complete_checkout",
+	"complete-checkout",
+	"completecheckout",
+}
+
+tool_matches(shapes) if shapes[tool_name]
+
+tool_matches(shapes) if {
+	some shape in shapes
+	endswith(tool_name, sprintf("-%s", [shape]))
+}
+
+tool_matches(shapes) if {
+	some shape in shapes
+	endswith(tool_name, sprintf("_%s", [shape]))
+}
+
 is_approval_record if {
-	endswith(tool_name, "update_checkout")
+	tool_matches(update_checkout_shapes)
 	checkout := object.get(input.payload.args, "checkout", {})
 	lower(object.get(checkout, "status", "")) == "ready_for_complete"
 }
 
 is_complete_checkout if {
-	endswith(tool_name, "complete_checkout")
+	tool_matches(complete_checkout_shapes)
 }
 
 # ---- baseline normalization ----

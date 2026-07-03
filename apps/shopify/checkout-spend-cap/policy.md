@@ -62,11 +62,15 @@ description: |
 
   A call is denied when **both** hold:
 
-  - **Tool match.** The lowercased `input.resource.name` ends with
-    `complete_checkout`. The gateway prepends a (non-standard) MCP server prefix
-    to tool names, so the policy suffix-matches the OpenRPC operation name rather
-    than hard-coding a server prefix. The tool name is read from
-    `input.resource.name` — never from `input.payload.name`.
+  - **Tool match.** The lowercased `input.resource.name` matches a known shape
+    of the OpenRPC op `complete_checkout`. The gateway prepends a (non-standard)
+    MCP server prefix and commonly slugifies underscores to hyphens when
+    federating tool names (`ucp-shop-complete-checkout`), so the policy matches
+    the hyphenated (`-complete-checkout`), underscored (`-complete_checkout`),
+    and collapsed (`-completecheckout`) suffix shapes — anchored at a `-`/`_`
+    separator — plus the bare un-prefixed names for direct (unfederated)
+    deployments. The tool name is read from `input.resource.name` — never from
+    `input.payload.name`.
   - **Over cap or wrong currency.** Either the grand-total `amount` is greater
     than `input.context.mandate.max_total`, or the checkout currency does not
     equal `input.context.mandate.currency` (case-insensitive).
@@ -102,12 +106,14 @@ description: |
 
   ## Tool naming on the gateway
 
-  DTwo prefixes tool names with the MCP server name configured on the gateway, so
-  a UCP/Shopify server registered as `shopify` surfaces `shopify-complete_checkout`
-  (or similar) while another registration surfaces a different prefix. This policy
-  matches on the **suffix** (`complete_checkout`) to stay portable. Confirm the
-  exact tool name your gateway sends with the dump-input debug technique before
-  deploying.
+  DTwo prefixes tool names with the MCP server name configured on the gateway,
+  and federated names are commonly slugified (underscores become hyphens): a
+  UCP/Shopify server registered as `ucp-shop` surfaces
+  `ucp-shop-complete-checkout`, while a direct deployment may surface
+  `shopify-complete_checkout` or the bare `complete_checkout`. This policy
+  matches all of those shapes by anchored suffix to stay portable (verified
+  end-to-end behind a live gateway). Confirm the exact tool name your gateway
+  sends with the dump-input debug technique before deploying.
 
   ## Scope and honest limits
 
@@ -154,9 +160,35 @@ allow if {
 	not currency_mismatch
 }
 
-is_complete_checkout if {
-	endswith(lower(object.get(input.resource, "name", "")), "complete_checkout")
+# Known shapes of each gated op. The gateway prepends a server prefix and
+# commonly slugifies underscores to hyphens when federating tool names
+# ("ucp-shop-complete-checkout"), so the underscored form alone would never
+# match there and a deny policy would fail open. Match hyphenated,
+# underscored, and collapsed shapes, anchored at a "-"/"_" separator, plus
+# the bare un-prefixed name for direct (unfederated) deployments.
+complete_checkout_shapes := {
+	"complete_checkout",
+	"complete-checkout",
+	"completecheckout",
 }
+
+tool_matches(shapes) if {
+	shapes[lower(object.get(input.resource, "name", ""))]
+}
+
+tool_matches(shapes) if {
+	name := lower(object.get(input.resource, "name", ""))
+	some shape in shapes
+	endswith(name, sprintf("-%s", [shape]))
+}
+
+tool_matches(shapes) if {
+	name := lower(object.get(input.resource, "name", ""))
+	some shape in shapes
+	endswith(name, sprintf("_%s", [shape]))
+}
+
+is_complete_checkout if tool_matches(complete_checkout_shapes)
 
 # The checkout object carried in the tool arguments.
 checkout := object.get(object.get(input.payload, "args", {}), "checkout", {})

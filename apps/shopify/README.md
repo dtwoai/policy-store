@@ -19,4 +19,8 @@ These policies govern **the agents your enterprise runs**. They sit on the MCP p
 | [restricted-category-block](./restricted-category-block/policy.md) | ingress | Block agent purchases in restricted categories / SKUs |
 | [attribution-disclosure](./attribution-disclosure/policy.md) | ingress | Internal-platform governance: disclosed routing + advertised == submitted price |
 
-The two **stateful** policies require a gateway build that ships policy-accessible session state. See the [`agentic-commerce`](../../bundles/agentic-commerce/README.md) bundle for the curated set and [`retail`](../../industries/retail/README.md) for the industry view.
+The two **stateful** policies require a gateway that provides policy-accessible session state. See the [`agentic-commerce`](../../bundles/agentic-commerce/README.md) bundle for the curated set and [`retail`](../../industries/retail/README.md) for the industry view.
+
+## Verified end-to-end
+
+This set has been exercised end-to-end behind a live gateway against a mock UCP MCP server: real per-call policy decisions on the authenticated tool-call path, covering allow, deny, and redaction outcomes as well as both stateful flows (the cumulative running total advancing and then denying over budget, and the approved-cart baseline being recorded at approval and enforced against a post-approval cart swap). Two deployment notes fall out of that run: the org-constraint inputs the policies read at `input.context.*` (mandate caps and allowlists, `restricted_skus`, `advertised_total`, the resolved `merchant`) are gateway-supplied configuration your deployment must populate before those denies can fire, and federated tool names are commonly slugified (`ucp-shop-complete-checkout`), which the policies' name matching accounts for.

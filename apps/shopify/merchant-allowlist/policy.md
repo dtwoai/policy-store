@@ -45,11 +45,14 @@ description: |
 
   Two conditions must both hold for a call to be denied:
 
-  - **Tool match.** The lowercased `input.resource.name` ends with
-    `complete_checkout`. The gateway prepends a non-standard server prefix to
-    the OpenRPC operation name, so the policy suffix-matches to stay portable.
-    The tool name is read **only** from `input.resource.name`, never from
-    `input.payload.name`.
+  - **Tool match.** The lowercased `input.resource.name` matches a known shape
+    of the OpenRPC op `complete_checkout` — hyphenated (`-complete-checkout`),
+    underscored (`-complete_checkout`), or collapsed (`-completecheckout`)
+    suffixes, plus the bare un-prefixed names. The gateway prepends a
+    non-standard server prefix and commonly slugifies underscores to hyphens
+    when federating tool names (`ucp-shop-complete-checkout`), so the
+    underscored form alone would never match there. The tool name is read
+    **only** from `input.resource.name`, never from `input.payload.name`.
   - **Merchant not approved.** The resolved merchant
     (`input.context.merchant`) is not present in the allowlist at
     `object.get(input.context.mandate, "merchant_allowlist", [])`.
@@ -149,9 +152,8 @@ package shopify.ingress.merchant_allowlist
 
 default allow := false
 
-# Pass through anything that is not the complete_checkout tool.
-# The gateway prepends a non-standard server prefix to the OpenRPC op name,
-# so match on the suffix and read the tool name only from input.resource.name.
+# Pass through anything that is not the complete_checkout tool. The tool name
+# is read only from input.resource.name (see the shape-matching note below).
 allow if {
 	not is_complete_checkout
 }
@@ -162,9 +164,35 @@ allow if {
 	merchant_on_allowlist
 }
 
-is_complete_checkout if {
-	endswith(lower(object.get(input.resource, "name", "")), "complete_checkout")
+# Known shapes of each gated op. The gateway prepends a server prefix and
+# commonly slugifies underscores to hyphens when federating tool names
+# ("ucp-shop-complete-checkout"), so the underscored form alone would never
+# match there and a deny policy would fail open. Match hyphenated,
+# underscored, and collapsed shapes, anchored at a "-"/"_" separator, plus
+# the bare un-prefixed name for direct (unfederated) deployments.
+complete_checkout_shapes := {
+	"complete_checkout",
+	"complete-checkout",
+	"completecheckout",
 }
+
+tool_matches(shapes) if {
+	shapes[lower(object.get(input.resource, "name", ""))]
+}
+
+tool_matches(shapes) if {
+	name := lower(object.get(input.resource, "name", ""))
+	some shape in shapes
+	endswith(name, sprintf("-%s", [shape]))
+}
+
+tool_matches(shapes) if {
+	name := lower(object.get(input.resource, "name", ""))
+	some shape in shapes
+	endswith(name, sprintf("_%s", [shape]))
+}
+
+is_complete_checkout if tool_matches(complete_checkout_shapes)
 
 # input.context.merchant is DTwo-supplied policy input (the gateway's resolved
 # merchant identity), NOT a UCP checkout field. Missing/empty -> "" -> fails closed.

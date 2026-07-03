@@ -53,16 +53,43 @@ is_output_mode if {
 }
 
 # Tool-name match. The gateway prepends a non-standard server prefix to the
-# OpenRPC operation name (e.g. "shopify-mcp-create_checkout"), so we suffix-match
-# the lowercased name read from input.resource.name. We deliberately do NOT read
-# the tool name from input.payload.name.
-is_create_checkout if {
-	endswith(lower(input.resource.name), "create_checkout")
+# OpenRPC operation name and commonly slugifies underscores to hyphens when
+# federating tool names ("ucp-shop-create-checkout"), so we match the
+# lowercased input.resource.name against hyphenated, underscored, and
+# collapsed shapes of each op — anchored at a "-"/"_" separator — plus the
+# bare un-prefixed name. We deliberately do NOT read the tool name from
+# input.payload.name.
+create_checkout_shapes := {
+	"create_checkout",
+	"create-checkout",
+	"createcheckout",
 }
 
-is_update_checkout if {
-	endswith(lower(input.resource.name), "update_checkout")
+update_checkout_shapes := {
+	"update_checkout",
+	"update-checkout",
+	"updatecheckout",
 }
+
+tool_matches(shapes) if {
+	shapes[lower(object.get(input.resource, "name", ""))]
+}
+
+tool_matches(shapes) if {
+	name := lower(object.get(input.resource, "name", ""))
+	some shape in shapes
+	endswith(name, sprintf("-%s", [shape]))
+}
+
+tool_matches(shapes) if {
+	name := lower(object.get(input.resource, "name", ""))
+	some shape in shapes
+	endswith(name, sprintf("_%s", [shape]))
+}
+
+is_create_checkout if tool_matches(create_checkout_shapes)
+
+is_update_checkout if tool_matches(update_checkout_shapes)
 
 is_checkout_mutation if {
 	is_create_checkout

@@ -25,10 +25,13 @@ marketplace control.
 A call is denied only when **both** of these hold:
 
 1. **It is the checkout-completion tool.** The lowercased `input.resource.name`
-   ends with `complete_checkout`. The gateway prepends a non-standard server
-   prefix to the OpenRPC operation name (e.g. `ucp-shopify-complete_checkout`),
-   so the policy suffix-matches to stay portable. The tool name is read **only**
-   from `input.resource.name` — never from `input.payload.name`.
+   matches a known shape of `complete_checkout` — hyphenated
+   (`-complete-checkout`), underscored (`-complete_checkout`), or collapsed
+   (`-completecheckout`) suffixes, plus the bare un-prefixed names. The gateway
+   prepends a non-standard server prefix and commonly slugifies underscores to
+   hyphens when federating tool names (e.g. `ucp-shop-complete-checkout`). The
+   tool name is read **only** from `input.resource.name` — never from
+   `input.payload.name`.
 2. **The merchant is not approved.** The resolved merchant
    (`input.context.merchant`) is not present in the allowlist at
    `input.context.mandate.merchant_allowlist`.
@@ -91,6 +94,7 @@ currency policies in the same bundle for those checks.
 | --- | --- | --- |
 | [`tests/allow.json`](./tests/allow.json) | `complete_checkout` whose resolved merchant is on the allowlist | `allow = true` |
 | [`tests/deny.json`](./tests/deny.json) | `complete_checkout` whose resolved merchant is not on the allowlist | `allow = false`, reason names the merchant |
+| [`tests/deny-slugified.json`](./tests/deny-slugified.json) | The same unapproved merchant via a federated, slugified tool name (`ucp-shop-complete-checkout`) | `allow = false`, reason names the merchant |
 
 Each fixture wraps the PARC object under a top-level `input` key. A verifier
 must unwrap `.input` before evaluating, or a naive `opa eval` double-nests the

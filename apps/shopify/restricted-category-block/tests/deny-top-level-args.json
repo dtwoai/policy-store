@@ -1,0 +1,70 @@
+{
+  "description": "Fallback arg shape: some servers accept line_items at the TOP level of args instead of under args.checkout. The policy keeps reading that flattened form as a fallback, so a restricted SKU there still denies. Same restricted SKU-by-id scenario as deny.json.",
+  "input": {
+    "action": "tool_pre_invoke",
+    "kind": "tool_pre_invoke",
+    "mode": "input",
+    "resource": {
+      "type": "tool",
+      "name": "shopify-mcp-7f3a-complete_checkout",
+      "uri": null
+    },
+    "payload": {
+      "name": "shopify-mcp-7f3a-complete_checkout",
+      "args": {
+        "currency": "USD",
+        "status": "ready_for_complete",
+        "continue_url": "https://merchant.example.com/checkout/chk_01HZX5VQ7B",
+        "totals": [
+          {
+            "type": "subtotal",
+            "amount": 4999
+          },
+          {
+            "type": "total",
+            "amount": 4999,
+            "display_text": "$49.99"
+          }
+        ],
+        "line_items": [
+          {
+            "id": "li_1",
+            "quantity": 1,
+            "item": {
+              "id": "SKU-RESTRICTED-001",
+              "title": "Field Knife",
+              "price": 4999
+            },
+            "totals": [
+              {
+                "type": "total",
+                "amount": 4999
+              }
+            ]
+          }
+        ],
+        "buyer": {
+          "first_name": "Ada",
+          "last_name": "Lovelace",
+          "email": "ada@example.com",
+          "phone_number": "+14155550101"
+        }
+      }
+    },
+    "context": {
+      "restricted_skus": [
+        "SKU-RESTRICTED-001"
+      ]
+    },
+    "subject": {
+      "claims": {
+        "sub": "agent-7",
+        "iss": "https://auth.example.com/"
+      }
+    }
+  },
+  "expected": {
+    "allow": false,
+    "reasonContains": "Item 'SKU-RESTRICTED-001' is in a restricted category"
+  }
+}

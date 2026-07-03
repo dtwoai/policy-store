@@ -70,13 +70,18 @@ description: |
   `object.get(...)` so a missing field falls through to allow rather than
   erroring:
 
-  - **Tool name** — `input.resource.name`, lowercased and matched on the
-    OpenRPC-operation **suffix** (`complete_checkout`, `update_cart`,
-    `update_checkout`). The gateway prepends a non-standard server prefix, so
-    suffix matching keeps this portable. Never read the tool name from
-    `input.payload.name`.
-  - **Tool args** — `input.payload.args`. The checkout/cart object and its
-    `line_items[]` live here.
+  - **Tool name** — `input.resource.name`, lowercased and matched against
+    hyphenated, underscored, and collapsed shapes of the OpenRPC operations
+    (`complete_checkout`, `update_cart`, `update_checkout`), anchored at a
+    `-`/`_` separator, plus the bare un-prefixed names. The gateway prepends a
+    non-standard server prefix and commonly slugifies underscores to hyphens
+    when federating tool names (`ucp-shop-complete-checkout`). Never read the
+    tool name from `input.payload.name`.
+  - **Tool args** — `input.payload.args`. The checkout object rides under
+    `args.checkout` (the canonical UCP tool-arg shape, as the sibling policies
+    read it); `line_items[]` and `messages[]` are read from `args.checkout.*`,
+    with top-level `args.line_items` / `args.messages` kept as fallbacks for
+    servers that accept the flattened form.
   - **Line items** — `line_items[]` is an array of
     `{ id, item, quantity, totals }`; `item` is `{ id, title, price, image_url? }`
     where `price` is a signed integer in the currency minor unit (cents).
@@ -125,12 +130,14 @@ description: |
       "payload": {
         "name": "shopify-mcp-7f3a-complete_checkout",
         "args": {
-          "currency": "USD",
-          "status": "ready_for_complete",
-          "line_items": [
-            { "id": "li_1", "quantity": 1,
-              "item": { "id": "SKU-RESTRICTED-001", "title": "Field Knife", "price": 4999 } }
-          ]
+          "checkout": {
+            "currency": "USD",
+            "status": "ready_for_complete",
+            "line_items": [
+              { "id": "li_1", "quantity": 1,
+                "item": { "id": "SKU-RESTRICTED-001", "title": "Field Knife", "price": 4999 } }
+            ]
+          }
         }
       },
       "context": { "restricted_skus": ["SKU-RESTRICTED-001"] }
@@ -151,12 +158,14 @@ description: |
       "payload": {
         "name": "shopify-mcp-7f3a-complete_checkout",
         "args": {
-          "currency": "USD",
-          "status": "ready_for_complete",
-          "line_items": [
-            { "id": "li_1", "quantity": 2,
-              "item": { "id": "SKU-PEN-014", "title": "Ballpoint Pen", "price": 250 } }
-          ]
+          "checkout": {
+            "currency": "USD",
+            "status": "ready_for_complete",
+            "line_items": [
+              { "id": "li_1", "quantity": 2,
+                "item": { "id": "SKU-PEN-014", "title": "Ballpoint Pen", "price": 250 } }
+            ]
+          }
         }
       },
       "context": { "restricted_skus": ["SKU-RESTRICTED-001"] }
@@ -186,8 +195,8 @@ description: |
     break-glass purchaser, gate a separate `allow if` branch on
     `input.subject.claims` (never on `is_admin` / `teams` / `user`).
   - **Only the configured write tools are gated.** If your Shopify MCP server
-    exposes another mutating checkout/cart tool, add its OpenRPC suffix to
-    `write_tool_suffixes`.
+    exposes another mutating checkout/cart tool, add its name shapes to
+    `write_tool_shapes`.
 direction: ingress
 apps:
   - shopify
@@ -226,34 +235,61 @@ restricted_message_codes := {
 }
 
 # -----------------------------------------------------------------------------
-# WRITE TOOLS: a tool is a gated write when its name ends with one of these
-# OpenRPC operation names. The gateway prepends a non-standard server prefix,
-# so we suffix-match the lowercased input.resource.name (NOT input.payload.name).
-# complete_checkout is the irreversible commit; the cart/checkout updates catch
-# a restricted item as it is added rather than only at the final commit.
+# WRITE TOOLS: a tool is a gated write when its lowercased input.resource.name
+# (NOT input.payload.name) matches one of these OpenRPC operations. The gateway
+# prepends a non-standard server prefix and commonly slugifies underscores to
+# hyphens when federating tool names ("ucp-shop-complete-checkout"), so each
+# op is matched in hyphenated, underscored, and collapsed shape — anchored at
+# a "-"/"_" separator — plus the bare un-prefixed name. complete_checkout is
+# the irreversible commit; the cart/checkout updates catch a restricted item
+# as it is added rather than only at the final commit.
 # -----------------------------------------------------------------------------
-write_tool_suffixes := {
+write_tool_shapes := {
     "complete_checkout",
+    "complete-checkout",
+    "completecheckout",
     "update_cart",
+    "update-cart",
+    "updatecart",
     "update_checkout",
+    "update-checkout",
+    "updatecheckout",
 }
 
 # -----------------------------------------------------------------------------
 # Helpers
 # -----------------------------------------------------------------------------
 
-tool_name := lower(input.resource.name)
+tool_name := lower(object.get(input.resource, "name", ""))
 
-is_write_tool if {
-    some suffix in write_tool_suffixes
-    endswith(tool_name, suffix)
+tool_matches(shapes) if shapes[tool_name]
+
+tool_matches(shapes) if {
+    some shape in shapes
+    endswith(tool_name, sprintf("-%s", [shape]))
 }
 
-# The checkout/cart object lives in the canonical tool-args location.
+tool_matches(shapes) if {
+    some shape in shapes
+    endswith(tool_name, sprintf("_%s", [shape]))
+}
+
+is_write_tool if tool_matches(write_tool_shapes)
+
+# Tool args live at input.payload.args (canonical). The checkout object rides
+# under args.checkout — the spec-shaped UCP argument the sibling policies
+# read. Some servers also accept flattened top-level line_items/messages
+# args, kept here as fallbacks; both locations are inspected, so a restricted
+# item in either one denies.
 args := object.get(input.payload, "args", {})
 
+checkout := object.get(args, "checkout", {})
+
 # line_items[] = [{ id, item, quantity, totals }]; item = { id, title, price }.
-line_items := object.get(args, "line_items", [])
+line_items := array.concat(
+    object.get(checkout, "line_items", []),
+    object.get(args, "line_items", []),
+)
 
 # DTwo-SUPPLIED policy input (not a UCP field): exact product ids / SKUs the org
 # bars. Injected by the gateway at input.context.restricted_skus.
@@ -263,7 +299,10 @@ restricted_skus := {s |
 }
 
 # messages[] = oneOf error|warning|info, discriminated on the "type" const.
-messages := object.get(args, "messages", [])
+messages := array.concat(
+    object.get(checkout, "messages", []),
+    object.get(args, "messages", []),
+)
 
 # -----------------------------------------------------------------------------
 # Restricted-item detection

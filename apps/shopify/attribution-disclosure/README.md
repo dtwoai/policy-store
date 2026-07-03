@@ -52,7 +52,7 @@ reference `input.context.mandate.*` (e.g. `max_total`, `currency`,
 
 | Purpose | Path | Notes |
 | --- | --- | --- |
-| Tool name | `input.resource.name` | suffix-matched (`…complete_checkout`); never `input.payload.name` |
+| Tool name | `input.resource.name` | shape-matched (`…-complete-checkout` / `…-complete_checkout` / `…-completecheckout` suffixes, plus bare names); never `input.payload.name` |
 | Tool args | `input.payload.args` | canonical args surface |
 | Checkout | `input.payload.args.checkout` | the checkout object |
 | Attribution | `…checkout.attribution` | open string-map; UCP's only referral surface |
@@ -64,17 +64,20 @@ strictly the `totals[]` entry with `type == "total"`.
 
 ## Tool name matching
 
-The DTwo gateway prepends a non-standard server prefix to UCP tool names (for
-example `ucp-acme-complete_checkout`). The policy suffix-matches the OpenRPC op
-name and reads it from `input.resource.name`:
+The DTwo gateway prepends a non-standard server prefix to UCP tool names and
+commonly slugifies underscores to hyphens when federating them (for example
+`ucp-acme-complete-checkout`). The policy reads the tool name from
+`input.resource.name` and matches it against hyphenated, underscored, and
+collapsed shapes of the OpenRPC op, anchored at a `-`/`_` separator, plus the
+bare un-prefixed name:
 
 ```rego
-endswith(lower(input.resource.name), "complete_checkout")
+complete_checkout_shapes := {"complete_checkout", "complete-checkout", "completecheckout"}
 ```
 
-This keeps the policy portable across gateway naming conventions. Confirm the
-exact name your gateway emits with the dump-input debug technique before
-deploying.
+This keeps the policy portable across gateway naming conventions (verified
+end-to-end behind a live gateway). Confirm the exact name your gateway emits
+with the dump-input debug technique before deploying.
 
 ## Decision matrix
 
@@ -182,9 +185,10 @@ gateway, so this runs at `tool_pre_invoke` and denies. An egress
 
 ## Testing
 
-`tests/allow.json` (disclosed + matching price) and `tests/deny.json` (disclosed
-but price-mismatched) carry the PARC input under a top-level `input` key plus an
-`expected` hint. Validate with OPA after extracting the fenced `rego` block from
+`tests/allow.json` (disclosed + matching price), `tests/deny.json` (disclosed
+but price-mismatched), and `tests/deny-slugified.json` (the same mismatch via a
+federated, slugified tool name, `ucp-acme-complete-checkout`) carry the PARC
+input under a top-level `input` key plus an `expected` hint. Validate with OPA after extracting the fenced `rego` block from
 `policy.md`, unwrapping `.input` first so the input is not double-nested:
 
 ```sh

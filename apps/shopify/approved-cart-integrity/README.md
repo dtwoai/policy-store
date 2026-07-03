@@ -63,10 +63,13 @@ making.
 
 This policy reads only confirmed UCP paths:
 
-- **Tool name** from `input.resource.name` (lowercased, suffix-matched against
-  the OpenRPC operation `update_checkout` / `complete_checkout`). The gateway
-  prepends a non-standard server prefix, so suffix matching keeps the policy
-  portable. It does **not** read the tool name from `input.payload.name`.
+- **Tool name** from `input.resource.name` (lowercased, matched against
+  hyphenated, underscored, and collapsed shapes of the OpenRPC operations
+  `update_checkout` / `complete_checkout`, plus the bare names). The gateway
+  prepends a non-standard server prefix and commonly slugifies underscores to
+  hyphens when federating tool names (`ucp-shop-complete-checkout`), so shape
+  matching keeps the policy portable. It does **not** read the tool name from
+  `input.payload.name`.
 - **Checkout** from `input.payload.args.checkout`.
 - **Status** from `checkout.status` — the UCP status enum value
   `ready_for_complete` is the buyer-approved, ready-to-finalize state used as the
@@ -115,7 +118,8 @@ Two session-state facts shape the authoring:
 ### Writable-key schema (declare these alongside the policy)
 
 The policy writes two keys; both must be declared in the policy's writable-key
-schema (authored in the Hub policy form, shipped to the gateway via SOTW):
+schema (authored alongside the policy, shipped to the gateway in its policy
+configuration):
 
 | key | JSON Schema | suggested TTL | `on_drop` |
 | --- | --- | --- | --- |
@@ -126,6 +130,27 @@ schema (authored in the Hub policy form, shipped to the gateway via SOTW):
 later `complete_checkout` must not silently fall through to allow. (Per the session-state contract,
 the gateway's per-minute *rate-limit* drops never flip `allow` regardless of
 `on_drop` — that is a load-shedding defense, not the author's intent.)
+
+### Deployment requirements (verified end-to-end)
+
+The full observe → enforce loop has been verified end-to-end behind a live
+gateway against a mock UCP MCP server: a completion with no recorded approval
+was denied fail-closed, the `ready_for_complete` `update_checkout` committed
+the baseline, an identical completion was then allowed, and a post-approval
+gift-card injection was denied. Two configuration preconditions are
+load-bearing:
+
+1. **Declare the writable-key schema.** The gateway's policy configuration
+   must declare `approved_line_items` and `approval_recorded` as this
+   policy's writable session keys — writes to undeclared keys are dropped,
+   and with `on_drop: deny_request` a dropped baseline write surfaces as a
+   loud deny rather than a silent fail-open.
+2. **Reads follow the attributed writer.** The gateway must attribute this
+   policy's writes to a stable per-policy namespace under
+   `input.context.session.policies`. This policy discovers its own namespace
+   by its `approval_recorded` marker rather than a hard-coded id, so it has
+   no literal coupling — but write attribution must stay consistent across
+   the session for the enforce read to find the baseline.
 
 ## What it does on each call
 
@@ -140,10 +165,12 @@ the gateway's per-minute *rate-limit* drops never flip `allow` regardless of
 ## Examples
 
 See [`tests/allow.json`](./tests/allow.json) (completion matches the approved
-baseline) and [`tests/deny.json`](./tests/deny.json) (a `$500` gift card added
-after approval). Both tests pre-populate the approved baseline under the policy's
-own writer namespace in `input.context.session.policies`, simulating the prior
-observe step.
+baseline), [`tests/deny.json`](./tests/deny.json) (a `$500` gift card added
+after approval), and [`tests/deny-slugified.json`](./tests/deny-slugified.json)
+(the same injection via a federated, slugified tool name,
+`ucp-shop-complete-checkout`). All tests pre-populate the approved baseline
+under the policy's own writer namespace in `input.context.session.policies`,
+simulating the prior observe step.
 
 ## Scope and honest limitations
 
@@ -163,11 +190,13 @@ observe step.
 - **No identity-based exemptions.** All callers are treated the same. A
   break-glass override would be a separate `allow if` branch gated on
   `input.subject.claims`.
-- **Requires a session-state-capable gateway.** On a gateway without policy-accessible
-  (`input.context.session` and `decision.session_writes`), the observe write is a
-  no-op and the enforce read is always empty — so every recorded-approval
-  completion would be denied (the fail-closed `approval_on_file` check fails).
-  Deploy only on a build that ships policy-accessible session state.
+- **Requires a session-state-capable gateway.** On a gateway without
+  policy-accessible session state (`input.context.session` and
+  `decision.session_writes`), the observe write is a no-op and the enforce
+  read is always empty — so every completion would be denied (the fail-closed
+  `approval_on_file` check fails). Deploy only on a gateway that provides
+  policy-accessible session state, configured per the deployment requirements
+  above.
 
 ## Composition
 

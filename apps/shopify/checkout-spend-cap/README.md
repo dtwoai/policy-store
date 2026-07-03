@@ -43,7 +43,7 @@ at `input.context.mandate`:
 
 | Source                                            | Used for                                            |
 | ------------------------------------------------- | --------------------------------------------------- |
-| `input.resource.name` (lowercased, suffix-match)  | Tool identity — must end with `complete_checkout`.  |
+| `input.resource.name` (lowercased, shape-match)  | Tool identity — must match a known shape of `complete_checkout` (hyphenated / underscored / collapsed suffix, or the bare name).  |
 | `input.payload.args.checkout.totals[]`            | Array of `{type, amount, display_text?}`. The grand total is the entry where `type == "total"`. |
 | `…totals[].amount` (signed integer, minor units)  | The amount compared to the cap. `139000` = `$1,390.00`. |
 | `input.payload.args.checkout.currency`            | Top-level ISO-4217 string, compared to the mandate currency. |
@@ -81,12 +81,16 @@ Denials carry a reason a person can act on:
 
 ## Tool naming on the gateway
 
-The DTwo gateway prepends a (non-standard) MCP server prefix to tool names, so a
-UCP/Shopify server may surface `shopify-complete_checkout` or a differently
-prefixed name. This policy **suffix-matches** the OpenRPC operation
-(`endswith(lower(input.resource.name), "complete_checkout")`) so it stays
-portable across server registrations. Confirm the exact tool name your gateway
-sends with the dump-input debug technique before deploying.
+The DTwo gateway prepends a (non-standard) MCP server prefix to tool names, and
+federated names are commonly slugified — underscores become hyphens — so a
+UCP/Shopify server registered as `ucp-shop` surfaces
+`ucp-shop-complete-checkout`, while a direct deployment may surface
+`shopify-complete_checkout` or the bare `complete_checkout`. This policy matches
+hyphenated (`-complete-checkout`), underscored (`-complete_checkout`), and
+collapsed (`-completecheckout`) suffix shapes plus the bare un-prefixed names,
+so it stays portable across server registrations (verified end-to-end behind a
+live gateway). Confirm the exact tool name your gateway sends with the
+dump-input debug technique before deploying.
 
 ## Scope and honest limits
 
@@ -108,6 +112,7 @@ sends with the dump-input debug technique before deploying.
 | ------------------- | --------------------------------------------------------------- | -------- |
 | `tests/allow.json`  | T&E: `$980.00` flight under a `$1,200.00` USD cap.              | `allow = true` |
 | `tests/deny.json`   | Procurement: `$1,390.00` order over a `$1,200.00` PO ceiling.  | `allow = false`, reason names both amounts |
+| `tests/deny-slugified.json` | The same over-cap order via a federated, slugified tool name (`ucp-shop-complete-checkout`). | `allow = false`, reason names both amounts |
 
 Each fixture wraps the PARC object under a top-level `input` key plus an
 `expected` hint. Unwrap `.input` before feeding it to `opa eval` against the

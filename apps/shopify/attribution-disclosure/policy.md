@@ -58,12 +58,15 @@ description: |
 
   ## Tool name matching
 
-  The DTwo gateway prepends a non-standard server prefix to UCP tool names
-  (e.g. `ucp-acme-complete_checkout`). The policy suffix-matches the OpenRPC op
-  name (`endswith(lower(input.resource.name), "complete_checkout")`) so it stays
-  portable across gateway naming. The tool name is read from
-  `input.resource.name` — never `input.payload.name`. Confirm the exact name your
-  gateway emits with the dump-input debug technique before deploying.
+  The DTwo gateway prepends a non-standard server prefix to UCP tool names and
+  commonly slugifies underscores to hyphens when federating them (e.g.
+  `ucp-acme-complete-checkout`). The policy matches the lowercased
+  `input.resource.name` against hyphenated (`-complete-checkout`), underscored
+  (`-complete_checkout`), and collapsed (`-completecheckout`) suffix shapes of
+  the OpenRPC op, plus the bare un-prefixed names, so it stays portable across
+  gateway naming. The tool name is read from `input.resource.name` — never
+  `input.payload.name`. Confirm the exact name your gateway emits with the
+  dump-input debug technique before deploying.
 
   ## UCP fields used
 
@@ -169,14 +172,37 @@ default allow := false
 # -----------------------------------------------------------------------------
 # Tool name matching.
 #
-# The DTwo gateway prepends a non-standard server prefix to UCP tool names
-# (e.g. "ucp-acme-complete_checkout"), so we suffix-match the OpenRPC op name.
+# The DTwo gateway prepends a non-standard server prefix to UCP tool names and
+# commonly slugifies underscores to hyphens when federating them
+# ("ucp-acme-complete-checkout"), so the underscored form alone would never
+# match there. Match hyphenated, underscored, and collapsed shapes of the
+# OpenRPC op, anchored at a "-"/"_" separator, plus the bare un-prefixed name.
 # Confirm the exact name your gateway emits with the dump-input debug technique
 # before relying on this in production.
 # -----------------------------------------------------------------------------
-is_complete_checkout if {
-	endswith(lower(input.resource.name), "complete_checkout")
+complete_checkout_shapes := {
+	"complete_checkout",
+	"complete-checkout",
+	"completecheckout",
 }
+
+tool_matches(shapes) if {
+	shapes[lower(object.get(input.resource, "name", ""))]
+}
+
+tool_matches(shapes) if {
+	name := lower(object.get(input.resource, "name", ""))
+	some shape in shapes
+	endswith(name, sprintf("-%s", [shape]))
+}
+
+tool_matches(shapes) if {
+	name := lower(object.get(input.resource, "name", ""))
+	some shape in shapes
+	endswith(name, sprintf("_%s", [shape]))
+}
+
+is_complete_checkout if tool_matches(complete_checkout_shapes)
 
 # -----------------------------------------------------------------------------
 # Attribution disclosure.

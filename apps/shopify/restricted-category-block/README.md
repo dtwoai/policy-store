@@ -70,10 +70,10 @@ through to allow rather than erroring.
 
 | What | Path | Notes |
 |---|---|---|
-| Tool name | `input.resource.name` | lowercased, **suffix-matched** against the OpenRPC op; gateway prepends a non-standard server prefix. Never `input.payload.name`. |
-| Tool args | `input.payload.args` | the checkout / cart object |
-| Line items | `args.line_items[]` | `{ id, item, quantity, totals }`; `item` = `{ id, title, price, image_url? }`, `price` is signed-int minor units (cents) |
-| Messages | `args.messages[]` | `oneOf` error \| warning \| info on the `type` const; `code` / `error_code` freeform; `severity` only on `error` |
+| Tool name | `input.resource.name` | lowercased, matched against hyphenated / underscored / collapsed shapes of the OpenRPC op (plus bare names); gateways prepend a non-standard server prefix and commonly slugify underscores to hyphens (`ucp-shop-complete-checkout`). Never `input.payload.name`. |
+| Tool args | `input.payload.args` | checkout object under `args.checkout` (canonical); flattened top-level args kept as fallback |
+| Line items | `args.checkout.line_items[]` (fallback: `args.line_items[]`) | `{ id, item, quantity, totals }`; `item` = `{ id, title, price, image_url? }`, `price` is signed-int minor units (cents) |
+| Messages | `args.checkout.messages[]` (fallback: `args.messages[]`) | `oneOf` error \| warning \| info on the `type` const; `code` / `error_code` freeform; `severity` only on `error` |
 | Principal | `input.subject.claims` | for optional break-glass branches; never `is_admin` / `teams` / `user` |
 
 Notes on UCP shapes this policy intentionally does **not** invent:
@@ -97,8 +97,14 @@ Edit two sets at the top of the Rego; the exact-id list is supplied per-tenant.
 ## Tests
 
 - [`tests/deny.json`](./tests/deny.json) — `complete_checkout` whose
-  `line_items[].item.id` matches `input.context.restricted_skus`; expect
-  `allow = false` with the item id named in the reason.
+  `checkout.line_items[].item.id` matches `input.context.restricted_skus`;
+  expect `allow = false` with the item id named in the reason.
+- [`tests/deny-slugified.json`](./tests/deny-slugified.json) — the same
+  restricted SKU via a federated, slugified tool name
+  (`ucp-shop-complete-checkout`); expect `allow = false`.
+- [`tests/deny-top-level-args.json`](./tests/deny-top-level-args.json) — the
+  flattened fallback shape (`line_items` at the top level of `args`); expect
+  `allow = false`.
 - [`tests/allow.json`](./tests/allow.json) — `complete_checkout` with only
   ordinary items and no restricted SKU, title keyword, or warning; expect
   `allow = true`.
@@ -130,5 +136,5 @@ bundle. Useful companions:
   break-glass purchaser, gate a separate `allow if` branch on
   `input.subject.claims`.
 - **Only the configured write tools are gated.** If your Shopify MCP server
-  exposes another mutating checkout/cart tool, add its OpenRPC suffix to
-  `write_tool_suffixes`.
+  exposes another mutating checkout/cart tool, add its name shapes to
+  `write_tool_shapes`.

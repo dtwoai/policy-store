@@ -328,7 +328,7 @@
         "governance",
         "ingress"
       ],
-      "policyChecksum": "sha256:8d4f04a7db2653f78803d34919c870b28ffc1dd4abdbea7e4588bac04df973d5",
+      "policyChecksum": "sha256:29717f256ca9f9ca82698a2a2e94fdcec90c96b1f36e373408ea39f5c212f718",
       "schemaVersion": "1.0.0",
       "minimumGatewayVersion": "1.0.0-session-state"
     },
@@ -355,7 +355,7 @@
         "governance",
         "ingress"
       ],
-      "policyChecksum": "sha256:4bf5c765b37dbc20bcca5ef313390f8546a31ae6f0383bc9ee7539d61e4a089f",
+      "policyChecksum": "sha256:6f9baafef2ee9ff14a5869eb8fca40d102bb506ef68306067fc5f4ca01eb908e",
       "schemaVersion": "1.0.0",
       "minimumGatewayVersion": "1.0.0"
     },
@@ -382,7 +382,7 @@
         "governance",
         "ingress"
       ],
-      "policyChecksum": "sha256:514f627bd6c02483dc2e608eab787175a3c813812e3075b9e1d1ec9aca01ba58",
+      "policyChecksum": "sha256:74977e8ab55bd7272e9cf3947a76be1c16fd6caf472e88a69c03c059c4dd7ee3",
       "schemaVersion": "1.0.0",
       "minimumGatewayVersion": "1.0.0"
     },
@@ -408,7 +408,7 @@
         "ingress",
         "agentic-commerce"
       ],
-      "policyChecksum": "sha256:83f11995e4e9313fbb910039b8f3f4081ccfb02c29bdd57614dbab6221961be9",
+      "policyChecksum": "sha256:e908c3215a317895f601b5363fbc524fd0a17c1930e157bb61ed992e597f33a6",
       "schemaVersion": "1.0.0",
       "minimumGatewayVersion": "session-state"
     },
@@ -434,7 +434,7 @@
         "approval-gate",
         "egress"
       ],
-      "policyChecksum": "sha256:b50ad52419ac87affaaf56afb91a5c0aafd8270b78aeb7b9e52da43fabc31cd2",
+      "policyChecksum": "sha256:b3b680ecbf25d09730fa198a209c46e5c95ffe1fb0df5046588062c5f584ee4f",
       "schemaVersion": "1.0.0",
       "minimumGatewayVersion": "1.0.0"
     },
@@ -461,7 +461,7 @@
         "merchant-allowlist",
         "ingress"
       ],
-      "policyChecksum": "sha256:5a788f05fabb083181da63071778f8d136aec7c35ba8b3d9f74b4fe981166cba",
+      "policyChecksum": "sha256:2e8b644f1e18eb9ad750be7adaf3825c240babee8a46606903ff3a79342c1fd5",
       "schemaVersion": "1.0.0",
       "minimumGatewayVersion": "1.0.0"
     },
@@ -488,7 +488,7 @@
         "redaction",
         "egress"
       ],
-      "policyChecksum": "sha256:5eae1a4f526ddf17f89ff06d71750cbb01f6080914d1a644498e0fdec35d237d",
+      "policyChecksum": "sha256:c81925c3aa2aeb0844c5b85e586e3c98560b13e1f6033031fe8c360ebf32dd71",
       "schemaVersion": "1.0.0",
       "minimumGatewayVersion": "1.0.0"
     },
@@ -514,7 +514,7 @@
         "spend-control",
         "ingress"
       ],
-      "policyChecksum": "sha256:18c4d04c72c948e770088129f7e3957bc0397e92af99213838d5b95d3a3443b2",
+      "policyChecksum": "sha256:5e5c07715a90af87b7198b00b6a298a079dc1584e2df01de871f85c725beb6d6",
       "schemaVersion": "1.0.0",
       "minimumGatewayVersion": "1.0.0"
     },

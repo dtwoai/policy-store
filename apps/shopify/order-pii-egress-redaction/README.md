@@ -58,16 +58,27 @@ response path, not a complete DLP solution.
 ## Tool matching
 
 The tool name is read from `input.resource.name` (the canonical PARC source),
-lowercased, and matched by **suffix** against `get_order` and `get_checkout`.
-The DTwo gateway prepends a non-standard server prefix to the registered tool
-name, so a suffix match (e.g. `endswith(lower(name), "get_order")`) stays
-portable across whatever prefix your gateway emits.
+lowercased, and matched against hyphenated (`-get-order`), underscored
+(`-get_order`), and collapsed (`-getorder`) suffix shapes of `get_order` and
+`get_checkout`, plus the bare un-prefixed names. The DTwo gateway prepends a
+non-standard server prefix and commonly slugifies underscores to hyphens when
+federating tool names (`ucp-shop-get-order`), so the underscored form alone
+would never match there; the shape set stays portable across whatever prefix
+your gateway emits.
 
 This policy does **not** use `input.payload.name` as the tool-name source.
 
+**Gateway-supplied result contract.** The policy (and the transform the
+gateway applies) operates on the structured tool result at
+`input.payload.result`. The gateway must present the tool's result object
+there when evaluating egress policies; if a gateway's post-invoke hook hands
+policies extracted text content instead, the deployment must map it back into
+`input.payload.result` in the gateway configuration — that reconstruction is
+not part of this policy.
+
 Confirm the exact tool names your gateway sends with the dump-input debug
 technique before deploying. If your deployment surfaces buyer PII through
-additional UCP reads, extend `target_tools`.
+additional UCP reads, extend `target_tool_shapes`.
 
 ## `input.context.mandate` is DTwo-supplied, not UCP
 
@@ -100,6 +111,13 @@ defines `allow` (defaulted `true`) and `transform` only.
 
 ## Known limitations
 
+- **Structured-result redaction only (verified live).** Field-level redaction
+  rewrites the structured tool result. MCP responses typically also carry the
+  same JSON serialized as a string in the `content[].text` channel — that text
+  copy is **not** rewritten by this policy, so a text-first client can still
+  see the raw values. Deployments must redact or suppress the text channel at
+  the gateway (for example with a text-aware transform or `redact_patterns`),
+  or treat this policy as structured-result-only.
 - **MCP path only.** The browser `continue_url` handoff, and anything the buyer
   enters there, is invisible to DTwo and is not governed by this policy.
 - **Field-name scoped.** A merchant server returning buyer PII under different
@@ -113,6 +131,7 @@ defines `allow` (defaulted `true`) and `transform` only.
 | Fixture | Tool | Expectation |
 | --- | --- | --- |
 | [`tests/redact.json`](./tests/redact.json) | `…-get_order` (output path) | `allow = true`, `transformApplied = true`, `transform.replacement = "[REDACTED]"` |
+| [`tests/redact-slugified.json`](./tests/redact-slugified.json) | `ucp-shop-get-order` (federated, slugified name) | `allow = true`, `transformApplied = true` |
 | [`tests/allow.json`](./tests/allow.json) | `…-get_order` (output path), redaction-shape inspection | `allow = true`, `transform` present with the expected `redact_fields` |
 | [`tests/deny.json`](./tests/deny.json) | `…-search_catalog` (out of scope) | `allow = true`, `transformApplied = false` (pass-through; this policy never denies) |
 

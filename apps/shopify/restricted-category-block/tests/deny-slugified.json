@@ -1,16 +1,16 @@
 {
-  "description": "complete_checkout whose checkout.line_items (canonical args.checkout shape) contain a DTwo-supplied restricted SKU (input.context.restricted_skus). Policy should deny and name the restricted item id. Tool name is read from input.resource.name (suffix-matched), never input.payload.name.",
+  "description": "Live-gateway shape: the gateway federates tools as \"<server-prefix>-<op>\" and slugifies underscores to hyphens, so the tool arrives as \"ucp-shop-complete-checkout\" — no underscore survives. This fixture proves the policy still matches (an underscore-only suffix match would fail open here). Scenario otherwise identical to deny.json: complete_checkout whose checkout.line_items (canonical args.checkout shape) contain a DTwo-supplied restricted SKU (input.context.restricted_skus). Policy should deny and name the restricted item id. Tool name is read from input.resource.name (suffix-matched), never input.payload.name.",
   "input": {
     "action": "tool_pre_invoke",
     "kind": "tool_pre_invoke",
     "mode": "input",
     "resource": {
       "type": "tool",
-      "name": "shopify-mcp-7f3a-complete_checkout",
+      "name": "ucp-shop-complete-checkout",
       "uri": null
     },
     "payload": {
-      "name": "shopify-mcp-7f3a-complete_checkout",
+      "name": "ucp-shop-complete-checkout",
       "args": {
         "checkout": {
           "currency": "USD",
