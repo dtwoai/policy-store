@@ -1,0 +1,183 @@
+# case: allow
+- description: create_checkout (canonical args.checkout shape) with only ordinary
+    items. The restricted_skus list (gateway-supplied at input.context) does not
+    match any line item id, no restricted title keyword, no restricted warning.
+    Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ucp-shop-7f3a-create_checkout
+      uri: null
+    payload:
+      name: ucp-shop-7f3a-create_checkout
+      args:
+        checkout:
+          currency: USD
+          line_items:
+            - id: li_1
+              quantity: 2
+              item:
+                id: SKU-PEN-014
+                title: Ballpoint Pen
+                price: 250
+          messages:
+            - type: info
+              code: free_shipping_applied
+    context:
+      restricted_skus:
+        - SKU-RESTRICTED-001
+    subject:
+      claims:
+        sub: agent-7
+        iss: https://auth.example.com/
+  output:
+    expectedResult: allow
+# case: allow-complete-not-gated
+- description: complete_checkout is deliberately NOT gated by this policy — its
+    args carry only the checkout id and finalization data, never line_items, so
+    there is nothing to inspect for a restricted item. Even with a restricted SKU
+    present in input.context.restricted_skus and the completion targeting a
+    checkout, the policy allows (content is gated at create/update, earlier in
+    the flow). This case guards against re-adding the dead complete leg.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ucp-shop-complete-checkout
+      uri: null
+    payload:
+      name: ucp-shop-complete-checkout
+      args:
+        id: chk_01HZX5VQ7B
+        checkout:
+          payment:
+            token: tok_abc
+    context:
+      restricted_skus:
+        - SKU-RESTRICTED-001
+    subject:
+      claims:
+        sub: agent-7
+        iss: https://auth.example.com/
+  output:
+    expectedResult: allow
+# case: deny-slugified
+- description: 'Live-gateway shape: the gateway federates tools as
+    "<server-prefix>-<op>" and slugifies underscores to hyphens, so the tool
+    arrives as "ucp-shop-update-checkout" — no underscore survives. This fixture
+    proves the policy still matches (an underscore-only suffix match would fail
+    open here). update_checkout adds a gateway-supplied restricted SKU
+    (input.context.restricted_skus) via checkout.line_items (canonical
+    args.checkout shape; id at the top level of args). Policy should deny and
+    name the restricted item id. Tool name is read from input.resource.name
+    (suffix-matched), never input.payload.name.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ucp-shop-update-checkout
+      uri: null
+    payload:
+      name: ucp-shop-update-checkout
+      args:
+        id: chk_01HZX5VQ7B
+        checkout:
+          currency: USD
+          line_items:
+            - id: li_1
+              quantity: 1
+              item:
+                id: SKU-RESTRICTED-001
+                title: Field Knife
+                price: 4999
+    context:
+      restricted_skus:
+        - SKU-RESTRICTED-001
+    subject:
+      claims:
+        sub: agent-7
+        iss: https://auth.example.com/
+  output:
+    expectedResult: deny
+    expectedReason: Item 'SKU-RESTRICTED-001' is in a restricted category your
+      agents may not purchase. Contact your procurement team if this needs to
+      change.
+# case: deny-top-level-args
+- description: "Fallback arg shape: some cart-surface servers accept line_items at
+    the TOP level of args instead of under args.checkout. The policy keeps
+    reading that flattened form as a fallback, so a restricted SKU on an
+    update_cart still denies. Same restricted SKU-by-id scenario."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ucp-shop-7f3a-update_cart
+      uri: null
+    payload:
+      name: ucp-shop-7f3a-update_cart
+      args:
+        currency: USD
+        line_items:
+          - id: li_1
+            quantity: 1
+            item:
+              id: SKU-RESTRICTED-001
+              title: Field Knife
+              price: 4999
+    context:
+      restricted_skus:
+        - SKU-RESTRICTED-001
+    subject:
+      claims:
+        sub: agent-7
+        iss: https://auth.example.com/
+  output:
+    expectedResult: deny
+    expectedReason: Item 'SKU-RESTRICTED-001' is in a restricted category your
+      agents may not purchase. Contact your procurement team if this needs to
+      change.
+# case: deny-keyword-title
+- description: create_checkout adding an item whose title contains a restricted
+    keyword ("gift card") even though its id is not on the restricted_skus list.
+    The configurable restricted_keywords backstop matches the title, so the
+    policy denies and names the offending title.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: create_checkout
+      uri: null
+    payload:
+      name: create_checkout
+      args:
+        checkout:
+          currency: USD
+          line_items:
+            - id: li_1
+              quantity: 1
+              item:
+                id: SKU-GC-500
+                title: $500 Gift Card
+                price: 50000
+    context:
+      restricted_skus: []
+    subject:
+      claims:
+        sub: agent-7
+        iss: https://auth.example.com/
+  output:
+    expectedResult: deny
+    expectedReason: Item titled '$500 Gift Card' matches a restricted category
+      your agents may not purchase. Contact your procurement team if this needs
+      to change.

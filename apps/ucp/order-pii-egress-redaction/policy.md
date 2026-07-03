@@ -1,7 +1,6 @@
 ---
-name: Shopify Redact Buyer PII from Order and Checkout Responses
+name: Redact Buyer PII from Order and Checkout Responses
 tags:
-  - shopify
   - ucp
   - agentic-commerce
   - pii
@@ -10,25 +9,25 @@ tags:
   - egress
 publishedAt: 2026-06-27
 description: |
-  # shopify / order-pii-egress-redaction
+  # ucp / order-pii-egress-redaction
 
   **Direction:** egress (`tool_post_invoke`, `input.mode == "output"`)
   **Default:** allow (transform-only — never denies)
-  **Package:** `shopify.egress.order_pii_redaction`
+  **Package:** `ucp.egress.order_pii_redaction`
 
   ## What it does
 
-  Redacts buyer personal information from Shopify UCP (Universal Commerce
-  Protocol) `get_order` and `get_checkout` tool responses before they reach the
-  agent you are running. It is transform-only — it never denies a call, it only
-  rewrites matching fields in the response body to `[REDACTED]`. Any other tool,
-  and any request that is not on the output path, passes through untouched.
+  Redacts buyer personal information from Universal Commerce Protocol (UCP)
+  `get_order` and `get_checkout` tool responses before they reach the agent you
+  are running. It is transform-only — it never denies a call, it only rewrites
+  matching fields in the response body to `[REDACTED]`. Any other tool, and any
+  request that is not on the output path, passes through untouched.
 
   This is **buyer-side egress governance**: it governs the agents *you* run
   against a merchant's MCP endpoint, masking buyer PII that flows back through
   the gateway before your agent (and your logs, traces, and downstream tooling)
-  can see it. It is complementary to UCP and to Shopify's own controls — it is
-  not a competing trust referee for the merchant.
+  can see it. It is complementary to UCP and to the merchant's own controls — it
+  is not a competing trust referee for the merchant.
 
   ## Why egress
 
@@ -43,7 +42,7 @@ description: |
   The tool name is read from `input.resource.name`, lowercased, and matched
   against hyphenated (`-get-order`), underscored (`-get_order`), and collapsed
   (`-getorder`) suffix shapes of the UCP OpenRPC op names `get_order` and
-  `get_checkout`, plus the bare un-prefixed names. The DTwo gateway prepends a
+  `get_checkout`, plus the bare un-prefixed names. The gateway prepends a
   non-standard server prefix and commonly slugifies underscores to hyphens
   when federating tool names (`ucp-shop-get-order`), so the underscored form
   alone would never match there. Confirm the exact tool names your gateway
@@ -88,9 +87,9 @@ description: |
   This policy does not read any spending, budget, velocity, or allowlist fields,
   because **those do not exist as UCP fields.** A buyer's constraints live only
   inside the opaque AP2 SD-JWT at `checkout.ap2.checkout_mandate`. Where another
-  DTwo policy needs caps or allowlists, they are supplied by the gateway as
-  policy input at `input.context.mandate.*` — that is DTwo-supplied policy
-  input, **not** a UCP field. This redaction policy needs none of it.
+  policy needs caps or allowlists, they are supplied by the gateway as policy
+  input at `input.context.mandate.*` — that is gateway-supplied policy input,
+  **not** a UCP field. This redaction policy needs none of it.
 
   ## Examples
 
@@ -101,7 +100,7 @@ description: |
     "input": {
       "action": "tool_post_invoke",
       "mode": "output",
-      "resource": { "name": "shopify-mcp-server-get_order", "type": "tool" }
+      "resource": { "name": "ucp-shop-get_order", "type": "tool" }
     }
   }
   ```
@@ -124,7 +123,7 @@ description: |
     treat this policy as structured-result-only.
   - **MCP path only.** This sees the response that returns through the gateway.
     The browser `continue_url` handoff — and anything the buyer enters there — is
-    not visible to DTwo and is not governed by this policy.
+    not visible to the gateway and is not governed by this policy.
   - **Field-name scoped.** Redaction keys on the UCP field names listed above. A
     merchant MCP server that returns buyer PII under different keys, or nests it
     elsewhere, won't be covered until `redact_fields` is adjusted. Confirm the
@@ -139,9 +138,9 @@ description: |
     values.
 direction: egress
 apps:
-  - shopify
+  - ucp
 industries:
-  - retail
+  - commerce
 bundles:
   - agentic-commerce
 schemaVersion: "1.0.0"
@@ -149,9 +148,9 @@ minimumGatewayVersion: 1.0.0
 ---
 
 ```rego
-package shopify.egress.order_pii_redaction
+package ucp.egress.order_pii_redaction
 
-# Buyer-side egress governance for Shopify UCP order/checkout reads.
+# Buyer-side egress governance for UCP order/checkout reads.
 # Transform-only — never blocks. Redacts buyer PII from the response body
 # of get_order / get_checkout before it reaches the agent you run.
 default allow := true
