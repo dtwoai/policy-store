@@ -164,11 +164,11 @@ load-bearing:
 
 ## Examples
 
-See [`tests/allow.json`](./tests/allow.json) (completion matches the approved
-baseline), [`tests/deny.json`](./tests/deny.json) (a `$500` gift card added
-after approval), and [`tests/deny-slugified.json`](./tests/deny-slugified.json)
+See the cases in [`tests.yaml`](./tests.yaml): `allow` (completion matches the approved
+baseline), `deny` (a `$500` gift card added
+after approval), and `deny-slugified`
 (the same injection via a federated, slugified tool name,
-`ucp-shop-complete-checkout`). All tests pre-populate the approved baseline
+`ucp-shop-complete-checkout`). All cases pre-populate the approved baseline
 under the policy's own writer namespace in `input.context.session.policies`,
 simulating the prior observe step.
 

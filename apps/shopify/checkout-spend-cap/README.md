@@ -108,11 +108,11 @@ dump-input debug technique before deploying.
 
 ## Tests
 
-| Fixture             | Scenario                                                        | Expected |
+| Case ([`tests.yaml`](./tests.yaml)) | Scenario                                                        | Expected |
 | ------------------- | --------------------------------------------------------------- | -------- |
-| `tests/allow.json`  | T&E: `$980.00` flight under a `$1,200.00` USD cap.              | `allow = true` |
-| `tests/deny.json`   | Procurement: `$1,390.00` order over a `$1,200.00` PO ceiling.  | `allow = false`, reason names both amounts |
-| `tests/deny-slugified.json` | The same over-cap order via a federated, slugified tool name (`ucp-shop-complete-checkout`). | `allow = false`, reason names both amounts |
+| `allow` | T&E: `$980.00` flight under a `$1,200.00` USD cap.              | `allow = true` |
+| `deny` | Procurement: `$1,390.00` order over a `$1,200.00` PO ceiling.  | `allow = false`, reason names both amounts |
+| `deny-slugified` | The same over-cap order via a federated, slugified tool name (`ucp-shop-complete-checkout`). | `allow = false`, reason names both amounts |
 
 Each fixture wraps the PARC object under a top-level `input` key plus an
 `expected` hint. Unwrap `.input` before feeding it to `opa eval` against the

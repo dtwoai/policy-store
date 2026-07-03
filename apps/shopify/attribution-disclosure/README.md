@@ -185,21 +185,25 @@ gateway, so this runs at `tool_pre_invoke` and denies. An egress
 
 ## Testing
 
-`tests/allow.json` (disclosed + matching price), `tests/deny.json` (disclosed
-but price-mismatched), and `tests/deny-slugified.json` (the same mismatch via a
-federated, slugified tool name, `ucp-acme-complete-checkout`) carry the PARC
-input under a top-level `input` key plus an `expected` hint. Validate with OPA after extracting the fenced `rego` block from
-`policy.md`, unwrapping `.input` first so the input is not double-nested:
+The cases in [`tests.yaml`](./tests.yaml) — `allow` (disclosed + matching price), `deny` (disclosed
+but price-mismatched), and `deny-slugified` (the same mismatch via a
+federated, slugified tool name, `ucp-acme-complete-checkout`) — carry the PARC
+document under each case's `input` key. Run them all with the repo test
+runner from the repo root:
+
+```sh
+pnpm test
+```
+
+To hand-run one case against OPA, extract the fenced `rego` block from
+`policy.md` and feed only the case's `input` object (from the repo root, so
+the `yaml` package resolves):
 
 ```sh
 opa check policy.rego
-jq '.input' tests/allow.json > /tmp/in.json
+node -e 'const{parse}=require("yaml");const t=parse(require("fs").readFileSync("apps/shopify/attribution-disclosure/tests.yaml","utf8"));console.log(JSON.stringify(t[0].input))' > /tmp/in.json
 opa eval -d policy.rego -i /tmp/in.json \
   'data.shopify.ingress.attribution_disclosure.allow' --format raw   # -> true
-
-jq '.input' tests/deny.json > /tmp/in.json
-opa eval -d policy.rego -i /tmp/in.json \
-  'data.shopify.ingress.attribution_disclosure.allow' --format raw   # -> false
 ```
 
 ## Composition

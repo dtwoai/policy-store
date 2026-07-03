@@ -1,4 +1,4 @@
-# Generated from the tests/*.json fixtures (same PARC inputs, runner schema).
+# case: allow
 - description: complete_checkout with disclosed routing attribution and a
     submitted grand total (4999 cents) that matches the advertised price the
     buyer was shown (4999). Policy should allow.
@@ -54,6 +54,7 @@
           - shop.example.com
   output:
     expectedResult: allow
+# case: deny-slugified
 - description: 'Live-gateway shape: the gateway federates tools as
     "<server-prefix>-<op>" and slugifies underscores to hyphens, so the tool
     arrives as "ucp-acme-complete-checkout" — no underscore survives. This
@@ -117,6 +118,7 @@
     expectedReason: Submitted grand total (5999) does not match the price the buyer
       was shown (4999, minor units). The price presented to the buyer and the
       price submitted must be equal.
+# case: deny
 - description: complete_checkout with disclosed routing attribution but a
     submitted grand total (5999 cents) that does NOT match the advertised price
     the buyer was shown (4999). Price was changed between display and submit.

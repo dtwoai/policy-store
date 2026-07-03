@@ -1,4 +1,4 @@
-# Generated from the tests/*.json fixtures (same PARC inputs, runner schema).
+# case: allow
 - description: create_checkout response whose grand total ($45.00 = 4500 minor
     units) is below the gateway-supplied approval threshold ($500.00 = 50000).
     Sub-threshold, so the agent may proceed autonomously. Policy should allow
@@ -49,6 +49,7 @@
         sub: agent-runner-01
   output:
     expectedResult: allow
+# case: deny-slugified
 - description: 'Live-gateway shape: the gateway federates tools as
     "<server-prefix>-<op>" and slugifies underscores to hyphens, so the tool
     arrives as "ucp-shop-update-checkout" — no underscore survives. This fixture
@@ -110,6 +111,7 @@
       review. Autonomous completion is refused; re-run update_checkout so the
       response carries a continue_url, then route the buyer to it instead of
       calling complete_checkout.
+# case: deny
 - description: update_checkout response whose grand total ($742.50 = 74250 minor
     units) is at or above the gateway-supplied approval threshold ($500.00 =
     50000), AND no continue_url is present. The agent has a high-value checkout

@@ -121,21 +121,23 @@ total unchanged. Two configuration preconditions are load-bearing:
 ## Files
 
 - `policy.md` — frontmatter plus the single Rego block.
-- `tests/allow.json` — under-ceiling checkout (prior `4000` + this `3000` =
+- [`tests.yaml`](./tests.yaml) — the test cases, run by the repo test runner (`pnpm test`).
+  The `allow` case — under-ceiling checkout (prior `4000` + this `3000` =
   `7000` ≤ budget `10000`): `allow=true`, write `running_total=7000`.
-- `tests/deny.json` — over-ceiling checkout (prior `8500` + this `3000` =
+  The `deny` case — over-ceiling checkout (prior `8500` + this `3000` =
   `11500` > budget `10000`): `allow=false`, reason emitted, no write.
-- `tests/deny-slugified.json` — the same over-ceiling checkout via a
+  The `deny-slugified` case — the same over-ceiling checkout via a
   federated, slugified tool name (`ucp-shop-complete-checkout`):
   `allow=false`, no write.
 
-Both fixtures wrap the PARC object under a top-level `input` key and seed the
+Each case carries its PARC document under its `input` key and seeds the
 prior running total at `input.context.session.policies.<writer_id>` per the
-static-test recipe. The fixtures carry `expectedSessionWrites` (and, on deny,
-`reasonContains`) hints alongside `expected.allow`.
+static-test recipe. The cases carry `expectedSessionWrites` expectations
+(ignored by the repo runner; asserted by the end-to-end gateway run) alongside
+the runner-checked `output.expectedResult` / `output.expectedReason`.
 
-> A verifier MUST unwrap the top-level `input` before calling `opa eval`. A
-> naive `opa eval` against the whole file double-nests (`input.input.…`),
+> A hand-verifier MUST feed only a case's `input` object to `opa eval`. Passing
+> a whole test entry double-nests (`input.input.…`),
 > leaves `input.resource.name` empty, and **fails open** (`allow` defaults
 > `true`), silently masking the deny case.
 

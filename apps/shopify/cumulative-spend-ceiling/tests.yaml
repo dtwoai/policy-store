@@ -1,7 +1,7 @@
-# Generated from the tests/*.json fixtures (same PARC inputs, runner schema).
-# Session-write expectations (session_writes emitted on allow) are not part of
-# the runner schema; they are asserted by the tests/*.json fixtures and the
-# end-to-end gateway run described in the README.
+# `expectedSessionWrites` is the session-state contract (`session_writes` emitted
+# on an allowed call). The repo test runner ignores the key; it is asserted by
+# the end-to-end gateway run described in the README.
+# case: allow
 - description: Under-ceiling complete_checkout. Prior session state
     (running_total=4000) is pre-populated at
     input.context.session.policies.<writer_id> per the session-state contract —
@@ -44,6 +44,9 @@
             running_total: 4000
   output:
     expectedResult: allow
+  expectedSessionWrites:
+    running_total: 7000
+# case: deny-slugified
 - description: 'Live-gateway shape: the gateway federates tools as
     "<server-prefix>-<op>" and slugifies underscores to hyphens, so the tool
     arrives as "ucp-shop-complete-checkout" — no underscore survives. This
@@ -92,6 +95,8 @@
     expectedResult: deny
     expectedReason: "session spend ceiling exceeded: prior=8500 + this=3000 = 11500
       > budget=10000 (minor units)"
+  expectedSessionWrites: {}
+# case: deny
 - description: "Over-ceiling complete_checkout. Prior running_total=8500 was
     committed by earlier checkouts in the same session and is pre-populated at
     input.context.session.policies.<writer_id>. 8500 + 3000 = 11500 > budget
@@ -135,3 +140,4 @@
     expectedResult: deny
     expectedReason: "session spend ceiling exceeded: prior=8500 + this=3000 = 11500
       > budget=10000 (minor units)"
+  expectedSessionWrites: {}

@@ -128,12 +128,12 @@ defines `allow` (defaulted `true`) and `transform` only.
 
 ## Tests
 
-| Fixture | Tool | Expectation |
+| Case ([`tests.yaml`](./tests.yaml)) | Tool | Expectation |
 | --- | --- | --- |
-| [`tests/redact.json`](./tests/redact.json) | `…-get_order` (output path) | `allow = true`, `transformApplied = true`, `transform.replacement = "[REDACTED]"` |
-| [`tests/redact-slugified.json`](./tests/redact-slugified.json) | `ucp-shop-get-order` (federated, slugified name) | `allow = true`, `transformApplied = true` |
-| [`tests/allow.json`](./tests/allow.json) | `…-get_order` (output path), redaction-shape inspection | `allow = true`, `transform` present with the expected `redact_fields` |
-| [`tests/deny.json`](./tests/deny.json) | `…-search_catalog` (out of scope) | `allow = true`, `transformApplied = false` (pass-through; this policy never denies) |
+| `redact` | `…-get_order` (output path) | `allow = true`, `transformApplied = true`, `transform.replacement = "[REDACTED]"` |
+| `redact-slugified` | `ucp-shop-get-order` (federated, slugified name) | `allow = true`, `transformApplied = true` |
+| `allow` | `…-get_order` (output path), redaction-shape inspection | `allow = true`, `transform` present with the expected `redact_fields` |
+| `deny` | `…-search_catalog` (out of scope) | `allow = true`, `transformApplied = false` (pass-through; this policy never denies) |
 
 Test fixtures wrap the PARC object under a top-level `"input"` key plus an
 `expected` hint. A naive `opa eval` over the file double-nests under

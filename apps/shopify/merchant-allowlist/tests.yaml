@@ -1,4 +1,4 @@
-# Generated from the tests/*.json fixtures (same PARC inputs, runner schema).
+# case: allow
 - description: complete_checkout where the gateway-resolved merchant
     (input.context.merchant) is on the buyer's allowlist
     (input.context.mandate.merchant_allowlist). Policy should allow.
@@ -25,6 +25,7 @@
         sub: agent-7
   output:
     expectedResult: allow
+# case: deny-slugified
 - description: "Live-gateway shape: the gateway federates tools as
     \"<server-prefix>-<op>\" and slugifies underscores to hyphens, so the tool
     arrives as \"ucp-shop-complete-checkout\" — no underscore survives. This
@@ -58,6 +59,7 @@
     expectedResult: deny
     expectedReason: Checkout with merchant "random-marketplace" is not permitted; it
       is not on the approved-merchant allowlist for this buyer.
+# case: deny
 - description: complete_checkout where the gateway-resolved merchant
     (input.context.merchant) is NOT on the buyer's allowlist. Policy should deny
     with a reason.

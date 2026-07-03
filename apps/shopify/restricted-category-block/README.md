@@ -96,23 +96,24 @@ Edit two sets at the top of the Rego; the exact-id list is supplied per-tenant.
 
 ## Tests
 
-- [`tests/deny.json`](./tests/deny.json) — `complete_checkout` whose
+Cases in [`tests.yaml`](./tests.yaml), run by the repo test runner (`pnpm test`):
+
+- `deny` — `complete_checkout` whose
   `checkout.line_items[].item.id` matches `input.context.restricted_skus`;
   expect `allow = false` with the item id named in the reason.
-- [`tests/deny-slugified.json`](./tests/deny-slugified.json) — the same
+- `deny-slugified` — the same
   restricted SKU via a federated, slugified tool name
   (`ucp-shop-complete-checkout`); expect `allow = false`.
-- [`tests/deny-top-level-args.json`](./tests/deny-top-level-args.json) — the
+- `deny-top-level-args` — the
   flattened fallback shape (`line_items` at the top level of `args`); expect
   `allow = false`.
-- [`tests/allow.json`](./tests/allow.json) — `complete_checkout` with only
+- `allow` — `complete_checkout` with only
   ordinary items and no restricted SKU, title keyword, or warning; expect
   `allow = true`.
 
-The test JSON wraps the PARC object under a top-level `input` key plus an
-`expected` hint. A verifier must unwrap `.input` before evaluating — a naive
-`opa eval -i tests/deny.json` double-nests the document (`input.input.…`) and
-fails open.
+Each case carries its PARC document under its `input` key. A hand-verifier
+must feed only that object to `opa eval` — passing a whole test entry
+double-nests the document (`input.input.…`) and fails open.
 
 ## Composition
 

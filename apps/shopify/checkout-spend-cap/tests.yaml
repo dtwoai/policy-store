@@ -1,4 +1,4 @@
-# Generated from the tests/*.json fixtures (same PARC inputs, runner schema).
+# case: allow
 - description: "Travel & expense: agent completes a flight booking totalling
     $980.00 (98000 minor units) under a $1,200.00 cap (max_total 120000, USD).
     Total is within the cap and the currency matches, so complete_checkout is
@@ -45,6 +45,7 @@
               quantity: 1
   output:
     expectedResult: allow
+# case: deny-slugified
 - description: 'Live-gateway shape: the gateway federates tools as
     "<server-prefix>-<op>" and slugifies underscores to hyphens, so the tool
     arrives as "ucp-shop-complete-checkout" — no underscore survives. This
@@ -97,6 +98,7 @@
   output:
     expectedResult: deny
     expectedReason: This purchase totals $1,390.00 but the agent's limit is $1,200.00.
+# case: deny
 - description: "Procurement: agent completes a checkout totalling $1,390.00
     (139000 minor units) against a PO ceiling of $1,200.00 (max_total 120000,
     USD). Total exceeds the cap, so the policy denies with a human-readable

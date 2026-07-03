@@ -90,11 +90,11 @@ currency policies in the same bundle for those checks.
 
 ## Tests
 
-| File | Scenario | Expected |
+| Case ([`tests.yaml`](./tests.yaml)) | Scenario | Expected |
 | --- | --- | --- |
-| [`tests/allow.json`](./tests/allow.json) | `complete_checkout` whose resolved merchant is on the allowlist | `allow = true` |
-| [`tests/deny.json`](./tests/deny.json) | `complete_checkout` whose resolved merchant is not on the allowlist | `allow = false`, reason names the merchant |
-| [`tests/deny-slugified.json`](./tests/deny-slugified.json) | The same unapproved merchant via a federated, slugified tool name (`ucp-shop-complete-checkout`) | `allow = false`, reason names the merchant |
+| `allow` | `complete_checkout` whose resolved merchant is on the allowlist | `allow = true` |
+| `deny` | `complete_checkout` whose resolved merchant is not on the allowlist | `allow = false`, reason names the merchant |
+| `deny-slugified` | The same unapproved merchant via a federated, slugified tool name (`ucp-shop-complete-checkout`) | `allow = false`, reason names the merchant |
 
 Each fixture wraps the PARC object under a top-level `input` key. A verifier
 must unwrap `.input` before evaluating, or a naive `opa eval` double-nests the

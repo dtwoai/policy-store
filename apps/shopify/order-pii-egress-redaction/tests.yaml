@@ -1,4 +1,4 @@
-# Generated from the tests/*.json fixtures (same PARC inputs, runner schema).
+# case: allow
 - description: "Egress response from a Shopify UCP get_checkout on the output
     path. In scope (tool name suffix-matches get_checkout under the non-standard
     gateway prefix), so the policy returns allow=true together with the
@@ -61,6 +61,7 @@
       - address_region
       - address_country
       - postal_code
+# case: deny
 - description: Out-of-scope egress response. The tool name suffix-matches
     search_catalog, not get_order / get_checkout, so the policy applies no
     transform and the response is returned unchanged. This policy is
@@ -91,6 +92,7 @@
   output:
     expectedResult: allow
   transformApplied: false
+# case: redact-slugified
 - description: 'Live-gateway shape: the gateway federates tools as
     "<server-prefix>-<op>" and slugifies underscores to hyphens, so the tool
     arrives as "ucp-shop-get-order" — no underscore survives. This fixture
@@ -159,6 +161,7 @@
   transformApplied: true
   transform:
     replacement: "[REDACTED]"
+# case: redact
 - description: Egress response from a Shopify UCP get_order on the output path.
     Tool name suffix-matches get_order (despite the non-standard gateway server
     prefix), so the policy is in scope and returns a redaction transform that

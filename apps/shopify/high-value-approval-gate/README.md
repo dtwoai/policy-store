@@ -198,11 +198,13 @@ bundle for the curated set.
 
 ## Tests
 
-- `tests/allow.json` — a `create_checkout` response at $45.00, below a $500.00
+Cases in [`tests.yaml`](./tests.yaml), run by the repo test runner (`pnpm test`):
+
+- `allow` — a `create_checkout` response at $45.00, below a $500.00
   cap → `allow = true`.
-- `tests/deny.json` — an `update_checkout` response at $742.50, at/above a
+- `deny` — an `update_checkout` response at $742.50, at/above a
   $500.00 cap, with no `continue_url` → `allow = false` with a reason.
-- `tests/deny-slugified.json` — the same over-threshold response via a
+- `deny-slugified` — the same over-threshold response via a
   federated, slugified tool name (`ucp-shop-update-checkout`) →
   `allow = false`.
 
