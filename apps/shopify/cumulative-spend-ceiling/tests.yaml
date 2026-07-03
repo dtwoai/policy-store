@@ -1,0 +1,137 @@
+# Generated from the tests/*.json fixtures (same PARC inputs, runner schema).
+# Session-write expectations (session_writes emitted on allow) are not part of
+# the runner schema; they are asserted by the tests/*.json fixtures and the
+# end-to-end gateway run described in the README.
+- description: Under-ceiling complete_checkout. Prior session state
+    (running_total=4000) is pre-populated at
+    input.context.session.policies.<writer_id> per the session-state contract —
+    this is the running total committed by earlier checkouts in the same
+    session. 4000 + 3000 = 7000 <= budget 10000, so allow=true and the policy
+    emits a session write advancing running_total to 7000.
+    input.context.mandate.session_budget is DTwo-supplied policy input, NOT a
+    UCP field.
+  input:
+    mode: input
+    subject:
+      claims:
+        sub: agent-buyer-7
+        iss: https://idp.example.com/
+    resource:
+      name: shopify_prod__complete_checkout
+    payload:
+      args:
+        checkout:
+          status: ready_for_complete
+          currency: USD
+          totals:
+            - type: subtotal
+              amount: 2800
+              display_text: Subtotal
+            - type: tax
+              amount: 200
+              display_text: Tax
+            - type: total
+              amount: 3000
+              display_text: Total
+    context:
+      mandate:
+        session_budget: 10000
+        currency: USD
+      session:
+        _meta: {}
+        policies:
+          shopify.ingress.cumulative_spend_ceiling:
+            running_total: 4000
+  output:
+    expectedResult: allow
+- description: 'Live-gateway shape: the gateway federates tools as
+    "<server-prefix>-<op>" and slugifies underscores to hyphens, so the tool
+    arrives as "ucp-shop-complete-checkout" — no underscore survives. This
+    fixture proves the policy still matches (an underscore-only suffix match
+    would fail open here). Scenario otherwise identical to deny.json:
+    Over-ceiling complete_checkout. Prior running_total=8500 was committed by
+    earlier checkouts in the same session and is pre-populated at
+    input.context.session.policies.<writer_id>. 8500 + 3000 = 11500 > budget
+    10000, so the projected session total breaks the ceiling: allow=false, a
+    reason is emitted, and NO session write is made (a blocked checkout must not
+    advance the running total). input.context.mandate.session_budget is
+    DTwo-supplied policy input, NOT a UCP field.'
+  input:
+    mode: input
+    subject:
+      claims:
+        sub: agent-buyer-7
+        iss: https://idp.example.com/
+    resource:
+      name: ucp-shop-complete-checkout
+    payload:
+      args:
+        checkout:
+          status: ready_for_complete
+          currency: USD
+          totals:
+            - type: subtotal
+              amount: 2800
+              display_text: Subtotal
+            - type: tax
+              amount: 200
+              display_text: Tax
+            - type: total
+              amount: 3000
+              display_text: Total
+    context:
+      mandate:
+        session_budget: 10000
+        currency: USD
+      session:
+        _meta: {}
+        policies:
+          shopify.ingress.cumulative_spend_ceiling:
+            running_total: 8500
+  output:
+    expectedResult: deny
+    expectedReason: "session spend ceiling exceeded: prior=8500 + this=3000 = 11500
+      > budget=10000 (minor units)"
+- description: "Over-ceiling complete_checkout. Prior running_total=8500 was
+    committed by earlier checkouts in the same session and is pre-populated at
+    input.context.session.policies.<writer_id>. 8500 + 3000 = 11500 > budget
+    10000, so the projected session total breaks the ceiling: allow=false, a
+    reason is emitted, and NO session write is made (a blocked checkout must not
+    advance the running total). input.context.mandate.session_budget is
+    DTwo-supplied policy input, NOT a UCP field."
+  input:
+    mode: input
+    subject:
+      claims:
+        sub: agent-buyer-7
+        iss: https://idp.example.com/
+    resource:
+      name: shopify_prod__complete_checkout
+    payload:
+      args:
+        checkout:
+          status: ready_for_complete
+          currency: USD
+          totals:
+            - type: subtotal
+              amount: 2800
+              display_text: Subtotal
+            - type: tax
+              amount: 200
+              display_text: Tax
+            - type: total
+              amount: 3000
+              display_text: Total
+    context:
+      mandate:
+        session_budget: 10000
+        currency: USD
+      session:
+        _meta: {}
+        policies:
+          shopify.ingress.cumulative_spend_ceiling:
+            running_total: 8500
+  output:
+    expectedResult: deny
+    expectedReason: "session spend ceiling exceeded: prior=8500 + this=3000 = 11500
+      > budget=10000 (minor units)"

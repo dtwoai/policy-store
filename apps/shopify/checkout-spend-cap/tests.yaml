@@ -1,0 +1,146 @@
+# Generated from the tests/*.json fixtures (same PARC inputs, runner schema).
+- description: "Travel & expense: agent completes a flight booking totalling
+    $980.00 (98000 minor units) under a $1,200.00 cap (max_total 120000, USD).
+    Total is within the cap and the currency matches, so complete_checkout is
+    allowed."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    subject:
+      claims:
+        sub: agent|travel-bot
+        email: travel-agent@acme.example.com
+    resource:
+      type: tool
+      name: shopify-complete_checkout
+      uri: null
+    context:
+      mandate:
+        max_total: 120000
+        currency: USD
+    payload:
+      name: shopify-complete_checkout
+      args:
+        checkout:
+          status: ready_for_complete
+          currency: USD
+          continue_url: https://shop.example.com/checkouts/def456/continue
+          totals:
+            - type: subtotal
+              amount: 92000
+              display_text: Subtotal
+            - type: tax
+              amount: 6000
+              display_text: Tax
+            - type: total
+              amount: 98000
+              display_text: Total
+          line_items:
+            - id: li_1
+              item:
+                id: flight_sfo_jfk
+                title: SFO to JFK, economy
+                price: 92000
+              quantity: 1
+  output:
+    expectedResult: allow
+- description: 'Live-gateway shape: the gateway federates tools as
+    "<server-prefix>-<op>" and slugifies underscores to hyphens, so the tool
+    arrives as "ucp-shop-complete-checkout" — no underscore survives. This
+    fixture proves the policy still matches (an underscore-only suffix match
+    would fail open here). Scenario otherwise identical to deny.json:
+    Procurement: agent completes a checkout totalling $1,390.00 (139000 minor
+    units) against a PO ceiling of $1,200.00 (max_total 120000, USD). Total
+    exceeds the cap, so the policy denies with a human-readable reason and the
+    charge never reaches the merchant.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    subject:
+      claims:
+        sub: agent|procurement-bot
+        email: procurement-agent@acme.example.com
+    resource:
+      type: tool
+      name: ucp-shop-complete-checkout
+      uri: null
+    context:
+      mandate:
+        max_total: 120000
+        currency: USD
+    payload:
+      name: ucp-shop-complete-checkout
+      args:
+        checkout:
+          status: ready_for_complete
+          currency: USD
+          continue_url: https://shop.example.com/checkouts/abc123/continue
+          totals:
+            - type: subtotal
+              amount: 129000
+              display_text: Subtotal
+            - type: tax
+              amount: 10000
+              display_text: Tax
+            - type: total
+              amount: 139000
+              display_text: Total
+          line_items:
+            - id: li_1
+              item:
+                id: prod_999
+                title: Standing desk (bulk order)
+                price: 129000
+              quantity: 1
+  output:
+    expectedResult: deny
+    expectedReason: This purchase totals $1,390.00 but the agent's limit is $1,200.00.
+- description: "Procurement: agent completes a checkout totalling $1,390.00
+    (139000 minor units) against a PO ceiling of $1,200.00 (max_total 120000,
+    USD). Total exceeds the cap, so the policy denies with a human-readable
+    reason and the charge never reaches the merchant."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    subject:
+      claims:
+        sub: agent|procurement-bot
+        email: procurement-agent@acme.example.com
+    resource:
+      type: tool
+      name: shopify-complete_checkout
+      uri: null
+    context:
+      mandate:
+        max_total: 120000
+        currency: USD
+    payload:
+      name: shopify-complete_checkout
+      args:
+        checkout:
+          status: ready_for_complete
+          currency: USD
+          continue_url: https://shop.example.com/checkouts/abc123/continue
+          totals:
+            - type: subtotal
+              amount: 129000
+              display_text: Subtotal
+            - type: tax
+              amount: 10000
+              display_text: Tax
+            - type: total
+              amount: 139000
+              display_text: Total
+          line_items:
+            - id: li_1
+              item:
+                id: prod_999
+                title: Standing desk (bulk order)
+                price: 129000
+              quantity: 1
+  output:
+    expectedResult: deny
+    expectedReason: This purchase totals $1,390.00 but the agent's limit is $1,200.00.
