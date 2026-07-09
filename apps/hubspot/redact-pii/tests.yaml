@@ -38,6 +38,7 @@
               company: Example Inc
   output:
     expectedResult: allow
+    expectedReason: PII redacted from HubSpot response
   transformApplied: true
   transform:
     replacement: "[REDACTED]"

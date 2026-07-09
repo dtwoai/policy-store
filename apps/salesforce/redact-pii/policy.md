@@ -65,7 +65,8 @@ description: |
 
   `allow = true`, with a `transform` supplying the redaction patterns, field
   names, and `replacement = "[REDACTED]"` for the gateway to apply to the
-  response body.
+  response body, plus `reason = "PII redacted from Salesforce response"` so the
+  redaction is explained in the dashboard.
 
   ### Passed through (non-Salesforce tool, or not output path)
 
@@ -129,6 +130,13 @@ transform := {
     ],
     "replacement": "[REDACTED]"
 } if {
+    input.mode == "output"
+    startswith(lower(input.resource.name), "salesforce-")
+}
+
+# Surfaced on the decision event whenever the redaction is in scope, so the
+# dashboard can explain the rewrite.
+reason := "PII redacted from Salesforce response" if {
     input.mode == "output"
     startswith(lower(input.resource.name), "salesforce-")
 }
