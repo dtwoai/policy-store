@@ -44,6 +44,7 @@
           connection_string: Server=db.internal;User Id=svc;Password=Sup3rSecret;
   output:
     expectedResult: allow
+    expectedReason: Sensitive content redacted from Jira response
   transformApplied: true
   transform:
     replacement: "[REDACTED]"

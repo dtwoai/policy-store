@@ -97,7 +97,8 @@ description: |
 
   `allow = true`, with a `transform` that supplies the redaction patterns,
   field names, and `replacement = "[REDACTED]"` for the gateway to apply to the
-  response body.
+  response body, plus `reason = "Sensitive content redacted from Jira response"`
+  so the redaction is explained in the dashboard.
 
   ### Passed through (any non-issue-view tool)
 
@@ -245,6 +246,12 @@ transform := {
     ],
     "replacement": "[REDACTED]",
 } if {
+    is_jira_issue_view
+}
+
+# Surfaced on the decision event whenever the redaction is in scope, so the
+# dashboard can explain the rewrite.
+reason := "Sensitive content redacted from Jira response" if {
     is_jira_issue_view
 }
 ```
