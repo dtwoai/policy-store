@@ -1,0 +1,255 @@
+# case: allow
+- description: create_checkout response whose grand total ($45.00 = 4500 minor
+    units) is below the gateway-supplied approval threshold ($500.00 = 50000).
+    Sub-threshold, so the agent may proceed autonomously. Policy should allow
+    with no reason.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: ucp-shop-create_checkout
+      uri: null
+    payload:
+      name: ucp-shop-create_checkout
+      args:
+        cart_id: cart_01J8Z3K9
+      result:
+        id: checkout_01J9ABCD
+        status: ready_for_complete
+        currency: USD
+        continue_url: https://shop.example.com/checkouts/01J9ABCD
+        totals:
+          - type: subtotal
+            amount: 4200
+            display_text: Subtotal
+          - type: tax
+            amount: 300
+            display_text: Tax
+          - type: total
+            amount: 4500
+            display_text: Total
+        line_items:
+          - id: li_1
+            quantity: 1
+            item:
+              id: prod_1
+              title: Wool scarf
+              price: 4200
+            totals:
+              - type: total
+                amount: 4200
+    context:
+      mandate:
+        max_total: 50000
+        currency: USD
+    subject:
+      claims:
+        sub: agent-runner-01
+  output:
+    expectedResult: allow
+# case: deny-slugified
+- description: 'Live-gateway shape: the gateway federates tools as
+    "<server-prefix>-<op>" and slugifies underscores to hyphens, so the tool
+    arrives as "ucp-shop-update-checkout" — no underscore survives. This fixture
+    proves the policy still matches (an underscore-only suffix match would fail
+    open here). update_checkout response whose grand total ($742.50 = 74250 minor
+    units) is at or above the gateway-supplied approval threshold ($500.00 =
+    50000), AND no continue_url is present. The agent has a high-value checkout it
+    could complete but no human-review surface, so autonomous completion is
+    refused. Policy should deny with a reason.'
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: ucp-shop-update-checkout
+      uri: null
+    payload:
+      name: ucp-shop-update-checkout
+      args:
+        id: checkout_01J9WXYZ
+      result:
+        id: checkout_01J9WXYZ
+        status: ready_for_complete
+        currency: USD
+        continue_url: ""
+        totals:
+          - type: subtotal
+            amount: 69900
+            display_text: Subtotal
+          - type: tax
+            amount: 4350
+            display_text: Tax
+          - type: total
+            amount: 74250
+            display_text: Total
+        line_items:
+          - id: li_1
+            quantity: 1
+            item:
+              id: prod_99
+              title: Espresso machine
+              price: 69900
+            totals:
+              - type: total
+                amount: 69900
+    context:
+      mandate:
+        max_total: 50000
+        currency: USD
+    subject:
+      claims:
+        sub: agent-runner-01
+  output:
+    expectedResult: deny
+    expectedReason: Checkout grand total (74250 minor units) is at or above the
+      approval threshold of 50000, and no continue_url is present for buyer
+      review. Autonomous completion is refused; re-run update_checkout so the
+      response carries a continue_url, then route the buyer to it instead of
+      calling complete_checkout.
+# case: deny
+- description: update_checkout response whose grand total ($742.50 = 74250 minor
+    units) is at or above the gateway-supplied approval threshold ($500.00 =
+    50000), AND no continue_url is present. The agent has a high-value checkout
+    it could complete but no human-review surface, so autonomous completion is
+    refused. Policy should deny with a reason.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: ucp-shop-update_checkout
+      uri: null
+    payload:
+      name: ucp-shop-update_checkout
+      args:
+        id: checkout_01J9WXYZ
+      result:
+        id: checkout_01J9WXYZ
+        status: ready_for_complete
+        currency: USD
+        continue_url: ""
+        totals:
+          - type: subtotal
+            amount: 69900
+            display_text: Subtotal
+          - type: tax
+            amount: 4350
+            display_text: Tax
+          - type: total
+            amount: 74250
+            display_text: Total
+        line_items:
+          - id: li_1
+            quantity: 1
+            item:
+              id: prod_99
+              title: Espresso machine
+              price: 69900
+            totals:
+              - type: total
+                amount: 69900
+    context:
+      mandate:
+        max_total: 50000
+        currency: USD
+    subject:
+      claims:
+        sub: agent-runner-01
+  output:
+    expectedResult: deny
+    expectedReason: Checkout grand total (74250 minor units) is at or above the
+      approval threshold of 50000, and no continue_url is present for buyer
+      review. Autonomous completion is refused; re-run update_checkout so the
+      response carries a continue_url, then route the buyer to it instead of
+      calling complete_checkout.
+# case: allow-escalate
+- description: High-value update_checkout response ($742.50 = 74250 minor units,
+    at/above the 50000 cap) that DOES carry a continue_url. The response is
+    well-formed enough to hand back to a human, so allow=true — but the policy
+    still emits an escalation reason telling the agent not to auto-complete and
+    to send the buyer to the continue_url for review.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: ucp-shop-update_checkout
+      uri: null
+    payload:
+      name: ucp-shop-update_checkout
+      args:
+        id: checkout_01J9WXYZ
+      result:
+        id: checkout_01J9WXYZ
+        status: requires_escalation
+        currency: USD
+        continue_url: https://shop.example.com/checkouts/01J9WXYZ/review
+        totals:
+          - type: subtotal
+            amount: 69900
+            display_text: Subtotal
+          - type: tax
+            amount: 4350
+            display_text: Tax
+          - type: total
+            amount: 74250
+            display_text: Total
+    context:
+      mandate:
+        max_total: 50000
+        currency: USD
+    subject:
+      claims:
+        sub: agent-runner-01
+  output:
+    expectedResult: allow
+    expectedReason: "Checkout grand total (74250 minor units) is at or above the
+      approval threshold of 50000. Do not call complete_checkout autonomously:
+      send the buyer to the continue_url for human review and approval (UCP
+      status requires_escalation / requires_buyer_review)."
+# case: allow-ambiguous-totals
+- description: update_checkout response carrying TWO totals[] entries with type ==
+    "total" (an ambiguous/malformed totals array). The shared exactly-one-total
+    idiom leaves grand_total unresolved, so the policy cannot prove the order is
+    high-value and passes the response through (allow, no reason). The ingress
+    completion-blocking policies fail closed on the same ambiguity at
+    complete_checkout time, so a charge cannot slip through this gap.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: ucp-shop-update_checkout
+      uri: null
+    payload:
+      name: ucp-shop-update_checkout
+      args:
+        id: checkout_01J9WXYZ
+      result:
+        id: checkout_01J9WXYZ
+        status: ready_for_complete
+        currency: USD
+        continue_url: ""
+        totals:
+          - type: total
+            amount: 74250
+            display_text: Total
+          - type: total
+            amount: 74250
+            display_text: Total (duplicate)
+    context:
+      mandate:
+        max_total: 50000
+        currency: USD
+    subject:
+      claims:
+        sub: agent-runner-01
+  output:
+    expectedResult: allow

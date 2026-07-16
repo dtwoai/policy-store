@@ -1,0 +1,413 @@
+# expectedSessionWrites is the session-state contract (session_writes emitted on
+# the observe / cancel / consume paths). The repo test runner ignores the key;
+# it is asserted by the end-to-end gateway run.
+# case: allow
+- description: ENFORCE leg. complete_checkout targets chk_9f2b, for which a live
+    approval is on file (recorded from a prior ready_for_complete response and
+    pre-populated under this policy's own writer namespace). complete_checkout
+    carries the id at the TOP LEVEL of args and no line_items (the real surface),
+    so the allow path relies on the live approval, not a content match. The
+    policy allows and CONSUMES the approval (single-use) so a replay fails closed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    subject:
+      claims:
+        sub: buyer-123
+        iss: https://login.example.com/
+    resource:
+      type: tool
+      name: ucp-shop-complete_checkout
+      uri: null
+    payload:
+      name: ucp-shop-complete_checkout
+      args:
+        id: chk_9f2b
+        checkout:
+          payment:
+            token: tok_visa
+    context:
+      session:
+        _meta: {}
+        policies:
+          approved-cart-integrity:
+            approved_carts:
+              chk_9f2b:
+                approved: true
+                line_items:
+                  - id: li_1
+                    item_id: prod_sweater
+                    quantity: 2
+  output:
+    expectedResult: allow
+  expectedSessionWrites:
+    approved_carts:
+      chk_9f2b:
+        approved: false
+        line_items: []
+# case: observe-records-approval
+- description: OBSERVE leg. An update_checkout RESPONSE (mode output) reports the
+    checkout in status ready_for_complete. The policy passes the response through
+    (allow) and records a live approval for the checkout id with the
+    server-returned line_items normalized as the baseline. This is the
+    server-asserted approval the enforce leg later reads.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    subject:
+      claims:
+        sub: buyer-123
+        iss: https://login.example.com/
+    resource:
+      type: tool
+      name: ucp-shop-update_checkout
+      uri: null
+    payload:
+      name: ucp-shop-update_checkout
+      args:
+        id: chk_9f2b
+      result:
+        id: chk_9f2b
+        status: ready_for_complete
+        currency: USD
+        line_items:
+          - id: li_1
+            item:
+              id: prod_sweater
+              title: Merino Sweater
+              price: 8900
+            quantity: 2
+  output:
+    expectedResult: allow
+  expectedSessionWrites:
+    approved_carts:
+      chk_9f2b:
+        approved: true
+        line_items:
+          - id: li_1
+            item_id: prod_sweater
+            quantity: 2
+# case: observe-invalidates-on-mutation
+- description: OBSERVE leg, invalidation. A later update_checkout RESPONSE for the
+    approved checkout comes back in status incomplete (a post-approval cart
+    mutation took it out of the ready-to-finalize state). The policy passes the
+    response through (allow) and writes a tombstone clearing the approval, so a
+    subsequent completion fails closed until the merchant re-confirms
+    ready_for_complete.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    subject:
+      claims:
+        sub: buyer-123
+        iss: https://login.example.com/
+    resource:
+      type: tool
+      name: ucp-shop-update_checkout
+      uri: null
+    payload:
+      name: ucp-shop-update_checkout
+      args:
+        id: chk_9f2b
+      result:
+        id: chk_9f2b
+        status: incomplete
+        currency: USD
+        line_items:
+          - id: li_1
+            item:
+              id: prod_sweater
+              title: Merino Sweater
+              price: 8900
+            quantity: 2
+          - id: li_2
+            item:
+              id: prod_giftcard_500
+              title: Gift Card $500
+              price: 50000
+            quantity: 1
+    context:
+      session:
+        _meta: {}
+        policies:
+          approved-cart-integrity:
+            approved_carts:
+              chk_9f2b:
+                approved: true
+                line_items:
+                  - id: li_1
+                    item_id: prod_sweater
+                    quantity: 2
+  output:
+    expectedResult: allow
+  expectedSessionWrites:
+    approved_carts:
+      chk_9f2b:
+        approved: false
+        line_items: []
+# case: cancel-clears-approval
+- description: CANCEL leg. cancel_checkout for the approved checkout (args.id at
+    the top level). cancel_checkout exists on the confirmed tool surface. The
+    policy passes the call through (allow) and writes a tombstone clearing the
+    approval for that id, so a later completion fails closed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    subject:
+      claims:
+        sub: buyer-123
+        iss: https://login.example.com/
+    resource:
+      type: tool
+      name: ucp-shop-cancel_checkout
+      uri: null
+    payload:
+      name: ucp-shop-cancel_checkout
+      args:
+        id: chk_9f2b
+    context:
+      session:
+        _meta: {}
+        policies:
+          approved-cart-integrity:
+            approved_carts:
+              chk_9f2b:
+                approved: true
+                line_items:
+                  - id: li_1
+                    item_id: prod_sweater
+                    quantity: 2
+  output:
+    expectedResult: allow
+  expectedSessionWrites:
+    approved_carts:
+      chk_9f2b:
+        approved: false
+        line_items: []
+# case: deny-slugified
+- description: 'Live-gateway shape: the gateway federates tools as
+    "<server-prefix>-<op>" and slugifies underscores to hyphens, so the tool
+    arrives as "ucp-shop-complete-checkout" — no underscore survives. This
+    fixture proves the enforce leg still matches. Defense-in-depth divergence:
+    a live approval is on file for prod_sweater x2, but this completion ECHOES
+    line_items that add an unapproved $500 gift card. The echoed cart diverges
+    from the approved baseline, so the policy denies.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    subject:
+      claims:
+        sub: buyer-123
+        iss: https://login.example.com/
+    resource:
+      type: tool
+      name: ucp-shop-complete-checkout
+      uri: null
+    payload:
+      name: ucp-shop-complete-checkout
+      args:
+        id: chk_9f2b
+        checkout:
+          line_items:
+            - id: li_1
+              item:
+                id: prod_sweater
+                title: Merino Sweater
+                price: 8900
+              quantity: 2
+            - id: li_2
+              item:
+                id: prod_giftcard_500
+                title: Gift Card $500
+                price: 50000
+              quantity: 1
+    context:
+      session:
+        _meta: {}
+        policies:
+          approved-cart-integrity:
+            approved_carts:
+              chk_9f2b:
+                approved: true
+                line_items:
+                  - id: li_1
+                    item_id: prod_sweater
+                    quantity: 2
+  output:
+    expectedResult: deny
+    expectedReason: Checkout completion does not match the cart the merchant
+      confirmed completable. The echoed line items diverge from the approved
+      baseline recorded at approval time.
+# case: deny-divergent-echo
+- description: ENFORCE leg, defense in depth. A live approval is on file for
+    prod_sweater x2, but the completion echoes line_items that add an unapproved
+    $500 gift card (the Unit 42 gift-card injection). The echoed cart diverges
+    from the approved baseline, so the policy denies.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    subject:
+      claims:
+        sub: buyer-123
+        iss: https://login.example.com/
+    resource:
+      type: tool
+      name: ucp-shop-complete_checkout
+      uri: null
+    payload:
+      name: ucp-shop-complete_checkout
+      args:
+        id: chk_9f2b
+        checkout:
+          line_items:
+            - id: li_1
+              item:
+                id: prod_sweater
+                title: Merino Sweater
+                price: 8900
+              quantity: 2
+            - id: li_2
+              item:
+                id: prod_giftcard_500
+                title: Gift Card $500
+                price: 50000
+              quantity: 1
+    context:
+      session:
+        _meta: {}
+        policies:
+          approved-cart-integrity:
+            approved_carts:
+              chk_9f2b:
+                approved: true
+                line_items:
+                  - id: li_1
+                    item_id: prod_sweater
+                    quantity: 2
+  output:
+    expectedResult: deny
+    expectedReason: Checkout completion does not match the cart the merchant
+      confirmed completable. The echoed line items diverge from the approved
+      baseline recorded at approval time.
+# case: deny-no-approval
+- description: ENFORCE leg, fail-closed. complete_checkout targets chk_none, for
+    which no approval was ever recorded in this session. A completion with no
+    server-confirmed ready-to-finalize cart on file is exactly the injection
+    shape this policy exists to stop, so it denies.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    subject:
+      claims:
+        sub: buyer-123
+        iss: https://login.example.com/
+    resource:
+      type: tool
+      name: ucp-shop-complete_checkout
+      uri: null
+    payload:
+      name: ucp-shop-complete_checkout
+      args:
+        id: chk_none
+    context:
+      session:
+        _meta: {}
+        policies:
+          approved-cart-integrity:
+            approved_carts:
+              chk_other:
+                approved: true
+                line_items:
+                  - id: li_1
+                    item_id: prod_sweater
+                    quantity: 2
+  output:
+    expectedResult: deny
+    expectedReason: "Checkout completion blocked: no live human-approved cart is on
+      file for this checkout in this session. Approvals are single-use and are
+      consumed by a successful completion, and are cleared by a cart mutation
+      that leaves the ready-to-finalize state or by cancel_checkout; the merchant
+      must re-confirm the checkout as ready_for_complete before completing."
+# case: deny-replay-after-complete
+- description: ENFORCE leg, replay / double-completion. A prior complete_checkout
+    for chk_9f2b already succeeded and CONSUMED the approval — session state shows
+    the tombstone the consume write left behind (approved false, empty baseline).
+    An identical completion is replayed. With no live approval on file the policy
+    fails closed and denies.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    subject:
+      claims:
+        sub: buyer-123
+        iss: https://login.example.com/
+    resource:
+      type: tool
+      name: ucp-shop-complete_checkout
+      uri: null
+    payload:
+      name: ucp-shop-complete_checkout
+      args:
+        id: chk_9f2b
+    context:
+      session:
+        _meta: {}
+        policies:
+          approved-cart-integrity:
+            approved_carts:
+              chk_9f2b:
+                approved: false
+                line_items: []
+  output:
+    expectedResult: deny
+    expectedReason: "Checkout completion blocked: no live human-approved cart is on
+      file for this checkout in this session. Approvals are single-use and are
+      consumed by a successful completion, and are cleared by a cart mutation
+      that leaves the ready-to-finalize state or by cancel_checkout; the merchant
+      must re-confirm the checkout as ready_for_complete before completing."
+# case: deny-after-cancel
+- description: ENFORCE leg, cancel-then-complete. cancel_checkout previously
+    cleared the approval for chk_9f2b (session state shows the tombstone). A
+    completion then arrives for that cancelled checkout. With no live approval on
+    file the policy fails closed and denies, so a cancelled checkout cannot be
+    completed on a stale approval.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    subject:
+      claims:
+        sub: buyer-123
+        iss: https://login.example.com/
+    resource:
+      type: tool
+      name: ucp-shop-complete_checkout
+      uri: null
+    payload:
+      name: ucp-shop-complete_checkout
+      args:
+        id: chk_9f2b
+    context:
+      session:
+        _meta: {}
+        policies:
+          approved-cart-integrity:
+            approved_carts:
+              chk_9f2b:
+                approved: false
+                line_items: []
+  output:
+    expectedResult: deny
+    expectedReason: "Checkout completion blocked: no live human-approved cart is on
+      file for this checkout in this session. Approvals are single-use and are
+      consumed by a successful completion, and are cleared by a cart mutation
+      that leaves the ready-to-finalize state or by cancel_checkout; the merchant
+      must re-confirm the checkout as ready_for_complete before completing."

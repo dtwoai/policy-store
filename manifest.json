@@ -414,16 +414,231 @@
       "policyChecksum": "sha256:77ad4d9fd33a830df6c976a3dbcb351e9774b652e48deaf1dd8b84727786679e",
       "schemaVersion": "1.0.0",
       "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/ucp/approved-cart-integrity",
+      "name": "Bind Checkout Completion To Approved Cart",
+      "direction": "ingress",
+      "publishedAt": "2026-06-27",
+      "apps": [
+        "ucp"
+      ],
+      "industries": [
+        "commerce"
+      ],
+      "bundles": [
+        "agentic-commerce"
+      ],
+      "tags": [
+        "ucp",
+        "agentic-commerce",
+        "checkout",
+        "session-state",
+        "prompt-injection",
+        "access-control",
+        "governance",
+        "ingress"
+      ],
+      "policyChecksum": "sha256:3f23219a87ad7d34c94d27a4e88f67f1fd7da7f07a8266b1950a184be26b9d50",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0-session-state"
+    },
+    {
+      "path": "apps/ucp/attribution-disclosure",
+      "name": "Internal Routing Disclosure and No-Overcharge Check",
+      "direction": "ingress",
+      "publishedAt": "2026-06-27",
+      "apps": [
+        "ucp"
+      ],
+      "industries": [
+        "commerce"
+      ],
+      "bundles": [
+        "agentic-commerce"
+      ],
+      "tags": [
+        "ucp",
+        "agentic-commerce",
+        "attribution",
+        "checkout",
+        "session-state",
+        "governance",
+        "ingress"
+      ],
+      "policyChecksum": "sha256:1d957371401c2459c0c36ed87e2baba95b6f08de8c956c6de277566304b2ebfc",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0-session-state"
+    },
+    {
+      "path": "apps/ucp/checkout-spend-cap",
+      "name": "Checkout Spend Cap",
+      "direction": "ingress",
+      "publishedAt": "2026-06-27",
+      "apps": [
+        "ucp"
+      ],
+      "industries": [
+        "commerce"
+      ],
+      "bundles": [
+        "agentic-commerce"
+      ],
+      "tags": [
+        "ucp",
+        "agentic-commerce",
+        "checkout",
+        "spend-cap",
+        "session-state",
+        "governance",
+        "ingress"
+      ],
+      "policyChecksum": "sha256:0214dc51f5ec3730d3e5e60afc8273ed6afaab65b407a174ad767edaf532a605",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0-session-state"
+    },
+    {
+      "path": "apps/ucp/cumulative-spend-ceiling",
+      "name": "Cumulative Spend Ceiling Across a Session",
+      "direction": "ingress",
+      "publishedAt": "2026-06-27",
+      "apps": [
+        "ucp"
+      ],
+      "industries": [
+        "commerce"
+      ],
+      "bundles": [
+        "agentic-commerce"
+      ],
+      "tags": [
+        "ucp",
+        "agentic-commerce",
+        "session-state",
+        "spend-control",
+        "checkout",
+        "budget",
+        "ingress"
+      ],
+      "policyChecksum": "sha256:3ec4926b3a615d3bc026ac2ee754cff06a088976e2eb01dc5fe44f16aef86497",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0-session-state"
+    },
+    {
+      "path": "apps/ucp/high-value-handoff-gate",
+      "name": "Hand Off High-Value Checkouts to a Human",
+      "direction": "egress",
+      "publishedAt": "2026-06-27",
+      "apps": [
+        "ucp"
+      ],
+      "industries": [
+        "commerce"
+      ],
+      "bundles": [
+        "agentic-commerce"
+      ],
+      "tags": [
+        "ucp",
+        "agentic-commerce",
+        "checkout",
+        "handoff-gate",
+        "egress"
+      ],
+      "policyChecksum": "sha256:f6a0af81e6d6b3bf33cf9a54115aead46344215e70f96a8bc8a9b1ec298f6b89",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0"
+    },
+    {
+      "path": "apps/ucp/merchant-allowlist",
+      "name": "Restrict Agent Checkout to Approved Merchants",
+      "direction": "ingress",
+      "publishedAt": "2026-06-27",
+      "apps": [
+        "ucp"
+      ],
+      "industries": [
+        "commerce"
+      ],
+      "bundles": [
+        "agentic-commerce"
+      ],
+      "tags": [
+        "ucp",
+        "agentic-commerce",
+        "access-control",
+        "governance",
+        "merchant-allowlist",
+        "ingress"
+      ],
+      "policyChecksum": "sha256:7c146229b9427d2b95494d29cd1caf359baf7a0b8f092e9e1d50d50ceacb356e",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0"
+    },
+    {
+      "path": "apps/ucp/order-pii-egress-redaction",
+      "name": "Redact Buyer PII from Order and Checkout Responses",
+      "direction": "egress",
+      "publishedAt": "2026-06-27",
+      "apps": [
+        "ucp"
+      ],
+      "industries": [
+        "commerce"
+      ],
+      "bundles": [
+        "agentic-commerce"
+      ],
+      "tags": [
+        "ucp",
+        "agentic-commerce",
+        "pii",
+        "dlp",
+        "redaction",
+        "egress"
+      ],
+      "policyChecksum": "sha256:88b9a2855a3bde9c2fc625e48fe43711617bbf76e866b01771ef8cacad1c421d",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0"
+    },
+    {
+      "path": "apps/ucp/restricted-category-block",
+      "name": "Block Agent Purchases in Restricted Categories",
+      "direction": "ingress",
+      "publishedAt": "2026-06-27",
+      "apps": [
+        "ucp"
+      ],
+      "industries": [
+        "commerce"
+      ],
+      "bundles": [
+        "agentic-commerce"
+      ],
+      "tags": [
+        "ucp",
+        "agentic-commerce",
+        "access-control",
+        "spend-control",
+        "ingress"
+      ],
+      "policyChecksum": "sha256:e718ad76932149cfc10c1626b30d37f7a6cd6d75fed50858858364467a1d925a",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0"
     }
   ],
   "apps": {
     "hubspot": "apps/hubspot",
     "jira": "apps/jira",
     "salesforce": "apps/salesforce",
-    "slack": "apps/slack"
+    "slack": "apps/slack",
+    "ucp": "apps/ucp"
   },
-  "industries": {},
+  "industries": {
+    "commerce": "industries/commerce"
+  },
   "bundles": {
+    "agentic-commerce": "bundles/agentic-commerce",
     "atlassian": "bundles/atlassian",
     "crm": "bundles/crm",
     "im-messaging": "bundles/im-messaging",
