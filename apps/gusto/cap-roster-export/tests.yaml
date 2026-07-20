@@ -1,0 +1,635 @@
+- description: Non-admin list_company_employees with per 200 — numeric per above the
+    cap is clamped to 25; other args preserved.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gusto-mcp-list_company_employees
+      uri: null
+    subject:
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: gusto-mcp-list_company_employees
+      args:
+        company_uuid: co-1
+        per: 200
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    per: 25
+    company_uuid: co-1
+- description: Non-admin list_company_employees with include=custom_fields (string) —
+    the custom-field expansion is stripped to an empty string.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gusto-mcp-list_company_employees
+      uri: null
+    subject:
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: gusto-mcp-list_company_employees
+      args:
+        company_uuid: co-1
+        include: custom_fields
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    include: ""
+    company_uuid: co-1
+- description: Non-admin include="custom_fields,jobs" (string) — only the
+    custom_fields token is removed, jobs is preserved.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gusto-mcp-list_company_employees
+      uri: null
+    subject:
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: gusto-mcp-list_company_employees
+      args:
+        include: custom_fields,jobs
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    include: jobs
+- description: Non-admin include="jobs, custom_fields" with a space — trimming and
+    filtering still strip custom_fields, leaving jobs.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gusto-mcp-list_company_employees
+      uri: null
+    subject:
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: gusto-mcp-list_company_employees
+      args:
+        include: "jobs, custom_fields"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    include: jobs
+- description: Non-admin include as an array ["custom_fields","jobs"] — array form is
+    filtered, only custom_fields removed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gusto-mcp-list_company_employees
+      uri: null
+    subject:
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: gusto-mcp-list_company_employees
+      args:
+        include:
+          - custom_fields
+          - jobs
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    include:
+      - jobs
+- description: Non-admin include as an array with only custom_fields — stripped to an
+    empty array.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gusto-mcp-list_company_employees
+      uri: null
+    subject:
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: gusto-mcp-list_company_employees
+      args:
+        include:
+          - custom_fields
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    include: []
+- description: Non-admin list_company_contractors with both per 200 and
+    include=custom_fields — both rewrites combine into one transform.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gusto-mcp-list_company_contractors
+      uri: null
+    subject:
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: gusto-mcp-list_company_contractors
+      args:
+        company_uuid: co-2
+        per: 200
+        include: custom_fields
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    per: 25
+    include: ""
+    company_uuid: co-2
+- description: HR-payroll admin with per 500 and include=custom_fields — exempt group
+    retains full pagination and field expansion, no transform.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gusto-mcp-list_company_employees
+      uri: null
+    subject:
+      claims:
+        groups:
+          - hr-payroll-admins
+    payload:
+      name: gusto-mcp-list_company_employees
+      args:
+        company_uuid: co-1
+        per: 500
+        include: custom_fields
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: HR-payroll admin whose groups array also contains other groups — still
+    exempt, no transform.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gusto-mcp-list_company_employees
+      uri: null
+    subject:
+      claims:
+        groups:
+          - engineering
+          - hr-payroll-admins
+          - finance
+    payload:
+      name: gusto-mcp-list_company_employees
+      args:
+        per: 300
+        include: custom_fields
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Non-admin per exactly 25, no include — boundary value already at the
+    cap and no custom-field expansion, passes through unchanged.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gusto-mcp-list_company_employees
+      uri: null
+    subject:
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: gusto-mcp-list_company_employees
+      args:
+        company_uuid: co-1
+        per: 25
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Non-admin small lookup — per 10 and include=jobs (no custom_fields) —
+    within cap and no custom-field expansion, passes through untouched.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gusto-mcp-list_company_employees
+      uri: null
+    subject:
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: gusto-mcp-list_company_employees
+      args:
+        per: 10
+        include: jobs
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Non-admin per absent but include=custom_fields — per is left as-is (not
+    injected), only the custom-field expansion is stripped.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gusto-mcp-list_company_employees
+      uri: null
+    subject:
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: gusto-mcp-list_company_employees
+      args:
+        company_uuid: co-1
+        include: custom_fields
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    include: ""
+    company_uuid: co-1
+- description: Non-covered tool get_gusto_employee (single-employee lookup) with a
+    stray per 500 — not a covered list tool, passes through untouched.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gusto-mcp-get_gusto_employee
+      uri: null
+    subject:
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: gusto-mcp-get_gusto_employee
+      args:
+        employee_uuid: emp-1
+        per: 500
+        include: custom_fields
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Case-insensitive matching — uppercase LIST_COMPANY_EMPLOYEES with per
+    300 is clamped to 25.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: GUSTO-MCP-LIST_COMPANY_EMPLOYEES
+      uri: null
+    subject:
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: GUSTO-MCP-LIST_COMPANY_EMPLOYEES
+      args:
+        per: 300
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    per: 25
+- description: "Red-team: per 0 (a non-positive value some servers read as unbounded)
+    is clamped to 25, not passed through."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gusto-mcp-list_company_employees
+      uri: null
+    subject:
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: gusto-mcp-list_company_employees
+      args:
+        per: 0
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    per: 25
+- description: "Red-team: negative per (-5) is outside the 1-25 range and clamped to 25."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gusto-mcp-list_company_employees
+      uri: null
+    subject:
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: gusto-mcp-list_company_employees
+      args:
+        per: -5
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    per: 25
+- description: "Red-team: per as a non-numeric string (\"200\") is replaced with 25
+    rather than letting the server parse it."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gusto-mcp-list_company_employees
+      uri: null
+    subject:
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: gusto-mcp-list_company_employees
+      args:
+        per: "200"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    per: 25
+- description: Non-admin with the args object missing entirely — no per, no include,
+    nothing to rewrite, passes through.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gusto-mcp-list_company_employees
+      uri: null
+    subject:
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: gusto-mcp-list_company_employees
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: No subject/claims at all — caller is treated as non-admin (fail-closed
+    exemption), so per 100 is clamped to 25.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gusto-mcp-list_company_employees
+      uri: null
+    payload:
+      name: gusto-mcp-list_company_employees
+      args:
+        per: 100
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    per: 25
+- description: Egress hook (tool_post_invoke) on a covered tool name — the action
+    guard keeps the ingress transform from firing on the output path.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: gusto-mcp-list_company_employees
+      uri: null
+    subject:
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: gusto-mcp-list_company_employees
+      text:
+        - '{"employees": []}'
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: "Red-team (documented gap): community kebab-case get-all-employees with
+    per 500 — official-name suffix matching does not cover it, passes through
+    unclamped. See Known limitations."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gusto-mcp-get-all-employees
+      uri: null
+    subject:
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: gusto-mcp-get-all-employees
+      args:
+        per: 500
+        include: custom_fields
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: "Red-team (fixed): array include with a single comma-joined element
+    [\"jobs,custom_fields\"] — the token is smuggled inside one array element; the
+    array branch now splits each element on comma, so custom_fields is still
+    stripped, leaving [\"jobs\"]."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gusto-mcp-list_company_employees
+      uri: null
+    subject:
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: gusto-mcp-list_company_employees
+      args:
+        include:
+          - jobs,custom_fields
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    include:
+      - jobs
+- description: "Red-team (fixed): array include [\"custom_fields,jobs\"] — leading
+    comma-joined token is split and custom_fields dropped, leaving [\"jobs\"]."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gusto-mcp-list_company_employees
+      uri: null
+    subject:
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: gusto-mcp-list_company_employees
+      args:
+        include:
+          - custom_fields,jobs
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    include:
+      - jobs
+- description: "Red-team (documented residual): non-comma delimiter
+    include=\"jobs;custom_fields\" — only comma is treated as a delimiter, so a
+    semicolon-separated value passes through unstripped. See Known limitations."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gusto-mcp-list_company_employees
+      uri: null
+    subject:
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: gusto-mcp-list_company_employees
+      args:
+        include: "jobs;custom_fields"
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: "Red-team (documented residual): case-variant page-size key Per=500 —
+    the clamp matches the exact lowercase `per` key, so a case-variant/alternate
+    key is treated as per-absent and passes through unclamped. See Known
+    limitations (argument-key exactness)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gusto-mcp-list_company_employees
+      uri: null
+    subject:
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: gusto-mcp-list_company_employees
+      args:
+        Per: 500
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: "Red-team (fixed): claim spoofing via wrong type — groups is the STRING
+    \"hr-payroll-admins\" rather than an array. A non-array groups claim fails
+    closed for the exemption (caller treated as non-admin), so per 500 is clamped
+    to 25."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gusto-mcp-list_company_employees
+      uri: null
+    subject:
+      claims:
+        groups: hr-payroll-admins
+    payload:
+      name: gusto-mcp-list_company_employees
+      args:
+        per: 500
+        include: custom_fields
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    per: 25
+    include: ""
+- description: "Red-team (fixed): uppercase custom_fields token in array form
+    [\"CUSTOM_FIELDS\",\"jobs\"] — token matching is case-insensitive, so the
+    custom-field expansion is still stripped, leaving [\"jobs\"]."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gusto-mcp-list_company_employees
+      uri: null
+    subject:
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: gusto-mcp-list_company_employees
+      args:
+        include:
+          - CUSTOM_FIELDS
+          - jobs
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    include:
+      - jobs

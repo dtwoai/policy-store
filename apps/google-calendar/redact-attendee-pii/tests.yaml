@@ -1,0 +1,501 @@
+# Egress transform-only policy: `allow` is always true (default allow := true).
+# The behaviour under test is whether `transform` is emitted (transformApplied),
+# i.e. whether the response would be scrubbed for this caller + tool + direction.
+
+- description: >-
+    Calendar read (kebab `list-events`) for a non-exempt caller. Suffix branch
+    fires; transform is emitted with the documented redact fields/patterns.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: google-calendar-mcp-list-events
+      uri: null
+    subject:
+      sub: google-apps|agent@dtwo.ai
+      claims:
+        groups:
+          - sales
+    payload:
+      name: google-calendar-mcp-list-events
+      text:
+        - '{"attendees":[{"email":"cfo@target.com"}],"summary":"Project Atlas M&A sync"}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transform:
+    replacement: "[REDACTED]"
+    redact_fields:
+      - email
+      - displayName
+      - attendeeEmails
+      - conferenceData
+      - hangoutLink
+
+- description: >-
+    Singular `get-event` still matches the [-_]events? suffix (optional trailing
+    s). Non-exempt caller -> transform emitted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: gcal-mcp-get-event
+      uri: null
+    subject:
+      sub: google-apps|agent@dtwo.ai
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: gcal-mcp-get-event
+      text:
+        - '{"summary":"1:1","conferenceData":{"entryPoints":[{"uri":"https://meet.google.com/abc-defg-hij"}]}}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+
+- description: >-
+    nspady `search-events` (underscore/kebab family) matches the suffix branch.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: google-calendar-search-events
+      uri: null
+    subject:
+      sub: google-apps|agent@dtwo.ai
+      claims:
+        groups:
+          - recruiting
+    payload:
+      name: google-calendar-search-events
+      text:
+        - '{"items":[{"summary":"Candidate interview: Jane Roe","description":"call 415-555-0142"}]}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+
+- description: >-
+    Snake-case `list_events` (official Google server) matches the suffix branch.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: google-calendar-list_events
+      uri: null
+    subject:
+      sub: google-apps|agent@dtwo.ai
+      claims:
+        groups:
+          - sales
+    payload:
+      name: google-calendar-list_events
+      text:
+        - '{"items":[]}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+
+- description: >-
+    Claude connector read that does NOT end in `events` (`gcal_find_my_free_time`)
+    is still covered by the `gcal_` prefix branch.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: gcal_find_my_free_time
+      uri: null
+    subject:
+      sub: google-apps|agent@dtwo.ai
+      claims:
+        groups:
+          - sales
+    payload:
+      name: gcal_find_my_free_time
+      text:
+        - '{"busy":[]}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+
+- description: >-
+    Uppercase tool name (LIST-EVENTS) still matches — matching is
+    case-insensitive via lower(). Red-team: casing bypass is closed.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: GOOGLE-CALENDAR-MCP-LIST-EVENTS
+      uri: null
+    subject:
+      sub: google-apps|agent@dtwo.ai
+      claims:
+        groups:
+          - sales
+    payload:
+      name: GOOGLE-CALENDAR-MCP-LIST-EVENTS
+      text:
+        - '{"items":[]}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+
+- description: >-
+    Tool name present only on tool_metadata.name (resource.name is a
+    non-calendar value). All-surface matching puts the call in scope.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: unknown-passthrough
+      uri: null
+    tool_metadata:
+      name: google-calendar-mcp-get-events
+    subject:
+      sub: google-apps|agent@dtwo.ai
+      claims:
+        groups:
+          - sales
+    payload:
+      name: unknown-passthrough
+      text:
+        - '{"items":[]}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+
+- description: >-
+    Egress scope satisfied by action alone (mode absent). The is_egress
+    action-branch keeps redaction from failing open when mode is unset.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    resource:
+      type: tool
+      name: google-calendar-mcp-list-events
+      uri: null
+    subject:
+      sub: google-apps|agent@dtwo.ai
+      claims:
+        groups:
+          - sales
+    payload:
+      name: google-calendar-mcp-list-events
+      text:
+        - '{"items":[]}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+
+- description: >-
+    Missing claims entirely (no subject block). The grant fails closed — a
+    caller with no groups is NOT exempt, so the response is scrubbed.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: google-calendar-mcp-list-events
+      uri: null
+    payload:
+      name: google-calendar-mcp-list-events
+      text:
+        - '{"attendees":[{"email":"patient@example.com"}],"summary":"dialysis follow-up"}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+
+- description: >-
+    Exempt caller — `calendar-full-read` present in the groups array. No
+    transform; the full response passes through unredacted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: google-calendar-mcp-list-events
+      uri: null
+    subject:
+      sub: google-apps|exec@dtwo.ai
+      claims:
+        groups:
+          - sales
+          - calendar-full-read
+    payload:
+      name: google-calendar-mcp-list-events
+      text:
+        - '{"attendees":[{"email":"cfo@target.com"}]}'
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: >-
+    Exempt caller where the IdP emits a single group as a bare string rather
+    than an array. The bare-string branch grants the exemption.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: google-calendar-mcp-list-events
+      uri: null
+    subject:
+      sub: google-apps|exec@dtwo.ai
+      claims:
+        groups: calendar-full-read
+    payload:
+      name: google-calendar-mcp-list-events
+      text:
+        - '{"attendees":[{"email":"cfo@target.com"}]}'
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: >-
+    Red-team: claim-shape spoofing. `groups` is an object/map whose VALUE is
+    "calendar-full-read". The is_array guard blocks value-iteration, so the
+    caller is NOT exempt and the response is still scrubbed.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: google-calendar-mcp-list-events
+      uri: null
+    subject:
+      sub: google-apps|attacker@dtwo.ai
+      claims:
+        groups:
+          role: calendar-full-read
+    payload:
+      name: google-calendar-mcp-list-events
+      text:
+        - '{"attendees":[{"email":"cfo@target.com"}]}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+
+- description: >-
+    Non-calendar read tool (`list-calendars`) does not match either branch, so
+    no transform is emitted — the response passes through unchanged.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: google-calendar-mcp-list-calendars
+      uri: null
+    subject:
+      sub: google-apps|agent@dtwo.ai
+      claims:
+        groups:
+          - sales
+    payload:
+      name: google-calendar-mcp-list-calendars
+      text:
+        - '{"items":[{"id":"primary"}]}'
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: >-
+    Write tool `create-event` ALSO ends in `-event`, so its echoed-back response
+    is scrubbed on egress too (documented over-match). Transform-only, so the
+    write itself is never blocked — the write path is guarded separately at
+    ingress. A non-exempt caller here gets the response scrubbed.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: google-calendar-mcp-create-event
+      uri: null
+    subject:
+      sub: google-apps|agent@dtwo.ai
+      claims:
+        groups:
+          - sales
+    payload:
+      name: google-calendar-mcp-create-event
+      text:
+        - '{"id":"evt123","status":"confirmed","attendees":[{"email":"cfo@target.com"}]}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+
+- description: >-
+    Red-team: meeting-link leak. A get-event response carries the join URL in
+    the top-level `hangoutLink` field (populated independently of
+    conferenceData) and again as a Meet URL pasted into `description` free text.
+    The transform now lists `hangoutLink` among redact_fields and a conferencing
+    URL pattern among redact_patterns, so neither channel survives for a
+    non-exempt caller.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: google-calendar-mcp-get-event
+      uri: null
+    subject:
+      sub: google-apps|agent@dtwo.ai
+      claims:
+        groups:
+          - sales
+    payload:
+      name: google-calendar-mcp-get-event
+      text:
+        - '{"summary":"Board sync","hangoutLink":"https://meet.google.com/abc-defg-hij","description":"Backup line: https://us02web.zoom.us/j/123456789"}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transform:
+    replacement: "[REDACTED]"
+    redact_fields:
+      - email
+      - displayName
+      - attendeeEmails
+      - conferenceData
+      - hangoutLink
+    redact_patterns:
+      - '\b\d{3}-\d{2}-\d{4}\b'
+      - '[\w.+-]+@[\w-]+\.[\w.-]+'
+      - '\b\d{3}[-.\s]\d{3}[-.\s]\d{4}\b'
+      - '\+\d{6,15}\b'
+      - '(?i)\b(?:diagnosis|prognosis|biopsy|chemo(?:therapy)?|oncolog\w*|psychiatr\w*|dialysis|colonoscopy|prescription)\b'
+      - '(?i)https?://[\w.-]*(?:meet\.google\.com|zoom\.us|teams\.microsoft\.com|webex\.com)/\S*'
+
+- description: >-
+    Ingress on a calendar read (tool_pre_invoke / mode input) is out of scope —
+    is_egress fails both branches, so no transform. Prevents scrubbing arguments
+    on the request path.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-calendar-mcp-list-events
+      uri: null
+    subject:
+      sub: google-apps|agent@dtwo.ai
+      claims:
+        groups:
+          - sales
+    payload:
+      name: google-calendar-mcp-list-events
+      args:
+        calendarId: primary
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: >-
+    Red-team (finding, fixed): attendee record carries only a displayName and no
+    email field. Before the fix the person's name would survive email-only
+    redaction; displayName is now in redact_fields, so the transform lists it and
+    the name is scrubbed for a non-exempt caller.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: google-calendar-mcp-get-event
+      uri: null
+    subject:
+      sub: google-apps|agent@dtwo.ai
+      claims:
+        groups:
+          - sales
+    payload:
+      name: google-calendar-mcp-get-event
+      text:
+        - '{"summary":"Sync","attendees":[{"displayName":"Dr. Jane Roe","responseStatus":"accepted"}],"organizer":{"displayName":"Alex Admin"}}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transform:
+    replacement: "[REDACTED]"
+    redact_fields:
+      - email
+      - displayName
+      - attendeeEmails
+      - conferenceData
+      - hangoutLink
+
+- description: >-
+    Red-team (shape probe): attendees supplied as a FLAT array of email strings
+    (["a@corp.com", ...]) rather than objects with an `email` key. redact_fields
+    "email" cannot see array elements, but the email redact_patterns entry runs
+    byte-level over the serialized response and catches them, so the transform is
+    still emitted for a non-exempt caller. Defense-in-depth holds.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: google-calendar-mcp-list-events
+      uri: null
+    subject:
+      sub: google-apps|agent@dtwo.ai
+      claims:
+        groups:
+          - sales
+    payload:
+      name: google-calendar-mcp-list-events
+      text:
+        - '{"items":[{"summary":"Standup","attendees":["a@corp.com","b@corp.com"]}]}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+
+- description: >-
+    Red-team (finding, documented residual): a free/busy availability read
+    (`get-freebusy`) matches NEITHER the [-_]events? suffix nor the gcal_ prefix,
+    so no transform is emitted. Its calendar-ID keys are attendee email addresses
+    the caller queried, which therefore pass through unscrubbed. Documented under
+    Known limitations (free/busy out of scope); test locks the current behavior
+    so any future scope expansion is a deliberate, tested change.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: google-calendar-mcp-get-freebusy
+      uri: null
+    subject:
+      sub: google-apps|agent@dtwo.ai
+      claims:
+        groups:
+          - sales
+    payload:
+      name: google-calendar-mcp-get-freebusy
+      text:
+        - '{"calendars":{"a@corp.com":{"busy":[{"start":"2026-07-16T09:00:00Z","end":"2026-07-16T09:30:00Z"}]}}}'
+  output:
+    expectedResult: allow
+  transformApplied: false

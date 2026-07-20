@@ -1,0 +1,523 @@
+# Reason string used by every deny case (kept in one place for easy tuning):
+# it must match the sprintf output in policy.md exactly.
+- description: Read-only inventory tool (list_clusters) with no subject at all —
+    non-gated tools pass for everyone.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-list_clusters
+      uri: null
+    payload:
+      name: databricks-list_clusters
+      args: {}
+  output:
+    expectedResult: allow
+- description: Read tool (get_cluster) for a caller with an unrelated group —
+    reads pass regardless of identity, and get_cluster does not match a gated suffix.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-get_cluster
+      uri: null
+    subject:
+      sub: auth0|analyst
+      claims:
+        groups:
+          - analyst
+    payload:
+      name: databricks-get_cluster
+      args:
+        cluster_id: 0921-abc
+  output:
+    expectedResult: allow
+- description: Read tool (list_notebooks) with the export-adjacent word in its name —
+    it does not end in export_notebook, so it is not gated and passes.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-list_notebooks
+      uri: null
+    subject:
+      sub: auth0|analyst
+      claims:
+        groups:
+          - cowork
+    payload:
+      name: databricks-list_notebooks
+      args:
+        path: /Users/alice
+  output:
+    expectedResult: allow
+- description: Non-tool ingress hook (prompt_pre_fetch) with a non-compute name —
+    policy only gates the five compute/job tools, so it passes.
+  input:
+    action: prompt_pre_fetch
+    kind: prompt_pre_fetch
+    mode: input
+    resource:
+      type: prompt
+      name: greeting
+      uri: null
+    payload:
+      prompt_id: greeting
+      args:
+        user: alice
+  output:
+    expectedResult: allow
+- description: Compute tool (terminate_cluster) by a member of platform-engineering —
+    allowed (gated + platform-group branch).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-terminate_cluster
+      uri: null
+    subject:
+      sub: auth0|alice
+      claims:
+        groups:
+          - platform-engineering
+    payload:
+      name: databricks-terminate_cluster
+      args:
+        cluster_id: 0921-abc
+  output:
+    expectedResult: allow
+- description: Job tool (run_job) when platform-engineering is one of several groups —
+    allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-run_job
+      uri: null
+    subject:
+      sub: auth0|alice
+      claims:
+        groups:
+          - data-engineering
+          - platform-engineering
+    payload:
+      name: databricks-run_job
+      args:
+        job_id: 42
+  output:
+    expectedResult: allow
+- description: start_cluster by a platform engineer — allowed (covers the
+    start_cluster suffix on the allow path).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-start_cluster
+      uri: null
+    subject:
+      sub: auth0|alice
+      claims:
+        groups:
+          - platform-engineering
+    payload:
+      name: databricks-start_cluster
+      args:
+        cluster_id: 0921-abc
+  output:
+    expectedResult: allow
+- description: run_job by an analyst (not in the platform group) — denied with the
+    standard reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-run_job
+      uri: null
+    subject:
+      sub: auth0|analyst
+      claims:
+        groups:
+          - analyst
+    payload:
+      name: databricks-run_job
+      args:
+        job_id: 42
+  output:
+    expectedResult: deny
+    expectedReason: Databricks compute and job-control tools (create/start/terminate cluster, run job, export notebook) are restricted to members of the 'platform-engineering' group — this account has read-only Databricks access through the gateway. Inventory tools (list_clusters, get_cluster, list_jobs, list_notebooks, list_files) still work. Ask your identity admin to add you to 'platform-engineering', or hand this step to a platform engineer. If this tool is actually read-only, contact your InfoSec team to update the policy.
+- description: create_cluster (spends money) with an empty groups array — denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-create_cluster
+      uri: null
+    subject:
+      sub: auth0|bob
+      claims:
+        groups: []
+    payload:
+      name: databricks-create_cluster
+      args:
+        cluster_name: adhoc
+        num_workers: 4
+  output:
+    expectedResult: deny
+- description: export_notebook (source-code exfiltration) by a cowork user — denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-export_notebook
+      uri: null
+    subject:
+      sub: auth0|carol
+      claims:
+        groups:
+          - cowork
+    payload:
+      name: databricks-export_notebook
+      args:
+        path: /Repos/prod/etl
+        format: SOURCE
+  output:
+    expectedResult: deny
+- description: terminate_cluster with no subject in the input at all — identity
+    lookup fails closed, compute call denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-terminate_cluster
+      uri: null
+    payload:
+      name: databricks-terminate_cluster
+      args:
+        cluster_id: 0921-abc
+  output:
+    expectedResult: deny
+- description: start_cluster non-member — denied (start_cluster suffix on the deny path).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-start_cluster
+      uri: null
+    subject:
+      sub: auth0|bob
+      claims:
+        groups:
+          - analyst
+    payload:
+      name: databricks-start_cluster
+      args:
+        cluster_id: 0921-abc
+  output:
+    expectedResult: deny
+- description: Uppercased tool name (DATABRICKS-TERMINATE_CLUSTER) without the group —
+    matching is case-insensitive, so still denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: DATABRICKS-TERMINATE_CLUSTER
+      uri: null
+    subject:
+      sub: auth0|bob
+      claims:
+        groups:
+          - analyst
+    payload:
+      name: DATABRICKS-TERMINATE_CLUSTER
+      args:
+        cluster_id: 0921-abc
+  output:
+    expectedResult: deny
+- description: Red-team — groups claim is a plain string ("platform-engineering")
+    instead of an array. Malformed shape fails closed, compute call denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-run_job
+      uri: null
+    subject:
+      sub: auth0|mallory
+      claims:
+        groups: platform-engineering
+    payload:
+      name: databricks-run_job
+      args:
+        job_id: 42
+  output:
+    expectedResult: deny
+    expectedReason: Databricks compute and job-control tools (create/start/terminate cluster, run job, export notebook) are restricted to members of the 'platform-engineering' group — this account has read-only Databricks access through the gateway. Inventory tools (list_clusters, get_cluster, list_jobs, list_notebooks, list_files) still work. Ask your identity admin to add you to 'platform-engineering', or hand this step to a platform engineer. If this tool is actually read-only, contact your InfoSec team to update the policy.
+- description: Red-team — groups claim shaped as an object whose VALUE is the group
+    name ({"role":"platform-engineering"}). `some x in obj` iterates values, so this
+    would fail OPEN without the is_array guard. Non-array shape must fail closed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-create_cluster
+      uri: null
+    subject:
+      sub: auth0|mallory
+      claims:
+        groups:
+          role: platform-engineering
+    payload:
+      name: databricks-create_cluster
+      args:
+        cluster_name: adhoc
+        num_workers: 8
+  output:
+    expectedResult: deny
+    expectedReason: Databricks compute and job-control tools (create/start/terminate cluster, run job, export notebook) are restricted to members of the 'platform-engineering' group — this account has read-only Databricks access through the gateway. Inventory tools (list_clusters, get_cluster, list_jobs, list_notebooks, list_files) still work. Ask your identity admin to add you to 'platform-engineering', or hand this step to a platform engineer. If this tool is actually read-only, contact your InfoSec team to update the policy.
+- description: Intentional safe over-match — restart_cluster ends in start_cluster,
+    so a non-member restart is gated and denied (documented in Tool name matching).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-restart_cluster
+      uri: null
+    subject:
+      sub: auth0|bob
+      claims:
+        groups:
+          - analyst
+    payload:
+      name: databricks-restart_cluster
+      args:
+        cluster_id: 0921-abc
+  output:
+    expectedResult: deny
+- description: Read tool (list_jobs) by an analyst — plural does not match the run_job
+    suffix, so listing jobs passes.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-list_jobs
+      uri: null
+    subject:
+      sub: auth0|analyst
+      claims:
+        groups:
+          - analyst
+    payload:
+      name: databricks-list_jobs
+      args: {}
+  output:
+    expectedResult: allow
+- description: Red-team (documented residual) — alternate-server SDK naming. The
+    pramodbhatofficial server names cluster creation `clusters_create` (noun-first),
+    which does NOT end in the gated `create_cluster` suffix, so a non-member's compute
+    call slips through as allowed. Fail-open under-match documented in Known
+    limitations; pair with default-deny-unknown-tools on such servers.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-clusters_create
+      uri: null
+    subject:
+      sub: auth0|analyst
+      claims:
+        groups:
+          - analyst
+    payload:
+      name: databricks-clusters_create
+      args:
+        cluster_name: adhoc
+        num_workers: 8
+  output:
+    expectedResult: allow
+- description: Red-team (documented residual) — alternate-server SDK naming. `jobs_run_now`
+    does not end in the gated `run_job` suffix, so a non-member's job trigger slips
+    through as allowed. Same documented fail-open under-match as clusters_create.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-jobs_run_now
+      uri: null
+    subject:
+      sub: auth0|analyst
+      claims:
+        groups:
+          - analyst
+    payload:
+      name: databricks-jobs_run_now
+      args:
+        job_id: 42
+  output:
+    expectedResult: allow
+- description: Read tool (list_files, DBFS) with empty claims — treated as a read,
+    allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-list_files
+      uri: null
+    subject:
+      sub: auth0|carol
+      claims: {}
+    payload:
+      name: databricks-list_files
+      args:
+        dbfs_path: /
+  output:
+    expectedResult: allow
+- description: Red-team — groups claim present but null. object.get returns the null
+    value (not the [] default), is_array(null) is false, so identity fails closed and
+    the compute call denies.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-run_job
+      uri: null
+    subject:
+      sub: auth0|mallory
+      claims:
+        groups: null
+    payload:
+      name: databricks-run_job
+      args:
+        job_id: 42
+  output:
+    expectedResult: deny
+    expectedReason: Databricks compute and job-control tools (create/start/terminate cluster, run job, export notebook) are restricted to members of the 'platform-engineering' group — this account has read-only Databricks access through the gateway. Inventory tools (list_clusters, get_cluster, list_jobs, list_notebooks, list_files) still work. Ask your identity admin to add you to 'platform-engineering', or hand this step to a platform engineer. If this tool is actually read-only, contact your InfoSec team to update the policy.
+- description: Red-team — groups claim shaped as an object whose KEY is the group name
+    (platform-engineering mapped to true). Even though the group string appears as a
+    key, is_array is false so `some group in caller_groups` never runs — fails closed.
+    A stronger variant of the object-value spoofing case above.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-create_cluster
+      uri: null
+    subject:
+      sub: auth0|mallory
+      claims:
+        groups:
+          platform-engineering: true
+    payload:
+      name: databricks-create_cluster
+      args:
+        cluster_name: adhoc
+        num_workers: 8
+  output:
+    expectedResult: deny
+    expectedReason: Databricks compute and job-control tools (create/start/terminate cluster, run job, export notebook) are restricted to members of the 'platform-engineering' group — this account has read-only Databricks access through the gateway. Inventory tools (list_clusters, get_cluster, list_jobs, list_notebooks, list_files) still work. Ask your identity admin to add you to 'platform-engineering', or hand this step to a platform engineer. If this tool is actually read-only, contact your InfoSec team to update the policy.
+- description: Red-team — subject is a non-object scalar (a bare string instead of an
+    object with claims). The object.get chain tolerates the wrong type and yields the
+    [] default, so identity fails closed and the compute call denies.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-terminate_cluster
+      uri: null
+    subject: platform-engineering
+    payload:
+      name: databricks-terminate_cluster
+      args:
+        cluster_id: 0921-abc
+  output:
+    expectedResult: deny
+    expectedReason: Databricks compute and job-control tools (create/start/terminate cluster, run job, export notebook) are restricted to members of the 'platform-engineering' group — this account has read-only Databricks access through the gateway. Inventory tools (list_clusters, get_cluster, list_jobs, list_notebooks, list_files) still work. Ask your identity admin to add you to 'platform-engineering', or hand this step to a platform engineer. If this tool is actually read-only, contact your InfoSec team to update the policy.
+- description: Red-team (reviewer) — the whole `claims` value is a non-object scalar
+    (a bare string) rather than an object holding `groups`. object.get(claims,"groups",[])
+    over a string yields the [] default, so identity fails closed and the compute call
+    denies. Covers the malformed-claims shape one level up from the groups-specific cases.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-run_job
+      uri: null
+    subject:
+      sub: auth0|mallory
+      claims: platform-engineering
+    payload:
+      name: databricks-run_job
+      args:
+        job_id: 42
+  output:
+    expectedResult: deny
+    expectedReason: Databricks compute and job-control tools (create/start/terminate cluster, run job, export notebook) are restricted to members of the 'platform-engineering' group — this account has read-only Databricks access through the gateway. Inventory tools (list_clusters, get_cluster, list_jobs, list_notebooks, list_files) still work. Ask your identity admin to add you to 'platform-engineering', or hand this step to a platform engineer. If this tool is actually read-only, contact your InfoSec team to update the policy.
+- description: Red-team (reviewer, documented scope boundary) — JustTryAI's `execute_sql`
+    is a destructive read-write tool, but it is data-plane SQL, not compute/job control,
+    so this policy intentionally does NOT gate it (Composition defers it to
+    guard-warehouse-sql). A non-member's execute_sql call therefore passes here; this
+    codifies that boundary so a future edit can't silently start gating it.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-execute_sql
+      uri: null
+    subject:
+      sub: auth0|analyst
+      claims:
+        groups:
+          - analyst
+    payload:
+      name: databricks-execute_sql
+      args:
+        statement: DROP TABLE prod.finance.ledger
+  output:
+    expectedResult: allow

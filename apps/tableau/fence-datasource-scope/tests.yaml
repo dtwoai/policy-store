@@ -1,0 +1,370 @@
+- description: Non-fenced Tableau tool (list-datasources) passes through untouched.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: tableau-list-datasources
+      uri: null
+    payload:
+      name: tableau-list-datasources
+      args: {}
+  output:
+    expectedResult: allow
+
+- description: query-datasource against an approved datasource LUID is allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: tableau-query-datasource
+      uri: null
+    payload:
+      name: tableau-query-datasource
+      args:
+        datasourceLuid: 11111111-1111-1111-1111-111111111111
+  output:
+    expectedResult: allow
+
+- description: query-datasource against a datasource not on the allowlist is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: tableau-query-datasource
+      uri: null
+    payload:
+      name: tableau-query-datasource
+      args:
+        datasourceLuid: 99999999-9999-9999-9999-999999999999
+  output:
+    expectedResult: deny
+    expectedReason: Tableau datasource 99999999-9999-9999-9999-999999999999 is not on the approved-datasource allowlist, so the agent may not query it. Query an approved datasource, or request datasource onboarding through your data-governance owner if you believe this one should be cleared.
+
+- description: query-datasource with a missing datasourceLuid fails closed (deny).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: tableau-query-datasource
+      uri: null
+    payload:
+      name: tableau-query-datasource
+      args:
+        query:
+          fields: []
+  output:
+    expectedResult: deny
+    expectedReason: This Tableau query supplied no datasourceLuid, so it cannot be matched against the approved-datasource allowlist. Re-issue the call naming an approved datasource, and request datasource onboarding through your data-governance owner if the one you need is not yet approved.
+
+- description: query-datasource with an empty-string datasourceLuid fails closed (deny).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: tableau-query-datasource
+      uri: null
+    payload:
+      name: tableau-query-datasource
+      args:
+        datasourceLuid: ""
+  output:
+    expectedResult: deny
+    expectedReason: This Tableau query supplied no datasourceLuid, so it cannot be matched against the approved-datasource allowlist. Re-issue the call naming an approved datasource, and request datasource onboarding through your data-governance owner if the one you need is not yet approved.
+
+- description: get-view-image by a caller in the data-analyst group is allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: tableau-get-view-image
+      uri: null
+    subject:
+      sub: auth0|amy
+      claims:
+        groups:
+          - data-analysts
+    payload:
+      name: tableau-get-view-image
+      args:
+        viewId: aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa
+  output:
+    expectedResult: allow
+
+- description: get-custom-view-image by a caller in the data-analyst group is allowed (covers the custom-view suffix).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: tableau-get-custom-view-image
+      uri: null
+    subject:
+      sub: auth0|amy
+      claims:
+        groups:
+          - data-analysts
+    payload:
+      name: tableau-get-custom-view-image
+      args:
+        customViewId: bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb
+  output:
+    expectedResult: allow
+
+- description: get-view-image by a caller outside the data-analyst group is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: tableau-get-view-image
+      uri: null
+    subject:
+      sub: auth0|eng
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: tableau-get-view-image
+      args:
+        viewId: aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa
+  output:
+    expectedResult: deny
+    expectedReason: Tableau image renders (get-view-image / get-custom-view-image) return PNGs that cannot be redacted, so they are restricted to the data-analyst group. Use a CSV data read (get-view-data) or contact your data-governance owner if your role requires image exports.
+
+- description: get-custom-view-image by a caller outside the data-analyst group is denied (covers the custom-view suffix).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: tableau-get-custom-view-image
+      uri: null
+    subject:
+      sub: auth0|eng
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: tableau-get-custom-view-image
+      args:
+        customViewId: bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb
+  output:
+    expectedResult: deny
+    expectedReason: Tableau image renders (get-view-image / get-custom-view-image) return PNGs that cannot be redacted, so they are restricted to the data-analyst group. Use a CSV data read (get-view-data) or contact your data-governance owner if your role requires image exports.
+
+- description: Image render with no subject/claims fails closed (deny).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: tableau-get-view-image
+      uri: null
+    payload:
+      name: tableau-get-view-image
+      args:
+        viewId: aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa
+  output:
+    expectedResult: deny
+    expectedReason: Tableau image renders (get-view-image / get-custom-view-image) return PNGs that cannot be redacted, so they are restricted to the data-analyst group. Use a CSV data read (get-view-data) or contact your data-governance owner if your role requires image exports.
+
+- description: Image render where the groups claim is a string, not an array, fails closed (deny).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: tableau-get-view-image
+      uri: null
+    subject:
+      sub: auth0|amy
+      claims:
+        groups: data-analysts
+    payload:
+      name: tableau-get-view-image
+      args:
+        viewId: aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa
+  output:
+    expectedResult: deny
+    expectedReason: Tableau image renders (get-view-image / get-custom-view-image) return PNGs that cannot be redacted, so they are restricted to the data-analyst group. Use a CSV data read (get-view-data) or contact your data-governance owner if your role requires image exports.
+
+- description: Red-team — query against an approved datasource carrying an arbitrary `calculation` field is still allowed (documented column-level escape hatch; pair with the calculation-field guard companion).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: tableau-query-datasource
+      uri: null
+    payload:
+      name: tableau-query-datasource
+      args:
+        datasourceLuid: 11111111-1111-1111-1111-111111111111
+        query:
+          fields:
+            - calculation: "[Salary] * 1"
+  output:
+    expectedResult: allow
+
+- description: Red-team — bare `query-datasource` with no gateway prefix, naming a non-allowlisted datasource, is denied (suffix matching is prefix-independent).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: query-datasource
+      uri: null
+    payload:
+      name: query-datasource
+      args:
+        datasourceLuid: 99999999-9999-9999-9999-999999999999
+  output:
+    expectedResult: deny
+    expectedReason: Tableau datasource 99999999-9999-9999-9999-999999999999 is not on the approved-datasource allowlist, so the agent may not query it. Query an approved datasource, or request datasource onboarding through your data-governance owner if you believe this one should be cleared.
+
+- description: Red-team — off-schema non-string datasourceLuid (number) is not on the allowlist and fails closed (deny).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: tableau-query-datasource
+      uri: null
+    payload:
+      name: tableau-query-datasource
+      args:
+        datasourceLuid: 123
+  output:
+    expectedResult: deny
+
+- description: Red-team — re-cased (uppercase) approved LUID is a different string, is not in the allowlist set, and is denied (locks the verbatim-compare claim).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: tableau-query-datasource
+      uri: null
+    payload:
+      name: tableau-query-datasource
+      args:
+        datasourceLuid: 11111111-1111-1111-1111-11111111111A
+  output:
+    expectedResult: deny
+    expectedReason: Tableau datasource 11111111-1111-1111-1111-11111111111A is not on the approved-datasource allowlist, so the agent may not query it. Query an approved datasource, or request datasource onboarding through your data-governance owner if you believe this one should be cleared.
+
+- description: Red-team — snake_case query_datasource (underscore, community/Tableau-Next-style server) against a non-allowlisted datasource is NOT matched by the hyphen suffix and passes through un-fenced (documented residual — author a separate policy / PF-28 gate for non-kebab servers).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: tableau-query_datasource
+      uri: null
+    payload:
+      name: tableau-query_datasource
+      args:
+        datasourceLuid: 99999999-9999-9999-9999-999999999999
+  output:
+    expectedResult: allow
+
+- description: Red-team — snake_case get_view_image (underscore) by a non-analyst is NOT matched by the hyphen suffix and passes through un-fenced (documented residual — same mitigation as above).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: tableau-get_view_image
+      uri: null
+    subject:
+      sub: auth0|eng
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: tableau-get_view_image
+      args:
+        viewId: aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa
+  output:
+    expectedResult: allow
+
+- description: Red-team — hyphen-tail variant `query-datasource-v2` (extra suffix after the anchored tail) is NOT matched by endswith and passes through un-fenced even with a non-allowlisted LUID (documented residual — pin new variant names / add a PF-28 gate).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: tableau-query-datasource-v2
+      uri: null
+    payload:
+      name: tableau-query-datasource-v2
+      args:
+        datasourceLuid: 99999999-9999-9999-9999-999999999999
+  output:
+    expectedResult: allow
+
+- description: Red-team — hyphen-tail variant `get-view-image-hd` (extra suffix after the anchored tail) is NOT matched by endswith and passes through un-fenced even for a non-analyst (documented residual — same mitigation as above).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: tableau-get-view-image-hd
+      uri: null
+    subject:
+      sub: auth0|eng
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: tableau-get-view-image-hd
+      args:
+        viewId: aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa
+  output:
+    expectedResult: allow
+
+- description: get-view-data (CSV read) is a non-fenced surface and passes through untouched even for a non-analyst (documented limitation — governed by the egress companion).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: tableau-get-view-data
+      uri: null
+    subject:
+      sub: auth0|eng
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: tableau-get-view-data
+      args:
+        viewId: aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa
+  output:
+    expectedResult: allow

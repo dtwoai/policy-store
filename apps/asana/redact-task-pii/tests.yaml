@@ -1,0 +1,1003 @@
+# Transform-only egress policy (default allow := true): a PII-redaction transform
+# on Asana task/comment/status read responses. Never denies. Cases cover every
+# rule branch: each detection class independently (SSN, email, phone, IBAN) and
+# all together; every in-scope read suffix (official bare + community asana_);
+# separator-anchored matching (equality, hyphen, underscore) and its over-match
+# guard; both group-claim forms (array + bare string) and case-insensitivity for
+# the exemption; fail-closed on missing/oddly-shaped claims; out-of-scope tools;
+# non-string blocks; MCP {type,text} blocks; conservative-regex negatives; the
+# ingress guard; and documented residuals.
+
+# ---- Redaction: each class independently + combined ----
+
+- description: In-scope get_task (official, behind gateway prefix), non-exempt caller — SSN, email, and phone inside serialized notes JSON are all redacted; structural keys kept.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: asana-mcp-get_task
+      uri: null
+    subject:
+      sub: auth0|u1
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: asana-mcp-get_task
+      text:
+        - '{"gid":"1201234567890","notes":"Reach jane@acme.com or 206-555-0100; SSN 123-45-6789"}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - '{"gid":"1201234567890","notes":"Reach [REDACTED-EMAIL] or [REDACTED-PHONE]; SSN [REDACTED-SSN]"}'
+
+- description: Lone SSN in a get_tasks response is redacted on its own — no pairing required.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: asana-mcp-get_tasks
+      uri: null
+    subject:
+      sub: auth0|u2
+      claims:
+        groups:
+          - sales
+    payload:
+      name: asana-mcp-get_tasks
+      text:
+        - "Candidate note: SSN 078-05-1120 on file"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Candidate note: SSN [REDACTED-SSN] on file"
+
+- description: Lone email in a status overview body (get_status_overview) is redacted independently.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: asana-mcp-get_status_overview
+      uri: null
+    subject:
+      sub: auth0|u3
+      claims:
+        groups:
+          - sales
+    payload:
+      name: asana-mcp-get_status_overview
+      text:
+        - "Status: on track. Escalate to ops.lead@example.co.uk if blocked."
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Status: on track. Escalate to [REDACTED-EMAIL] if blocked."
+
+- description: Lone parenthesized phone in an attachment body (get_attachments) is redacted independently.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: asana-mcp-get_attachments
+      uri: null
+    subject:
+      sub: auth0|u4
+      claims:
+        groups:
+          - sales
+    payload:
+      name: asana-mcp-get_attachments
+      text:
+        - "Signed doc lists contact (206) 555-0100 for the vendor"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Signed doc lists contact [REDACTED-PHONE] for the vendor"
+
+- description: Lone IBAN in a search_objects snippet is redacted (compact electronic format).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: asana-mcp-search_objects
+      uri: null
+    subject:
+      sub: auth0|u5
+      claims:
+        groups:
+          - sales
+    payload:
+      name: asana-mcp-search_objects
+      text:
+        - "Vendor payout task: IBAN DE89370400440532013000 confirmed"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Vendor payout task: IBAN [REDACTED-IBAN] confirmed"
+
+- description: All four classes together in one search_tasks response are each redacted in place.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: asana-mcp-search_tasks
+      uri: null
+    subject:
+      sub: auth0|u6
+      claims:
+        groups:
+          - recruiting
+    payload:
+      name: asana-mcp-search_tasks
+      text:
+        - "SSN 123-45-6789, jane@acme.com, 206-555-0100, IBAN GB29NWBK60161331926819"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "SSN [REDACTED-SSN], [REDACTED-EMAIL], [REDACTED-PHONE], IBAN [REDACTED-IBAN]"
+
+# ---- Community suffixes ----
+
+- description: Community asana_get_task (bare, no gateway prefix) matches via the `_get_task` separator branch and is redacted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: asana_get_task
+      uri: null
+    subject:
+      sub: auth0|u7
+      claims:
+        groups:
+          - eng
+    payload:
+      name: asana_get_task
+      text:
+        - "Employee note SSN 123-45-6789 on file"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Employee note SSN [REDACTED-SSN] on file"
+
+- description: Community asana_get_task_stories (comment reader, behind underscore-separated gateway prefix) is in scope.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: mcp_asana_get_task_stories
+      uri: null
+    subject:
+      sub: auth0|u8
+      claims:
+        groups:
+          - eng
+    payload:
+      name: mcp_asana_get_task_stories
+      text:
+        - "Comment: reach me at jane@acme.com"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Comment: reach me at [REDACTED-EMAIL]"
+
+- description: Community asana_get_multiple_tasks_by_gid is in scope and redacted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: asana_get_multiple_tasks_by_gid
+      uri: null
+    subject:
+      sub: auth0|u9
+      claims:
+        groups:
+          - eng
+    payload:
+      name: asana_get_multiple_tasks_by_gid
+      text:
+        - "Task batch: phone 206-555-0100"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Task batch: phone [REDACTED-PHONE]"
+
+- description: Community asana_get_project_status (singular) is matched by its own suffix and redacted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: asana_get_project_status
+      uri: null
+    subject:
+      sub: auth0|u10
+      claims:
+        groups:
+          - eng
+    payload:
+      name: asana_get_project_status
+      text:
+        - "Project update: contact jane@acme.com"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Project update: contact [REDACTED-EMAIL]"
+
+- description: Community asana_get_project_statuses (plural) is matched by its own distinct suffix (the singular is not a suffix of the plural).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: asana_get_project_statuses
+      uri: null
+    subject:
+      sub: auth0|u11
+      claims:
+        groups:
+          - eng
+    payload:
+      name: asana_get_project_statuses
+      text:
+        - "History: SSN 123-45-6789 mentioned in Q1"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "History: SSN [REDACTED-SSN] mentioned in Q1"
+
+- description: Community asana_search_tasks is in scope and redacted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: asana_search_tasks
+      uri: null
+    subject:
+      sub: auth0|u12
+      claims:
+        groups:
+          - eng
+    payload:
+      name: asana_search_tasks
+      text:
+        - "Match: IBAN DE89370400440532013000"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Match: IBAN [REDACTED-IBAN]"
+
+- description: Prefix-less official tool name (bare get_task, no server prefix) is in scope via the n==s equality branch.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: get_task
+      uri: null
+    subject:
+      sub: auth0|u13
+      claims:
+        groups:
+          - eng
+    payload:
+      name: get_task
+      text:
+        - "contact jane@acme.com"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "contact [REDACTED-EMAIL]"
+
+# ---- Block-level behavior ----
+
+- description: Only the block that contains PII is rewritten; clean blocks pass through unchanged.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: asana-mcp-get_task
+      uri: null
+    subject:
+      sub: auth0|u14
+      claims:
+        groups:
+          - eng
+    payload:
+      name: asana-mcp-get_task
+      text:
+        - "Task name: Roadmap v1.2.3"
+        - "Escalation contact: 206-555-0100"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Task name: Roadmap v1.2.3"
+      - "Escalation contact: [REDACTED-PHONE]"
+
+- description: MCP-standard structured text block {type:text, text:...} — the inner `text` is redacted and `type` preserved.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: asana-mcp-get_task
+      uri: null
+    subject:
+      sub: auth0|u15
+      claims:
+        groups:
+          - eng
+    payload:
+      name: asana-mcp-get_task
+      text:
+        - type: text
+          text: "Owner jane@acme.com, SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - text: "Owner [REDACTED-EMAIL], SSN [REDACTED-SSN]"
+        type: text
+
+# ---- Group exemption branches ----
+
+- description: Exempt caller (groups array contains privacy-officer) — read passes through unredacted, no transform.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: asana-mcp-get_task
+      uri: null
+    subject:
+      sub: auth0|u16
+      claims:
+        groups:
+          - privacy-officer
+    payload:
+      name: asana-mcp-get_task
+      text:
+        - "SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Exempt caller with a bare-string groups claim (privacy-officer) — the string branch matches, no transform.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: asana-mcp-get_task
+      uri: null
+    subject:
+      sub: auth0|u17
+      claims:
+        groups: privacy-officer
+    payload:
+      name: asana-mcp-get_task
+      text:
+        - "SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Exemption match is case-insensitive — uppercase PRIVACY-OFFICER is exempt, no transform.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: asana-mcp-get_task
+      uri: null
+    subject:
+      sub: auth0|u18
+      claims:
+        groups:
+          - staff
+          - PRIVACY-OFFICER
+    payload:
+      name: asana-mcp-get_task
+      text:
+        - "SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Fail closed for the exemption grant — subject has no claims, so redaction applies.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: asana-mcp-get_task
+      uri: null
+    subject:
+      sub: auth0|u19
+    payload:
+      name: asana-mcp-get_task
+      text:
+        - "SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "SSN [REDACTED-SSN]"
+
+# ---- Out-of-scope / negatives ----
+
+- description: Out-of-scope read (get_project returns project metadata, not task bodies) — no transform even with an SSN present.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: asana-mcp-get_project
+      uri: null
+    subject:
+      sub: auth0|u20
+      claims:
+        groups:
+          - eng
+    payload:
+      name: asana-mcp-get_project
+      text:
+        - "SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Red-team over-match guard: separator-anchored matching means `get_task` does NOT match a tool ending in `forget_task` — out of scope, no transform."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: asana-mcp-forget_task
+      uri: null
+    subject:
+      sub: auth0|u21
+      claims:
+        groups:
+          - eng
+    payload:
+      name: asana-mcp-forget_task
+      text:
+        - "SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "get_tasks has its own distinct suffix (not caught by the get_task suffix) — redaction still fires, confirming the two are treated as separate suffixes."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: asana-mcp-get_tasks
+      uri: null
+    subject:
+      sub: auth0|u22
+      claims:
+        groups:
+          - eng
+    payload:
+      name: asana-mcp-get_tasks
+      text:
+        - "SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "SSN [REDACTED-SSN]"
+
+- description: Conservative-regex negatives — a numeric Asana GID, a dotted version string, and a space-grouped IBAN print form are NOT redacted, so a clean task read passes through byte-identical.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: asana-mcp-get_task
+      uri: null
+    subject:
+      sub: auth0|u23
+      claims:
+        groups:
+          - eng
+    payload:
+      name: asana-mcp-get_task
+      text:
+        - "Task GID 1201234567890123, version 1.2.3, IBAN DE89 3704 0044 0532 0130 00"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Non-string (structured/JSON) content block with PII under a non-`text` key passes through the redact_block guards unmodified — no transform.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: asana-mcp-get_task
+      uri: null
+    subject:
+      sub: auth0|u24
+      claims:
+        groups:
+          - eng
+    payload:
+      name: asana-mcp-get_task
+      text:
+        - field: ssn
+          value: "123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: In-scope tool but content carries no PII — response passes through byte-identical, no transform.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: asana-mcp-get_task
+      uri: null
+    subject:
+      sub: auth0|u25
+      claims:
+        groups:
+          - eng
+    payload:
+      name: asana-mcp-get_task
+      text:
+        - "The launch task is ready for review."
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Ingress hook (mode input) is never in scope — the same read tool + SSN produces no transform on the pre-invoke path.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: asana-mcp-get_task
+      uri: null
+    subject:
+      sub: auth0|u26
+      claims:
+        groups:
+          - eng
+    payload:
+      name: asana-mcp-get_task
+      args:
+        task_id: "123"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+# ---- Red-team regression cases (reviewer, standards §10) ----
+
+- description: "Red-team: egress with action=tool_post_invoke but mode unset — is_egress still matches on action, so redaction fires (no fail-open leak)."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    resource:
+      type: tool
+      name: asana-mcp-get_task
+      uri: null
+    subject:
+      sub: auth0|u27
+      claims:
+        groups:
+          - eng
+    payload:
+      name: asana-mcp-get_task
+      text:
+        - "SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "SSN [REDACTED-SSN]"
+
+- description: "Red-team: object-shaped groups claim {department: privacy-officer} must NOT grant the exemption — the is_array guard fails it closed, so redaction still applies."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: asana-mcp-get_task
+      uri: null
+    subject:
+      sub: auth0|u28
+      claims:
+        groups:
+          department: privacy-officer
+    payload:
+      name: asana-mcp-get_task
+      text:
+        - "SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "SSN [REDACTED-SSN]"
+
+- description: "Red-team: nested-array groups [[privacy-officer]] is not a flat array of strings — the is_string(g) guard fails it closed (not exempt), redaction applies."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: asana-mcp-get_task
+      uri: null
+    subject:
+      sub: auth0|u29
+      claims:
+        groups:
+          - - privacy-officer
+    payload:
+      name: asana-mcp-get_task
+      text:
+        - "SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "SSN [REDACTED-SSN]"
+
+- description: "Red-team: egress that leaks what an ingress project fence would block — a restricted HR-task body with SSN + email + phone + IBAN is still fully redacted, since this policy runs regardless of the ingress verdict."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: asana-mcp-get_task
+      uri: null
+    subject:
+      sub: auth0|u30
+      claims:
+        groups:
+          - eng
+    payload:
+      name: asana-mcp-get_task
+      text:
+        - "HR task leak: SSN 123-45-6789, jane@acme.com, 206-555-0100, IBAN GB29NWBK60161331926819"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "HR task leak: SSN [REDACTED-SSN], [REDACTED-EMAIL], [REDACTED-PHONE], IBAN [REDACTED-IBAN]"
+
+- description: "Red-team DOCUMENTED residual: off-spec scalar `text` (a bare string, not an array) fails the is_array transform guard — no transform fires and the SSN passes through (fail-open on a shape off the documented gateway contract)."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: asana-mcp-get_task
+      uri: null
+    subject:
+      sub: auth0|u31
+      claims:
+        groups:
+          - eng
+    payload:
+      name: asana-mcp-get_task
+      text: "Task note SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Red-team DOCUMENTED residual: full-width Unicode-digit SSN is not matched — RE2 `\\d` is ASCII-only, so the identifier streams through unredacted (no transform)."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: asana-mcp-get_task
+      uri: null
+    subject:
+      sub: auth0|u32
+      claims:
+        groups:
+          - eng
+    payload:
+      name: asana-mcp-get_task
+      text:
+        - "Full-width SSN １２３-４５-６７８９ on file"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Red-team DOCUMENTED residual (word-boundary adjacency): an SSN wrapped in Markdown italics underscores (_123-45-6789_) is NOT redacted — `_` is a regex word char, so the `\\b` anchor finds no boundary."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: asana-mcp-get_task_stories
+      uri: null
+    subject:
+      sub: auth0|u33
+      claims:
+        groups:
+          - eng
+    payload:
+      name: asana-mcp-get_task_stories
+      text:
+        - "contact _123-45-6789_ now"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Red-team DOCUMENTED residual: tool name present only under tool_metadata.name (resource.name empty) is NOT matched — this policy reads only resource.name, so the SSN streams through (documented single-surface limitation)."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: ""
+      uri: null
+    tool_metadata:
+      name: asana-mcp-get_task
+    subject:
+      sub: auth0|u34
+      claims:
+        groups:
+          - eng
+    payload:
+      name: asana-mcp-get_task
+      text:
+        - "SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Red-team FIX: parenthesized area code with NO separator before the local number (`(206)555-0100`) is now redacted — the doc listed the spaced `(206) 555-0100` form as supported, but the pre-fix pattern required a separator after `)` and leaked this equally common form."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: asana-mcp-get_task
+      uri: null
+    subject:
+      sub: auth0|u35
+      claims:
+        groups:
+          - eng
+    payload:
+      name: asana-mcp-get_task
+      text:
+        - "Vendor contact (206)555-0100 on the SOW"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Vendor contact [REDACTED-PHONE] on the SOW"
+
+- description: "Red-team DOCUMENTED residual: non-hyphenated SSN forms (space `123 45 6789`, dot `123.45.6789`) are NOT matched — the pattern is hyphenated-only by design (bare/space/dot runs collide with GIDs and version strings), so these stream through (no transform)."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: asana-mcp-get_task
+      uri: null
+    subject:
+      sub: auth0|u36
+      claims:
+        groups:
+          - eng
+    payload:
+      name: asana-mcp-get_task
+      text:
+        - "SSN candidates 123 45 6789 and 123.45.6789 on file"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Red-team FIX (scope bypass): get_my_tasks (official) returns task notes with the same free-text as get_task — previously out of scope, an agent could sidestep redaction by reading tasks via get_my_tasks. Now in scope: SSN + email are redacted."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: asana-mcp-get_my_tasks
+      uri: null
+    subject:
+      sub: auth0|u37
+      claims:
+        groups:
+          - eng
+    payload:
+      name: asana-mcp-get_my_tasks
+      text:
+        - "My task note: SSN 123-45-6789, ping jane@acme.com"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "My task note: SSN [REDACTED-SSN], ping [REDACTED-EMAIL]"
+
+- description: "Red-team FIX (scope bypass): community asana_get_my_tasks (behind gateway prefix) is now in scope via the get_my_tasks suffix — phone in the response is redacted."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: mcp_asana_get_my_tasks
+      uri: null
+    subject:
+      sub: auth0|u38
+      claims:
+        groups:
+          - eng
+    payload:
+      name: mcp_asana_get_my_tasks
+      text:
+        - "Reminder: call 206-555-0100"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Reminder: call [REDACTED-PHONE]"
+
+- description: "Red-team FIX (scope bypass): community asana_get_subtasks returns subtask notes — now in scope, the SSN is redacted rather than leaking via the subtask reader."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: asana_get_subtasks
+      uri: null
+    subject:
+      sub: auth0|u39
+      claims:
+        groups:
+          - eng
+    payload:
+      name: asana_get_subtasks
+      text:
+        - "Subtask: applicant SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Subtask: applicant SSN [REDACTED-SSN]"
+
+- description: "Red-team FIX (scope bypass): community asana_get_tasks_for_project enumerates every task in a project with notes — now in scope, the email is redacted instead of streaming a whole project's PII unmasked."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: asana_get_tasks_for_project
+      uri: null
+    subject:
+      sub: auth0|u40
+      claims:
+        groups:
+          - eng
+    payload:
+      name: asana_get_tasks_for_project
+      text:
+        - "Project task owner jane@acme.com"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Project task owner [REDACTED-EMAIL]"
+
+- description: "Regression: get_project (project metadata, not task bodies) remains OUT of scope after the get_my_tasks/get_subtasks scope expansion — no transform even with an SSN present (documented boundary)."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: asana-mcp-get_project
+      uri: null
+    subject:
+      sub: auth0|u41
+      claims:
+        groups:
+          - eng
+    payload:
+      name: asana-mcp-get_project
+      text:
+        - "Project SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: false

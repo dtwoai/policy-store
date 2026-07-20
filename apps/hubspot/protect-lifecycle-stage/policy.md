@@ -23,6 +23,17 @@ description: |
   — is denied. Non-contact objects, contact edits that don't touch
   `lifecyclestage`, and all other tools pass through unchanged.
 
+  ## Compliance alignment
+
+  - **SOC 2 PI1.2** — inputs complete, accurate, and authorized: lifecycle stage
+    is a processing-integrity-critical input to lead routing and funnel
+    reporting; agent writes to it are unauthorized by default.
+  - **GDPR Art. 5(1)(b)** — purpose limitation: lifecycle stage enrolls contacts
+    in marketing automation, so an agent-set stage can repurpose personal data
+    into new automated communications; blocking it keeps that a human decision.
+  - **GDPR Art. 5(1)(d)** — accuracy: prevents agent mass-corruption of a field
+    that drives automated outreach to data subjects.
+
   ## Why ingress
 
   Lifecycle stage drives marketing automation, lead routing, and funnel
@@ -113,6 +124,8 @@ description: |
   - **No identity-based exemptions.** All callers are treated the same. To allow a
     break-glass role to change lifecycle stages, add an `allow if` branch gated on
     `input.subject.claims`.
+
+  > **Compliance note.** This policy supports alignment with the cited framework controls **on the MCP path only**. No policy or bundle makes an organization compliant with any framework; web-UI, native-API, and in-app access are outside the gateway's reach by design. Validate against your own compliance program before relying on it.
 direction: ingress
 apps:
   - hubspot

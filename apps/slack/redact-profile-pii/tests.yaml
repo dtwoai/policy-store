@@ -1,0 +1,371 @@
+- description: Official slack_read_user_profile response with no subject at all
+    (no IdP configured). Exemption must fail closed, so the redaction transform
+    applies. Asserts the exact transform fields.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: slack-mcp-slack_read_user_profile
+      uri: null
+    tool_metadata:
+      name: slack-mcp-slack_read_user_profile
+    payload:
+      name: slack-mcp-slack_read_user_profile
+      text:
+        - '{"user_id":"U024BE7LH","display_name":"jane","email":"jane@corp.example","phone":"+1 555 123 4567","fields":{"Xf06":{"value":"Manager: Bob"}}}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transform:
+    redact_fields: ["email", "phone", "fields"]
+    replacement: "[REDACTED]"
+- description: Caller whose groups claim contains people-ops reads a user
+    profile. Exempt — no transform, unredacted profile returned.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: slack-mcp-slack_read_user_profile
+      uri: null
+    tool_metadata:
+      name: slack-mcp-slack_read_user_profile
+    subject:
+      sub: google-apps|hrbp@corp.example
+      claims:
+        groups:
+          - people-ops
+          - everyone
+    payload:
+      name: slack-mcp-slack_read_user_profile
+      text:
+        - '{"user_id":"U024BE7LH","email":"jane@corp.example"}'
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Official slack_search_users response for a caller in an
+    unrelated group (engineering). Not exempt — transform applies.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: slack-mcp-slack_search_users
+      uri: null
+    tool_metadata:
+      name: slack-mcp-slack_search_users
+    subject:
+      sub: google-apps|dev@corp.example
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: slack-mcp-slack_search_users
+      text:
+        - '[{"id":"U024BE7LH","name":"jane","profile":{"email":"jane@corp.example"}}]'
+  output:
+    expectedResult: allow
+  transformApplied: true
+- description: Archived reference server slack_get_user_profile (hyphen-joined
+    gateway prefix). Suffix matches after normalization — transform applies.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: slack-legacy-slack_get_user_profile
+      uri: null
+    tool_metadata:
+      name: slack-legacy-slack_get_user_profile
+    subject:
+      sub: google-apps|dev@corp.example
+      claims:
+        groups: []
+    payload:
+      name: slack-legacy-slack_get_user_profile
+      text:
+        - '{"profile":{"email":"jane@corp.example","phone":"555-123-4567"}}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+- description: Archived reference server slack_get_users (bulk user list — the
+    directory-harvesting tool). Transform applies.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: slack-legacy-slack_get_users
+      uri: null
+    tool_metadata:
+      name: slack-legacy-slack_get_users
+    payload:
+      name: slack-legacy-slack_get_users
+      text:
+        - '[{"id":"U1","profile":{"email":"a@corp.example"}},{"id":"U2","profile":{"email":"b@corp.example"}}]'
+  output:
+    expectedResult: allow
+  transformApplied: true
+- description: korotovsky users_search response. Suffix matches — transform
+    applies.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: slack-community-users_search
+      uri: null
+    tool_metadata:
+      name: slack-community-users_search
+    payload:
+      name: slack-community-users_search
+      text:
+        - '{"users":[{"id":"U024BE7LH","real_name":"Jane Doe","email":"jane@corp.example"}]}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+- description: Non-profile Slack tool (slack_send_message) on egress. Out of
+    scope — no transform.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: slack-mcp-slack_send_message
+      uri: null
+    tool_metadata:
+      name: slack-mcp-slack_send_message
+    payload:
+      name: slack-mcp-slack_send_message
+      text:
+        - '{"ok":true,"ts":"1720000000.000100"}'
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Malformed groups claim — a single string "people-ops" instead of
+    an array. Exemption must fail closed, so the transform still applies.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: slack-mcp-slack_read_user_profile
+      uri: null
+    tool_metadata:
+      name: slack-mcp-slack_read_user_profile
+    subject:
+      sub: google-apps|hrbp@corp.example
+      claims:
+        groups: people-ops
+    payload:
+      name: slack-mcp-slack_read_user_profile
+      text:
+        - '{"user_id":"U024BE7LH","email":"jane@corp.example"}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+- description: Claims present but no groups key (audience mismatch or IdP that
+    does not emit groups). Fails closed — transform applies.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: slack-mcp-slack_read_user_profile
+      uri: null
+    tool_metadata:
+      name: slack-mcp-slack_read_user_profile
+    subject:
+      sub: google-apps|dev@corp.example
+      claims:
+        org_id: org_g6zdgXkQGLlQPa37
+    payload:
+      name: slack-mcp-slack_read_user_profile
+      text:
+        - '{"user_id":"U024BE7LH","email":"jane@corp.example"}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+- description: Object-shaped groups claim ({"role":"people-ops"}) attempting to
+    spoof the exemption via a value match. The is_array guard rejects it, so the
+    exemption fails closed and the transform still applies.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: slack-mcp-slack_read_user_profile
+      uri: null
+    tool_metadata:
+      name: slack-mcp-slack_read_user_profile
+    subject:
+      sub: google-apps|attacker@corp.example
+      claims:
+        groups:
+          role: people-ops
+    payload:
+      name: slack-mcp-slack_read_user_profile
+      text:
+        - '{"user_id":"U024BE7LH","email":"jane@corp.example"}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+- description: Group name with different casing (People-Ops). The exemption
+    match is exact and case-sensitive, so the transform still applies.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: slack-mcp-slack_read_user_profile
+      uri: null
+    tool_metadata:
+      name: slack-mcp-slack_read_user_profile
+    subject:
+      sub: google-apps|hrbp@corp.example
+      claims:
+        groups:
+          - People-Ops
+    payload:
+      name: slack-mcp-slack_read_user_profile
+      text:
+        - '{"user_id":"U024BE7LH","email":"jane@corp.example"}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+- description: Uppercase tool name variant. Matching is case-insensitive, so
+    the transform applies.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: SLACK-MCP-SLACK_READ_USER_PROFILE
+      uri: null
+    tool_metadata:
+      name: SLACK-MCP-SLACK_READ_USER_PROFILE
+    payload:
+      name: SLACK-MCP-SLACK_READ_USER_PROFILE
+      text:
+        - '{"user_id":"U024BE7LH","email":"jane@corp.example"}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+- description: Tool name only available via tool_metadata (resource block
+    absent). The tool_metadata branch matches — transform applies.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    tool_metadata:
+      name: slack-mcp-slack_read_user_profile
+    payload:
+      name: slack-mcp-slack_read_user_profile
+      text:
+        - '{"user_id":"U024BE7LH","email":"jane@corp.example"}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+- description: Ingress pre-invoke call to the same profile tool (mode input).
+    Egress-only policy — no transform on the request path.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-slack_read_user_profile
+      uri: null
+    payload:
+      name: slack-mcp-slack_read_user_profile
+      args:
+        user_id: U024BE7LH
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Red-team — egress hook with mode unset (only action=tool_post_invoke).
+    Redaction must not fail open on a missing mode field; the action fallback
+    keeps the transform firing.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    resource:
+      type: tool
+      name: slack-mcp-slack_read_user_profile
+      uri: null
+    payload:
+      name: slack-mcp-slack_read_user_profile
+      text:
+        - '{"user_id":"U024BE7LH","email":"jane@corp.example"}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+- description: Red-team — tool name carries a trailing newline. Normalization
+    trims surrounding whitespace before the suffix match, so the transform still
+    applies (whitespace no longer defeats matching).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: "slack-mcp-slack_read_user_profile\n"
+      uri: null
+    tool_metadata:
+      name: "slack-mcp-slack_read_user_profile\n"
+    payload:
+      name: "slack-mcp-slack_read_user_profile\n"
+      text:
+        - '{"user_id":"U024BE7LH","email":"jane@corp.example"}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+- description: Red-team — tool name only available via the legacy payload.name
+    alias (resource and tool_metadata absent). The payload.name candidate source
+    matches, so the transform applies.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    payload:
+      name: slack-mcp-slack_read_user_profile
+      text:
+        - '{"user_id":"U024BE7LH","email":"jane@corp.example"}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+- description: Red-team (documented limitation) — a versioned/renamed profile
+    tool whose suffix is not in the allowlist (slack_read_user_profile_v2) is NOT
+    matched, so no transform is emitted and the profile passes through
+    unredacted. This asserts the tool-name-drift fail-open boundary documented
+    under Known limitations; extend profile_tool_suffixes to cover it.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: slack-mcp-slack_read_user_profile_v2
+      uri: null
+    tool_metadata:
+      name: slack-mcp-slack_read_user_profile_v2
+    payload:
+      name: slack-mcp-slack_read_user_profile_v2
+      text:
+        - '{"user_id":"U024BE7LH","email":"jane@corp.example"}'
+  output:
+    expectedResult: allow
+  transformApplied: false

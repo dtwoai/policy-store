@@ -1,0 +1,289 @@
+- description: Ordinary ms365 tool (send-mail) is not the batch passthrough. Policy
+    should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-send-mail
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - finance
+    payload:
+      name: ms365-send-mail
+      args:
+        body:
+          Message:
+            subject: Q3 numbers
+  output:
+    expectedResult: allow
+- description: Non-admin caller invokes the live graph-batch tool. Policy should deny
+    with the escape-hatch reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-graph-batch
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - finance
+    payload:
+      name: ms365-graph-batch
+      args:
+        requests:
+          - method: DELETE
+            url: /groups/0fabc123
+            body: {}
+  output:
+    expectedResult: deny
+    expectedReason: "The raw Graph batch tool is disabled: one batch call can reach any Microsoft Graph endpoint and bypass per-tool policies. Use the specific Microsoft 365 tool for your task instead (for example send-mail, get-drive-item, or list-mail-messages). If you have a legitimate batch workflow, contact your administrator to request access."
+- description: Caller in the placeholder m365-admin group is exempt. Policy should
+    allow the batch tool.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-graph-batch
+      uri: null
+    subject:
+      sub: admin@example.com
+      claims:
+        groups:
+          - m365-admin
+    payload:
+      name: ms365-graph-batch
+      args:
+        requests:
+          - method: GET
+            url: /me
+  output:
+    expectedResult: allow
+- description: Admin group among several other groups still exempts the caller.
+    Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-graph-batch
+      uri: null
+    subject:
+      sub: admin@example.com
+      claims:
+        groups:
+          - finance
+          - m365-admin
+          - hr
+    payload:
+      name: ms365-graph-batch
+      args:
+        requests: []
+  output:
+    expectedResult: allow
+- description: No subject at all (no IdP / unauthenticated context). Exemption must
+    fail closed — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-graph-batch
+      uri: null
+    payload:
+      name: ms365-graph-batch
+      args:
+        requests:
+          - method: POST
+            url: /me/sendMail
+            body: {}
+  output:
+    expectedResult: deny
+    expectedReason: "The raw Graph batch tool is disabled: one batch call can reach any Microsoft Graph endpoint and bypass per-tool policies. Use the specific Microsoft 365 tool for your task instead (for example send-mail, get-drive-item, or list-mail-messages). If you have a legitimate batch workflow, contact your administrator to request access."
+- description: Subject present but claims empty (audience mismatch or claims not yet
+    discovered). No groups means no exemption — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-graph-batch
+      uri: null
+    subject:
+      sub: user@example.com
+      claims: {}
+    payload:
+      name: ms365-graph-batch
+      args:
+        requests: []
+  output:
+    expectedResult: deny
+    expectedReason: "The raw Graph batch tool is disabled: one batch call can reach any Microsoft Graph endpoint and bypass per-tool policies. Use the specific Microsoft 365 tool for your task instead (for example send-mail, get-drive-item, or list-mail-messages). If you have a legitimate batch workflow, contact your administrator to request access."
+- description: Groups claim with the wrong shape (a plain string instead of an array)
+    must not grant the exemption — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-graph-batch
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups: m365-admin
+    payload:
+      name: ms365-graph-batch
+      args:
+        requests: []
+  output:
+    expectedResult: deny
+    expectedReason: "The raw Graph batch tool is disabled: one batch call can reach any Microsoft Graph endpoint and bypass per-tool policies. Use the specific Microsoft 365 tool for your task instead (for example send-mail, get-drive-item, or list-mail-messages). If you have a legitimate batch workflow, contact your administrator to request access."
+- description: Uppercase/mixed-case tool name still matches (case-insensitive suffix
+    match) — deny for non-admins.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: MS365-Graph-Batch
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - finance
+    payload:
+      name: MS365-Graph-Batch
+      args:
+        requests: []
+  output:
+    expectedResult: deny
+    expectedReason: "The raw Graph batch tool is disabled: one batch call can reach any Microsoft Graph endpoint and bypass per-tool policies. Use the specific Microsoft 365 tool for your task instead (for example send-mail, get-drive-item, or list-mail-messages). If you have a legitimate batch workflow, contact your administrator to request access."
+- description: Different gateway server-name prefix (contoso-graph) still matches by
+    suffix — deny for non-admins.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: contoso-graph-m365-graph-batch
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups: []
+    payload:
+      name: contoso-graph-m365-graph-batch
+      args:
+        requests: []
+  output:
+    expectedResult: deny
+    expectedReason: "The raw Graph batch tool is disabled: one batch call can reach any Microsoft Graph endpoint and bypass per-tool policies. Use the specific Microsoft 365 tool for your task instead (for example send-mail, get-drive-item, or list-mail-messages). If you have a legitimate batch workflow, contact your administrator to request access."
+- description: Lokka-style passthrough tool (Lokka-Microsoft) does NOT match this
+    policy's suffix — allowed here, documented as out of scope in Known limitations.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: lokka-Lokka-Microsoft
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - finance
+    payload:
+      name: lokka-Lokka-Microsoft
+      args:
+        apiType: graph
+        method: post
+        path: /me/sendMail
+  output:
+    expectedResult: allow
+- description: "Red-team: bare un-prefixed tool name (server fronted with no prefix)
+    is the server's own name graph-batch, which does not end with a leading-hyphen
+    -graph-batch. Must still be caught (exact match) — deny for non-admins."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: graph-batch
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - finance
+    payload:
+      name: graph-batch
+      args:
+        requests:
+          - method: POST
+            url: /me/sendMail
+            body: {}
+  output:
+    expectedResult: deny
+    expectedReason: "The raw Graph batch tool is disabled: one batch call can reach any Microsoft Graph endpoint and bypass per-tool policies. Use the specific Microsoft 365 tool for your task instead (for example send-mail, get-drive-item, or list-mail-messages). If you have a legitimate batch workflow, contact your administrator to request access."
+- description: "Red-team: bare un-prefixed graph-batch with mixed case (GRAPH-BATCH)
+    still matches (case-insensitive exact) — deny for non-admins."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: GRAPH-BATCH
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups: []
+    payload:
+      name: GRAPH-BATCH
+      args:
+        requests: []
+  output:
+    expectedResult: deny
+    expectedReason: "The raw Graph batch tool is disabled: one batch call can reach any Microsoft Graph endpoint and bypass per-tool policies. Use the specific Microsoft 365 tool for your task instead (for example send-mail, get-drive-item, or list-mail-messages). If you have a legitimate batch workflow, contact your administrator to request access."
+- description: Bare un-prefixed graph-batch is still exempt for the admin group.
+    Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: graph-batch
+      uri: null
+    subject:
+      sub: admin@example.com
+      claims:
+        groups:
+          - m365-admin
+    payload:
+      name: graph-batch
+      args:
+        requests: []
+  output:
+    expectedResult: allow

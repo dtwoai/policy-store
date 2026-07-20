@@ -1,0 +1,549 @@
+- description: Non-destructive community-server tool (file info) passes through untouched.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-mcp-box_file_info_tool
+      uri: null
+    payload:
+      name: box-mcp-box_file_info_tool
+      args:
+        file_id: "1234567890"
+  output:
+    expectedResult: allow
+- description: Official remote-server tool name (no box_..._tool suffix) is unaffected —
+    the policy is a no-op on mcp.box.com deployments.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-remote-upload_file
+      uri: null
+    payload:
+      name: box-remote-upload_file
+      args:
+        parent_folder_id: "0"
+  output:
+    expectedResult: allow
+- description: File delete with no subject/claims at all — exemption fails closed, deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-mcp-box_file_delete_tool
+      uri: null
+    payload:
+      name: box-mcp-box_file_delete_tool
+      args:
+        file_id: "1234567890"
+  output:
+    expectedResult: deny
+    expectedReason: "Deleting Box files, folders, or collaborations, removing shared links, and clearing retention dates are restricted to the box-admins group. Box trash makes deletions recoverable, but content destruction and retention tampering by an agent are out of policy. Perform the action manually in the Box web app, or ask a box-admins member. Contact your InfoSec team if this block is a false positive."
+- description: File delete by a caller whose groups claim lacks box-admins — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-mcp-box_file_delete_tool
+      uri: null
+    subject:
+      sub: auth0|analyst@example.com
+      claims:
+        groups:
+          - finance
+          - engineering
+    payload:
+      name: box-mcp-box_file_delete_tool
+      args:
+        file_id: "1234567890"
+  output:
+    expectedResult: deny
+    expectedReason: "Deleting Box files, folders, or collaborations, removing shared links, and clearing retention dates are restricted to the box-admins group. Box trash makes deletions recoverable, but content destruction and retention tampering by an agent are out of policy. Perform the action manually in the Box web app, or ask a box-admins member. Contact your InfoSec team if this block is a false positive."
+- description: File delete by a box-admins member — group exemption allows the single delete.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-mcp-box_file_delete_tool
+      uri: null
+    subject:
+      sub: auth0|admin@example.com
+      claims:
+        groups:
+          - box-admins
+    payload:
+      name: box-mcp-box_file_delete_tool
+      args:
+        file_id: "1234567890"
+  output:
+    expectedResult: allow
+- description: Recursive folder delete by a non-admin — denied with the unconditional
+    recursive reason (not the group reason).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-mcp-box_folder_delete_tool
+      uri: null
+    subject:
+      sub: auth0|analyst@example.com
+      claims:
+        groups:
+          - finance
+    payload:
+      name: box-mcp-box_folder_delete_tool
+      args:
+        folder_id: "987654321"
+        recursive: true
+  output:
+    expectedResult: deny
+    expectedReason: "Recursive folder deletion is the most destructive Box operation and is blocked for every caller, including box-admins. Box trash makes deletions recoverable, but bulk deletion by an agent is out of policy. If the folder tree must go, delete it manually in the Box web app so a human owns the decision. Contact your InfoSec team if this block is a false positive."
+- description: Recursive folder delete by a box-admins member — still denied; the group
+    exemption never applies to recursive deletion.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-mcp-box_folder_delete_tool
+      uri: null
+    subject:
+      sub: auth0|admin@example.com
+      claims:
+        groups:
+          - box-admins
+    payload:
+      name: box-mcp-box_folder_delete_tool
+      args:
+        folder_id: "987654321"
+        recursive: true
+  output:
+    expectedResult: deny
+    expectedReason: "Recursive folder deletion is the most destructive Box operation and is blocked for every caller, including box-admins. Box trash makes deletions recoverable, but bulk deletion by an agent is out of policy. If the folder tree must go, delete it manually in the Box web app so a human owns the decision. Contact your InfoSec team if this block is a false positive."
+- description: Folder delete with recursive absent (defaults false) by a non-admin —
+    denied via the group-gated branch.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-mcp-box_folder_delete_tool
+      uri: null
+    subject:
+      sub: auth0|analyst@example.com
+      claims:
+        groups:
+          - finance
+    payload:
+      name: box-mcp-box_folder_delete_tool
+      args:
+        folder_id: "987654321"
+  output:
+    expectedResult: deny
+    expectedReason: "Deleting Box files, folders, or collaborations, removing shared links, and clearing retention dates are restricted to the box-admins group. Box trash makes deletions recoverable, but content destruction and retention tampering by an agent are out of policy. Perform the action manually in the Box web app, or ask a box-admins member. Contact your InfoSec team if this block is a false positive."
+- description: Non-recursive folder delete (recursive explicitly false) by a box-admins
+    member — allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-mcp-box_folder_delete_tool
+      uri: null
+    subject:
+      sub: auth0|admin@example.com
+      claims:
+        groups:
+          - box-admins
+    payload:
+      name: box-mcp-box_folder_delete_tool
+      args:
+        folder_id: "987654321"
+        recursive: false
+  output:
+    expectedResult: allow
+- description: Collaboration delete by a non-admin — denied (sharing-state destruction).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-mcp-box_collaboration_delete_tool
+      uri: null
+    subject:
+      sub: auth0|analyst@example.com
+      claims:
+        groups:
+          - finance
+    payload:
+      name: box-mcp-box_collaboration_delete_tool
+      args:
+        collaboration_id: "555555"
+  output:
+    expectedResult: deny
+    expectedReason: "Deleting Box files, folders, or collaborations, removing shared links, and clearing retention dates are restricted to the box-admins group. Box trash makes deletions recoverable, but content destruction and retention tampering by an agent are out of policy. Perform the action manually in the Box web app, or ask a box-admins member. Contact your InfoSec team if this block is a false positive."
+- description: Shared-link removal on a file by a non-admin — denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-mcp-box_shared_link_file_remove_tool
+      uri: null
+    subject:
+      sub: auth0|analyst@example.com
+      claims:
+        groups:
+          - finance
+    payload:
+      name: box-mcp-box_shared_link_file_remove_tool
+      args:
+        file_id: "1234567890"
+  output:
+    expectedResult: deny
+    expectedReason: "Deleting Box files, folders, or collaborations, removing shared links, and clearing retention dates are restricted to the box-admins group. Box trash makes deletions recoverable, but content destruction and retention tampering by an agent are out of policy. Perform the action manually in the Box web app, or ask a box-admins member. Contact your InfoSec team if this block is a false positive."
+- description: Shared-link removal folder mirror by a non-admin — denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-mcp-box_shared_link_folder_remove_tool
+      uri: null
+    subject:
+      sub: auth0|analyst@example.com
+      claims:
+        groups:
+          - finance
+    payload:
+      name: box-mcp-box_shared_link_folder_remove_tool
+      args:
+        folder_id: "987654321"
+  output:
+    expectedResult: deny
+    expectedReason: "Deleting Box files, folders, or collaborations, removing shared links, and clearing retention dates are restricted to the box-admins group. Box trash makes deletions recoverable, but content destruction and retention tampering by an agent are out of policy. Perform the action manually in the Box web app, or ask a box-admins member. Contact your InfoSec team if this block is a false positive."
+- description: Shared-link removal web-link mirror by a non-admin — denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-mcp-box_shared_link_web_link_remove_tool
+      uri: null
+    subject:
+      sub: auth0|analyst@example.com
+      claims:
+        groups:
+          - finance
+    payload:
+      name: box-mcp-box_shared_link_web_link_remove_tool
+      args:
+        web_link_id: "13579"
+  output:
+    expectedResult: deny
+    expectedReason: "Deleting Box files, folders, or collaborations, removing shared links, and clearing retention dates are restricted to the box-admins group. Box trash makes deletions recoverable, but content destruction and retention tampering by an agent are out of policy. Perform the action manually in the Box web app, or ask a box-admins member. Contact your InfoSec team if this block is a false positive."
+- description: Retention-date clear by a non-admin — denied (retention tampering).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-mcp-box_file_retention_date_clear_tool
+      uri: null
+    subject:
+      sub: auth0|analyst@example.com
+      claims:
+        groups:
+          - finance
+    payload:
+      name: box-mcp-box_file_retention_date_clear_tool
+      args:
+        file_id: "1234567890"
+  output:
+    expectedResult: deny
+    expectedReason: "Deleting Box files, folders, or collaborations, removing shared links, and clearing retention dates are restricted to the box-admins group. Box trash makes deletions recoverable, but content destruction and retention tampering by an agent are out of policy. Perform the action manually in the Box web app, or ask a box-admins member. Contact your InfoSec team if this block is a false positive."
+- description: Uppercase tool-name casing does not bypass the suffix match — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: BOX-MCP-BOX_FILE_DELETE_TOOL
+      uri: null
+    payload:
+      name: BOX-MCP-BOX_FILE_DELETE_TOOL
+      args:
+        file_id: "1234567890"
+  output:
+    expectedResult: deny
+    expectedReason: "Deleting Box files, folders, or collaborations, removing shared links, and clearing retention dates are restricted to the box-admins group. Box trash makes deletions recoverable, but content destruction and retention tampering by an agent are out of policy. Perform the action manually in the Box web app, or ask a box-admins member. Contact your InfoSec team if this block is a false positive."
+- description: Group-name casing is normalized — a Box-Admins membership still exempts
+    a single file delete.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-mcp-box_file_delete_tool
+      uri: null
+    subject:
+      sub: auth0|admin@example.com
+      claims:
+        groups:
+          - Box-Admins
+    payload:
+      name: box-mcp-box_file_delete_tool
+      args:
+        file_id: "1234567890"
+  output:
+    expectedResult: allow
+- description: "Red-team: string-typed recursive (\"true\") by a box-admins member is
+    treated as recursive and denied — a truthy string can no longer route a recursive
+    delete into the admin exemption branch."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-mcp-box_folder_delete_tool
+      uri: null
+    subject:
+      sub: auth0|admin@example.com
+      claims:
+        groups:
+          - box-admins
+    payload:
+      name: box-mcp-box_folder_delete_tool
+      args:
+        folder_id: "987654321"
+        recursive: "true"
+  output:
+    expectedResult: deny
+    expectedReason: "Recursive folder deletion is the most destructive Box operation and is blocked for every caller, including box-admins. Box trash makes deletions recoverable, but bulk deletion by an agent is out of policy. If the folder tree must go, delete it manually in the Box web app so a human owns the decision. Contact your InfoSec team if this block is a false positive."
+- description: "Red-team: alternate `is_recursive` key set true by a box-admins member is
+    treated as recursive and denied — the alias cannot slip a recursive delete past the
+    unconditional block."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-mcp-box_folder_delete_tool
+      uri: null
+    subject:
+      sub: auth0|admin@example.com
+      claims:
+        groups:
+          - box-admins
+    payload:
+      name: box-mcp-box_folder_delete_tool
+      args:
+        folder_id: "987654321"
+        is_recursive: true
+  output:
+    expectedResult: deny
+    expectedReason: "Recursive folder deletion is the most destructive Box operation and is blocked for every caller, including box-admins. Box trash makes deletions recoverable, but bulk deletion by an agent is out of policy. If the folder tree must go, delete it manually in the Box web app so a human owns the decision. Contact your InfoSec team if this block is a false positive."
+- description: "Red-team: alternate `is_recursive` key by a non-admin — also denied with
+    the recursive reason."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-mcp-box_folder_delete_tool
+      uri: null
+    subject:
+      sub: auth0|analyst@example.com
+      claims:
+        groups:
+          - finance
+    payload:
+      name: box-mcp-box_folder_delete_tool
+      args:
+        folder_id: "987654321"
+        is_recursive: true
+  output:
+    expectedResult: deny
+    expectedReason: "Recursive folder deletion is the most destructive Box operation and is blocked for every caller, including box-admins. Box trash makes deletions recoverable, but bulk deletion by an agent is out of policy. If the folder tree must go, delete it manually in the Box web app so a human owns the decision. Contact your InfoSec team if this block is a false positive."
+- description: "Non-recursive folder delete with the literal string \"false\" on recursive
+    by a box-admins member is still allowed — hardening does not over-match falsey strings."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-mcp-box_folder_delete_tool
+      uri: null
+    subject:
+      sub: auth0|admin@example.com
+      claims:
+        groups:
+          - box-admins
+    payload:
+      name: box-mcp-box_folder_delete_tool
+      args:
+        folder_id: "987654321"
+        recursive: "false"
+  output:
+    expectedResult: allow
+- description: A non-array groups claim (bare string "box-admins") fails closed — no
+    exemption, deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-mcp-box_file_delete_tool
+      uri: null
+    subject:
+      sub: auth0|spoof@example.com
+      claims:
+        groups: box-admins
+    payload:
+      name: box-mcp-box_file_delete_tool
+      args:
+        file_id: "1234567890"
+  output:
+    expectedResult: deny
+    expectedReason: "Deleting Box files, folders, or collaborations, removing shared links, and clearing retention dates are restricted to the box-admins group. Box trash makes deletions recoverable, but content destruction and retention tampering by an agent are out of policy. Perform the action manually in the Box web app, or ask a box-admins member. Contact your InfoSec team if this block is a false positive."
+- description: "Red-team: numeric-truthy recursive (recursive: 1) by a box-admins member
+    is treated as recursive and denied — the server coerces the number to true, so a
+    numeric flag can no longer route a recursive delete into the admin exemption branch."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-mcp-box_folder_delete_tool
+      uri: null
+    subject:
+      sub: auth0|admin@example.com
+      claims:
+        groups:
+          - box-admins
+    payload:
+      name: box-mcp-box_folder_delete_tool
+      args:
+        folder_id: "987654321"
+        recursive: 1
+  output:
+    expectedResult: deny
+    expectedReason: "Recursive folder deletion is the most destructive Box operation and is blocked for every caller, including box-admins. Box trash makes deletions recoverable, but bulk deletion by an agent is out of policy. If the folder tree must go, delete it manually in the Box web app so a human owns the decision. Contact your InfoSec team if this block is a false positive."
+- description: "Red-team: string \"on\" (a pydantic-truthy token outside true/1/yes) on
+    recursive by a box-admins member is treated as recursive and denied — the expanded
+    truthy set catches every encoding the server's bool parser coerces to true."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-mcp-box_folder_delete_tool
+      uri: null
+    subject:
+      sub: auth0|admin@example.com
+      claims:
+        groups:
+          - box-admins
+    payload:
+      name: box-mcp-box_folder_delete_tool
+      args:
+        folder_id: "987654321"
+        recursive: "on"
+  output:
+    expectedResult: deny
+    expectedReason: "Recursive folder deletion is the most destructive Box operation and is blocked for every caller, including box-admins. Box trash makes deletions recoverable, but bulk deletion by an agent is out of policy. If the folder tree must go, delete it manually in the Box web app so a human owns the decision. Contact your InfoSec team if this block is a false positive."
+- description: "Red-team: string \"y\" truthy token on the is_recursive alias by a non-admin —
+    denied with the recursive reason (both keys and the full truthy set are covered)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-mcp-box_folder_delete_tool
+      uri: null
+    subject:
+      sub: auth0|analyst@example.com
+      claims:
+        groups:
+          - finance
+    payload:
+      name: box-mcp-box_folder_delete_tool
+      args:
+        folder_id: "987654321"
+        is_recursive: "y"
+  output:
+    expectedResult: deny
+    expectedReason: "Recursive folder deletion is the most destructive Box operation and is blocked for every caller, including box-admins. Box trash makes deletions recoverable, but bulk deletion by an agent is out of policy. If the folder tree must go, delete it manually in the Box web app so a human owns the decision. Contact your InfoSec team if this block is a false positive."
+- description: "Numeric 0 on recursive by a box-admins member is not over-matched — 0 is
+    non-recursive, so the single-level folder delete is still allowed."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-mcp-box_folder_delete_tool
+      uri: null
+    subject:
+      sub: auth0|admin@example.com
+      claims:
+        groups:
+          - box-admins
+    payload:
+      name: box-mcp-box_folder_delete_tool
+      args:
+        folder_id: "987654321"
+        recursive: 0
+  output:
+    expectedResult: allow
+- description: Non-destructive shared-link tool (get) is not over-matched by the remove
+    suffixes — allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-mcp-box_shared_link_file_get_tool
+      uri: null
+    subject:
+      sub: auth0|analyst@example.com
+      claims:
+        groups:
+          - finance
+    payload:
+      name: box-mcp-box_shared_link_file_get_tool
+      args:
+        file_id: "1234567890"
+  output:
+    expectedResult: allow

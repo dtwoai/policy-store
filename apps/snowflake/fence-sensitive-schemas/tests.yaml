@@ -1,0 +1,359 @@
+- description: Non-inspected tool (no query/statement/message arg) passes through untouched.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: snowflake-list_databases
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: snowflake-list_databases
+      args: {}
+  output:
+    expectedResult: allow
+
+- description: Cleared caller selecting explicit columns from a fenced PHI_ schema is allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: snowflake-run_snowflake_query
+      uri: null
+    subject:
+      sub: google-apps|nurse@example.com
+      claims:
+        groups:
+          - phi-cleared
+    payload:
+      name: snowflake-run_snowflake_query
+      args:
+        query: SELECT patient_id, visit_date FROM PHI_RECORDS WHERE patient_id = 42
+  output:
+    expectedResult: allow
+
+- description: Query against a non-sensitive schema is allowed even when it uses SELECT * (star fence only bites fenced schemas).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: snowflake-run_snowflake_query
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups: []
+    payload:
+      name: snowflake-run_snowflake_query
+      args:
+        query: SELECT * FROM SALES.ORDERS LIMIT 10
+  output:
+    expectedResult: allow
+
+- description: Uncleared caller referencing a fenced PII_ schema (explicit columns) is denied by the domain fence.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: snowflake-run_snowflake_query
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: snowflake-run_snowflake_query
+      args:
+        query: SELECT customer_id, email FROM PII_CUSTOMERS WHERE id = 5
+  output:
+    expectedResult: deny
+    expectedReason: Access to the 'PII_' sensitive data domain requires the 'pii-cleared' IdP group. Ask your data platform admin for that entitlement, or contact InfoSec if this fence looks wrong.
+
+- description: SELECT * on a fenced FINANCE_ schema is denied outright even for a cleared caller.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: snowflake-run_snowflake_query
+      uri: null
+    subject:
+      sub: google-apps|analyst@example.com
+      claims:
+        groups:
+          - finance
+    payload:
+      name: snowflake-run_snowflake_query
+      args:
+        query: SELECT * FROM FINANCE_LEDGER
+  output:
+    expectedResult: deny
+    expectedReason: SELECT * against a fenced sensitive schema is not allowed. List the specific columns you need so the access is minimum-necessary, then re-run. Contact your data platform admin if a fenced prefix is mislabeled.
+
+- description: Red-team — table-qualified star (SELECT c.*) on a fenced schema is caught even for a cleared caller.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: snowflake-run_snowflake_query
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - pii-cleared
+    payload:
+      name: snowflake-run_snowflake_query
+      args:
+        query: SELECT c.* FROM PII_CUSTOMERS c JOIN orders o ON o.cid = c.id
+  output:
+    expectedResult: deny
+    expectedReason: SELECT * against a fenced sensitive schema is not allowed. List the specific columns you need so the access is minimum-necessary, then re-run. Contact your data platform admin if a fenced prefix is mislabeled.
+
+- description: Red-team — lowercase SQL (case-insensitive) uncleared caller referencing a fenced schema is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: snowflake-run_snowflake_query
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: snowflake-run_snowflake_query
+      args:
+        query: select name, title from hr_employees where dept = 'x'
+  output:
+    expectedResult: deny
+    expectedReason: Access to the 'HR_' sensitive data domain requires the 'hr' IdP group. Ask your data platform admin for that entitlement, or contact InfoSec if this fence looks wrong.
+
+- description: Cortex Analyst message (best-effort) naming a fenced PHI_ schema without the group is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: snowflake-patient-analyst
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: snowflake-patient-analyst
+      args:
+        message: Summarize the latest rows in PHI_LABRESULTS for this quarter
+  output:
+    expectedResult: deny
+    expectedReason: Access to the 'PHI_' sensitive data domain requires the 'phi-cleared' IdP group. Ask your data platform admin for that entitlement, or contact InfoSec if this fence looks wrong.
+
+- description: Red-team — fail closed when the caller has no subject/claims at all and references a fenced schema.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: snowflake-run_snowflake_query
+      uri: null
+    payload:
+      name: snowflake-run_snowflake_query
+      args:
+        query: SELECT name FROM HR_EMPLOYEES
+  output:
+    expectedResult: deny
+    expectedReason: Access to the 'HR_' sensitive data domain requires the 'hr' IdP group. Ask your data platform admin for that entitlement, or contact InfoSec if this fence looks wrong.
+
+- description: SQL text supplied under the defensive `statement` key is inspected the same as `query`.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: snowflake-execute-sql
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: snowflake-execute-sql
+      args:
+        statement: SELECT ssn FROM ANALYTICS.PII_PROFILES
+  output:
+    expectedResult: deny
+    expectedReason: Access to the 'PII_' sensitive data domain requires the 'pii-cleared' IdP group. Ask your data platform admin for that entitlement, or contact InfoSec if this fence looks wrong.
+
+- description: Red-team — malformed (string) groups claim fails closed on a fenced reference.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: snowflake-run_snowflake_query
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups: finance
+    payload:
+      name: snowflake-run_snowflake_query
+      args:
+        query: SELECT amount FROM FINANCE_LEDGER WHERE id = 1
+  output:
+    expectedResult: deny
+    expectedReason: Access to the 'FINANCE_' sensitive data domain requires the 'finance' IdP group. Ask your data platform admin for that entitlement, or contact InfoSec if this fence looks wrong.
+
+- description: Red-team — no-space star-select (SELECT*FROM, valid SQL) on a fenced schema is caught even for a cleared caller.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: snowflake-run_snowflake_query
+      uri: null
+    subject:
+      sub: google-apps|analyst@example.com
+      claims:
+        groups:
+          - finance
+    payload:
+      name: snowflake-run_snowflake_query
+      args:
+        query: SELECT*FROM FINANCE_LEDGER
+  output:
+    expectedResult: deny
+    expectedReason: SELECT * against a fenced sensitive schema is not allowed. List the specific columns you need so the access is minimum-necessary, then re-run. Contact your data platform admin if a fenced prefix is mislabeled.
+
+- description: Red-team — SELECT ALL * (set quantifier) on a fenced schema is caught even for a cleared caller.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: snowflake-run_snowflake_query
+      uri: null
+    subject:
+      sub: google-apps|analyst@example.com
+      claims:
+        groups:
+          - finance
+    payload:
+      name: snowflake-run_snowflake_query
+      args:
+        query: SELECT ALL * FROM FINANCE_LEDGER
+  output:
+    expectedResult: deny
+    expectedReason: SELECT * against a fenced sensitive schema is not allowed. List the specific columns you need so the access is minimum-necessary, then re-run. Contact your data platform admin if a fenced prefix is mislabeled.
+
+- description: Red-team — SELECT TOP <n> * (row-limit modifier) on a fenced schema is caught even for a cleared caller.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: snowflake-run_snowflake_query
+      uri: null
+    subject:
+      sub: google-apps|analyst@example.com
+      claims:
+        groups:
+          - finance
+    payload:
+      name: snowflake-run_snowflake_query
+      args:
+        query: SELECT TOP 100 * FROM FINANCE_LEDGER
+  output:
+    expectedResult: deny
+    expectedReason: SELECT * against a fenced sensitive schema is not allowed. List the specific columns you need so the access is minimum-necessary, then re-run. Contact your data platform admin if a fenced prefix is mislabeled.
+
+- description: Red-team — an identifier that merely starts with a modifier word (top_customer) is NOT mistaken for a star-select; cleared caller allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: snowflake-run_snowflake_query
+      uri: null
+    subject:
+      sub: google-apps|analyst@example.com
+      claims:
+        groups:
+          - finance
+    payload:
+      name: snowflake-run_snowflake_query
+      args:
+        query: SELECT top_customer, amount FROM FINANCE_LEDGER
+  output:
+    expectedResult: allow
+
+- description: Red-team (DOCUMENTED RESIDUAL) — split-string IDENTIFIER('PII' || '_CUSTOMERS') hides the fenced prefix from wire inspection, so the domain fence does not fire and the call is allowed. Locked in per Known limitations; pair with guard-warehouse-sql + egress redaction.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: snowflake-run_snowflake_query
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: snowflake-run_snowflake_query
+      args:
+        query: SELECT email FROM IDENTIFIER('PII' || '_CUSTOMERS') WHERE id = 5
+  output:
+    expectedResult: allow
+
+- description: Uncleared caller running SELECT * on a fenced schema trips both fences (domain + star-select), joined and sorted.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: snowflake-run_snowflake_query
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: snowflake-run_snowflake_query
+      args:
+        query: SELECT * FROM PII_CUSTOMERS
+  output:
+    expectedResult: deny

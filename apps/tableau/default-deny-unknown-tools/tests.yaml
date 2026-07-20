@@ -1,0 +1,286 @@
+# ---------------------------------------------------------------------------
+# Positive cases — one per pinned tool group, plus case-insensitivity and a
+# short-suffix (`-get-view`) that must not be shadowed by `-get-view-data`.
+# ---------------------------------------------------------------------------
+- description: Pinned data-read tool (query-datasource), server-prefixed. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: tableau-mcp-query-datasource
+      uri: null
+    payload:
+      name: tableau-mcp-query-datasource
+      args:
+        datasourceLuid: abc-123
+        query:
+          fields: []
+  output:
+    expectedResult: allow
+
+- description: Pinned catalog-read tool (list-workbooks). Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: tableau-mcp-list-workbooks
+      uri: null
+    payload:
+      name: tableau-mcp-list-workbooks
+      args: {}
+  output:
+    expectedResult: allow
+
+- description: Pinned Pulse read (generate-pulse-insight-brief). Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: tableau-mcp-generate-pulse-insight-brief
+      uri: null
+    payload:
+      name: tableau-mcp-generate-pulse-insight-brief
+      args:
+        metricId: m-1
+  output:
+    expectedResult: allow
+
+- description: Pinned admin-insights read (query-admin-insights-ts-events). Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: tableau-mcp-query-admin-insights-ts-events
+      uri: null
+    payload:
+      name: tableau-mcp-query-admin-insights-ts-events
+      args: {}
+  output:
+    expectedResult: allow
+
+- description: Pinned token tool (get-embed-token). Existence-gated only — this policy allows it; danger is gated by a companion policy.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: tableau-mcp-get-embed-token
+      uri: null
+    payload:
+      name: tableau-mcp-get-embed-token
+      args: {}
+  output:
+    expectedResult: allow
+
+- description: Pinned mutation tool (delete-workbook). Policy should allow (name-only gate).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: tableau-mcp-delete-workbook
+      uri: null
+    payload:
+      name: tableau-mcp-delete-workbook
+      args:
+        workbookId: wb-1
+        confirm: false
+  output:
+    expectedResult: allow
+
+- description: Pinned confirm- twin (confirm-delete-workbook). Both base and twin are pinned so preview->confirm works. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: tableau-mcp-confirm-delete-workbook
+      uri: null
+    payload:
+      name: tableau-mcp-confirm-delete-workbook
+      args:
+        workbookId: wb-1
+        confirm: true
+  output:
+    expectedResult: allow
+
+- description: Case-insensitivity — uppercase tool name for the short suffix get-view. Policy should allow via lower().
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: TABLEAU-MCP-GET-VIEW
+      uri: null
+    payload:
+      name: TABLEAU-MCP-GET-VIEW
+      args:
+        viewId: v-1
+  output:
+    expectedResult: allow
+
+# ---------------------------------------------------------------------------
+# Negative cases — default-deny fires for anything off the allowlist, plus
+# red-team bypass attempts.
+# ---------------------------------------------------------------------------
+- description: New/renamed upstream tool not yet pinned (list-flows). Must fail closed with actionable reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: tableau-mcp-list-flows
+      uri: null
+    payload:
+      name: tableau-mcp-list-flows
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "Tableau tool 'tableau-mcp-list-flows' is not on the pinned allowlist of verified official web tools (tableau-mcp v2.24.x, 39 tools). It may be new, renamed, or misspelled upstream. An operator must re-verify the server's tools/list after the latest upgrade and add the tool's kebab-case name suffix to allowed_tool_suffixes before it can be used. Tableau Next's snake_case tools belong on their own allowlist. Contact your InfoSec team if this is a legitimate tool that should be allowed."
+
+- description: Tableau Next (snake_case, disjoint product) analyze_data. Must be denied — separate allowlist required.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: tableau-next-analyze_data
+      uri: null
+    payload:
+      name: tableau-next-analyze_data
+      args:
+        utterance: top accounts by revenue
+  output:
+    expectedResult: deny
+    expectedReason: "Tableau tool 'tableau-next-analyze_data' is not on the pinned allowlist of verified official web tools (tableau-mcp v2.24.x, 39 tools). It may be new, renamed, or misspelled upstream. An operator must re-verify the server's tools/list after the latest upgrade and add the tool's kebab-case name suffix to allowed_tool_suffixes before it can be used. Tableau Next's snake_case tools belong on their own allowlist. Contact your InfoSec team if this is a legitimate tool that should be allowed."
+
+- description: Misspelled/renamed tool (list-workbook, singular) — must not match the pinned -list-workbooks. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: tableau-mcp-list-workbook
+      uri: null
+    payload:
+      name: tableau-mcp-list-workbook
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "Tableau tool 'tableau-mcp-list-workbook' is not on the pinned allowlist of verified official web tools (tableau-mcp v2.24.x, 39 tools). It may be new, renamed, or misspelled upstream. An operator must re-verify the server's tools/list after the latest upgrade and add the tool's kebab-case name suffix to allowed_tool_suffixes before it can be used. Tableau Next's snake_case tools belong on their own allowlist. Contact your InfoSec team if this is a legitimate tool that should be allowed."
+
+- description: Red-team — pinned name used as a PREFIX, not a suffix (query-datasource-v2). endswith must fail. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: tableau-mcp-query-datasource-v2
+      uri: null
+    payload:
+      name: tableau-mcp-query-datasource-v2
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "Tableau tool 'tableau-mcp-query-datasource-v2' is not on the pinned allowlist of verified official web tools (tableau-mcp v2.24.x, 39 tools). It may be new, renamed, or misspelled upstream. An operator must re-verify the server's tools/list after the latest upgrade and add the tool's kebab-case name suffix to allowed_tool_suffixes before it can be used. Tableau Next's snake_case tools belong on their own allowlist. Contact your InfoSec team if this is a legitimate tool that should be allowed."
+
+- description: Unrelated MCP server tool (Slack) — allowlist covers only Tableau. Deny (this policy must be attached to the Tableau pipeline only).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-slack-post-message
+      uri: null
+    payload:
+      name: slack-mcp-slack-post-message
+      args:
+        channel: C123
+        text: hi
+  output:
+    expectedResult: deny
+    expectedReason: "Tableau tool 'slack-mcp-slack-post-message' is not on the pinned allowlist of verified official web tools (tableau-mcp v2.24.x, 39 tools). It may be new, renamed, or misspelled upstream. An operator must re-verify the server's tools/list after the latest upgrade and add the tool's kebab-case name suffix to allowed_tool_suffixes before it can be used. Tableau Next's snake_case tools belong on their own allowlist. Contact your InfoSec team if this is a legitimate tool that should be allowed."
+
+- description: >-
+    Red-team (documented residual) — suffix over-match on a same-server dangerous VARIANT. A future
+    tool `force-delete-workbook` suffix-extends the pinned `-delete-workbook`, so endswith matches
+    and this existence gate ALLOWS it. This documents the accepted PF-28 residual (see Known
+    limitations); the danger-scoped companion policies are relied on to catch it by args/identity.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: tableau-mcp-force-delete-workbook
+      uri: null
+    payload:
+      name: tableau-mcp-force-delete-workbook
+      args:
+        workbookId: wb-1
+        confirm: true
+  output:
+    expectedResult: allow
+
+- description: >-
+    Red-team boundary — a RENAMED destructive tool that does NOT suffix-extend a pinned entry
+    (`purge-workbook`) must still fail closed. Confirms the residual is limited to verb-prefixed
+    superstrings, not any delete-ish name.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: tableau-mcp-purge-workbook
+      uri: null
+    payload:
+      name: tableau-mcp-purge-workbook
+      args:
+        workbookId: wb-1
+  output:
+    expectedResult: deny
+    expectedReason: "Tableau tool 'tableau-mcp-purge-workbook' is not on the pinned allowlist of verified official web tools (tableau-mcp v2.24.x, 39 tools). It may be new, renamed, or misspelled upstream. An operator must re-verify the server's tools/list after the latest upgrade and add the tool's kebab-case name suffix to allowed_tool_suffixes before it can be used. Tableau Next's snake_case tools belong on their own allowlist. Contact your InfoSec team if this is a legitimate tool that should be allowed."
+
+- description: >-
+    Red-team — fully absent resource object (no resource.name at all) must still fail closed via
+    the object.get default; default allow := false means no name -> deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    payload:
+      args: {}
+  output:
+    expectedResult: deny
+
+- description: Fail-closed on missing tool name (resource.name absent, empty args). Must deny with <unknown> in the reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      uri: null
+    payload:
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "Tableau tool '<unknown>' is not on the pinned allowlist of verified official web tools (tableau-mcp v2.24.x, 39 tools). It may be new, renamed, or misspelled upstream. An operator must re-verify the server's tools/list after the latest upgrade and add the tool's kebab-case name suffix to allowed_tool_suffixes before it can be used. Tableau Next's snake_case tools belong on their own allowlist. Contact your InfoSec team if this is a legitimate tool that should be allowed."

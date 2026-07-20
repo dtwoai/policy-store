@@ -1,0 +1,697 @@
+# Fence config in policy.md maps placeholder GIDs -> groups:
+#   1201111111111 -> hr, 1202222222222 -> legal,
+#   1203333333333 -> ma, 1204444444444 -> incident
+# Reason strings embed the GID + group, so deny cases pin the exact reason.
+
+- description: Read tool (get_task) is not an inspected write. Pass-through allow,
+    even for a fenced-looking arg.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: asana-get_task
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: asana-get_task
+      args:
+        task_id: "1201111111111"
+  output:
+    expectedResult: allow
+
+- description: create_tasks batch targeting a NON-fenced project. Allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: asana-create_tasks
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: asana-create_tasks
+      args:
+        tasks:
+          - name: ship it
+            project: "1209999999999"
+  output:
+    expectedResult: allow
+
+- description: add_comment on a fenced HR project by a caller IN the hr group.
+    Mapped-group branch allows the write.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: asana-add_comment
+      uri: null
+    subject:
+      sub: google-apps|hr@example.com
+      claims:
+        groups:
+          - hr
+    payload:
+      name: asana-add_comment
+      args:
+        project: "1201111111111"
+        text: onboarding note
+  output:
+    expectedResult: allow
+
+- description: create_tasks batch element names a fenced HR project (element
+    `project` field). Caller lacks hr group. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: asana-create_tasks
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: asana-create_tasks
+      args:
+        tasks:
+          - name: leak into HR
+            project: "1201111111111"
+  output:
+    expectedResult: deny
+    expectedReason: "Asana project 1201111111111 is fenced as sensitive and requires the 'hr' IdP group to write to it; this call targets it directly. Route the write through a member of the 'hr' group, or contact InfoSec if this fence looks wrong."
+
+- description: create_tasks batch element `projects[]` array contains a fenced
+    legal project. Caller lacks legal group. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: asana-create_tasks
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: asana-create_tasks
+      args:
+        tasks:
+          - name: multi-home
+            projects:
+              - "1209999999999"
+              - "1202222222222"
+  output:
+    expectedResult: deny
+    expectedReason: "Asana project 1202222222222 is fenced as sensitive and requires the 'legal' IdP group to write to it; this call targets it directly. Route the write through a member of the 'legal' group, or contact InfoSec if this fence looks wrong."
+
+- description: update_tasks batch element `section` field is a fenced GID
+    (sections can themselves be fenced). Caller lacks group. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: asana-update_tasks
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: asana-update_tasks
+      args:
+        data:
+          - task: "1207777777777"
+            section: "1203333333333"
+  output:
+    expectedResult: deny
+    expectedReason: "Asana project 1203333333333 is fenced as sensitive and requires the 'ma' IdP group to write to it; this call targets it directly. Route the write through a member of the 'ma' group, or contact InfoSec if this fence looks wrong."
+
+- description: Community asana_create_task with a top-level `project_id` that is
+    fenced. Caller lacks group. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: asana-asana_create_task
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: asana-asana_create_task
+      args:
+        name: community create
+        project_id: "1201111111111"
+  output:
+    expectedResult: deny
+    expectedReason: "Asana project 1201111111111 is fenced as sensitive and requires the 'hr' IdP group to write to it; this call targets it directly. Route the write through a member of the 'hr' group, or contact InfoSec if this fence looks wrong."
+
+- description: Community asana_add_task_to_section with a fenced `section_id`.
+    Caller lacks group. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: asana-asana_add_task_to_section
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: asana-asana_add_task_to_section
+      args:
+        task_id: "1207777777777"
+        section_id: "1204444444444"
+  output:
+    expectedResult: deny
+    expectedReason: "Asana project 1204444444444 is fenced as sensitive and requires the 'incident' IdP group to write to it; this call targets it directly. Route the write through a member of the 'incident' group, or contact InfoSec if this fence looks wrong."
+
+- description: create_project_status_update targeting a fenced M&A project via a
+    top-level `project` field. Caller lacks group. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: asana-create_project_status_update
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: asana-create_project_status_update
+      args:
+        project: "1203333333333"
+        text: status broadcast
+  output:
+    expectedResult: deny
+    expectedReason: "Asana project 1203333333333 is fenced as sensitive and requires the 'ma' IdP group to write to it; this call targets it directly. Route the write through a member of the 'ma' group, or contact InfoSec if this fence looks wrong."
+
+- description: Numeric GID coercion — payload sends `project` as a JSON number
+    that equals a fenced GID string. to_gid normalizes it, so the fence matches.
+    Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: asana-create_tasks
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: asana-create_tasks
+      args:
+        tasks:
+          - name: numeric gid
+            project: 1201111111111
+  output:
+    expectedResult: deny
+    expectedReason: "Asana project 1201111111111 is fenced as sensitive and requires the 'hr' IdP group to write to it; this call targets it directly. Route the write through a member of the 'hr' group, or contact InfoSec if this fence looks wrong."
+
+- description: Two fenced GIDs in one batch; caller holds hr but not legal. The hr
+    target is permitted (caller is in the mapped group) so only the legal target is
+    blocked — per-GID group matching, not all-or-nothing. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: asana-create_tasks
+      uri: null
+    subject:
+      sub: google-apps|hr@example.com
+      claims:
+        groups:
+          - hr
+    payload:
+      name: asana-create_tasks
+      args:
+        tasks:
+          - name: hr task
+            project: "1201111111111"
+          - name: legal task
+            project: "1202222222222"
+  output:
+    expectedResult: deny
+    expectedReason: "Asana project 1202222222222 is fenced as sensitive and requires the 'legal' IdP group to write to it; this call targets it directly. Route the write through a member of the 'legal' group, or contact InfoSec if this fence looks wrong."
+
+- description: Fail closed — write to a fenced project with NO subject block at
+    all (no IdP claims reached the gateway). Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: asana-create_tasks
+      uri: null
+    payload:
+      name: asana-create_tasks
+      args:
+        tasks:
+          - name: no identity
+            project: "1201111111111"
+  output:
+    expectedResult: deny
+    expectedReason: "Asana project 1201111111111 is fenced as sensitive and requires the 'hr' IdP group to write to it; this call targets it directly. Route the write through a member of the 'hr' group, or contact InfoSec if this fence looks wrong."
+
+- description: "Placeholder-claim spoofing surface: groups is a bare string
+    (\"hr\") instead of an array. is_array guard forces the malformed shape to
+    fail closed. Deny."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: asana-create_tasks
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups: hr
+    payload:
+      name: asana-create_tasks
+      args:
+        tasks:
+          - name: string groups
+            project: "1201111111111"
+  output:
+    expectedResult: deny
+    expectedReason: "Asana project 1201111111111 is fenced as sensitive and requires the 'hr' IdP group to write to it; this call targets it directly. Route the write through a member of the 'hr' group, or contact InfoSec if this fence looks wrong."
+
+- description: Case-insensitive group match — caller's group is "HR" (uppercase);
+    the fence maps to "hr". caller_has_group compares case-insensitively, so the
+    write is allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: asana-create_tasks
+      uri: null
+    subject:
+      sub: google-apps|hr@example.com
+      claims:
+        groups:
+          - HR
+    payload:
+      name: asana-create_tasks
+      args:
+        tasks:
+          - name: uppercase group
+            project: "1201111111111"
+  output:
+    expectedResult: allow
+
+- description: Case-insensitive tool match — mixed-case bare official name
+    (Create_Tasks) still matches the create_tasks suffix. Deny for non-member.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: Create_Tasks
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: Create_Tasks
+      args:
+        tasks:
+          - name: bare mixed case
+            project: "1201111111111"
+  output:
+    expectedResult: deny
+    expectedReason: "Asana project 1201111111111 is fenced as sensitive and requires the 'hr' IdP group to write to it; this call targets it directly. Route the write through a member of the 'hr' group, or contact InfoSec if this fence looks wrong."
+
+- description: "Red-team type confusion: resource.name is a non-string (number)
+    while payload.name carries a real create_tasks. Independent matching means the
+    malformed resource.name cannot suppress the fence. Deny."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: 42
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: asana-create_tasks
+      args:
+        tasks:
+          - name: type confusion
+            project: "1201111111111"
+  output:
+    expectedResult: deny
+    expectedReason: "Asana project 1201111111111 is fenced as sensitive and requires the 'hr' IdP group to write to it; this call targets it directly. Route the write through a member of the 'hr' group, or contact InfoSec if this fence looks wrong."
+
+- description: "Red-team evasion (FIXED): tool name padded with a trailing newline
+    (asana-create_tasks\\n). trim_space strips it before the suffix check, so the
+    fence still fires. Deny."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "asana-create_tasks\n"
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: "asana-create_tasks\n"
+      args:
+        tasks:
+          - name: padded name
+            project: "1201111111111"
+  output:
+    expectedResult: deny
+    expectedReason: "Asana project 1201111111111 is fenced as sensitive and requires the 'hr' IdP group to write to it; this call targets it directly. Route the write through a member of the 'hr' group, or contact InfoSec if this fence looks wrong."
+
+- description: "Documented residual: the interactive preview tool
+    create_task_preview is NOT in write_suffixes, so a fenced GID in its payload
+    passes through this policy (previews render a confirmation UI, they do not
+    commit). Allow."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: asana-create_task_preview
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: asana-create_task_preview
+      args:
+        project: "1201111111111"
+  output:
+    expectedResult: allow
+
+- description: "Core documented limitation: add_comment referencing only a bare
+    task_id (no project/section GID in the payload). The policy cannot resolve the
+    task's project transitively, so it passes through. Pair with the batch /
+    destructive companions. Allow."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: asana-add_comment
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: asana-add_comment
+      args:
+        task_id: "1207777777777"
+        text: comment via bare task ref
+  output:
+    expectedResult: allow
+
+- description: "asana_add_followers_to_task naming only a task GID grants
+    visibility but carries no project GID the policy can see — documented
+    direct-GID limitation, passes through. Allow."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: asana-asana_add_followers_to_task
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: asana-asana_add_followers_to_task
+      args:
+        task_id: "1207777777777"
+        followers:
+          - "1205555555555"
+  output:
+    expectedResult: allow
+
+- description: Community asana_create_task_story (comment) whose top-level
+    `project_id` is fenced. Matched by its own suffix; caller lacks group. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: asana-asana_create_task_story
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: asana-asana_create_task_story
+      args:
+        project_id: "1202222222222"
+        text: story into legal
+  output:
+    expectedResult: deny
+    expectedReason: "Asana project 1202222222222 is fenced as sensitive and requires the 'legal' IdP group to write to it; this call targets it directly. Route the write through a member of the 'legal' group, or contact InfoSec if this fence looks wrong."
+
+- description: Write tool that names no GID at all (create_tasks with an empty
+    batch). Nothing to fence, so it passes. Allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: asana-create_tasks
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: asana-create_tasks
+      args:
+        tasks: []
+  output:
+    expectedResult: allow
+
+- description: "Red-team bypass (FIXED): community asana_create_project_status is
+    the twin of the inspected official create_project_status_update (landscape note
+    line 78). Before the fix a community-server caller could broadcast a status
+    update into a fenced legal project uninspected; the suffix is now in
+    write_suffixes. Caller lacks legal group. Deny."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: asana-asana_create_project_status
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: asana-asana_create_project_status
+      args:
+        project_id: "1202222222222"
+        text: broadcast into legal
+  output:
+    expectedResult: deny
+    expectedReason: "Asana project 1202222222222 is fenced as sensitive and requires the 'legal' IdP group to write to it; this call targets it directly. Route the write through a member of the 'legal' group, or contact InfoSec if this fence looks wrong."
+
+- description: "Red-team bypass (FIXED): community asana_add_project_to_task adds a
+    task into a project by project GID (grants project membership -> content +
+    visibility on the fenced project). Was omitted from write_suffixes; now
+    inspected. Fenced hr project, caller lacks hr group. Deny."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: asana-asana_add_project_to_task
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: asana-asana_add_project_to_task
+      args:
+        task_id: "1207777777777"
+        project: "1201111111111"
+  output:
+    expectedResult: deny
+    expectedReason: "Asana project 1201111111111 is fenced as sensitive and requires the 'hr' IdP group to write to it; this call targets it directly. Route the write through a member of the 'hr' group, or contact InfoSec if this fence looks wrong."
+
+- description: "Documented residual: community asana_create_section creates a
+    section INSIDE a fenced hr project by direct project GID, but is intentionally
+    not in write_suffixes (structural write, lower leak value than task
+    bodies/comments/status). Pins the pass-through. Allow."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: asana-asana_create_section
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: asana-asana_create_section
+      args:
+        project: "1201111111111"
+        name: leaked section
+  output:
+    expectedResult: allow
+
+- description: "Red-team bypass (FIXED): create_project_status_update names the
+    fenced M&A project under `parent` (Asana's native status-update parameter),
+    NOT `project`. Before the fix the broadcast slipped the fence uninspected;
+    `parent` is now in scalar_gid_keys. Caller lacks ma group. Deny."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: asana-create_project_status_update
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: asana-create_project_status_update
+      args:
+        parent: "1203333333333"
+        text: broadcast into M&A
+  output:
+    expectedResult: deny
+    expectedReason: "Asana project 1203333333333 is fenced as sensitive and requires the 'ma' IdP group to write to it; this call targets it directly. Route the write through a member of the 'ma' group, or contact InfoSec if this fence looks wrong."
+
+- description: "No-false-positive guard for the `parent` key: create_tasks with a
+    subtask whose `parent` is an ordinary (non-fenced) TASK GID. A task GID never
+    equals a fenced PROJECT GID, so scanning `parent` does not over-deny. Allow."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: asana-create_tasks
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: asana-create_tasks
+      args:
+        tasks:
+          - name: a subtask
+            parent: "1207777777777"
+  output:
+    expectedResult: allow
+
+- description: "Red-team evasion (robustness lock): fenced project GID sent with a
+    leading space (\" 1201111111111\"). to_gid trims the value before the set
+    membership check, so padding cannot dodge the fence. Caller lacks hr. Deny."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: asana-create_tasks
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: asana-create_tasks
+      args:
+        tasks:
+          - name: padded gid
+            project: " 1201111111111"
+  output:
+    expectedResult: deny
+    expectedReason: "Asana project 1201111111111 is fenced as sensitive and requires the 'hr' IdP group to write to it; this call targets it directly. Route the write through a member of the 'hr' group, or contact InfoSec if this fence looks wrong."

@@ -1,0 +1,454 @@
+# Tests for stripe.ingress.role_gate_writes.
+# The deny reason is asserted exactly; keep it in sync with the policy.
+- description: Read tool (list_customers) with no identity at all — reads are never
+    gated, so this must allow even with missing claims.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: stripe-mcp-list_customers
+      uri: null
+    payload:
+      name: stripe-mcp-list_customers
+      args:
+        limit: 10
+  output:
+    expectedResult: allow
+- description: Search tool (search_stripe_resources) from a non-finance caller —
+    read/search/fetch tools always pass.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: stripe-mcp-search_stripe_resources
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: stripe-mcp-search_stripe_resources
+      args:
+        query: "name:'Jane Doe'"
+  output:
+    expectedResult: allow
+- description: Meta read tool (stripe_api_read) with no groups claim — still a read,
+    still allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: stripe-mcp-stripe_api_read
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        org_id: org_abc123
+    payload:
+      name: stripe-mcp-stripe_api_read
+      args:
+        method: "GET /v1/balance"
+  output:
+    expectedResult: allow
+- description: stripe_api_write passthrough is intentionally out of scope here (governed
+    by the escape-hatch companion policy) — this policy must not deny it.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: stripe-mcp-stripe_api_write
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: stripe-mcp-stripe_api_write
+      args:
+        method: "POST /v1/payouts"
+  output:
+    expectedResult: allow
+- description: create_refund is intentionally out of scope here (governed by the
+    refund-cap companion policy) — this policy must not deny it.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: stripe-mcp-create_refund
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: stripe-mcp-create_refund
+      args:
+        payment_intent: pi_123
+        amount: 500
+  output:
+    expectedResult: allow
+- description: Billing write (create_invoice) from a finance-group member — allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: stripe-mcp-create_invoice
+      uri: null
+    subject:
+      sub: google-apps|ap@example.com
+      claims:
+        groups:
+          - finance
+          - employees
+    payload:
+      name: stripe-mcp-create_invoice
+      args:
+        customer: cus_123
+        days_until_due: 30
+  output:
+    expectedResult: allow
+- description: Destructive write (cancel_subscription) from a billing-admin member with
+    mixed-case group value — group comparison is case-insensitive, so allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: stripe-mcp-cancel_subscription
+      uri: null
+    subject:
+      sub: google-apps|billing@example.com
+      claims:
+        groups:
+          - Billing-Admin
+    payload:
+      name: stripe-mcp-cancel_subscription
+      args:
+        subscription: sub_123
+  output:
+    expectedResult: allow
+- description: Billing write (create_customer) from a caller whose groups do not include
+    finance or billing-admin — denied with the standard reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: stripe-mcp-create_customer
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+          - employees
+    payload:
+      name: stripe-mcp-create_customer
+      args:
+        name: Jane Doe
+        email: jane@example.com
+  output:
+    expectedResult: deny
+    expectedReason: "Stripe billing writes (creating or updating customers, products, prices, payment links, invoices, coupons, subscriptions, or disputes) are restricted to the finance and billing-admin groups — your account is not in either group. Read and search tools remain available. Ask a billing administrator to make this change, or contact your InfoSec team if you believe you should have write access."
+- description: Billing write (update_subscription) with no subject block at all —
+    missing identity fails closed, denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: stripe-mcp-update_subscription
+      uri: null
+    payload:
+      name: stripe-mcp-update_subscription
+      args:
+        subscription: sub_123
+        cancel_at_period_end: true
+  output:
+    expectedResult: deny
+    expectedReason: "Stripe billing writes (creating or updating customers, products, prices, payment links, invoices, coupons, subscriptions, or disputes) are restricted to the finance and billing-admin groups — your account is not in either group. Read and search tools remain available. Ask a billing administrator to make this change, or contact your InfoSec team if you believe you should have write access."
+- description: Billing write (finalize_invoice) with claims present but no groups claim —
+    missing claim fails closed, denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: stripe-mcp-finalize_invoice
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        org_id: org_abc123
+    payload:
+      name: stripe-mcp-finalize_invoice
+      args:
+        invoice: in_123
+  output:
+    expectedResult: deny
+    expectedReason: "Stripe billing writes (creating or updating customers, products, prices, payment links, invoices, coupons, subscriptions, or disputes) are restricted to the finance and billing-admin groups — your account is not in either group. Read and search tools remain available. Ask a billing administrator to make this change, or contact your InfoSec team if you believe you should have write access."
+- description: Billing write with a string-valued groups claim ("finance" instead of
+    ["finance"]) — unexpected claim shape fails closed, denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: stripe-mcp-create_payment_link
+      uri: null
+    subject:
+      sub: google-apps|ap@example.com
+      claims:
+        groups: finance
+    payload:
+      name: stripe-mcp-create_payment_link
+      args:
+        price: price_123
+        quantity: 1
+  output:
+    expectedResult: deny
+    expectedReason: "Stripe billing writes (creating or updating customers, products, prices, payment links, invoices, coupons, subscriptions, or disputes) are restricted to the finance and billing-admin groups — your account is not in either group. Read and search tools remain available. Ask a billing administrator to make this change, or contact your InfoSec team if you believe you should have write access."
+- description: Uppercase tool name (CREATE_COUPON) from a non-finance caller — tool
+    matching is case-insensitive, denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: Stripe-MCP-CREATE_COUPON
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - support
+    payload:
+      name: Stripe-MCP-CREATE_COUPON
+      args:
+        percent_off: 25
+        duration: once
+  output:
+    expectedResult: deny
+    expectedReason: "Stripe billing writes (creating or updating customers, products, prices, payment links, invoices, coupons, subscriptions, or disputes) are restricted to the finance and billing-admin groups — your account is not in either group. Read and search tools remain available. Ask a billing administrator to make this change, or contact your InfoSec team if you believe you should have write access."
+- description: Community noun_verb name (customer_create, verified from
+    atharvagupta2003/mcp-stripe) without an allowed group — denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: stripe-community-customer_create
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: stripe-community-customer_create
+      args:
+        name: Jane Doe
+  output:
+    expectedResult: deny
+    expectedReason: "Stripe billing writes (creating or updating customers, products, prices, payment links, invoices, coupons, subscriptions, or disputes) are restricted to the finance and billing-admin groups — your account is not in either group. Read and search tools remain available. Ask a billing administrator to make this change, or contact your InfoSec team if you believe you should have write access."
+- description: Community noun_verb inversion (subscription_cancel, defensive/unverified
+    suffix) without an allowed group — denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: stripe-community-subscription_cancel
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: stripe-community-subscription_cancel
+      args:
+        subscription: sub_123
+  output:
+    expectedResult: deny
+    expectedReason: "Stripe billing writes (creating or updating customers, products, prices, payment links, invoices, coupons, subscriptions, or disputes) are restricted to the finance and billing-admin groups — your account is not in either group. Read and search tools remain available. Ask a billing administrator to make this change, or contact your InfoSec team if you believe you should have write access."
+- description: Billing write (update_dispute with submit true) from a finance member —
+    allowed by this policy; irreversible dispute submission is the companion
+    dispute-submit gate's job.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: stripe-mcp-update_dispute
+      uri: null
+    subject:
+      sub: google-apps|ap@example.com
+      claims:
+        groups:
+          - finance
+    payload:
+      name: stripe-mcp-update_dispute
+      args:
+        dispute: dp_123
+        submit: true
+  output:
+    expectedResult: allow
+- description: Billing write (create_invoice_item) with empty groups array — no
+    membership, fails closed, denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: stripe-mcp-create_invoice_item
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups: []
+    payload:
+      name: stripe-mcp-create_invoice_item
+      args:
+        customer: cus_123
+        price: price_123
+  output:
+    expectedResult: deny
+    expectedReason: "Stripe billing writes (creating or updating customers, products, prices, payment links, invoices, coupons, subscriptions, or disputes) are restricted to the finance and billing-admin groups — your account is not in either group. Read and search tools remain available. Ask a billing administrator to make this change, or contact your InfoSec team if you believe you should have write access."
+# --- Red-team gate (standards §10) ---
+- description: Red-team fail-open probe — gated write (create_customer) where the
+    gateway populated only payload.name and left resource.name absent. The gate reads
+    both name fields, so this is still gated and denied (was a fail-open before the
+    candidate_tool_names hardening).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: stripe-mcp-create_customer
+      args:
+        name: Jane Doe
+  output:
+    expectedResult: deny
+    expectedReason: "Stripe billing writes (creating or updating customers, products, prices, payment links, invoices, coupons, subscriptions, or disputes) are restricted to the finance and billing-admin groups — your account is not in either group. Read and search tools remain available. Ask a billing administrator to make this change, or contact your InfoSec team if you believe you should have write access."
+- description: Red-team fail-open probe — gated write via payload.name with a finance
+    member and a name-less resource block still resolves correctly to allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      uri: null
+    subject:
+      sub: google-apps|ap@example.com
+      claims:
+        groups:
+          - finance
+    payload:
+      name: stripe-mcp-cancel_subscription
+      args:
+        subscription: sub_123
+  output:
+    expectedResult: allow
+- description: Red-team documented residual — community money-movement write
+    (payment_intent_create) is NOT on the enumerated gated list, so an unauthorized
+    caller passes. Documented under Known limitations; gate with the PF-09
+    money-movement companion, not this role gate.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: stripe-community-payment_intent_create
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: stripe-community-payment_intent_create
+      args:
+        amount: 5000
+        currency: usd
+  output:
+    expectedResult: allow
+- description: Red-team claim-shape probe — gated write (create_product) with a
+    null groups claim. Unexpected shape fails closed, denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: stripe-mcp-create_product
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups: null
+    payload:
+      name: stripe-mcp-create_product
+      args:
+        name: Widget
+  output:
+    expectedResult: deny
+    expectedReason: "Stripe billing writes (creating or updating customers, products, prices, payment links, invoices, coupons, subscriptions, or disputes) are restricted to the finance and billing-admin groups — your account is not in either group. Read and search tools remain available. Ask a billing administrator to make this change, or contact your InfoSec team if you believe you should have write access."
+- description: Red-team claim-shape probe — gated write (create_price) with an
+    object-valued groups claim ({finance:true}). Object shape does not resolve to
+    an allowed string membership; fails closed, denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: stripe-mcp-create_price
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          finance: true
+    payload:
+      name: stripe-mcp-create_price
+      args:
+        unit_amount: 1000
+  output:
+    expectedResult: deny
+    expectedReason: "Stripe billing writes (creating or updating customers, products, prices, payment links, invoices, coupons, subscriptions, or disputes) are restricted to the finance and billing-admin groups — your account is not in either group. Read and search tools remain available. Ask a billing administrator to make this change, or contact your InfoSec team if you believe you should have write access."

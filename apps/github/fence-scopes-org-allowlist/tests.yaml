@@ -1,0 +1,347 @@
+- description: Read from a repo owned by a sanctioned company org — allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-get_file_contents
+      uri: null
+    payload:
+      name: github-mcp-get_file_contents
+      args:
+        owner: acme-inc
+        repo: billing
+        path: README.md
+  output:
+    expectedResult: allow
+
+- description: Owner login supplied in a different case — GitHub logins are
+    case-insensitive, so the allowlist match should still hold. Allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-get_repository_tree
+      uri: null
+    payload:
+      name: github-mcp-get_repository_tree
+      args:
+        owner: ACME-INC
+        repo: platform
+  output:
+    expectedResult: allow
+
+- description: Owner padded with surrounding whitespace — trimmed before compare.
+    Allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-get_file_contents
+      uri: null
+    payload:
+      name: github-mcp-get_file_contents
+      args:
+        owner: "  acme-labs  "
+        repo: sdk
+  output:
+    expectedResult: allow
+
+- description: Ownerless call (get_me) — already scoped by the OAuth grant, nothing
+    to fence. Allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-get_me
+      uri: null
+    payload:
+      name: github-mcp-get_me
+      args: {}
+  output:
+    expectedResult: allow
+
+- description: search_code with only a query string, no owner argument — ownerless,
+    allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-search_code
+      uri: null
+    payload:
+      name: github-mcp-search_code
+      args:
+        q: "org:acme-inc AKIA"
+  output:
+    expectedResult: allow
+
+- description: Explicit empty-string owner — treated as ownerless (no owner to
+    fence). Allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-get_file_contents
+      uri: null
+    payload:
+      name: github-mcp-get_file_contents
+      args:
+        owner: ""
+        repo: notes
+  output:
+    expectedResult: allow
+
+- description: Read exfiltration — pull a third-party (personal) repo into agent
+    context. Owner off-list, deny with the offending owner named.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-get_file_contents
+      uri: null
+    payload:
+      name: github-mcp-get_file_contents
+      args:
+        owner: torvalds
+        repo: linux
+        path: kernel/sched/core.c
+  output:
+    expectedResult: deny
+    expectedReason: "GitHub access is fenced to your company org allowlist. Owner 'torvalds' is not a sanctioned org, so this call is blocked to keep source code inside the company boundary. Re-target the call at a repository your company org owns, or ask your InfoSec team to add 'torvalds' to the allowlist if it is legitimately in scope."
+
+- description: Write exfiltration — push the user's token-authorized content into
+    an attacker-owned repo. Owner off-list, deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-push_files
+      uri: null
+    payload:
+      name: github-mcp-push_files
+      args:
+        owner: evil-corp
+        repo: loot
+        branch: main
+        files: []
+  output:
+    expectedResult: deny
+    expectedReason: "GitHub access is fenced to your company org allowlist. Owner 'evil-corp' is not a sanctioned org, so this call is blocked to keep source code inside the company boundary. Re-target the call at a repository your company org owns, or ask your InfoSec team to add 'evil-corp' to the allowlist if it is legitimately in scope."
+
+- description: fork_repository whose source owner is a sanctioned org — this policy
+    fences the source owner only; the personal fork destination is out of scope
+    here (see the public-exposure companion). Owner on-list, allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-fork_repository
+      uri: null
+    payload:
+      name: github-mcp-fork_repository
+      args:
+        owner: acme-inc
+        repo: secrets
+        organization: personal-user
+  output:
+    expectedResult: allow
+
+- description: fork whose source owner is off-list — the owner being forked from is
+    a third party, deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-fork_repository
+      uri: null
+    payload:
+      name: github-mcp-fork_repository
+      args:
+        owner: competitor-inc
+        repo: internal-tool
+  output:
+    expectedResult: deny
+    expectedReason: "GitHub access is fenced to your company org allowlist. Owner 'competitor-inc' is not a sanctioned org, so this call is blocked to keep source code inside the company boundary. Re-target the call at a repository your company org owns, or ask your InfoSec team to add 'competitor-inc' to the allowlist if it is legitimately in scope."
+
+- description: Red-team — present-but-non-string owner (numeric). Canonical owner is
+    undefined, so it never matches the allowlist and fails closed. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-get_file_contents
+      uri: null
+    payload:
+      name: github-mcp-get_file_contents
+      args:
+        owner: 12345
+        repo: billing
+  output:
+    expectedResult: deny
+
+- description: Red-team — whitespace-only owner. Trims to empty, which is not on the
+    allowlist, so it fails closed. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-create_or_update_file
+      uri: null
+    payload:
+      name: github-mcp-create_or_update_file
+      args:
+        owner: "   "
+        repo: config
+        path: ci.yml
+        content: "x"
+        message: "update"
+        branch: main
+  output:
+    expectedResult: deny
+
+- description: Red-team — present-but-non-string owner supplied as an array
+    (claim-spoofing a match with a collection). canonical_owner is undefined, so it
+    never matches the allowlist and fails closed. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-get_file_contents
+      uri: null
+    payload:
+      name: github-mcp-get_file_contents
+      args:
+        owner:
+          - acme-inc
+        repo: billing
+  output:
+    expectedResult: deny
+
+- description: Red-team — no `args` key at all on the payload (missing-args probe).
+    There is no owner to fence, so the call is treated as ownerless and allowed —
+    this locks the intended fail-open-for-ownerless contract (not a fail-closed
+    default). Allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-get_me
+      uri: null
+    payload:
+      name: github-mcp-get_me
+  output:
+    expectedResult: allow
+
+- description: Red-team residual (documented) — search_code with a `repo:`-scoped
+    query reaches a third-party repo through the `q` string, not an `owner`
+    argument, so this owner-fence does not catch it. Ownerless, allowed. Pair with
+    a query-string fence to close it.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-search_code
+      uri: null
+    payload:
+      name: github-mcp-search_code
+      args:
+        q: "repo:torvalds/linux secret"
+  output:
+    expectedResult: allow
+
+- description: Red-team residual (documented) — create_gist is an ownerless WRITE.
+    It carries no `owner` argument, so the fence treats it as ownerless and allows
+    it, even though content can be pushed into a public gist (a direct exfil
+    channel). "Ownerless" is not read-only. Closed by the public-exposure companion,
+    not by this fence. Allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-create_gist
+      uri: null
+    payload:
+      name: github-mcp-create_gist
+      args:
+        description: exfil
+        public: true
+        files:
+          secret.txt:
+            content: "internal source"
+  output:
+    expectedResult: allow
+
+- description: Red-team residual (documented) — create_repository targets an
+    off-list namespace via the `organization` argument, not `owner`. The fence sees
+    no `owner`, treats it as ownerless, and allows it. A follow-up push_files into
+    that repo WOULD be caught (it carries `owner`). Closed by the public-exposure
+    companion. Allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-create_repository
+      uri: null
+    payload:
+      name: github-mcp-create_repository
+      args:
+        name: loot
+        organization: attacker-org
+        private: false
+  output:
+    expectedResult: allow
+
+- description: Red-team residual (documented) — fork a sanctioned company repo into
+    a personal namespace. The `owner` argument is the fork SOURCE (on-list), so this
+    policy allows it even though it is the real IP-exfil direction. Closed by the
+    public-exposure companion, not by this fence. Allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-fork_repository
+      uri: null
+    payload:
+      name: github-mcp-fork_repository
+      args:
+        owner: acme-inc
+        repo: secrets
+        organization: attacker-personal
+  output:
+    expectedResult: allow

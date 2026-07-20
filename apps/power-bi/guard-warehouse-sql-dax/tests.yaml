@@ -1,0 +1,481 @@
+# Tests for power-bi/guard-warehouse-sql-dax (PF-07, ingress).
+# Covers every rule branch: non-guarded tool passthrough, fail-open on missing/
+# empty/non-string DAX, bounded/aggregated queries that pass, and the bare
+# full-table dump deny across all three tool suffixes and all candidate arg keys
+# — plus red-team cases (each allowed wrapper, unquoted table, trailing ORDER BY,
+# DEFINE block, comment-with-paren evasion, non-string arg).
+
+# --- Passthrough: non-guarded metadata/read tool -----------------------------
+- description: GetSemanticModelSchema is not a DAX query tool. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: powerbi-mcp-GetSemanticModelSchema
+      uri: null
+    payload:
+      name: powerbi-mcp-GetSemanticModelSchema
+      args:
+        semanticModelId: "00000000-0000-0000-0000-000000000000"
+  output:
+    expectedResult: allow
+
+- description: ValueSearch is not matched by this DAX-text guard (covered by egress). Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: powerbi-mcp-ValueSearch
+      uri: null
+    payload:
+      name: powerbi-mcp-ValueSearch
+      args:
+        searchTerm: "Smith"
+  output:
+    expectedResult: allow
+
+# --- Denies: bare full-table dump across all three tool suffixes -------------
+- description: Bare EVALUATE 'Customers' on remote ExecuteQuery. Policy should deny with the whole-table reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: powerbi-mcp-ExecuteQuery
+      uri: null
+    payload:
+      name: powerbi-mcp-ExecuteQuery
+      args:
+        expression: "EVALUATE 'Customers'"
+  output:
+    expectedResult: deny
+    expectedReason: "This DAX query is a bare full-table evaluation (EVALUATE over an entire table with no row-limiting or aggregating function), which returns the whole table in one call and is blocked on the agent MCP path. Add a FILTER predicate or wrap the table in TOPN to bound the result, or request an approved data extract from the data team if a full export is genuinely required. If this was a false positive (for example a filtered query the guard could not parse), contact your data platform team."
+
+- description: Bare dump on community execute_dax via dax_query arg key. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: pbi-community-execute_dax
+      uri: null
+    payload:
+      name: pbi-community-execute_dax
+      args:
+        dax_query: "EVALUATE 'Sales'"
+  output:
+    expectedResult: deny
+
+- description: Bare dump on community desktop_execute_dax (covered by execute_dax suffix). Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: pbi-community-desktop_execute_dax
+      uri: null
+    payload:
+      name: pbi-community-desktop_execute_dax
+      args:
+        dax_query: "EVALUATE Customers"
+  output:
+    expectedResult: deny
+
+- description: Bare dump on modeling dax_query_operations via query arg key. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: pbi-modeling-dax_query_operations
+      uri: null
+    payload:
+      name: pbi-modeling-dax_query_operations
+      args:
+        query: "EVALUATE 'HR_Employees'"
+  output:
+    expectedResult: deny
+
+# --- Red-team: unquoted table name and non-limiting trailing clauses ---------
+- description: Bare dump with unquoted single-word table name. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: powerbi-mcp-ExecuteQuery
+      uri: null
+    payload:
+      name: powerbi-mcp-ExecuteQuery
+      args:
+        expression: "EVALUATE Customers"
+  output:
+    expectedResult: deny
+
+- description: EVALUATE 'Customers' ORDER BY has no row-limiting function — still a full dump. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: powerbi-mcp-ExecuteQuery
+      uri: null
+    payload:
+      name: powerbi-mcp-ExecuteQuery
+      args:
+        expression: "EVALUATE 'Customers' ORDER BY 'Customers'[Name]"
+  output:
+    expectedResult: deny
+
+- description: DEFINE block followed by bare EVALUATE of a table. Trailing bare dump. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: powerbi-mcp-ExecuteQuery
+      uri: null
+    payload:
+      name: powerbi-mcp-ExecuteQuery
+      args:
+        expression: "DEFINE VAR threshold = 1000\nEVALUATE 'Customers'"
+  output:
+    expectedResult: deny
+
+# --- Allowed: bounded / aggregated queries (each introduces a function call) -
+- description: TOPN wraps the table — row-bounded. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: powerbi-mcp-ExecuteQuery
+      uri: null
+    payload:
+      name: powerbi-mcp-ExecuteQuery
+      args:
+        expression: "EVALUATE TOPN(100, 'Customers')"
+  output:
+    expectedResult: allow
+
+- description: FILTER predicate over the table. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: powerbi-mcp-ExecuteQuery
+      uri: null
+    payload:
+      name: powerbi-mcp-ExecuteQuery
+      args:
+        expression: "EVALUATE FILTER('Customers', 'Customers'[Region] = \"EMEA\")"
+  output:
+    expectedResult: allow
+
+- description: SUMMARIZECOLUMNS aggregation. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: powerbi-mcp-ExecuteQuery
+      uri: null
+    payload:
+      name: powerbi-mcp-ExecuteQuery
+      args:
+        expression: "EVALUATE SUMMARIZECOLUMNS('Customers'[Country], \"n\", COUNTROWS('Customers'))"
+  output:
+    expectedResult: allow
+
+- description: SUMMARIZE aggregation. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: powerbi-mcp-ExecuteQuery
+      uri: null
+    payload:
+      name: powerbi-mcp-ExecuteQuery
+      args:
+        expression: "EVALUATE SUMMARIZE('Sales', 'Sales'[Year])"
+  output:
+    expectedResult: allow
+
+- description: SAMPLE returns a bounded sample. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: powerbi-mcp-ExecuteQuery
+      uri: null
+    payload:
+      name: powerbi-mcp-ExecuteQuery
+      args:
+        expression: "EVALUATE SAMPLE(50, 'Customers', 'Customers'[Id])"
+  output:
+    expectedResult: allow
+
+- description: ROW constructs a single-row table. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: powerbi-mcp-ExecuteQuery
+      uri: null
+    payload:
+      name: powerbi-mcp-ExecuteQuery
+      args:
+        expression: "EVALUATE ROW(\"total\", COUNTROWS('Customers'))"
+  output:
+    expectedResult: allow
+
+- description: Filtered CALCULATETABLE — a function call follows EVALUATE. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: powerbi-mcp-ExecuteQuery
+      uri: null
+    payload:
+      name: powerbi-mcp-ExecuteQuery
+      args:
+        expression: "EVALUATE CALCULATETABLE('Orders', 'Orders'[Status] = \"open\")"
+  output:
+    expectedResult: allow
+
+# --- Red-team: documented evasion (comment with paren) — allowed (limitation) -
+- description: Unquoted table with a comment containing a paren breaks the unquoted pattern — documented false negative. Policy allows.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: powerbi-mcp-ExecuteQuery
+      uri: null
+    payload:
+      name: powerbi-mcp-ExecuteQuery
+      args:
+        expression: "EVALUATE Customers /* full ( scan */"
+  output:
+    expectedResult: allow
+
+- description: Quoted bare dump WITH a trailing comment is still caught by the quoted pattern. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: powerbi-mcp-ExecuteQuery
+      uri: null
+    payload:
+      name: powerbi-mcp-ExecuteQuery
+      args:
+        expression: "EVALUATE 'Customers' /* full ( scan */"
+  output:
+    expectedResult: deny
+
+# --- Fail open: missing / empty / non-string DAX -----------------------------
+- description: ExecuteQuery with no DAX argument at all. Fail open (nothing to dump). Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: powerbi-mcp-ExecuteQuery
+      uri: null
+    payload:
+      name: powerbi-mcp-ExecuteQuery
+      args:
+        semanticModelId: "00000000-0000-0000-0000-000000000000"
+  output:
+    expectedResult: allow
+
+- description: ExecuteQuery with an empty expression string. Fail open. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: powerbi-mcp-ExecuteQuery
+      uri: null
+    payload:
+      name: powerbi-mcp-ExecuteQuery
+      args:
+        expression: ""
+  output:
+    expectedResult: allow
+
+- description: ExecuteQuery with a non-string (list) DAX value. Treated as no readable DAX — fail open. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: powerbi-mcp-ExecuteQuery
+      uri: null
+    payload:
+      name: powerbi-mcp-ExecuteQuery
+      args:
+        expression:
+          - "EVALUATE 'Customers'"
+  output:
+    expectedResult: allow
+
+# --- Alternate arg keys: dax and daxQuery ------------------------------------
+- description: Bare dump under the `dax` key. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: powerbi-mcp-ExecuteQuery
+      uri: null
+    payload:
+      name: powerbi-mcp-ExecuteQuery
+      args:
+        dax: "EVALUATE 'Customers'"
+  output:
+    expectedResult: deny
+
+- description: Bounded query under the `daxQuery` key. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: powerbi-mcp-ExecuteQuery
+      uri: null
+    payload:
+      name: powerbi-mcp-ExecuteQuery
+      args:
+        daxQuery: "EVALUATE TOPN(10, 'Customers')"
+  output:
+    expectedResult: allow
+
+# --- Red-team: parenthesis-wrapped bare table (fixed bypass) -----------------
+- description: Paren-wrapped quoted table EVALUATE ('Customers') is still a full dump. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: powerbi-mcp-ExecuteQuery
+      uri: null
+    payload:
+      name: powerbi-mcp-ExecuteQuery
+      args:
+        expression: "EVALUATE ('Customers')"
+  output:
+    expectedResult: deny
+
+- description: Paren-wrapped quoted table with no space EVALUATE('Customers'). Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: powerbi-mcp-ExecuteQuery
+      uri: null
+    payload:
+      name: powerbi-mcp-ExecuteQuery
+      args:
+        dax_query: "EVALUATE('Sales')"
+  output:
+    expectedResult: deny
+
+- description: Paren-wrapped unquoted table EVALUATE ( Customers ). Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: powerbi-mcp-ExecuteQuery
+      uri: null
+    payload:
+      name: powerbi-mcp-ExecuteQuery
+      args:
+        expression: "EVALUATE ( Customers )"
+  output:
+    expectedResult: deny
+
+- description: Paren-wrapped FILTER is genuinely bounded and must remain allowed (fix must not over-block). Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: powerbi-mcp-ExecuteQuery
+      uri: null
+    payload:
+      name: powerbi-mcp-ExecuteQuery
+      args:
+        expression: "EVALUATE (FILTER('Customers', 'Customers'[Region] = \"EMEA\"))"
+  output:
+    expectedResult: allow
+
+# --- Red-team: documented residual evasions (allowed by design) --------------
+- description: Comment between EVALUATE and a quoted table defeats the pattern — documented false negative. Policy allows.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: powerbi-mcp-ExecuteQuery
+      uri: null
+    payload:
+      name: powerbi-mcp-ExecuteQuery
+      args:
+        expression: "EVALUATE /* dump */ 'Customers'"
+  output:
+    expectedResult: allow
+
+- description: Double-parenthesised table EVALUATE (('Customers')) — documented nesting residual. Policy allows.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: powerbi-mcp-ExecuteQuery
+      uri: null
+    payload:
+      name: powerbi-mcp-ExecuteQuery
+      args:
+        expression: "EVALUATE (('Customers'))"
+  output:
+    expectedResult: allow

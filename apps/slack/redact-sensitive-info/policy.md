@@ -7,7 +7,11 @@ tags:
   - dlp
   - redaction
   - ingress
-publishedAt: 2026-06-16
+  - soc2
+  - hipaa
+  - gdpr-ccpa
+  - iso27001-nist
+publishedAt: 2026-07-12
 description: |
   # slack / redact-sensitive-info
 
@@ -21,6 +25,23 @@ description: |
   reaches Slack. It is transform-only — it never denies a call, it only rewrites
   matching content to `[REDACTED]`. Any tool that is not a Slack tool, and any
   message with no matches, passes through untouched.
+
+  ## Compliance alignment
+
+  - **SOC 2 CC6.7** — supports the restriction on transmission of confidential
+    information: PII and credentials are masked before they move into Slack.
+  - **PCI DSS 3.2.1** — supports minimizing account-data sprawl by masking
+    card-number-shaped strings before they land in a system outside the CDE;
+    **8.6.2** — supports keeping credentials out of chat by redacting keys,
+    tokens, and passwords.
+  - **HIPAA §164.502(b) / §164.514(b)** — supports minimum necessary and
+    de-identification: several Safe-Harbor identifier classes (SSN, phone,
+    email) are redacted from outbound messages.
+  - **GDPR Art. 5(1)(c)** — supports data minimisation on the agent channel;
+    **CCPA §1798.150** — reduces nonredacted-PI exposure if chat history is
+    later breached.
+  - **ISO 27001 A.8.11** — data masking; **A.8.12** — data leakage prevention on
+    the agent's Slack write path.
 
   ## Why ingress
 
@@ -128,12 +149,17 @@ description: |
   - **Inspected fields are fixed.** Only `text`, `message`, `blocks`, and
     `attachments` are scanned. If your Slack MCP server carries body content under
     another argument, add a corresponding patch rule.
+
+  > **Compliance note.** This policy supports alignment with the cited framework controls **on the MCP path only**. No policy or bundle makes an organization compliant with any framework; web-UI, native-API, and in-app access are outside the gateway's reach by design. Validate against your own compliance program before relying on it.
 direction: ingress
 apps:
   - slack
 industries: []
 bundles:
   - slack
+  - soc2
+  - hipaa
+  - gdpr-ccpa
 schemaVersion: 1.0.0
 minimumGatewayVersion: 1.0.0b24
 ---

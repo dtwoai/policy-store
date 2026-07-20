@@ -23,6 +23,15 @@ description: |
   including object create/update with no association payload, passes through
   unchanged.
 
+  ## Compliance alignment
+
+  - **SOC 2 PI1.5** — integrity of stored records: blocks agent rewiring of the
+    CRM relationships that reporting rollups, workflow enrollment, and record
+    visibility depend on.
+  - **GDPR Art. 5(1)(d)** — accuracy: prevents agent-driven mis-linking of
+    personal records (contact↔company, deal↔contact) that would silently corrupt
+    personal data at scale.
+
   ## Why ingress
 
   Associations are structural CRM relationships with downstream effects
@@ -117,6 +126,8 @@ description: |
   - **No identity-based exemptions.** All callers are treated the same. To allow a
     break-glass role to manage associations, add an `allow if` branch gated on
     `input.subject.claims`.
+
+  > **Compliance note.** This policy supports alignment with the cited framework controls **on the MCP path only**. No policy or bundle makes an organization compliant with any framework; web-UI, native-API, and in-app access are outside the gateway's reach by design. Validate against your own compliance program before relying on it.
 direction: ingress
 apps:
   - hubspot

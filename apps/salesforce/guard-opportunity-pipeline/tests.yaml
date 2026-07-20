@@ -1,0 +1,622 @@
+- description: Read tool (not a matched update tool). Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: salesforce-soql_query
+      uri: null
+    payload:
+      name: salesforce-soql_query
+      args:
+        query: SELECT Id, StageName FROM Opportunity LIMIT 5
+  output:
+    expectedResult: allow
+
+- description: Hosted updateSobjectRecord moving Opportunity StageName and Amount, caller not a sales manager. Deny naming the offending fields.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: salesforce-updatesobjectrecord
+      uri: null
+    payload:
+      name: salesforce-updatesobjectrecord
+      args:
+        sobject-name: Opportunity
+        id: 006xx0000000001
+        body:
+          StageName: Closed Won
+          Amount: 250000
+    subject:
+      claims:
+        groups:
+          - sales-reps
+  output:
+    expectedResult: deny
+    expectedReason: "Moving an Opportunity's pipeline is restricted: this update changes amount, stagename. Route revenue-pipeline changes through a sales manager (IdP group \"sales-managers\") or complete the stage move in the Salesforce UI approval flow."
+
+- description: Same Opportunity pipeline move, but caller is in sales-managers. Policy should allow (exemption).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: salesforce-updatesobjectrecord
+      uri: null
+    payload:
+      name: salesforce-updatesobjectrecord
+      args:
+        sobject-name: Opportunity
+        id: 006xx0000000001
+        body:
+          StageName: Closed Won
+          Amount: 250000
+    subject:
+      claims:
+        groups:
+          - sales-managers
+  output:
+    expectedResult: allow
+
+- description: Opportunity update touching only non-pipeline fields (Description, NextStep). Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: salesforce-updatesobjectrecord
+      uri: null
+    payload:
+      name: salesforce-updatesobjectrecord
+      args:
+        sobject-name: Opportunity
+        id: 006xx0000000001
+        body:
+          Description: Left VM; following up Friday
+          NextStep: Send pricing
+    subject:
+      claims:
+        groups:
+          - sales-reps
+  output:
+    expectedResult: allow
+
+- description: Update to a different object (Case) with pipeline-looking field name. Not Opportunity, so policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: salesforce-updatesobjectrecord
+      uri: null
+    payload:
+      name: salesforce-updatesobjectrecord
+      args:
+        sobject-name: Case
+        id: 500xx0000000001
+        body:
+          Status: Escalated
+  output:
+    expectedResult: allow
+
+- description: Hosted sobject-mutations updateRecord moving Opportunity Amount. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: salesforce-updaterecord
+      uri: null
+    payload:
+      name: salesforce-updaterecord
+      args:
+        sobject-name: Opportunity
+        id: 006xx0000000001
+        body:
+          Amount: 90000
+  output:
+    expectedResult: deny
+    expectedReason: "Moving an Opportunity's pipeline is restricted: this update changes amount. Route revenue-pipeline changes through a sales manager (IdP group \"sales-managers\") or complete the stage move in the Salesforce UI approval flow."
+
+- description: Hosted updateSobjectRecordByRelationship moving Opportunity CloseDate. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: salesforce-updatesobjectrecordbyrelationship
+      uri: null
+    payload:
+      name: salesforce-updatesobjectrecordbyrelationship
+      args:
+        sobject-name: Opportunity
+        id: 006xx0000000001
+        relationship-path: Account
+        body:
+          CloseDate: 2026-12-31
+  output:
+    expectedResult: deny
+    expectedReason: "Moving an Opportunity's pipeline is restricted: this update changes closedate. Route revenue-pipeline changes through a sales manager (IdP group \"sales-managers\") or complete the stage move in the Salesforce UI approval flow."
+
+- description: tsmztech salesforce_dml_records, operation update, Opportunity, records entry with Amount. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: sf-salesforce_dml_records
+      uri: null
+    payload:
+      name: sf-salesforce_dml_records
+      args:
+        operation: update
+        objectName: Opportunity
+        records:
+          - Id: 006xx0000000001
+            Amount: 500000
+  output:
+    expectedResult: deny
+    expectedReason: "Moving an Opportunity's pipeline is restricted: this update changes amount. Route revenue-pipeline changes through a sales manager (IdP group \"sales-managers\") or complete the stage move in the Salesforce UI approval flow."
+
+- description: tsmztech salesforce_dml_records with operation insert on Opportunity. Not update/upsert, out of scope. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: sf-salesforce_dml_records
+      uri: null
+    payload:
+      name: sf-salesforce_dml_records
+      args:
+        operation: insert
+        objectName: Opportunity
+        records:
+          - Name: New Deal
+            Amount: 1000
+            StageName: Prospecting
+  output:
+    expectedResult: allow
+
+- description: tsmztech salesforce_dml_records, operation upsert, Opportunity StageName, caller in sales-managers. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: sf-salesforce_dml_records
+      uri: null
+    payload:
+      name: sf-salesforce_dml_records
+      args:
+        operation: upsert
+        objectName: Opportunity
+        records:
+          - Id: 006xx0000000001
+            StageName: Negotiation
+    subject:
+      claims:
+        groups:
+          - sales-managers
+  output:
+    expectedResult: allow
+
+- description: smn2gnt update_record moving Opportunity CloseDate. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: sf-update_record
+      uri: null
+    payload:
+      name: sf-update_record
+      args:
+        object_type: Opportunity
+        id: 006xx0000000001
+        data:
+          CloseDate: 2027-01-15
+  output:
+    expectedResult: deny
+    expectedReason: "Moving an Opportunity's pipeline is restricted: this update changes closedate. Route revenue-pipeline changes through a sales manager (IdP group \"sales-managers\") or complete the stage move in the Salesforce UI approval flow."
+
+- description: smn2gnt bulk_update_records with a records array carrying StageName on Opportunity. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: sf-bulk_update_records
+      uri: null
+    payload:
+      name: sf-bulk_update_records
+      args:
+        object_type: Opportunity
+        data:
+          - Id: 006xx0000000001
+            StageName: Closed Won
+          - Id: 006xx0000000002
+            Description: notes only
+  output:
+    expectedResult: deny
+    expectedReason: "Moving an Opportunity's pipeline is restricted: this update changes stagename. Route revenue-pipeline changes through a sales manager (IdP group \"sales-managers\") or complete the stage move in the Salesforce UI approval flow."
+
+- description: Fail closed — matched hosted update with a body but no sobject-name argument. Object cannot be determined; deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: salesforce-updatesobjectrecord
+      uri: null
+    payload:
+      name: salesforce-updatesobjectrecord
+      args:
+        id: 006xx0000000001
+        body:
+          StageName: Closed Won
+  output:
+    expectedResult: deny
+    expectedReason: "This Salesforce update could not be verified as pipeline-safe (missing object name or unstructured field body) and was denied. Resend the update with an explicit object name and a structured field body, or route the change through a sales manager or the Salesforce UI."
+
+- description: Fail closed — Opportunity update with no body argument at all. Cannot confirm pipeline-safe; deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: salesforce-updatesobjectrecord
+      uri: null
+    payload:
+      name: salesforce-updatesobjectrecord
+      args:
+        sobject-name: Opportunity
+        id: 006xx0000000001
+  output:
+    expectedResult: deny
+    expectedReason: "This Salesforce update could not be verified as pipeline-safe (missing object name or unstructured field body) and was denied. Resend the update with an explicit object name and a structured field body, or route the change through a sales manager or the Salesforce UI."
+
+- description: Fail closed — Opportunity update whose body is an opaque string, not a field map. Cannot scan fields; deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: salesforce-updatesobjectrecord
+      uri: null
+    payload:
+      name: salesforce-updatesobjectrecord
+      args:
+        sobject-name: Opportunity
+        id: 006xx0000000001
+        body: '{"StageName":"Closed Won"}'
+  output:
+    expectedResult: deny
+    expectedReason: "This Salesforce update could not be verified as pipeline-safe (missing object name or unstructured field body) and was denied. Resend the update with an explicit object name and a structured field body, or route the change through a sales manager or the Salesforce UI."
+
+- description: smn2gnt update_record on Opportunity touching only NextStep. Non-pipeline field; policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: sf-update_record
+      uri: null
+    payload:
+      name: sf-update_record
+      args:
+        object_type: Opportunity
+        id: 006xx0000000001
+        data:
+          NextStep: Schedule demo
+  output:
+    expectedResult: allow
+
+- description: Case-insensitive field match — body key STAGENAME in upper case on Opportunity, non-manager. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: salesforce-updatesobjectrecord
+      uri: null
+    payload:
+      name: salesforce-updatesobjectrecord
+      args:
+        sobject-name: opportunity
+        id: 006xx0000000001
+        body:
+          STAGENAME: Closed Won
+  output:
+    expectedResult: deny
+    expectedReason: "Moving an Opportunity's pipeline is restricted: this update changes stagename. Route revenue-pipeline changes through a sales manager (IdP group \"sales-managers\") or complete the stage move in the Salesforce UI approval flow."
+
+- description: "Red-team: trailing-space object name 'Opportunity ' with StageName. Whitespace-normalized to Opportunity; must deny."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: salesforce-updatesobjectrecord
+      uri: null
+    payload:
+      name: salesforce-updatesobjectrecord
+      args:
+        sobject-name: "Opportunity "
+        body:
+          StageName: Closed Won
+    subject:
+      claims:
+        groups:
+          - sales-reps
+  output:
+    expectedResult: deny
+    expectedReason: "Moving an Opportunity's pipeline is restricted: this update changes stagename. Route revenue-pipeline changes through a sales manager (IdP group \"sales-managers\") or complete the stage move in the Salesforce UI approval flow."
+
+- description: "Red-team: newline-suffixed object name 'Opportunity\\n' with Amount. Whitespace-normalized; must deny."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: salesforce-updatesobjectrecord
+      uri: null
+    payload:
+      name: salesforce-updatesobjectrecord
+      args:
+        sobject-name: "Opportunity\n"
+        body:
+          Amount: 500000
+    subject:
+      claims:
+        groups:
+          - sales-reps
+  output:
+    expectedResult: deny
+    expectedReason: "Moving an Opportunity's pipeline is restricted: this update changes amount. Route revenue-pipeline changes through a sales manager (IdP group \"sales-managers\") or complete the stage move in the Salesforce UI approval flow."
+
+- description: "Red-team (documented limitation): hosted createSobjectRecord sets StageName+Amount on a NEW Opportunity. This is an update-only guard; creation is out of scope and passes. Pair with role-gate-writes / object-allowlist."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: salesforce-createsobjectrecord
+      uri: null
+    payload:
+      name: salesforce-createsobjectrecord
+      args:
+        sobject-name: Opportunity
+        body:
+          Name: New Deal
+          StageName: Closed Won
+          Amount: 999999
+    subject:
+      claims:
+        groups:
+          - sales-reps
+  output:
+    expectedResult: allow
+
+- description: "Red-team (documented limitation): smn2gnt create_record sets StageName on a NEW Opportunity. Create tool, out of scope; passes."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: sf-create_record
+      uri: null
+    payload:
+      name: sf-create_record
+      args:
+        object_type: Opportunity
+        data:
+          Name: New Deal
+          StageName: Closed Won
+    subject:
+      claims:
+        groups:
+          - sales-reps
+  output:
+    expectedResult: allow
+
+- description: "Red-team (documented limitation): tsmztech salesforce_dml_records OMITS operation, Opportunity Amount. Not gated as update/upsert; out of scope, passes. Server itself requires operation."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: sf-salesforce_dml_records
+      uri: null
+    payload:
+      name: sf-salesforce_dml_records
+      args:
+        objectName: Opportunity
+        records:
+          - Id: 006xx0000000001
+            Amount: 500000
+    subject:
+      claims:
+        groups:
+          - sales-reps
+  output:
+    expectedResult: allow
+
+- description: "Red-team (documented limitation): hosted updateRelatedRecord (sobject-mutations relationship variant) moving Opportunity Amount. Not one of the three matched hosted update tools; not inspected, passes."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: sf-updaterelatedrecord
+      uri: null
+    payload:
+      name: sf-updaterelatedrecord
+      args:
+        sobject-name: Opportunity
+        body:
+          Amount: 500000
+    subject:
+      claims:
+        groups:
+          - sales-reps
+  output:
+    expectedResult: allow
+
+- description: "Red-team: caller in sales-managers plus other groups still exempt on a pipeline move. Must allow."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: sf-updatesobjectrecord
+      uri: null
+    payload:
+      name: sf-updatesobjectrecord
+      args:
+        sobject-name: Opportunity
+        body:
+          Amount: 5
+    subject:
+      claims:
+        groups:
+          - marketing
+          - sales-managers
+  output:
+    expectedResult: allow
+
+- description: "Red-team: groups delivered as a scalar string, not an array. Membership check fails closed for the grant (no exemption); pipeline move denied."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: sf-updatesobjectrecord
+      uri: null
+    payload:
+      name: sf-updatesobjectrecord
+      args:
+        sobject-name: Opportunity
+        body:
+          StageName: Closed Won
+    subject:
+      claims:
+        groups: sales-managers
+  output:
+    expectedResult: deny
+    expectedReason: "Moving an Opportunity's pipeline is restricted: this update changes stagename. Route revenue-pipeline changes through a sales manager (IdP group \"sales-managers\") or complete the stage move in the Salesforce UI approval flow."
+
+- description: "Red-team: tsmztech records supplied as a single object (not an array) with Amount on Opportunity. Field scan still reads it; must deny."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: sf-salesforce_dml_records
+      uri: null
+    payload:
+      name: sf-salesforce_dml_records
+      args:
+        operation: update
+        objectName: Opportunity
+        records:
+          Amount: 12345
+    subject:
+      claims:
+        groups:
+          - sales-reps
+  output:
+    expectedResult: deny
+    expectedReason: "Moving an Opportunity's pipeline is restricted: this update changes amount. Route revenue-pipeline changes through a sales manager (IdP group \"sales-managers\") or complete the stage move in the Salesforce UI approval flow."
+
+- description: "Red-team: matched update tool invoked with no args object at all. Object unknown; must fail closed (deny)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: sf-updatesobjectrecord
+      uri: null
+    payload:
+      name: sf-updatesobjectrecord
+  output:
+    expectedResult: deny
+    expectedReason: "This Salesforce update could not be verified as pipeline-safe (missing object name or unstructured field body) and was denied. Resend the update with an explicit object name and a structured field body, or route the change through a sales manager or the Salesforce UI."
+
+- description: "Red-team (fixed): tsmztech operation 'update ' with a trailing space on Opportunity Amount. Operation is now trimmed before the enum gate, so this stays in scope and denies; without the trim it would have evaded the gate and passed."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: sf-salesforce_dml_records
+      uri: null
+    payload:
+      name: sf-salesforce_dml_records
+      args:
+        operation: "update "
+        objectName: Opportunity
+        records:
+          - Id: 006xx0000000001
+            Amount: 500000
+    subject:
+      claims:
+        groups:
+          - sales-reps
+  output:
+    expectedResult: deny
+    expectedReason: "Moving an Opportunity's pipeline is restricted: this update changes amount. Route revenue-pipeline changes through a sales manager (IdP group \"sales-managers\") or complete the stage move in the Salesforce UI approval flow."
+
+- description: "Red-team (fixed): hosted Opportunity body key 'StageName ' with a trailing space. Field keys are now whitespace-trimmed before the protected-field scan, so this is caught and denied; without the trim the whitespaced key would have slipped past."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: salesforce-updatesobjectrecord
+      uri: null
+    payload:
+      name: salesforce-updatesobjectrecord
+      args:
+        sobject-name: Opportunity
+        id: 006xx0000000001
+        body:
+          "StageName ": Closed Won
+    subject:
+      claims:
+        groups:
+          - sales-reps
+  output:
+    expectedResult: deny
+    expectedReason: "Moving an Opportunity's pipeline is restricted: this update changes stagename. Route revenue-pipeline changes through a sales manager (IdP group \"sales-managers\") or complete the stage move in the Salesforce UI approval flow."

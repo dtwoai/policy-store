@@ -1,0 +1,445 @@
+- description: Unrelated Stripe tool (list_customers) is out of scope. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: stripe-mcp-list_customers
+      uri: null
+    payload:
+      name: stripe-mcp-list_customers
+      args:
+        limit: 10
+  output:
+    expectedResult: allow
+- description: Finance-group caller uses the passthrough against a non-money endpoint
+    (/v1/customers). Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: stripe-mcp-stripe_api_write
+      uri: null
+    subject:
+      sub: auth0|cfo
+      claims:
+        groups:
+          - finance
+    payload:
+      name: stripe-mcp-stripe_api_write
+      args:
+        path: /v1/customers
+        method: POST
+        params:
+          name: Acme Corp
+  output:
+    expectedResult: allow
+- description: Billing-admin caller, benign endpoint (/v1/invoices). Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: stripe-mcp-stripe_api_write
+      uri: null
+    subject:
+      sub: auth0|billing
+      claims:
+        groups:
+          - billing-admin
+    payload:
+      name: stripe-mcp-stripe_api_write
+      args:
+        path: /v1/invoices
+        method: POST
+        params:
+          customer: cus_123
+  output:
+    expectedResult: allow
+- description: Caller outside finance/billing-admin uses the passthrough with a benign
+    endpoint. Policy should deny with the role-gate reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: stripe-mcp-stripe_api_write
+      uri: null
+    subject:
+      sub: auth0|dev
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: stripe-mcp-stripe_api_write
+      args:
+        path: /v1/customers
+        method: POST
+  output:
+    expectedResult: deny
+    expectedReason: The Stripe API-write passthrough can execute any Stripe write and is restricted to the finance and billing-admin groups. Use the dedicated named Stripe tools for routine changes, or ask your Stripe administrator for access. Contact your InfoSec team if this was a false positive.
+- description: No subject/claims at all (IdP not populated). Policy should fail closed
+    and deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: stripe-mcp-stripe_api_write
+      uri: null
+    payload:
+      name: stripe-mcp-stripe_api_write
+      args:
+        path: /v1/customers
+        method: POST
+  output:
+    expectedResult: deny
+    expectedReason: The Stripe API-write passthrough can execute any Stripe write and is restricted to the finance and billing-admin groups. Use the dedicated named Stripe tools for routine changes, or ask your Stripe administrator for access. Contact your InfoSec team if this was a false positive.
+- description: Groups claim is a plain string instead of an array (malformed shape).
+    Policy should fail closed and deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: stripe-mcp-stripe_api_write
+      uri: null
+    subject:
+      sub: auth0|odd
+      claims:
+        groups: finance
+    payload:
+      name: stripe-mcp-stripe_api_write
+      args:
+        path: /v1/customers
+        method: POST
+  output:
+    expectedResult: deny
+    expectedReason: The Stripe API-write passthrough can execute any Stripe write and is restricted to the finance and billing-admin groups. Use the dedicated named Stripe tools for routine changes, or ask your Stripe administrator for access. Contact your InfoSec team if this was a false positive.
+- description: Finance caller targets /v1/payouts — money movement is denied for everyone,
+    with only the endpoint reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: stripe-mcp-stripe_api_write
+      uri: null
+    subject:
+      sub: auth0|cfo
+      claims:
+        groups:
+          - finance
+    payload:
+      name: stripe-mcp-stripe_api_write
+      args:
+        path: /v1/payouts
+        method: POST
+        params:
+          amount: 500000
+          currency: usd
+  output:
+    expectedResult: deny
+    expectedReason: This Stripe API-write call references a money-movement or account endpoint (payouts, transfers, topups, /v1/accounts, financial_connections), which is blocked for every caller on the agent channel. Use the dedicated named Stripe tools or the Stripe dashboard for money movement. Contact your InfoSec team if this was a false positive.
+- description: Unprivileged caller AND a transfers endpoint — both deny branches fire;
+    reason is the sorted semicolon join of both messages.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: stripe-mcp-stripe_api_write
+      uri: null
+    subject:
+      sub: auth0|intern
+      claims:
+        groups:
+          - intern
+    payload:
+      name: stripe-mcp-stripe_api_write
+      args:
+        path: /v1/transfers
+        method: POST
+        params:
+          amount: 100
+          destination: acct_999
+  output:
+    expectedResult: deny
+    expectedReason: The Stripe API-write passthrough can execute any Stripe write and is restricted to the finance and billing-admin groups. Use the dedicated named Stripe tools for routine changes, or ask your Stripe administrator for access. Contact your InfoSec team if this was a false positive.; This Stripe API-write call references a money-movement or account endpoint (payouts, transfers, topups, /v1/accounts, financial_connections), which is blocked for every caller on the agent channel. Use the dedicated named Stripe tools or the Stripe dashboard for money movement. Contact your InfoSec team if this was a false positive.
+- description: Endpoint token nested deep inside an unknown argument key shape
+    (/v1/accounts/acct_123 inside params.destination). json.marshal matching should
+    still catch it. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: stripe-mcp-stripe_api_write
+      uri: null
+    subject:
+      sub: auth0|cfo
+      claims:
+        groups:
+          - finance
+    payload:
+      name: stripe-mcp-stripe_api_write
+      args:
+        request:
+          target:
+            endpoint: /v1/accounts/acct_123
+            verb: DELETE
+  output:
+    expectedResult: deny
+    expectedReason: This Stripe API-write call references a money-movement or account endpoint (payouts, transfers, topups, /v1/accounts, financial_connections), which is blocked for every caller on the agent channel. Use the dedicated named Stripe tools or the Stripe dashboard for money movement. Contact your InfoSec team if this was a false positive.
+- description: Uppercase endpoint token (TOPUPS) in an argument value. Case-insensitive
+    matching should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: stripe-mcp-stripe_api_write
+      uri: null
+    subject:
+      sub: auth0|cfo
+      claims:
+        groups:
+          - finance
+    payload:
+      name: stripe-mcp-stripe_api_write
+      args:
+        path: /V1/TOPUPS
+        method: POST
+  output:
+    expectedResult: deny
+    expectedReason: This Stripe API-write call references a money-movement or account endpoint (payouts, transfers, topups, /v1/accounts, financial_connections), which is blocked for every caller on the agent channel. Use the dedicated named Stripe tools or the Stripe dashboard for money movement. Contact your InfoSec team if this was a false positive.
+- description: Financial_connections endpoint token. Denied for everyone.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: stripe-mcp-stripe_api_write
+      uri: null
+    subject:
+      sub: auth0|cfo
+      claims:
+        groups:
+          - finance
+    payload:
+      name: stripe-mcp-stripe_api_write
+      args:
+        path: /v1/financial_connections/sessions
+        method: POST
+  output:
+    expectedResult: deny
+    expectedReason: This Stripe API-write call references a money-movement or account endpoint (payouts, transfers, topups, /v1/accounts, financial_connections), which is blocked for every caller on the agent channel. Use the dedicated named Stripe tools or the Stripe dashboard for money movement. Contact your InfoSec team if this was a false positive.
+- description: Mixed-case, differently prefixed tool name (Acme-Stripe-STRIPE_API_WRITE),
+    unprivileged caller. Suffix + lower() matching should still gate it. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: Acme-Stripe-STRIPE_API_WRITE
+      uri: null
+    subject:
+      sub: auth0|dev
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: Acme-Stripe-STRIPE_API_WRITE
+      args:
+        path: /v1/coupons
+        method: POST
+  output:
+    expectedResult: deny
+    expectedReason: The Stripe API-write passthrough can execute any Stripe write and is restricted to the finance and billing-admin groups. Use the dedicated named Stripe tools for routine changes, or ask your Stripe administrator for access. Contact your InfoSec team if this was a false positive.
+- description: Renamed deployment keeping only the api_write stem (acme-raw-api_write),
+    unprivileged caller. The broader suffix rule should gate it. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: acme-raw-api_write
+      uri: null
+    subject:
+      sub: auth0|dev
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: acme-raw-api_write
+      args:
+        path: /v1/products
+        method: POST
+  output:
+    expectedResult: deny
+    expectedReason: The Stripe API-write passthrough can execute any Stripe write and is restricted to the finance and billing-admin groups. Use the dedicated named Stripe tools for routine changes, or ask your Stripe administrator for access. Contact your InfoSec team if this was a false positive.
+- description: Privileged caller invokes the passthrough with args missing entirely.
+    Serialized args are {} — endpoint check passes, group gate passes. Allow
+    (documented Known limitation).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: stripe-mcp-stripe_api_write
+      uri: null
+    subject:
+      sub: auth0|cfo
+      claims:
+        groups:
+          - finance
+    payload:
+      name: stripe-mcp-stripe_api_write
+  output:
+    expectedResult: allow
+- description: Unprivileged caller, args missing entirely. Role gate still fails closed.
+    Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: stripe-mcp-stripe_api_write
+      uri: null
+    subject:
+      sub: auth0|dev
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: stripe-mcp-stripe_api_write
+  output:
+    expectedResult: deny
+    expectedReason: The Stripe API-write passthrough can execute any Stripe write and is restricted to the finance and billing-admin groups. Use the dedicated named Stripe tools for routine changes, or ask your Stripe administrator for access. Contact your InfoSec team if this was a false positive.
+- description: Red-team (fixed) — finance caller creates a Connect account expressed
+    as {resource - accounts} with no /v1/ prefix. Previously bypassed the account
+    hard stop; the bare `accounts` token now denies it.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: stripe-mcp-stripe_api_write
+      uri: null
+    subject:
+      sub: auth0|cfo
+      claims:
+        groups:
+          - finance
+    payload:
+      name: stripe-mcp-stripe_api_write
+      args:
+        resource: accounts
+        action: create
+        params:
+          type: express
+          country: US
+  output:
+    expectedResult: deny
+    expectedReason: This Stripe API-write call references a money-movement or account endpoint (payouts, transfers, topups, /v1/accounts, financial_connections), which is blocked for every caller on the agent channel. Use the dedicated named Stripe tools or the Stripe dashboard for money movement. Contact your InfoSec team if this was a false positive.
+- description: Red-team (fixed) — finance caller mutates a connected account by id
+    ({account - acct_123}) with no /v1/accounts path. Previously bypassed; the `acct_`
+    token now denies it.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: stripe-mcp-stripe_api_write
+      uri: null
+    subject:
+      sub: auth0|cfo
+      claims:
+        groups:
+          - finance
+    payload:
+      name: stripe-mcp-stripe_api_write
+      args:
+        account: acct_123
+        method: POST
+        params:
+          business_profile:
+            url: https://acme.example
+  output:
+    expectedResult: deny
+    expectedReason: This Stripe API-write call references a money-movement or account endpoint (payouts, transfers, topups, /v1/accounts, financial_connections), which is blocked for every caller on the agent channel. Use the dedicated named Stripe tools or the Stripe dashboard for money movement. Contact your InfoSec team if this was a false positive.
+- description: Red-team (fixed) — finance caller routes money via a Connect destination
+    charge (transfer_data.destination - acct_999) on the benign-looking /v1/payment_intents
+    endpoint. The `acct_` token catches the destination id. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: stripe-mcp-stripe_api_write
+      uri: null
+    subject:
+      sub: auth0|cfo
+      claims:
+        groups:
+          - finance
+    payload:
+      name: stripe-mcp-stripe_api_write
+      args:
+        path: /v1/payment_intents
+        method: POST
+        params:
+          amount: 100000
+          currency: usd
+          transfer_data:
+            destination: acct_999
+  output:
+    expectedResult: deny
+    expectedReason: This Stripe API-write call references a money-movement or account endpoint (payouts, transfers, topups, /v1/accounts, financial_connections), which is blocked for every caller on the agent channel. Use the dedicated named Stripe tools or the Stripe dashboard for money movement. Contact your InfoSec team if this was a false positive.
+- description: Red-team (documented residual) — finance caller sets application_fee_amount
+    on a direct /v1/charges with no account reference. No endpoint/account token is
+    present, so the endpoint check passes (group gate still applies). Allow — parameter-only
+    fee movement is a documented residual, backstopped by RAK scoping.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: stripe-mcp-stripe_api_write
+      uri: null
+    subject:
+      sub: auth0|cfo
+      claims:
+        groups:
+          - finance
+    payload:
+      name: stripe-mcp-stripe_api_write
+      args:
+        path: /v1/charges
+        method: POST
+        params:
+          amount: 1000
+          currency: usd
+          application_fee_amount: 100
+  output:
+    expectedResult: allow

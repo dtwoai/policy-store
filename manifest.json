@@ -1,6 +1,1868 @@
 {
   "policies": [
     {
+      "path": "apps/airtable/cap-bulk-record-reads",
+      "name": "Clamp Bulk Airtable Record Reads",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "airtable"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2",
+        "gdpr-ccpa"
+      ],
+      "tags": [
+        "airtable",
+        "cap-bulk-export",
+        "ingress",
+        "soc2",
+        "gdpr-ccpa"
+      ],
+      "policyChecksum": "sha256:c2d3a53a5918a4cbec88c745c7bc69f8267688cd5d4920fd002afba346b4de86",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/airtable/default-deny-unknown-tools",
+      "name": "Default-Deny Unaudited Airtable Tools",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "airtable"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2"
+      ],
+      "tags": [
+        "airtable",
+        "default-deny-unknown-tools",
+        "allowlist",
+        "ingress",
+        "soc2"
+      ],
+      "policyChecksum": "sha256:3ffaade35ac5b90afb59c43af5f65415acdf63f1d13f6ec07f7acbcad093c930",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/airtable/fence-base-allowlist",
+      "name": "Confine Airtable Agent to Allowlisted Bases",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "airtable"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2",
+        "gdpr-ccpa"
+      ],
+      "tags": [
+        "airtable",
+        "fence-sensitive-scopes",
+        "ingress",
+        "soc2",
+        "gdpr-ccpa"
+      ],
+      "policyChecksum": "sha256:438d1a0b4a73d17af63a9d381d7d6eee643181e6ec9401461475e8f17fec9ed1",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/airtable/freeze-record-deletion",
+      "name": "Freeze Destructive Airtable Deletes",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "airtable"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2"
+      ],
+      "tags": [
+        "airtable",
+        "freeze-destructive-ops",
+        "record-integrity",
+        "ingress",
+        "soc2"
+      ],
+      "policyChecksum": "sha256:41f703f1354dea72fc51525d9263d34ec7e78f611f6686f29bce71ed8837ae2f",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/airtable/redact-pii-egress",
+      "name": "Airtable: Redact PII in Record Reads",
+      "direction": "egress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "airtable"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2",
+        "gdpr-ccpa"
+      ],
+      "tags": [
+        "airtable",
+        "redact-pii",
+        "pii",
+        "dlp",
+        "redaction",
+        "egress",
+        "soc2",
+        "gdpr-ccpa"
+      ],
+      "policyChecksum": "sha256:4111337a2e5dd289f5a8b38aad3414b212f22ffbd2cfd74e3d162726bfb06987",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/asana/cap-batch-mutation",
+      "name": "Cap Asana Batch Task Mutations",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "asana"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2"
+      ],
+      "tags": [
+        "asana",
+        "cap-bulk-export",
+        "batch-mutation",
+        "ingress",
+        "soc2"
+      ],
+      "policyChecksum": "sha256:d4d1d191072dce9a9d61794abb85e2fbe009749d6c44a2629ff577e7b1d62ede",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/asana/fence-sensitive-projects",
+      "name": "Fence Writes to Sensitive Asana Projects",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "asana"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2",
+        "gdpr-ccpa"
+      ],
+      "tags": [
+        "asana",
+        "fence-sensitive-scopes",
+        "ingress",
+        "soc2",
+        "gdpr-ccpa"
+      ],
+      "policyChecksum": "sha256:90fa434b8f6290758ceee9e9486db7d31c48e7abdf43a9b7514c0457f688fe85",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/asana/freeze-destructive-ops",
+      "name": "Freeze Destructive Asana Operations",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "asana"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2"
+      ],
+      "tags": [
+        "asana",
+        "freeze-destructive-ops",
+        "record-integrity",
+        "ingress",
+        "soc2"
+      ],
+      "policyChecksum": "sha256:df535e73dddeb8cbd370639a068c826c8a2fe8bbf5a744a8544e4606d2266163",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/asana/redact-task-pii",
+      "name": "Asana: Redact PII in Task & Comment Reads",
+      "direction": "egress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "asana"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2",
+        "gdpr-ccpa"
+      ],
+      "tags": [
+        "asana",
+        "redact-pii",
+        "pii",
+        "dlp",
+        "redaction",
+        "egress",
+        "soc2",
+        "gdpr-ccpa"
+      ],
+      "policyChecksum": "sha256:88c779d4e795f8e2e4af4929d357f0a23626eafc11372be6233aff4f297705d6",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/bigquery/default-deny-unknown-tools",
+      "name": "Default-Deny Unaudited BigQuery Tools",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "bigquery"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2"
+      ],
+      "tags": [
+        "bigquery",
+        "default-deny-unknown-tools",
+        "allowlist",
+        "access-control",
+        "ingress",
+        "soc2"
+      ],
+      "policyChecksum": "sha256:aef34bbc36a8c0e81ccb0db6330227cd64a1d8a47e0e9c28a9b4e98ef953376c",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/bigquery/fence-sensitive-datasets",
+      "name": "Fence Regulated BigQuery Datasets by Group",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "bigquery"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2",
+        "hipaa",
+        "pci-dss",
+        "gdpr-ccpa"
+      ],
+      "tags": [
+        "bigquery",
+        "fence-sensitive-scopes",
+        "ingress",
+        "rbac",
+        "soc2",
+        "hipaa",
+        "pci-dss",
+        "gdpr-ccpa"
+      ],
+      "policyChecksum": "sha256:5b131ef35203846caed781b9046d6b3969d0eae2f827cc7d4a8377cb16ba6102",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/bigquery/guard-warehouse-export",
+      "name": "Block BigQuery Exfiltration and Cross-Project Writes",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "bigquery"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2",
+        "pci-dss",
+        "gdpr-ccpa"
+      ],
+      "tags": [
+        "bigquery",
+        "guard-warehouse-export",
+        "ingress",
+        "sql",
+        "exfiltration",
+        "soc2",
+        "pci-dss",
+        "gdpr-ccpa"
+      ],
+      "policyChecksum": "sha256:e5fb526cace70c61eaa20320c7666cc349ff0fb5b0cfbe41bde36723cfe1dbed",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/bigquery/guard-warehouse-sql",
+      "name": "Block Destructive SQL in BigQuery Queries",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "bigquery"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2",
+        "pci-dss",
+        "sox"
+      ],
+      "tags": [
+        "bigquery",
+        "guard-warehouse-sql",
+        "ingress",
+        "sql",
+        "readonly",
+        "soc2",
+        "pci-dss",
+        "sox"
+      ],
+      "policyChecksum": "sha256:fecb650bae4cb011aeaa1be5db3f6d09b7f438cadc0adc82725bc2b3adaf1013",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/bigquery/redact-pii-egress",
+      "name": "BigQuery: Redact PII in Query Results",
+      "direction": "egress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "bigquery"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2",
+        "hipaa",
+        "gdpr-ccpa"
+      ],
+      "tags": [
+        "bigquery",
+        "redact-pii",
+        "pii",
+        "dlp",
+        "redaction",
+        "egress",
+        "soc2",
+        "hipaa",
+        "gdpr-ccpa"
+      ],
+      "policyChecksum": "sha256:b5db39d7244865397c557901f80cadac5c9daa7294c530bdb6493a41750b632b",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/box/fence-sensitive-folders",
+      "name": "Fence Sensitive Box Folders by IdP Group",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "box"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2",
+        "hipaa",
+        "gdpr-ccpa"
+      ],
+      "tags": [
+        "box",
+        "fence-sensitive-scopes",
+        "ingress",
+        "soc2",
+        "hipaa",
+        "gdpr-ccpa"
+      ],
+      "policyChecksum": "sha256:44bf6f7b7b2874b2aa81637a97f8375767cd559bb8566acac8be339f6dac5ab4",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/box/freeze-destructive-ops",
+      "name": "Freeze Destructive Box Operations",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "box"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2"
+      ],
+      "tags": [
+        "box",
+        "freeze-destructive-ops",
+        "ingress",
+        "soc2"
+      ],
+      "policyChecksum": "sha256:2f911c6a177d41fb8731d90545c167eafb8328f695c7356411806cb820605978",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/box/guard-share-links-external",
+      "name": "Guard Box Share Links and External Collaborations",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "box"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2",
+        "hipaa",
+        "gdpr-ccpa"
+      ],
+      "tags": [
+        "box",
+        "guard-share-links",
+        "sharing",
+        "external-sharing",
+        "ingress",
+        "soc2",
+        "hipaa",
+        "gdpr-ccpa"
+      ],
+      "policyChecksum": "sha256:c5bedabd8d1b9dc1e96a1027e4abebbf1907d703e3d53b648547d64b5c58a12a",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/box/redact-pii-egress",
+      "name": "Box: Redact PII from File Content on Egress",
+      "direction": "egress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "box"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2",
+        "hipaa",
+        "gdpr-ccpa"
+      ],
+      "tags": [
+        "box",
+        "redact-pii",
+        "pii",
+        "phi",
+        "dlp",
+        "redaction",
+        "egress",
+        "soc2",
+        "hipaa",
+        "gdpr-ccpa"
+      ],
+      "policyChecksum": "sha256:f54e1078b14091870e8122f18eb5a1938363bca29c5f9999a4c1492e397bf162",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/box/role-gate-writes",
+      "name": "Box: Role-Gated Writes (Read-Only Default)",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "box"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2",
+        "gdpr-ccpa"
+      ],
+      "tags": [
+        "box",
+        "role-gate-writes",
+        "access-control",
+        "least-privilege",
+        "ingress",
+        "soc2",
+        "gdpr-ccpa"
+      ],
+      "policyChecksum": "sha256:402fdf79b6e7b9fd5df7fe444218b926ed74c5d7c7748b0b41c33c0df2be5d1a",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/confluence/block-secrets",
+      "name": "Block Secrets in Confluence Pages and Comments",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "confluence"
+      ],
+      "industries": [],
+      "bundles": [
+        "atlassian",
+        "soc2"
+      ],
+      "tags": [
+        "confluence",
+        "secrets",
+        "dlp",
+        "ingress",
+        "soc2",
+        "atlassian"
+      ],
+      "policyChecksum": "sha256:86e05d9056df21bb6a29145ee141cecc2c88219fe48402d1fd8a8776acb4e36e",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/confluence/deny-public-publication",
+      "name": "Confluence: Deny Org-Wide & Public Publication",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "confluence"
+      ],
+      "industries": [],
+      "bundles": [
+        "atlassian",
+        "soc2",
+        "gdpr-ccpa"
+      ],
+      "tags": [
+        "confluence",
+        "atlassian",
+        "deny-public-exposure",
+        "publication",
+        "governance",
+        "ingress",
+        "finserv-comms",
+        "eu-ai-act",
+        "soc2",
+        "gdpr-ccpa"
+      ],
+      "policyChecksum": "sha256:3addcf2a044394ddb4a6dcf6d1780d63f7372741ddcaa3ebc337fc076dc54854",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/confluence/fence-restricted-spaces",
+      "name": "Fence Confluence Reads & Search to Non-Restricted Spaces",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "confluence"
+      ],
+      "industries": [],
+      "bundles": [
+        "atlassian",
+        "soc2",
+        "hipaa",
+        "gdpr-ccpa"
+      ],
+      "tags": [
+        "confluence",
+        "atlassian",
+        "fence-sensitive-scopes",
+        "access-control",
+        "ingress",
+        "soc2",
+        "hipaa",
+        "gdpr-ccpa"
+      ],
+      "policyChecksum": "sha256:63b7c426b63cf3c02a2057d9ebfab515c3f0e4b19c1832dc5059dd535933336c",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/confluence/freeze-page-deletion",
+      "name": "Confluence: Freeze Page & Attachment Deletion",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "confluence"
+      ],
+      "industries": [],
+      "bundles": [
+        "atlassian",
+        "soc2"
+      ],
+      "tags": [
+        "confluence",
+        "atlassian",
+        "freeze-destructive-ops",
+        "data-protection",
+        "ingress",
+        "soc2"
+      ],
+      "policyChecksum": "sha256:83c0636b7f0f1496216dd9220e12e0da1a8cd91cfb4875d981cd911d0ab97483",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/confluence/redact-pii-egress",
+      "name": "Confluence: Redact PII from Page & Comment Responses",
+      "direction": "egress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "confluence"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2",
+        "hipaa",
+        "gdpr-ccpa",
+        "atlassian"
+      ],
+      "tags": [
+        "confluence",
+        "atlassian",
+        "redact-pii",
+        "pii",
+        "dlp",
+        "redaction",
+        "egress",
+        "soc2",
+        "hipaa",
+        "gdpr-ccpa"
+      ],
+      "policyChecksum": "sha256:4b43eed8bc31dc7944a396b08690bd7bb5ad22d3097aed5f98474970ac657353",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/databricks/default-deny-unknown-tools",
+      "name": "Databricks Default-Deny Unknown Tools",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "databricks"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2"
+      ],
+      "tags": [
+        "databricks",
+        "default-deny-unknown-tools",
+        "allowlist",
+        "access-control",
+        "ingress",
+        "soc2"
+      ],
+      "policyChecksum": "sha256:be4a48dc04ce574ccac8aac24e4ce41eba78df4e1648945fb314e3e746613180",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/databricks/fence-sensitive-schemas",
+      "name": "Fence Sensitive Databricks Schemas",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "databricks"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2",
+        "hipaa",
+        "pci-dss",
+        "gdpr-ccpa"
+      ],
+      "tags": [
+        "databricks",
+        "fence-sensitive-scopes",
+        "ingress",
+        "soc2",
+        "hipaa",
+        "pci-dss",
+        "gdpr-ccpa"
+      ],
+      "policyChecksum": "sha256:5331f16e5edfd30686ae0dd1a0feb7526b875f660649556fc74231b1d0121036",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/databricks/guard-warehouse-sql",
+      "name": "Guard Databricks SQL Against Writes and DDL",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "databricks"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2",
+        "pci-dss",
+        "sox"
+      ],
+      "tags": [
+        "databricks",
+        "guard-warehouse-sql",
+        "ingress",
+        "sql",
+        "readonly",
+        "pci-dss",
+        "sox",
+        "soc2"
+      ],
+      "policyChecksum": "sha256:3779448d0f1d79876d3fb8e5a777361f5553e1e60a4ac2fee9a601e05d091d97",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/databricks/mask-pan-egress",
+      "name": "Databricks: Mask Cardholder PANs in Responses",
+      "direction": "egress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "databricks"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2",
+        "pci-dss",
+        "gdpr-ccpa"
+      ],
+      "tags": [
+        "databricks",
+        "mask-pan-egress",
+        "egress",
+        "cardholder-data",
+        "dlp",
+        "soc2",
+        "pci-dss",
+        "gdpr-ccpa"
+      ],
+      "policyChecksum": "sha256:f8e407d8c4ae888c9c851d437908c11cf66273de062d654f84459dbab81fa0a1",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/databricks/redact-pii-egress",
+      "name": "Databricks: Redact PII in Tool Responses",
+      "direction": "egress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "databricks"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2",
+        "hipaa",
+        "gdpr-ccpa"
+      ],
+      "tags": [
+        "databricks",
+        "redact-pii",
+        "pii",
+        "dlp",
+        "redaction",
+        "egress",
+        "soc2",
+        "hipaa",
+        "gdpr-ccpa"
+      ],
+      "policyChecksum": "sha256:fb121d2c224503786e3949536e21af59d24989d1ee5c29c655a2e4b4d1d48b8f",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/databricks/role-gate-compute-ops",
+      "name": "Databricks: Role-Gate Compute & Job Control",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "databricks"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2"
+      ],
+      "tags": [
+        "databricks",
+        "role-gate-writes",
+        "access-control",
+        "least-privilege",
+        "ingress",
+        "soc2"
+      ],
+      "policyChecksum": "sha256:dac0eee89cff61994486275bafe6192f87bc3dd58d9ef5fc36f6a2242a2f6970",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/docusign/cap-directory-and-document-egress",
+      "name": "Cap Docusign Directory and Document Egress",
+      "direction": "egress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "docusign"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2",
+        "gdpr-ccpa"
+      ],
+      "tags": [
+        "docusign",
+        "cap-bulk-export",
+        "pii",
+        "data-minimisation",
+        "egress",
+        "soc2",
+        "gdpr-ccpa"
+      ],
+      "policyChecksum": "sha256:5f9241742b7d09b674fee3f7e169acd704a79109b7a06a61d2ac11ab02b2dd8d",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/docusign/force-draft-envelopes",
+      "name": "Force Docusign Envelopes to Draft",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "docusign"
+      ],
+      "industries": [],
+      "bundles": [],
+      "tags": [
+        "docusign",
+        "force-draft-envelopes",
+        "esign",
+        "human-in-the-loop",
+        "ingress"
+      ],
+      "policyChecksum": "sha256:c1dba6662400ac826544f174979bb864b1bc3c5872db5141910e22ec6982cc2b",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/docusign/freeze-destructive-ops",
+      "name": "Block Irreversible Docusign Void and Workflow Kills",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "docusign"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2"
+      ],
+      "tags": [
+        "docusign",
+        "freeze-destructive-ops",
+        "ingress",
+        "soc2"
+      ],
+      "policyChecksum": "sha256:f6a8b10e38a3096a1f8dcd1b83a5d59f645b680015160eda7711e4d05effe476",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/docusign/guard-external-recipients",
+      "name": "Guard Docusign External Recipients",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "docusign"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2",
+        "gdpr-ccpa"
+      ],
+      "tags": [
+        "docusign",
+        "guard-external-send",
+        "ingress",
+        "soc2",
+        "gdpr-ccpa"
+      ],
+      "policyChecksum": "sha256:598295fa866f3d9e48a78ae5ac9e7f9733c7ee2be6c639c5bcb4aaf3dce563e4",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/docusign/redact-tab-values-egress",
+      "name": "Docusign: Redact SSN, Bank & Card Values on Egress",
+      "direction": "egress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "docusign"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2",
+        "gdpr-ccpa"
+      ],
+      "tags": [
+        "docusign",
+        "redact-pii",
+        "tab-values",
+        "pii",
+        "phi",
+        "pan",
+        "dlp",
+        "redaction",
+        "egress",
+        "soc2",
+        "gdpr-ccpa"
+      ],
+      "policyChecksum": "sha256:9df5248637c826c1335c9cdf8cbefae6a1561267fc48d8bb021fd52f6705d308",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/dropbox/fence-sensitive-paths",
+      "name": "Fence Sensitive Dropbox Paths by Team",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "dropbox"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2",
+        "hipaa",
+        "gdpr-ccpa"
+      ],
+      "tags": [
+        "dropbox",
+        "fence-sensitive-scopes",
+        "ingress",
+        "soc2",
+        "hipaa",
+        "gdpr-ccpa"
+      ],
+      "policyChecksum": "sha256:a21a98aab34382aadfad11cf231ef36da8229ffd562ebc31200ab803061e646e",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/dropbox/freeze-destructive-ops",
+      "name": "Freeze Destructive Dropbox Operations",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "dropbox"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2"
+      ],
+      "tags": [
+        "dropbox",
+        "freeze-destructive-ops",
+        "ingress",
+        "soc2"
+      ],
+      "policyChecksum": "sha256:f1b1b9f6bff9fb5d2f25971376588b08da43e1f5d09893a894df50cd5b5a9af9",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/dropbox/guard-share-links-external",
+      "name": "Block Public Dropbox Share, Download, and File-Request Links",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "dropbox"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2",
+        "hipaa",
+        "gdpr-ccpa"
+      ],
+      "tags": [
+        "dropbox",
+        "guard-share-links",
+        "sharing",
+        "external-sharing",
+        "ingress",
+        "soc2",
+        "hipaa",
+        "gdpr-ccpa"
+      ],
+      "policyChecksum": "sha256:2ba453c01d2723e725e7a76744f21a1f2692a1e980d2ff7a477b899356f3ac70",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/dropbox/redact-content-egress",
+      "name": "Dropbox: Redact PII, PANs, and Secrets in File Content",
+      "direction": "egress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "dropbox"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2",
+        "hipaa",
+        "gdpr-ccpa"
+      ],
+      "tags": [
+        "dropbox",
+        "redact-content",
+        "redact-pii",
+        "mask-pan",
+        "secrets",
+        "pii",
+        "dlp",
+        "egress",
+        "soc2",
+        "hipaa",
+        "gdpr-ccpa"
+      ],
+      "policyChecksum": "sha256:e86d5f2ee35b2f0cf9f6d0007eaf5321382ffe11416010e5461ee4250b25f36c",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/dropbox/role-gate-writes",
+      "name": "Role-Gate Dropbox Writes to the Writers Group",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "dropbox"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2",
+        "gdpr-ccpa"
+      ],
+      "tags": [
+        "dropbox",
+        "role-gate-writes",
+        "rbac",
+        "least-privilege",
+        "ingress",
+        "soc2",
+        "gdpr-ccpa"
+      ],
+      "policyChecksum": "sha256:44b33582ffce15781a7162dbd4e365dc45a16c43e986adea9363546bb9fc858f",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/github/block-secrets-commits",
+      "name": "Block Secrets in GitHub Commits & PRs",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "github"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2"
+      ],
+      "tags": [
+        "github",
+        "secrets",
+        "dlp",
+        "ingress",
+        "soc2"
+      ],
+      "policyChecksum": "sha256:6ee3683c879325ec5d940127324281eb079a5dc2b5d7d811f538ce24c1354096",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/github/deny-public-exposure-repos",
+      "name": "Prevent Public Exposure of GitHub Repos, Gists & Forks",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "github"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2"
+      ],
+      "tags": [
+        "github",
+        "deny-public-exposure",
+        "anti-exfil",
+        "ingress",
+        "soc2",
+        "finserv-comms",
+        "eu-ai-act"
+      ],
+      "policyChecksum": "sha256:7de86c061b5fe9c21fb3c8f21cabcb58ebf6722626bb94e7ed1625b1ce955722",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/github/fence-scopes-org-allowlist",
+      "name": "Fence GitHub Access to the Company Org Allowlist",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "github"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2"
+      ],
+      "tags": [
+        "github",
+        "fence-sensitive-scopes",
+        "org-allowlist",
+        "anti-exfil",
+        "ingress",
+        "soc2"
+      ],
+      "policyChecksum": "sha256:53fe009c913de7ae748645f9646b4cd71ce0970e35b81d5e4869dbd3537adc8f",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/github/redact-secrets-egress",
+      "name": "GitHub: Redact Secrets from Read Responses",
+      "direction": "egress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "github"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2"
+      ],
+      "tags": [
+        "github",
+        "redact-secrets",
+        "secrets",
+        "dlp",
+        "redaction",
+        "egress",
+        "soc2"
+      ],
+      "policyChecksum": "sha256:26bc1e1ebf9227a52389fc2a899782f2df997bef28875995cef905cdda0be9ca",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/github/require-human-approval-merge",
+      "name": "Require Human Approval: GitHub Merges & Approvals",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "github"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2",
+        "sox"
+      ],
+      "tags": [
+        "github",
+        "require-human-approval",
+        "ingress",
+        "soc2",
+        "sox"
+      ],
+      "policyChecksum": "sha256:3e04fb6019dbed04d17cb58263e0a49d8b01a509798e055ff6877bc558ac0a37",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/github/role-gate-writes-engineering",
+      "name": "Read-Only GitHub for Non-Engineers",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "github"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2",
+        "sox"
+      ],
+      "tags": [
+        "github",
+        "role-gate-writes",
+        "ingress",
+        "soc2",
+        "sox"
+      ],
+      "policyChecksum": "sha256:298231c9480137bc89f70d5708ca8650a20bd01da91a16475c2d6c73c880f425",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/glean/cap-search-export",
+      "name": "Cap Glean Bulk Search Export",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "glean"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2",
+        "hipaa",
+        "gdpr-ccpa"
+      ],
+      "tags": [
+        "glean",
+        "cap-bulk-export",
+        "data-minimisation",
+        "ingress",
+        "soc2",
+        "hipaa",
+        "gdpr-ccpa"
+      ],
+      "policyChecksum": "sha256:bf5ad7f22ab9e693010ae9b6eccb712de9e68d662cb33db57a29d647ba086c7f",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/glean/default-deny-unknown-tools",
+      "name": "Glean Default-Deny Unknown Tools",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "glean"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2"
+      ],
+      "tags": [
+        "glean",
+        "default-deny-unknown-tools",
+        "allowlist",
+        "access-control",
+        "ingress",
+        "soc2"
+      ],
+      "policyChecksum": "sha256:3482d8ff33089e20e8a6abd809b9a70c5494f6c4413c674cb9e7014beeeae640",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/glean/fence-datasource-scope",
+      "name": "Fence Glean Search by Datasource",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "glean"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2",
+        "hipaa",
+        "gdpr-ccpa"
+      ],
+      "tags": [
+        "glean",
+        "fence-sensitive-scopes",
+        "access-control",
+        "datasource",
+        "ingress",
+        "soc2",
+        "hipaa",
+        "gdpr-ccpa"
+      ],
+      "policyChecksum": "sha256:56e26218fcc730dcdd015c7e265a776ac7e01c2402521fae5498858ae798f324",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/glean/gate-memory-writes",
+      "name": "Glean: Gate Memory Writes (Read-Only Default)",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "glean"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2"
+      ],
+      "tags": [
+        "glean",
+        "gate-memory-writes",
+        "role-gate-writes",
+        "memory",
+        "access-control",
+        "least-privilege",
+        "ingress",
+        "soc2"
+      ],
+      "policyChecksum": "sha256:3b7337cfdd6c33dd3e5c58425f66dc4ec68b4debbb40a1d3e361217c27faae07",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/glean/redact-pii-egress",
+      "name": "Glean: Redact PII from Read-Tool Responses",
+      "direction": "egress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "glean"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2",
+        "hipaa",
+        "gdpr-ccpa"
+      ],
+      "tags": [
+        "glean",
+        "redact-pii",
+        "pii",
+        "dlp",
+        "redaction",
+        "egress",
+        "soc2",
+        "hipaa",
+        "gdpr-ccpa"
+      ],
+      "policyChecksum": "sha256:e4da085ccb65113ff3cda00d4de010f996117a6e89efb8f77c143991554bf915",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/gmail/cap-bulk-export",
+      "name": "Gmail Cap Bulk Export",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "gmail"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2",
+        "hipaa",
+        "gdpr-ccpa"
+      ],
+      "tags": [
+        "gmail",
+        "cap-bulk-export",
+        "data-minimisation",
+        "ingress",
+        "soc2",
+        "hipaa",
+        "gdpr-ccpa"
+      ],
+      "policyChecksum": "sha256:a1d028ee37ad5c60df8ea59e6deb6aef24df041761b964182cbe8912d0fe7e26",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/gmail/freeze-destructive-ops",
+      "name": "Freeze Destructive Gmail Operations",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "gmail"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2"
+      ],
+      "tags": [
+        "gmail",
+        "freeze-destructive-ops",
+        "record-integrity",
+        "ingress",
+        "soc2"
+      ],
+      "policyChecksum": "sha256:4238b7fbabe7f23035708c0160fcd168734ee90ad4820f45372b9abb67ba801c",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/gmail/guard-external-send",
+      "name": "Deny Agent Email Sends to External Recipients",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "gmail"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2",
+        "hipaa",
+        "gdpr-ccpa"
+      ],
+      "tags": [
+        "gmail",
+        "guard-external-send",
+        "ingress",
+        "email",
+        "soc2",
+        "hipaa",
+        "gdpr-ccpa"
+      ],
+      "policyChecksum": "sha256:a356452d11eebac588da98a69bdd3b885549b7eedbb466b2b9042b4b0a54e7e7",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/gmail/guard-mailbox-persistence",
+      "name": "Block Gmail Filter Creation (Auto-Forward Persistence)",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "gmail"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2"
+      ],
+      "tags": [
+        "gmail",
+        "guard-mailbox-persistence",
+        "ingress",
+        "bec",
+        "finserv-comms",
+        "soc2"
+      ],
+      "policyChecksum": "sha256:ecf336aec801d6c8ccec5f95d027205203782eeb4b9136186b077009ef257f05",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/gmail/mask-pan-egress",
+      "name": "Mask Card Numbers in Email Content Read by Agents",
+      "direction": "egress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "gmail"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2",
+        "pci-dss",
+        "gdpr-ccpa"
+      ],
+      "tags": [
+        "gmail",
+        "mask-pan-egress",
+        "egress",
+        "email",
+        "cardholder-data",
+        "dlp",
+        "soc2",
+        "pci-dss",
+        "gdpr-ccpa"
+      ],
+      "policyChecksum": "sha256:879ee13a0594096f178508fd7569014f342d1e43e87ef96a86818554b85cbc7e",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/gmail/role-gate-writes",
+      "name": "Gmail: Role-Gated Writes (Read-Only Default)",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "gmail"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2",
+        "gdpr-ccpa"
+      ],
+      "tags": [
+        "gmail",
+        "role-gate-writes",
+        "access-control",
+        "least-privilege",
+        "ingress",
+        "soc2",
+        "gdpr-ccpa"
+      ],
+      "policyChecksum": "sha256:de7934ac32db6f02217c594f4b82d0264743c8892891d83135d9b96c98ab01a5",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/google-calendar/freeze-destructive-events",
+      "name": "Freeze Destructive and Series-Wide Calendar Changes",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "google-calendar"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2"
+      ],
+      "tags": [
+        "google-calendar",
+        "freeze-destructive-ops",
+        "ingress",
+        "integrity",
+        "soc2"
+      ],
+      "policyChecksum": "sha256:30219dff7784e6056034b2c9b69142fd9ec18b6c07a5dce22ee64af368102f74",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/google-calendar/guard-external-attendees",
+      "name": "Block Calendar Invites to External Attendees",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "google-calendar"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2",
+        "hipaa",
+        "gdpr-ccpa"
+      ],
+      "tags": [
+        "google-calendar",
+        "guard-external-send",
+        "ingress",
+        "calendar",
+        "soc2",
+        "hipaa",
+        "gdpr-ccpa"
+      ],
+      "policyChecksum": "sha256:8c2c26a8f6af21065976ab4bb529255ddbdd1b786db0f3b942287ee835b17aeb",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/google-calendar/guard-public-exposure",
+      "name": "Block Public Visibility & Guest Delegation",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "google-calendar"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2",
+        "gdpr-ccpa"
+      ],
+      "tags": [
+        "google-calendar",
+        "guard-public-exposure",
+        "ingress",
+        "soc2",
+        "gdpr-ccpa"
+      ],
+      "policyChecksum": "sha256:be9e13d54d01cee61f77848f98c328060d87b94c0d809c17fe0474118a0f5159",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/google-calendar/redact-attendee-pii",
+      "name": "Redact Attendee PII and Meeting Links in Calendar Reads",
+      "direction": "egress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "google-calendar"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2",
+        "hipaa",
+        "gdpr-ccpa"
+      ],
+      "tags": [
+        "google-calendar",
+        "redact-pii",
+        "pii",
+        "phi",
+        "dlp",
+        "redaction",
+        "egress",
+        "soc2",
+        "hipaa",
+        "gdpr-ccpa"
+      ],
+      "policyChecksum": "sha256:915129cd94fef27c4fc7a88e9ebc024996de582aa6d4639bab2f6be3a2ad7a33",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/google-drive/cap-bulk-export",
+      "name": "Cap Google Drive Search & Listing Page Sizes",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "google-drive"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2",
+        "hipaa",
+        "gdpr-ccpa"
+      ],
+      "tags": [
+        "google-drive",
+        "cap-bulk-export",
+        "data-minimization",
+        "ingress",
+        "soc2",
+        "hipaa",
+        "gdpr-ccpa"
+      ],
+      "policyChecksum": "sha256:2d8f86deafa5b239539f29e322abd233c66f03b1beec1b1ee201ce917f022898",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/google-drive/fence-restricted-folders",
+      "name": "Fence Restricted Google Drive Files and Folders",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "google-drive"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2",
+        "hipaa",
+        "gdpr-ccpa"
+      ],
+      "tags": [
+        "google-drive",
+        "fence-restricted-folders",
+        "sensitive-scopes",
+        "ingress",
+        "soc2",
+        "hipaa",
+        "gdpr-ccpa"
+      ],
+      "policyChecksum": "sha256:fbe9d6f0bb2f15c7bf81156fbc616118ed8c26dec68112b35f239220829040d4",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/google-drive/freeze-destructive-ops",
+      "name": "Freeze Destructive Google Drive Operations",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "google-drive"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2"
+      ],
+      "tags": [
+        "google-drive",
+        "freeze-destructive-ops",
+        "integrity",
+        "ingress",
+        "soc2"
+      ],
+      "policyChecksum": "sha256:9c7975075e258bb870bd24aa2d54cd18ed0ca068457c2df6ca4dd554667d9c6e",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/google-drive/guard-acl-recon",
+      "name": "Guard Drive ACL Reconnaissance",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "google-drive"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2"
+      ],
+      "tags": [
+        "google-drive",
+        "guard-share-links",
+        "acl",
+        "sharing",
+        "ingress",
+        "soc2"
+      ],
+      "policyChecksum": "sha256:e0aaeddeff19e80205a00317ffe4a616e0a4c04670c5ed05d5ce8915af54bf64",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/google-drive/redact-pii-egress",
+      "name": "Google Drive: Redact PII from File Content",
+      "direction": "egress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "google-drive"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2",
+        "hipaa",
+        "gdpr-ccpa"
+      ],
+      "tags": [
+        "google-drive",
+        "redact-pii",
+        "pii",
+        "dlp",
+        "redaction",
+        "egress",
+        "soc2",
+        "hipaa",
+        "gdpr-ccpa"
+      ],
+      "policyChecksum": "sha256:55e4d95ca2dd9483ce383f16cc4686f47e83affa590baa3d9d4e2033c74e09cc",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/google-drive/role-gate-writes",
+      "name": "Gate Google Drive Writes to an Authorized IdP Group",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "google-drive"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2",
+        "gdpr-ccpa"
+      ],
+      "tags": [
+        "google-drive",
+        "role-gate-writes",
+        "least-privilege",
+        "ingress",
+        "soc2",
+        "gdpr-ccpa"
+      ],
+      "policyChecksum": "sha256:78e9a9a0d9f00492a266ecc50c2d2c843cd662ac5b52eb2da26a83044a36c70c",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/gusto/cap-roster-export",
+      "name": "Gusto Cap Roster Export",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "gusto"
+      ],
+      "industries": [],
+      "bundles": [
+        "gdpr-ccpa",
+        "soc2"
+      ],
+      "tags": [
+        "gusto",
+        "cap-bulk-export",
+        "pii",
+        "data-minimisation",
+        "ingress",
+        "gdpr-ccpa",
+        "soc2"
+      ],
+      "policyChecksum": "sha256:0b593e25feade78662dac2f9f97a78950d241d6fa2f506fc90f6dbca004983a5",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/gusto/default-deny-unknown-tools",
+      "name": "Default-Deny Unknown Gusto Tools",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "gusto"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2"
+      ],
+      "tags": [
+        "gusto",
+        "default-deny-unknown-tools",
+        "allowlist",
+        "ingress",
+        "soc2"
+      ],
+      "policyChecksum": "sha256:1d7fc4bf42a67a650492b106de740d6052325739bdd9dc229de035ba47b65edf",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/gusto/fence-comp-payroll-reads",
+      "name": "Fence Gusto Compensation & Payroll Reads",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "gusto"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2",
+        "gdpr-ccpa"
+      ],
+      "tags": [
+        "gusto",
+        "fence-hr-and-credit-scope",
+        "compensation",
+        "payroll",
+        "ingress",
+        "soc2",
+        "gdpr-ccpa"
+      ],
+      "policyChecksum": "sha256:15b4ad1bf1691934b530ae03c487d30184ab33c358353263ea6ba1de5b8cb42b",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/gusto/freeze-payroll-writes",
+      "name": "Freeze Payroll Writes in Gusto",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "gusto"
+      ],
+      "industries": [],
+      "bundles": [],
+      "tags": [
+        "gusto",
+        "freeze-destructive-ops",
+        "ingress"
+      ],
+      "policyChecksum": "sha256:d03af4d3df6423483d9c51dcf2dccde53973122ad2d2fda6e8ffc2b4a64fecbe",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/gusto/redact-financial-ids-egress",
+      "name": "Gusto: Redact Financial IDs in Responses",
+      "direction": "egress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "gusto"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2",
+        "gdpr-ccpa"
+      ],
+      "tags": [
+        "gusto",
+        "redact-pii-egress",
+        "redact-pii",
+        "pii",
+        "financial-pii",
+        "dlp",
+        "redaction",
+        "egress",
+        "soc2",
+        "gdpr-ccpa"
+      ],
+      "policyChecksum": "sha256:fd69b7151c41dac7bcb6e73201f632c84448ebe95997574f58a760891b57fcb5",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
       "path": "apps/hubspot/block-deal-closure",
       "name": "HubSpot Block Deal Closure",
       "direction": "ingress",
@@ -20,6 +1882,62 @@
         "ingress"
       ],
       "policyChecksum": "sha256:610b7a15cb9dfc53c0eef487b0bd786f47de31f4528493d2697b77913e50ea5e",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/hubspot/cap-bulk-export",
+      "name": "HubSpot Cap Bulk Export",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "hubspot"
+      ],
+      "industries": [],
+      "bundles": [
+        "crm",
+        "soc2",
+        "hipaa",
+        "pci-dss",
+        "gdpr-ccpa"
+      ],
+      "tags": [
+        "hubspot",
+        "cap-bulk-export",
+        "pii",
+        "data-minimisation",
+        "ingress",
+        "soc2",
+        "hipaa",
+        "pci-dss",
+        "gdpr-ccpa"
+      ],
+      "policyChecksum": "sha256:dde664fd7b43b6fe4187d2b623b2b3ada8376c469f1e45455ca5a435f3325bc2",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/hubspot/freeze-destructive-ops",
+      "name": "HubSpot Freeze Destructive Ops",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "hubspot"
+      ],
+      "industries": [],
+      "bundles": [
+        "crm",
+        "soc2"
+      ],
+      "tags": [
+        "hubspot",
+        "freeze-destructive-ops",
+        "archive",
+        "consent",
+        "ingress",
+        "soc2"
+      ],
+      "policyChecksum": "sha256:61bf268f5c76551c996d77c84cc5ca8c398f671d279c1e9bd0e08d81e2885c56",
       "schemaVersion": "1.0.0",
       "minimumGatewayVersion": "1.0.0b24"
     },
@@ -103,14 +2021,18 @@
       ],
       "industries": [],
       "bundles": [
-        "crm"
+        "crm",
+        "soc2",
+        "gdpr-ccpa"
       ],
       "tags": [
         "hubspot",
         "access-control",
         "governance",
         "read-only",
-        "ingress"
+        "ingress",
+        "soc2",
+        "gdpr-ccpa"
       ],
       "policyChecksum": "sha256:c4ef50764a959af252cfbd5474bfea02a57b207fa3d352636dc70b8f11b45de0",
       "schemaVersion": "1.0.0",
@@ -126,16 +2048,271 @@
       ],
       "industries": [],
       "bundles": [
-        "crm"
+        "crm",
+        "soc2",
+        "hipaa",
+        "gdpr-ccpa"
       ],
       "tags": [
         "hubspot",
         "pii",
         "dlp",
         "redaction",
-        "egress"
+        "egress",
+        "soc2",
+        "hipaa",
+        "gdpr-ccpa"
       ],
       "policyChecksum": "sha256:e3d625ade165040504699ef68968a4216ee16ebb5bce8626126c07dfaaef27e6",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/hubspot/role-gate-schema-consent",
+      "name": "HubSpot Role-Gate Schema and Consent",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "hubspot"
+      ],
+      "industries": [],
+      "bundles": [
+        "crm",
+        "soc2"
+      ],
+      "tags": [
+        "hubspot",
+        "role-gate-schema-consent",
+        "access-control",
+        "least-privilege",
+        "segregation-of-duties",
+        "consent",
+        "ingress",
+        "soc2"
+      ],
+      "policyChecksum": "sha256:636e03d146602ca6b48ed50fa6a70bc153d8f9acbe74dfc74cc5a3fc6d8585dd",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/hubspot/role-gate-writes",
+      "name": "HubSpot Role-Gate Writes",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "hubspot"
+      ],
+      "industries": [],
+      "bundles": [
+        "crm",
+        "soc2",
+        "gdpr-ccpa"
+      ],
+      "tags": [
+        "hubspot",
+        "role-gate-writes",
+        "access-control",
+        "least-privilege",
+        "ingress",
+        "soc2",
+        "gdpr-ccpa"
+      ],
+      "policyChecksum": "sha256:d53fba0c23a2327c59fd9e19a4bc3a15c4b26b48b6e3d48ee07d2c3fa8215aba",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/intercom/cap-contact-enumeration",
+      "name": "Cap Intercom Contact Enumeration",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "intercom"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2",
+        "hipaa",
+        "pci-dss",
+        "gdpr-ccpa"
+      ],
+      "tags": [
+        "intercom",
+        "cap-bulk-export",
+        "contact-enumeration",
+        "dlp",
+        "ingress",
+        "soc2",
+        "hipaa",
+        "pci-dss",
+        "gdpr-ccpa"
+      ],
+      "policyChecksum": "sha256:016343b82b92baf587d0e6349c7bd3569ee9fdb63bda2b7e36bc2628d61b3011",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/intercom/deny-article-publish",
+      "name": "Intercom: Keep Agent Help Center Articles in Draft",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "intercom"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2"
+      ],
+      "tags": [
+        "intercom",
+        "deny-public-exposure",
+        "ingress",
+        "articles",
+        "help-center",
+        "publication",
+        "governance",
+        "soc2"
+      ],
+      "policyChecksum": "sha256:44188b457f7d849e6aec7c84844617e9827e6764822199b8826edfbbcba00f27",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/intercom/fence-contact-reads",
+      "name": "Fence Intercom Contact & Company PII Reads",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "intercom"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2",
+        "hipaa",
+        "pci-dss",
+        "gdpr-ccpa"
+      ],
+      "tags": [
+        "intercom",
+        "fence-sensitive-scopes",
+        "contact-reads",
+        "pii",
+        "ingress",
+        "soc2",
+        "hipaa",
+        "pci-dss",
+        "gdpr-ccpa"
+      ],
+      "policyChecksum": "sha256:2691fff943eb843adf41276189cd90320e860f1c50805cf78886ae2ee0d91de2",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/intercom/mask-pan-egress",
+      "name": "Intercom: Mask Card Numbers in Conversation Responses",
+      "direction": "egress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "intercom"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2",
+        "pci-dss",
+        "gdpr-ccpa"
+      ],
+      "tags": [
+        "intercom",
+        "mask-pan-egress",
+        "egress",
+        "cardholder-data",
+        "dlp",
+        "soc2",
+        "pci-dss",
+        "gdpr-ccpa"
+      ],
+      "policyChecksum": "sha256:0b4b075b2bc299e37c0c3c0c9d9ba4490009be9685104d546eb6abb35b64a8c4",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/intercom/redact-conversation-pii",
+      "name": "Intercom: Redact PII from Conversation & Contact Reads",
+      "direction": "egress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "intercom"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2",
+        "hipaa",
+        "gdpr-ccpa"
+      ],
+      "tags": [
+        "intercom",
+        "redact-pii",
+        "pii",
+        "dlp",
+        "redaction",
+        "egress",
+        "soc2",
+        "hipaa",
+        "gdpr-ccpa"
+      ],
+      "policyChecksum": "sha256:e22a2015db55ffeaabe531da642d68ece1c4116e2fe1d3b59108136f532f325d",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/jira/cap-read-field-exposure",
+      "name": "JIRA: Cap Field and Result Exposure on Reads",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "jira"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2",
+        "gdpr-ccpa",
+        "atlassian"
+      ],
+      "tags": [
+        "jira",
+        "atlassian",
+        "cap-bulk-export",
+        "data-minimisation",
+        "ingress",
+        "soc2",
+        "gdpr-ccpa"
+      ],
+      "policyChecksum": "sha256:637a57a8d7b022024175ead61be45bbac0f1c2fbd2e9e9302077df36694c24ef",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/jira/deny-history-actor-spoofing",
+      "name": "JIRA: Block Change-History Actor Spoofing",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "jira"
+      ],
+      "industries": [],
+      "bundles": [
+        "atlassian",
+        "soc2"
+      ],
+      "tags": [
+        "jira",
+        "atlassian",
+        "freeze-destructive-ops",
+        "audit-integrity",
+        "ingress",
+        "soc2"
+      ],
+      "policyChecksum": "sha256:4aa60fa5bf3830627bb218fe0e186c8ae959ab1b6c6ac6db2a2bcb4ee547bdec",
       "schemaVersion": "1.0.0",
       "minimumGatewayVersion": "1.0.0b24"
     },
@@ -149,14 +2326,20 @@
       ],
       "industries": [],
       "bundles": [
-        "atlassian"
+        "atlassian",
+        "soc2",
+        "gdpr-ccpa"
       ],
       "tags": [
         "jira",
         "atlassian",
         "access-control",
         "data-protection",
-        "ingress"
+        "ingress",
+        "soc2",
+        "gdpr-ccpa",
+        "iso27001-nist",
+        "finserv-comms"
       ],
       "policyChecksum": "sha256:3d14268530ccbaf2985ca1cfe913ded30b6f98f97c73ca8f362eb9dae8e207aa",
       "schemaVersion": "1.0.0",
@@ -172,16 +2355,75 @@
       ],
       "industries": [],
       "bundles": [
-        "atlassian"
+        "atlassian",
+        "soc2",
+        "gdpr-ccpa"
       ],
       "tags": [
         "jira",
         "atlassian",
         "access-control",
         "data-protection",
-        "ingress"
+        "ingress",
+        "soc2",
+        "gdpr-ccpa",
+        "iso27001-nist",
+        "finserv-comms"
       ],
       "policyChecksum": "sha256:4aa9ccaf2b1a21d2535ba07f2b472a4bde1a67dadcfe21aa25c7aab8a2845bf1",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/jira/force-internal-jsm-comments",
+      "name": "Force Internal Visibility on JSM Comments",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "jira"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2",
+        "atlassian"
+      ],
+      "tags": [
+        "jira",
+        "force-internal-comments",
+        "comments",
+        "jsm",
+        "service-management",
+        "ingress",
+        "soc2",
+        "atlassian"
+      ],
+      "policyChecksum": "sha256:896209cbb84a0cfa530e5a7f86fd623e685efab156edcb59db1d9863f85bead8",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/jira/freeze-destructive-ops",
+      "name": "JIRA: Freeze Destructive Issue Operations",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "jira"
+      ],
+      "industries": [],
+      "bundles": [
+        "atlassian",
+        "soc2"
+      ],
+      "tags": [
+        "jira",
+        "atlassian",
+        "freeze-destructive-ops",
+        "record-integrity",
+        "data-protection",
+        "ingress",
+        "soc2"
+      ],
+      "policyChecksum": "sha256:a1fdaf3066fa072df7ee75cfd8b685b139f903092e0bc1fe5bc38ef92175bda3",
       "schemaVersion": "1.0.0",
       "minimumGatewayVersion": "1.0.0b24"
     },
@@ -195,7 +2437,9 @@
       ],
       "industries": [],
       "bundles": [
-        "atlassian"
+        "atlassian",
+        "soc2",
+        "gdpr-ccpa"
       ],
       "tags": [
         "jira",
@@ -204,17 +2448,1126 @@
         "secrets",
         "dlp",
         "redaction",
-        "egress"
+        "egress",
+        "soc2",
+        "gdpr-ccpa",
+        "iso27001-nist"
       ],
       "policyChecksum": "sha256:945085e97f36c83fd82b1f0f98e19a8f3aa20da8c5cfdaea859207aad6463a15",
       "schemaVersion": "1.0.0",
       "minimumGatewayVersion": "1.0.0b24"
     },
     {
-      "path": "apps/salesforce/protect-contact-fields",
-      "name": "Salesforce Protect Contact Fields",
+      "path": "apps/jira/role-gate-writes",
+      "name": "JIRA: Role-Gated Writes (Read-Only Default)",
       "direction": "ingress",
-      "publishedAt": "2026-06-16",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "jira"
+      ],
+      "industries": [],
+      "bundles": [
+        "atlassian",
+        "soc2",
+        "gdpr-ccpa"
+      ],
+      "tags": [
+        "jira",
+        "atlassian",
+        "role-gate-writes",
+        "access-control",
+        "least-privilege",
+        "ingress",
+        "soc2",
+        "gdpr-ccpa"
+      ],
+      "policyChecksum": "sha256:986e5a061ed2a667d4950e82b24909c491ea57219ebde0aa32696c54acde1ebc",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/linear/default-deny-unknown-tools",
+      "name": "Default-Deny Unknown Linear Tools",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "linear"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2"
+      ],
+      "tags": [
+        "linear",
+        "default-deny-unknown-tools",
+        "allowlist",
+        "ingress",
+        "soc2"
+      ],
+      "policyChecksum": "sha256:66b2ad9c93a88aa0b0b48fbf41884f7be82b8cb212b328c3a95ad7c19e079460",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/linear/fence-roadmap-egress",
+      "name": "Fence Roadmap and Initiative Reads (Egress)",
+      "direction": "egress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "linear"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2"
+      ],
+      "tags": [
+        "linear",
+        "fence-sensitive-scopes",
+        "roadmap",
+        "egress",
+        "soc2"
+      ],
+      "policyChecksum": "sha256:9b1dd6be93d618079dc1bb1e167f2deafc4e08c2fc0ed3b9593b1d82d47d45e0",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/linear/freeze-destructive-ops",
+      "name": "Freeze Destructive Linear Operations",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "linear"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2"
+      ],
+      "tags": [
+        "linear",
+        "freeze-destructive-ops",
+        "record-integrity",
+        "ingress",
+        "soc2"
+      ],
+      "policyChecksum": "sha256:b6dd4b06a24b10707fbcb23f8d5eac4ecb8774c5317b3327e1c32c86dd235317",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/linear/guard-webhook-persistence",
+      "name": "Block Linear Webhook Creation",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "linear"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2"
+      ],
+      "tags": [
+        "linear",
+        "guard-webhook-persistence",
+        "ingress",
+        "webhook",
+        "exfiltration",
+        "soc2"
+      ],
+      "policyChecksum": "sha256:89952ab95c0ff7b7c54f0ea3cac2c597cd238d09e79fb485a7feb289df072856",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/linear/redact-customer-pii-egress",
+      "name": "Linear: Redact Customer Revenue and Contacts",
+      "direction": "egress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "linear"
+      ],
+      "industries": [],
+      "bundles": [
+        "gdpr-ccpa",
+        "soc2"
+      ],
+      "tags": [
+        "linear",
+        "redact-pii",
+        "pii",
+        "dlp",
+        "redaction",
+        "egress",
+        "gdpr-ccpa",
+        "soc2"
+      ],
+      "policyChecksum": "sha256:6d1736a372ac5e9534d04bd847cf125225eaa957c95d9f81b6dd0f1d7ab49c6a",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/monday/default-deny-unknown-tools",
+      "name": "Default-Deny Unknown monday Tools",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "monday"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2"
+      ],
+      "tags": [
+        "monday",
+        "default-deny-unknown-tools",
+        "allowlist",
+        "ingress",
+        "soc2"
+      ],
+      "policyChecksum": "sha256:d81946e7b7d1070679b2c936e47a809f74d8e2c60c62a3c543242b01d4a73ab0",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/monday/fence-sensitive-boards",
+      "name": "Fence Sensitive monday Boards by IdP Group",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "monday"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2",
+        "gdpr-ccpa"
+      ],
+      "tags": [
+        "monday",
+        "fence-sensitive-scopes",
+        "ingress",
+        "soc2",
+        "gdpr-ccpa"
+      ],
+      "policyChecksum": "sha256:3394c5f9a68b7d5ae06b1cd66873371412b76a280c83e02ba0419c0d525659ab",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/monday/freeze-destructive-ops",
+      "name": "Freeze Destructive monday Operations",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "monday"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2"
+      ],
+      "tags": [
+        "monday",
+        "freeze-destructive-ops",
+        "record-integrity",
+        "ingress",
+        "soc2"
+      ],
+      "policyChecksum": "sha256:c2bbe1edc48123a0e7e01ad03fc62c819c8e5c32256a6b7b468a08864b27a335",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/monday/freeze-standing-automation",
+      "name": "Freeze Standing Automation & AI Agents in monday",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "monday"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2"
+      ],
+      "tags": [
+        "monday",
+        "constrain-aggregator",
+        "ingress",
+        "soc2"
+      ],
+      "policyChecksum": "sha256:08b9177f9aa3e60d9e719d13179c81b36802708b2407ecf9ca4be3daf9f221db",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/monday/redact-board-pii-egress",
+      "name": "monday: Redact PII in Board & Doc Reads",
+      "direction": "egress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "monday"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2",
+        "gdpr-ccpa"
+      ],
+      "tags": [
+        "monday",
+        "redact-pii",
+        "pii",
+        "dlp",
+        "redaction",
+        "egress",
+        "soc2",
+        "gdpr-ccpa"
+      ],
+      "policyChecksum": "sha256:932aa9e48640c77c66fc2fe297cdd827c3fa6df976eb211a5ce2abe33322f072",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/ms365/deny-graph-batch",
+      "name": "Deny Graph API Batch Escape Hatch",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "ms365"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2"
+      ],
+      "tags": [
+        "ms365",
+        "deny-escape-hatches",
+        "ingress",
+        "iso27001-nist",
+        "soc2"
+      ],
+      "policyChecksum": "sha256:60581380494d453348b5b7bc0fbfc906a57aac7ffd645a80a6e5c4f8f4df1ba7",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/ms365/freeze-destructive-ops",
+      "name": "Freeze Destructive Microsoft 365 Operations",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "ms365"
+      ],
+      "industries": [],
+      "bundles": [
+        "sox",
+        "soc2"
+      ],
+      "tags": [
+        "ms365",
+        "freeze-destructive-ops",
+        "record-integrity",
+        "ingress",
+        "sox",
+        "soc2"
+      ],
+      "policyChecksum": "sha256:a47a4fecf243ba346724284e0ee0d247bdf0d85a3d4ebfcda003e9e9a0c36b6a",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/ms365/freeze-identity-plane",
+      "name": "Freeze M365 Identity Plane",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "ms365"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2"
+      ],
+      "tags": [
+        "ms365",
+        "freeze-identity-plane",
+        "ingress",
+        "identity",
+        "entra",
+        "groups",
+        "iso27001-nist",
+        "soc2"
+      ],
+      "policyChecksum": "sha256:d64b95081439f286552ad6a368e6d710fbf158099d6301ee3d2491797b5ef62f",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/ms365/guard-external-send",
+      "name": "Block Agent Email to External Recipients",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "ms365"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2",
+        "hipaa",
+        "gdpr-ccpa"
+      ],
+      "tags": [
+        "ms365",
+        "guard-external-send",
+        "ingress",
+        "email",
+        "dlp",
+        "soc2",
+        "hipaa",
+        "gdpr-ccpa"
+      ],
+      "policyChecksum": "sha256:5d93b876f4adf8930f56e199412451d19ad27b7de1a66f3bcf28a7599f87f916",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/ms365/guard-mailbox-persistence",
+      "name": "Block Mail-Rule and Webhook Persistence",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "ms365"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2"
+      ],
+      "tags": [
+        "ms365",
+        "guard-mailbox-persistence",
+        "ingress",
+        "bec",
+        "email",
+        "finserv-comms",
+        "soc2"
+      ],
+      "policyChecksum": "sha256:3307b4d034a1506135787bca00e71ce57bc7d91f601db73238dc1e32f6dd827f",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/ms365/guard-share-links",
+      "name": "Guard OneDrive/SharePoint Share Links",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "ms365"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2",
+        "hipaa",
+        "gdpr-ccpa"
+      ],
+      "tags": [
+        "ms365",
+        "share-links",
+        "sharing",
+        "ingress",
+        "soc2",
+        "iso27001-nist",
+        "hipaa",
+        "gdpr-ccpa"
+      ],
+      "policyChecksum": "sha256:0eac06f802da18df36f260065a8ebddec91664c987624f6218087f4c5fa5715d",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/ms365/redact-pii-egress",
+      "name": "Microsoft 365: Redact PII from Mail, Files & Transcripts",
+      "direction": "egress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "ms365"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2",
+        "hipaa",
+        "gdpr-ccpa"
+      ],
+      "tags": [
+        "ms365",
+        "redact-pii",
+        "pii",
+        "dlp",
+        "redaction",
+        "egress",
+        "soc2",
+        "hipaa",
+        "gdpr-ccpa"
+      ],
+      "policyChecksum": "sha256:b7943f1cac7e84a7bc6e99b39091c9ca82a80ccbaab58b92659aab888b2d6947",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/ms365/role-gate-writes",
+      "name": "Read-Only Baseline: Group-Gated Microsoft 365 Writes",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "ms365"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2",
+        "gdpr-ccpa",
+        "sox"
+      ],
+      "tags": [
+        "ms365",
+        "role-gate-writes",
+        "ingress",
+        "least-privilege",
+        "soc2",
+        "gdpr-ccpa",
+        "sox"
+      ],
+      "policyChecksum": "sha256:020cb78240c9e17de27002cd9d2d1147f9822645550709d9ff2bd494a2f67c78",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/netsuite/cap-bulk-export",
+      "name": "NetSuite Cap SuiteQL Bulk Export",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "netsuite"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2",
+        "pci-dss",
+        "gdpr-ccpa"
+      ],
+      "tags": [
+        "netsuite",
+        "cap-bulk-export",
+        "suiteql",
+        "data-minimisation",
+        "ingress",
+        "soc2",
+        "pci-dss",
+        "gdpr-ccpa"
+      ],
+      "policyChecksum": "sha256:bdb0847d6ea9c76e69492383905cdace646d3ec4c427c97322be9e42dbe0aeb9",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/netsuite/default-deny-unknown-tools",
+      "name": "NetSuite Default-Deny Unknown MCP Tools",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "netsuite"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2"
+      ],
+      "tags": [
+        "netsuite",
+        "default-deny-unknown-tools",
+        "allowlist",
+        "access-control",
+        "ingress",
+        "soc2"
+      ],
+      "policyChecksum": "sha256:9b92fe238a5ea4518b7e9a3c430ee3c82651d92a46e6191c97c06c198187a5e7",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/netsuite/fence-hr-payroll-suiteql",
+      "name": "Fence NetSuite HR & Payroll SuiteQL Queries",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "netsuite"
+      ],
+      "industries": [],
+      "bundles": [
+        "gdpr-ccpa",
+        "soc2"
+      ],
+      "tags": [
+        "netsuite",
+        "fence-sensitive-scopes",
+        "ingress",
+        "gdpr-ccpa",
+        "soc2"
+      ],
+      "policyChecksum": "sha256:007249f4eecebe8e735dd94ef81bc625746a2284006d149c5fce2ad52668ba18",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/netsuite/guard-vendor-banking",
+      "name": "NetSuite Guard Vendor Banking Edits (Anti-BEC)",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "netsuite"
+      ],
+      "industries": [],
+      "bundles": [
+        "sox"
+      ],
+      "tags": [
+        "netsuite",
+        "guard-vendor-banking",
+        "ingress",
+        "sox"
+      ],
+      "policyChecksum": "sha256:e57b283c5527c15d415e8dde5d895e90eacc21f8f696c3847f2fa46c24f02773",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/netsuite/protect-closed-periods",
+      "name": "Protect Financial Postings by Role",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "netsuite"
+      ],
+      "industries": [],
+      "bundles": [
+        "sox"
+      ],
+      "tags": [
+        "netsuite",
+        "protect-closed-periods",
+        "ingress",
+        "sox"
+      ],
+      "policyChecksum": "sha256:4010ae3f1f5bafaeda7f856b089797c98ab25c71ce356481506c305aef54dfa8",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/netsuite/redact-financial-pii",
+      "name": "NetSuite: Redact Financial PII in Responses",
+      "direction": "egress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "netsuite"
+      ],
+      "industries": [],
+      "bundles": [
+        "gdpr-ccpa",
+        "soc2"
+      ],
+      "tags": [
+        "netsuite",
+        "redact-pii",
+        "pii",
+        "financial-pii",
+        "dlp",
+        "redaction",
+        "egress",
+        "gdpr-ccpa",
+        "soc2"
+      ],
+      "policyChecksum": "sha256:c06ff13ad8013810410e74dbf7bd7c335fc0696e4c4a5ad71fec7f365b50e2ec",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/notion/constrain-connected-search",
+      "name": "Constrain Notion Connected-Tool Search",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "notion"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2"
+      ],
+      "tags": [
+        "notion",
+        "constrain-aggregator",
+        "ingress",
+        "soc2"
+      ],
+      "policyChecksum": "sha256:34cb0cc763d763e7b091bfe7ef6ef636d2e14f7bb0fb877f135449f039817008",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/notion/fence-user-directory",
+      "name": "Fence Notion Member Directory to Admin & IT",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "notion"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2",
+        "gdpr-ccpa"
+      ],
+      "tags": [
+        "notion",
+        "fence-sensitive-scopes",
+        "access-control",
+        "pii",
+        "ingress",
+        "soc2",
+        "gdpr-ccpa"
+      ],
+      "policyChecksum": "sha256:0a24942610fbfc2b00265763d9a15cac12f37f7d97c999c485eb44dd690a26e9",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/notion/freeze-content-overwrite",
+      "name": "Freeze Notion Full-Page Content Overwrites",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "notion"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2"
+      ],
+      "tags": [
+        "notion",
+        "freeze-destructive-ops",
+        "record-integrity",
+        "ingress",
+        "soc2"
+      ],
+      "policyChecksum": "sha256:bdd14752bb4b39bd321e170e1024a0814a647479fd985b5050f1cf9697ac17e7",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/notion/guard-datasource-sql",
+      "name": "Block Destructive and Export SQL on Notion Data Sources",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "notion"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2"
+      ],
+      "tags": [
+        "notion",
+        "guard-warehouse-sql",
+        "ingress",
+        "sql",
+        "readonly",
+        "soc2"
+      ],
+      "policyChecksum": "sha256:064ca68f936ce996768ed384abd91bd02a25a1742961fae017de5b46e20ee812",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/notion/redact-pii-egress",
+      "name": "Notion: Redact PII from Read Responses",
+      "direction": "egress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "notion"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2",
+        "hipaa",
+        "gdpr-ccpa"
+      ],
+      "tags": [
+        "notion",
+        "redact-pii",
+        "pii",
+        "dlp",
+        "redaction",
+        "egress",
+        "soc2",
+        "hipaa",
+        "gdpr-ccpa"
+      ],
+      "policyChecksum": "sha256:740c4d7b4e0dd9bf1ed71b4fb9a13b5e8baebe1d2d9a32eea7e26519a16e60f4",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/power-bi/block-rls-bypass-service-principal",
+      "name": "Block Power BI RLS-Bypass Service-Principal Queries",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "power-bi"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2"
+      ],
+      "tags": [
+        "power-bi",
+        "role-gate-writes",
+        "rls",
+        "service-principal",
+        "ingress",
+        "soc2"
+      ],
+      "policyChecksum": "sha256:551a94c81e5724d5e2528feda9b780fb0d4aced2833da05a7c1e54dcae79d945",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/power-bi/default-deny-unknown-modeling-ops",
+      "name": "Default-Deny Unknown Power BI Modeling Tools",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "power-bi"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2"
+      ],
+      "tags": [
+        "power-bi",
+        "default-deny-unknown-tools",
+        "allowlist",
+        "modeling",
+        "ingress",
+        "soc2"
+      ],
+      "policyChecksum": "sha256:ca1ad268d9225a10f6a87db32915623b9178fb4830f1618d4d84ab088b94f605",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/power-bi/freeze-rls-role-edits",
+      "name": "Freeze Power BI RLS Role Edits",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "power-bi"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2"
+      ],
+      "tags": [
+        "power-bi",
+        "freeze-identity-plane",
+        "ingress",
+        "rls",
+        "identity",
+        "groups",
+        "soc2",
+        "iso27001-nist"
+      ],
+      "policyChecksum": "sha256:92eb428f13d7bdbc001a799ec69040f9519f9d9b6145ed47f6f1682c6e81bb24",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/power-bi/guard-warehouse-sql-dax",
+      "name": "Guard DAX Whole-Table Dumps in Power BI",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "power-bi"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2",
+        "gdpr-ccpa"
+      ],
+      "tags": [
+        "power-bi",
+        "guard-warehouse-sql",
+        "ingress",
+        "dax",
+        "exfiltration",
+        "soc2",
+        "gdpr-ccpa"
+      ],
+      "policyChecksum": "sha256:c0b823df5cbea6f2d0716abaf093e193e4475e556d65bf28b9656c297a391ad8",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/power-bi/redact-pii-dax-results",
+      "name": "Power BI: Redact PII in Query Results",
+      "direction": "egress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "power-bi"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2",
+        "gdpr-ccpa"
+      ],
+      "tags": [
+        "power-bi",
+        "redact-pii",
+        "pii",
+        "dlp",
+        "dax",
+        "redaction",
+        "egress",
+        "soc2",
+        "gdpr-ccpa"
+      ],
+      "policyChecksum": "sha256:f68601dc08830d14a8c7f9062bbc9d802062e6fafaf92a1fe0eab9724ddea616",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/quickbooks/cap-bulk-export",
+      "name": "Cap QuickBooks Bulk Search Exports",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "quickbooks"
+      ],
+      "industries": [],
+      "bundles": [
+        "gdpr-ccpa",
+        "pci-dss",
+        "soc2"
+      ],
+      "tags": [
+        "quickbooks",
+        "cap-bulk-export",
+        "bulk-export",
+        "dlp",
+        "ingress",
+        "soc2",
+        "pci-dss",
+        "gdpr-ccpa"
+      ],
+      "policyChecksum": "sha256:fb6b6ca97595f62307f8d3a606eb375ea5e1a513eab466cf602dfa8a7b90439f",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/quickbooks/freeze-destructive-ops",
+      "name": "Freeze Destructive QuickBooks Operations",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "quickbooks"
+      ],
+      "industries": [],
+      "bundles": [
+        "sox",
+        "soc2"
+      ],
+      "tags": [
+        "quickbooks",
+        "freeze-destructive-ops",
+        "ingress",
+        "sox",
+        "soc2"
+      ],
+      "policyChecksum": "sha256:99d6257087dcfe5541c12a941bbadadf32fde18bbec355c8c7fcc786e5f70040",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/quickbooks/gate-money-movement",
+      "name": "Gate QuickBooks Money-Movement by Finance Group",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "quickbooks"
+      ],
+      "industries": [],
+      "bundles": [
+        "sox",
+        "pci-dss"
+      ],
+      "tags": [
+        "quickbooks",
+        "gate-money-movement",
+        "ingress",
+        "sox",
+        "pci-dss"
+      ],
+      "policyChecksum": "sha256:81cc625d551e2bf5d26e006311471ffe6cc8d899cd65705fc59138d66269c0ce",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/quickbooks/guard-vendor-banking",
+      "name": "Guard Vendor Banking and Tax-ID Changes",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "quickbooks"
+      ],
+      "industries": [],
+      "bundles": [
+        "sox"
+      ],
+      "tags": [
+        "quickbooks",
+        "vendor-banking",
+        "anti-bec",
+        "ingress",
+        "sox"
+      ],
+      "policyChecksum": "sha256:ffd9a0fd618f61d9ba6efbc0727f4f73cfd95d3ae4a36915ab474314b7053134",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/quickbooks/protect-closed-periods-journal-entries",
+      "name": "Lock Direct Journal-Entry Ledger Writes",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "quickbooks"
+      ],
+      "industries": [],
+      "bundles": [
+        "sox"
+      ],
+      "tags": [
+        "quickbooks",
+        "protect-closed-periods",
+        "ingress",
+        "sox"
+      ],
+      "policyChecksum": "sha256:280766f1e6668c871fc0f6f8db881276c6c3c1990bde22293de7009effedca30",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/quickbooks/redact-pii-egress-employee",
+      "name": "QuickBooks: Redact Employee & Vendor PII on Read",
+      "direction": "egress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "quickbooks"
+      ],
+      "industries": [],
+      "bundles": [
+        "gdpr-ccpa",
+        "soc2"
+      ],
+      "tags": [
+        "quickbooks",
+        "redact-pii",
+        "pii",
+        "redaction",
+        "dlp",
+        "egress",
+        "gdpr-ccpa",
+        "soc2"
+      ],
+      "policyChecksum": "sha256:c230342974dea58a06eeb8ae97b238179521b1a3ce59c2c22e9867dd9a793b2f",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/salesforce/cap-bulk-export",
+      "name": "Salesforce Cap Bulk Data Export",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "salesforce"
+      ],
+      "industries": [],
+      "bundles": [
+        "crm",
+        "soc2",
+        "hipaa",
+        "pci-dss",
+        "gdpr-ccpa"
+      ],
+      "tags": [
+        "salesforce",
+        "cap-bulk-export",
+        "data-minimization",
+        "dlp",
+        "ingress",
+        "soc2",
+        "hipaa",
+        "pci-dss",
+        "gdpr-ccpa"
+      ],
+      "policyChecksum": "sha256:753cf879feab22a8813df3861a2c69f898289c594370b2d06457d2e73c09f1cc",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/salesforce/deny-escape-hatches",
+      "name": "Salesforce Deny API Escape Hatches",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "salesforce"
+      ],
+      "industries": [],
+      "bundles": [
+        "crm",
+        "soc2"
+      ],
+      "tags": [
+        "salesforce",
+        "deny-escape-hatches",
+        "access-control",
+        "ingress",
+        "soc2",
+        "iso27001-nist"
+      ],
+      "policyChecksum": "sha256:630222fe3a10df15f5f4e62cbb8f0e820a4a311c6a70924ff17686078d0d6f3d",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/salesforce/freeze-record-deletes",
+      "name": "Freeze Salesforce Record Deletes",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "salesforce"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2",
+        "crm"
+      ],
+      "tags": [
+        "salesforce",
+        "freeze-destructive-ops",
+        "ingress",
+        "crm",
+        "soc2"
+      ],
+      "policyChecksum": "sha256:cb4a95da71019757822fbb9f01b50110685a33a680bf7621e6cbf97036379742",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/salesforce/guard-opportunity-pipeline",
+      "name": "Salesforce Guard Opportunity Pipeline Fields",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
       "apps": [
         "salesforce"
       ],
@@ -224,11 +3577,42 @@
       ],
       "tags": [
         "salesforce",
+        "opportunity",
+        "pipeline",
+        "revenue",
+        "human-approval",
+        "access-control",
+        "governance",
+        "ingress"
+      ],
+      "policyChecksum": "sha256:92b4111bcfd5fade1e78e5600bffbebaccb0d78b7f7dcd3f3c431a98fd895721",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/salesforce/protect-contact-fields",
+      "name": "Salesforce Protect Contact Fields",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "salesforce"
+      ],
+      "industries": [],
+      "bundles": [
+        "crm",
+        "soc2",
+        "gdpr-ccpa"
+      ],
+      "tags": [
+        "salesforce",
         "contacts",
         "pii",
         "access-control",
         "governance",
-        "ingress"
+        "ingress",
+        "soc2",
+        "gdpr-ccpa",
+        "iso27001-nist"
       ],
       "policyChecksum": "sha256:79693cf553dae7659bbe8832bab9932b5d07f693437d06c7433d396c3a5b053f",
       "schemaVersion": "1.0.0",
@@ -238,20 +3622,27 @@
       "path": "apps/salesforce/query-allowlist",
       "name": "Salesforce Query Allowlist",
       "direction": "ingress",
-      "publishedAt": "2026-06-16",
+      "publishedAt": "2026-07-12",
       "apps": [
         "salesforce"
       ],
       "industries": [],
       "bundles": [
-        "crm"
+        "crm",
+        "soc2",
+        "pci-dss",
+        "gdpr-ccpa"
       ],
       "tags": [
         "salesforce",
         "access-control",
         "data-protection",
         "governance",
-        "ingress"
+        "ingress",
+        "soc2",
+        "pci-dss",
+        "gdpr-ccpa",
+        "iso27001-nist"
       ],
       "policyChecksum": "sha256:ff472238e1c75b0a9ecb1fd117ec46f104765f2b6c9b180755de142db1385c36",
       "schemaVersion": "1.0.0",
@@ -261,20 +3652,25 @@
       "path": "apps/salesforce/read-only",
       "name": "Salesforce Read-Only Access",
       "direction": "ingress",
-      "publishedAt": "2026-06-16",
+      "publishedAt": "2026-07-12",
       "apps": [
         "salesforce"
       ],
       "industries": [],
       "bundles": [
-        "crm"
+        "crm",
+        "soc2",
+        "gdpr-ccpa"
       ],
       "tags": [
         "salesforce",
         "access-control",
         "governance",
         "read-only",
-        "ingress"
+        "ingress",
+        "soc2",
+        "gdpr-ccpa",
+        "iso27001-nist"
       ],
       "policyChecksum": "sha256:e66f0db4e835bc2684182230aea05bed5200658e4db8b81f27ffaa8134e5e696",
       "schemaVersion": "1.0.0",
@@ -284,22 +3680,209 @@
       "path": "apps/salesforce/redact-pii",
       "name": "Salesforce Redact PII",
       "direction": "egress",
-      "publishedAt": "2026-06-16",
+      "publishedAt": "2026-07-12",
       "apps": [
         "salesforce"
       ],
       "industries": [],
       "bundles": [
-        "crm"
+        "crm",
+        "soc2",
+        "hipaa",
+        "gdpr-ccpa"
       ],
       "tags": [
         "salesforce",
         "pii",
         "dlp",
         "redaction",
-        "egress"
+        "egress",
+        "soc2",
+        "hipaa",
+        "gdpr-ccpa",
+        "iso27001-nist"
       ],
       "policyChecksum": "sha256:d700be6a442140fe01b25e7f50b089f086007a6d92691ae19a54133261913a08",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/salesforce/role-gate-writes",
+      "name": "Salesforce Role-Gated Writes",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "salesforce"
+      ],
+      "industries": [],
+      "bundles": [
+        "crm",
+        "soc2",
+        "gdpr-ccpa"
+      ],
+      "tags": [
+        "salesforce",
+        "role-gate-writes",
+        "access-control",
+        "least-privilege",
+        "ingress",
+        "soc2",
+        "gdpr-ccpa",
+        "crm"
+      ],
+      "policyChecksum": "sha256:f6a3629281e1c6de82ae9db52a2fb2d03943a6df4fb4659529823c3a6552545b",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/servicenow/default-deny-unknown-tools",
+      "name": "Default-Deny Unknown ServiceNow Tools",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "servicenow"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2"
+      ],
+      "tags": [
+        "servicenow",
+        "default-deny-unknown-tools",
+        "allowlist",
+        "ingress",
+        "soc2"
+      ],
+      "policyChecksum": "sha256:3970ae20d9456cf0a30476cdf4e857bc00733c423045129151cbcdd18e693ead",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/servicenow/fence-sensitive-tables",
+      "name": "Fence Sensitive ServiceNow Tables",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "servicenow"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2",
+        "hipaa",
+        "pci-dss",
+        "gdpr-ccpa"
+      ],
+      "tags": [
+        "servicenow",
+        "fence-sensitive-tables",
+        "pii",
+        "ingress",
+        "soc2",
+        "hipaa",
+        "pci-dss",
+        "gdpr-ccpa"
+      ],
+      "policyChecksum": "sha256:9eca0d4f6f3221fc2cc8c6081fb12deec811764c612ad86d883c7f2134071193",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/servicenow/force-internal-comments",
+      "name": "Force ServiceNow Comments to Internal Work Notes",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "servicenow"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2"
+      ],
+      "tags": [
+        "servicenow",
+        "force-internal-comments",
+        "comments",
+        "work-notes",
+        "ingress",
+        "soc2",
+        "finra"
+      ],
+      "policyChecksum": "sha256:38a189825fffea11d7fd6921f02c6c47944f201426cac9d3a523c2ff0d8fd5c9",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/servicenow/freeze-identity-plane",
+      "name": "Freeze ServiceNow Identity Plane",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "servicenow"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2"
+      ],
+      "tags": [
+        "servicenow",
+        "freeze-identity-plane",
+        "ingress",
+        "identity",
+        "groups",
+        "soc2",
+        "iso27001-nist"
+      ],
+      "policyChecksum": "sha256:6990ec2afb77e7266fb9dce93d87d4ab478add739ab98a0ec1db21706d60cc15",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/servicenow/require-human-approval-changes",
+      "name": "Human-Only ServiceNow Change Approval",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "servicenow"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2"
+      ],
+      "tags": [
+        "servicenow",
+        "require-human-approval",
+        "change-management",
+        "separation-of-duties",
+        "ingress",
+        "soc2"
+      ],
+      "policyChecksum": "sha256:e1a7930d31f9d502d08d7cc21e70486fd1ea12f34c2b414333090fe178bbcf95",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/servicenow/role-gate-writes",
+      "name": "ServiceNow: Role-Gated Writes (Read-Only Default)",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "servicenow"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2",
+        "gdpr-ccpa"
+      ],
+      "tags": [
+        "servicenow",
+        "role-gate-writes",
+        "access-control",
+        "least-privilege",
+        "ingress",
+        "soc2",
+        "gdpr-ccpa"
+      ],
+      "policyChecksum": "sha256:ac9628e829a7ad715c2727faa87da59d15a8be121c2f3d400495a512fa4bca08",
       "schemaVersion": "1.0.0",
       "minimumGatewayVersion": "1.0.0b24"
     },
@@ -307,19 +3890,22 @@
       "path": "apps/slack/block-secrets",
       "name": "Block Secrets in Slack Messages",
       "direction": "ingress",
-      "publishedAt": "2026-06-02",
+      "publishedAt": "2026-07-12",
       "apps": [
         "slack"
       ],
       "industries": [],
       "bundles": [
-        "im-messaging"
+        "im-messaging",
+        "soc2"
       ],
       "tags": [
         "slack",
         "secrets",
         "dlp",
-        "ingress"
+        "ingress",
+        "soc2",
+        "iso27001-nist"
       ],
       "policyChecksum": "sha256:c694c2624700c1dd750e33b4ba1171f03cca77009977871a01d5d7dd8a9d1d99",
       "schemaVersion": "1.0.0",
@@ -329,19 +3915,22 @@
       "path": "apps/slack/deny-channel-creation",
       "name": "Slack: Deny Channel Creation",
       "direction": "ingress",
-      "publishedAt": "2026-06-16",
+      "publishedAt": "2026-07-12",
       "apps": [
         "slack"
       ],
       "industries": [],
       "bundles": [
-        "slack"
+        "slack",
+        "soc2"
       ],
       "tags": [
         "slack",
         "access-control",
         "governance",
-        "ingress"
+        "ingress",
+        "soc2",
+        "iso27001-nist"
       ],
       "policyChecksum": "sha256:613c04806d02f35c3cf0f7aa2d2223c5cc91504186e14d62332a1cb019b72f2b",
       "schemaVersion": "1.0.0",
@@ -351,19 +3940,23 @@
       "path": "apps/slack/deny-direct-messages",
       "name": "Slack: Deny Sending Direct Messages",
       "direction": "ingress",
-      "publishedAt": "2026-06-16",
+      "publishedAt": "2026-07-12",
       "apps": [
         "slack"
       ],
       "industries": [],
       "bundles": [
-        "slack"
+        "slack",
+        "soc2"
       ],
       "tags": [
         "slack",
         "access-control",
         "governance",
-        "ingress"
+        "ingress",
+        "soc2",
+        "iso27001-nist",
+        "finserv-comms"
       ],
       "policyChecksum": "sha256:3bfcfdee14c1d8409123990b850b96ce507d93079e026b7c7d179b161c353910",
       "schemaVersion": "1.0.0",
@@ -373,21 +3966,139 @@
       "path": "apps/slack/deny-read-search-summarize-sensitive-channels",
       "name": "Slack: Deny Read/Search/Summarize of Sensitive Channels",
       "direction": "ingress",
-      "publishedAt": "2026-06-16",
+      "publishedAt": "2026-07-12",
       "apps": [
         "slack"
       ],
       "industries": [],
       "bundles": [
-        "slack"
+        "slack",
+        "soc2",
+        "hipaa",
+        "gdpr-ccpa"
       ],
       "tags": [
         "slack",
         "access-control",
         "data-protection",
-        "ingress"
+        "ingress",
+        "soc2",
+        "hipaa",
+        "gdpr-ccpa",
+        "iso27001-nist"
       ],
       "policyChecksum": "sha256:be0ecf31a6f6908191cd28f537364984fc5771a0c39a9990d141094155b8e47b",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/slack/guard-dm-privacy",
+      "name": "Slack: Deny DM and Private-Conversation Reads and Search",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "slack"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2",
+        "gdpr-ccpa"
+      ],
+      "tags": [
+        "slack",
+        "privacy",
+        "dm",
+        "access-control",
+        "ingress",
+        "soc2",
+        "gdpr-ccpa"
+      ],
+      "policyChecksum": "sha256:0c759aa4beabbeace568b66ab311bf1e1d5b305ceb521e898868e53035d25397",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/slack/guard-external-send",
+      "name": "Slack: Block Agent Posts to External Channels",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "slack"
+      ],
+      "industries": [],
+      "bundles": [
+        "slack",
+        "im-messaging",
+        "soc2",
+        "gdpr-ccpa",
+        "hipaa"
+      ],
+      "tags": [
+        "slack",
+        "guard-external-send",
+        "slack-connect",
+        "exfiltration",
+        "ingress",
+        "soc2",
+        "gdpr-ccpa",
+        "hipaa"
+      ],
+      "policyChecksum": "sha256:20bb4016d45d71e715bcae9d6a676755e87039d26fcca827c1fc14e451b6a5a2",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/slack/mask-pan-egress",
+      "name": "Slack: Mask Card Numbers in Message and Search Responses",
+      "direction": "egress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "slack"
+      ],
+      "industries": [],
+      "bundles": [
+        "pci-dss",
+        "soc2",
+        "gdpr-ccpa"
+      ],
+      "tags": [
+        "slack",
+        "mask-pan-egress",
+        "egress",
+        "cardholder-data",
+        "dlp",
+        "pci-dss",
+        "soc2",
+        "gdpr-ccpa"
+      ],
+      "policyChecksum": "sha256:c4fae168cd7ce400dbbd42fdb66e17f2eb4c80ce9bc6af8eb502502ab8a417fd",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/slack/redact-profile-pii",
+      "name": "Slack: Redact Profile PII from User Lookups",
+      "direction": "egress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "slack"
+      ],
+      "industries": [],
+      "bundles": [
+        "slack",
+        "soc2",
+        "gdpr-ccpa"
+      ],
+      "tags": [
+        "slack",
+        "pii",
+        "redaction",
+        "privacy",
+        "egress",
+        "soc2",
+        "gdpr-ccpa"
+      ],
+      "policyChecksum": "sha256:bd0befc2d1cabab7a7758095cedce3349e10bdf79e7a59b069fc9c2a7877c3ce",
       "schemaVersion": "1.0.0",
       "minimumGatewayVersion": "1.0.0b24"
     },
@@ -395,13 +4106,16 @@
       "path": "apps/slack/redact-sensitive-info",
       "name": "Slack: Redact Sensitive Information from Messages",
       "direction": "ingress",
-      "publishedAt": "2026-06-16",
+      "publishedAt": "2026-07-12",
       "apps": [
         "slack"
       ],
       "industries": [],
       "bundles": [
-        "slack"
+        "slack",
+        "soc2",
+        "hipaa",
+        "gdpr-ccpa"
       ],
       "tags": [
         "slack",
@@ -409,24 +4123,783 @@
         "secrets",
         "dlp",
         "redaction",
-        "ingress"
+        "ingress",
+        "soc2",
+        "hipaa",
+        "gdpr-ccpa",
+        "iso27001-nist"
       ],
       "policyChecksum": "sha256:976bdeff0896b95f7de65af46091da56b58785028a747d64d87855b78ca72a60",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/slack/role-gate-writes",
+      "name": "Slack Role-Gate Writes",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "slack"
+      ],
+      "industries": [],
+      "bundles": [
+        "slack",
+        "im-messaging",
+        "soc2",
+        "gdpr-ccpa"
+      ],
+      "tags": [
+        "slack",
+        "role-gate-writes",
+        "access-control",
+        "least-privilege",
+        "ingress",
+        "soc2",
+        "gdpr-ccpa"
+      ],
+      "policyChecksum": "sha256:bb893589a6e31ab1f70160613c91bd3563e3f9d340abf3342ff94d559fa7332c",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/snowflake/default-deny-unknown-tools",
+      "name": "Snowflake Default-Deny Unknown Tools",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "snowflake"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2"
+      ],
+      "tags": [
+        "snowflake",
+        "default-deny-unknown-tools",
+        "allowlist",
+        "access-control",
+        "ingress",
+        "soc2"
+      ],
+      "policyChecksum": "sha256:ff272d6c69a9a9852b60e3a41193943b46bdf5b682d08ee3df9415f35c06f57b",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/snowflake/deny-composite-cortex-tools",
+      "name": "Snowflake Deny Composite & Generic Tools",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "snowflake"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2"
+      ],
+      "tags": [
+        "snowflake",
+        "deny-escape-hatches",
+        "access-control",
+        "cortex",
+        "ingress",
+        "soc2",
+        "iso27001-nist"
+      ],
+      "policyChecksum": "sha256:965a2a47eacbde0b05c7b5877447a1c46009d02440a91f445586562e70c0cc93",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/snowflake/fence-sensitive-schemas",
+      "name": "Fence Snowflake Sensitive Schemas by Data Domain",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "snowflake"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2",
+        "hipaa",
+        "pci-dss",
+        "gdpr-ccpa"
+      ],
+      "tags": [
+        "snowflake",
+        "fence-sensitive-scopes",
+        "ingress",
+        "soc2",
+        "hipaa",
+        "pci-dss",
+        "gdpr-ccpa"
+      ],
+      "policyChecksum": "sha256:1679f0033186a3e591fb29d8086f5d1203cccffb675d791e70e7d7a11545709a",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/snowflake/guard-warehouse-export",
+      "name": "Block Bulk Export & External Staging (Snowflake)",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "snowflake"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2",
+        "pci-dss",
+        "gdpr-ccpa"
+      ],
+      "tags": [
+        "snowflake",
+        "guard-warehouse-sql",
+        "export",
+        "exfiltration",
+        "ingress",
+        "soc2",
+        "pci-dss",
+        "gdpr-ccpa"
+      ],
+      "policyChecksum": "sha256:ab74fedbc153b6ae175a393a1be8bec7d675b0bd2e2d1272b5f1f3592785f94d",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/snowflake/guard-warehouse-sql",
+      "name": "Block Destructive and Mutating Snowflake SQL",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "snowflake"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2",
+        "pci-dss",
+        "sox"
+      ],
+      "tags": [
+        "snowflake",
+        "guard-warehouse-sql",
+        "ingress",
+        "sql",
+        "readonly",
+        "soc2",
+        "pci-dss",
+        "sox"
+      ],
+      "policyChecksum": "sha256:080aca455a6d649e34376608ead8f05f9d7d567a6adf672e425cc806691e6b36",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/snowflake/redact-pii-egress",
+      "name": "Snowflake: Redact PII from Query Result Sets",
+      "direction": "egress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "snowflake"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2",
+        "hipaa",
+        "gdpr-ccpa"
+      ],
+      "tags": [
+        "snowflake",
+        "redact-pii",
+        "pii",
+        "dlp",
+        "redaction",
+        "egress",
+        "soc2",
+        "hipaa",
+        "gdpr-ccpa"
+      ],
+      "policyChecksum": "sha256:9b4f812a96166fad6d9aa9543a5cbe61f03dbd080de385fa5596e0e91232f8b6",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/stripe/deny-escape-hatches-api-write",
+      "name": "Deny Stripe API-Write Escape Hatch",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "stripe"
+      ],
+      "industries": [],
+      "bundles": [
+        "sox",
+        "soc2"
+      ],
+      "tags": [
+        "stripe",
+        "deny-escape-hatches",
+        "ingress",
+        "sox",
+        "soc2"
+      ],
+      "policyChecksum": "sha256:d3c004edbb6c5f65a9f8185b2372061a12e018d9d1340d79663eb5539eecfa37",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/stripe/gate-money-movement-refund-cap",
+      "name": "Stripe Refund Group Gate and Amount Cap",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "stripe"
+      ],
+      "industries": [],
+      "bundles": [
+        "pci-dss",
+        "sox"
+      ],
+      "tags": [
+        "stripe",
+        "gate-money-movement",
+        "ingress",
+        "pci-dss",
+        "sox"
+      ],
+      "policyChecksum": "sha256:13424f63b4b306879d531cf7825b3c8b4930965d9d24a4b3889a2310f4277540",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/stripe/guard-share-links-payment-redirect",
+      "name": "Scrub Unapproved Stripe Payment-Link Redirects",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "stripe"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2"
+      ],
+      "tags": [
+        "stripe",
+        "guard-share-links",
+        "ingress",
+        "transform",
+        "phishing",
+        "prompt-injection",
+        "soc2"
+      ],
+      "policyChecksum": "sha256:0df7ad01ffa897fded9286af4728915b8c638d499ab8f0378b7319cac2fae8e1",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/stripe/redact-pii-egress-customer",
+      "name": "Stripe: Redact Customer PII from Bulk Reads",
+      "direction": "egress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "stripe"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2",
+        "gdpr-ccpa"
+      ],
+      "tags": [
+        "stripe",
+        "redact-pii",
+        "pii",
+        "dlp",
+        "redaction",
+        "egress",
+        "soc2",
+        "gdpr-ccpa"
+      ],
+      "policyChecksum": "sha256:6b7b47948dab7d6f274c4c8060234b1b6b47d4f62e8de7118651649518a05919",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/stripe/require-human-approval-dispute-submit",
+      "name": "Human-Only Stripe Dispute Submission",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "stripe"
+      ],
+      "industries": [],
+      "bundles": [
+        "sox"
+      ],
+      "tags": [
+        "stripe",
+        "require-human-approval",
+        "disputes",
+        "separation-of-duties",
+        "transform",
+        "ingress",
+        "sox"
+      ],
+      "policyChecksum": "sha256:f97adf30fcbb2267bb1875aff767e1b4d22820d4e210df901e64dec4c76ad081",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/stripe/role-gate-writes-billing",
+      "name": "Read-Only Stripe by Default (Role-Gate Billing Writes)",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "stripe"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2",
+        "pci-dss",
+        "sox",
+        "gdpr-ccpa"
+      ],
+      "tags": [
+        "stripe",
+        "role-gate-writes",
+        "ingress",
+        "least-privilege",
+        "rbac",
+        "soc2",
+        "pci-dss",
+        "sox",
+        "gdpr-ccpa"
+      ],
+      "policyChecksum": "sha256:39f42427691ac49396db200c521de055b6091fe155b8d33c1e0b8ea83e20125b",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/tableau/default-deny-unknown-tools",
+      "name": "Default-Deny Unknown Tableau Tools",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "tableau"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2"
+      ],
+      "tags": [
+        "tableau",
+        "default-deny",
+        "unknown-tools",
+        "allowlist",
+        "ingress",
+        "soc2"
+      ],
+      "policyChecksum": "sha256:6b9d333dc2593955153061b79c78472e08986cbcb9bf30cb2f7c26453d7c047d",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/tableau/fence-datasource-scope",
+      "name": "Fence Tableau Datasource Scope",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "tableau"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2",
+        "gdpr-ccpa"
+      ],
+      "tags": [
+        "tableau",
+        "fence-sensitive-scopes",
+        "access-control",
+        "datasource",
+        "ingress",
+        "soc2",
+        "gdpr-ccpa"
+      ],
+      "policyChecksum": "sha256:21a1f19606553712a3c9d296f79e427199979cbb3de679a2236a084799e310bc",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/tableau/freeze-destructive-content",
+      "name": "Freeze Destructive Tableau Content Ops",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "tableau"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2"
+      ],
+      "tags": [
+        "tableau",
+        "freeze-destructive-ops",
+        "record-integrity",
+        "ingress",
+        "soc2"
+      ],
+      "policyChecksum": "sha256:8d6b132ceba2fb069063ea88c98e98fe02d593d2b4d958b99b101323561c2f42",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/tableau/guard-query-calculation",
+      "name": "Guard Calculation Expressions in Tableau VDS Queries",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "tableau"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2"
+      ],
+      "tags": [
+        "tableau",
+        "guard-warehouse-sql",
+        "ingress",
+        "calculation",
+        "vizql",
+        "soc2"
+      ],
+      "policyChecksum": "sha256:54719300b40c58e8362b0f58a435d3ffaae08a8f81a5af8ca552ea63750f5a1e",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/tableau/redact-pii-query-results",
+      "name": "Tableau: Redact PII & Mask PANs in Query Results",
+      "direction": "egress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "tableau"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2",
+        "gdpr-ccpa"
+      ],
+      "tags": [
+        "tableau",
+        "redact-pii-egress",
+        "pii",
+        "pan",
+        "dlp",
+        "redaction",
+        "egress",
+        "soc2",
+        "gdpr-ccpa"
+      ],
+      "policyChecksum": "sha256:b7ef7bd78e5b1bfaa4ad6beb548ad4e0ec16af7901b918b1fddfd118adcc12b8",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/zapier/default-deny-unknown-tools",
+      "name": "Default-Deny Unknown Zapier Tools",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "zapier"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2"
+      ],
+      "tags": [
+        "zapier",
+        "default-deny-unknown-tools",
+        "allowlist",
+        "ingress",
+        "soc2"
+      ],
+      "policyChecksum": "sha256:02eac99cb206dca8825fa27847b1bc7ec63475983995675b08e593b2a6d74b17",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/zapier/freeze-toolset",
+      "name": "Freeze the Zapier Toolset (No Self-Expansion)",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "zapier"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2"
+      ],
+      "tags": [
+        "zapier",
+        "constrain-aggregator",
+        "ingress",
+        "soc2"
+      ],
+      "policyChecksum": "sha256:98e71dcc7eebd87653a9f2a62a46e7cef9640596c7dd49fa39db2934e74c9894",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/zapier/guard-external-send",
+      "name": "Block External Sends Hidden in Zapier Instructions",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "zapier"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2",
+        "gdpr-ccpa"
+      ],
+      "tags": [
+        "zapier",
+        "guard-external-send",
+        "ingress",
+        "email",
+        "soc2",
+        "gdpr-ccpa"
+      ],
+      "policyChecksum": "sha256:18ea4e45b9425fe42e78c08b80421933eca80194d303f38e0900aa6670da2c2b",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/zapier/mask-pan-egress",
+      "name": "Zapier: Mask Card Numbers in Read Responses",
+      "direction": "egress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "zapier"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2",
+        "pci-dss",
+        "gdpr-ccpa"
+      ],
+      "tags": [
+        "zapier",
+        "mask-pan-egress",
+        "egress",
+        "cardholder-data",
+        "dlp",
+        "soc2",
+        "pci-dss",
+        "gdpr-ccpa"
+      ],
+      "policyChecksum": "sha256:3bbdf8be613466767f4826a268a3eac6cbee33de02de1da55e80f11ce2c117bd",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/zapier/role-gate-writes",
+      "name": "Role-Gate All Zapier Writes",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "zapier"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2",
+        "gdpr-ccpa"
+      ],
+      "tags": [
+        "zapier",
+        "role-gate-writes",
+        "ingress",
+        "soc2",
+        "gdpr-ccpa"
+      ],
+      "policyChecksum": "sha256:0657060c12f34db60b571c536cbb01c3687297054dda09015fc9d7c175e8aece",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/zoom/block-secrets-chat",
+      "name": "Block Secrets in Zoom Team Chat",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "zoom"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2"
+      ],
+      "tags": [
+        "zoom",
+        "block-secrets",
+        "dlp",
+        "ingress",
+        "soc2"
+      ],
+      "policyChecksum": "sha256:708b3359e784c995db961d57370b7b74dc426bb1d29c9bfca83c49fef14f885f",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/zoom/fence-agentic-search",
+      "name": "Fence Zoom Agentic Search to Native Corpora",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "zoom"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2",
+        "gdpr-ccpa"
+      ],
+      "tags": [
+        "zoom",
+        "agentic-search",
+        "constrain-aggregator",
+        "ingress",
+        "soc2",
+        "gdpr-ccpa"
+      ],
+      "policyChecksum": "sha256:68cd3883f4dbe40b8b7af41c8f0a5c2a3e21efe5275b67aa76abb8382a0a0d72",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/zoom/guard-external-chat-invites",
+      "name": "Block External Team Chat Invites & Members",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "zoom"
+      ],
+      "industries": [],
+      "bundles": [
+        "soc2",
+        "gdpr-ccpa",
+        "hipaa"
+      ],
+      "tags": [
+        "zoom",
+        "guard-external-send",
+        "ingress",
+        "team-chat",
+        "soc2",
+        "gdpr-ccpa",
+        "hipaa"
+      ],
+      "policyChecksum": "sha256:caa489fb1e0b547c1f18eb5bde847dc54e555490f4d74d99c52a53df24eff91d",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/zoom/guard-transcripts-by-group",
+      "name": "Gate Zoom Transcripts & Recordings by Group",
+      "direction": "ingress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "zoom"
+      ],
+      "industries": [],
+      "bundles": [
+        "hipaa",
+        "gdpr-ccpa",
+        "soc2"
+      ],
+      "tags": [
+        "zoom",
+        "guard-transcripts",
+        "ingress",
+        "hipaa",
+        "gdpr-ccpa",
+        "soc2"
+      ],
+      "policyChecksum": "sha256:f1d82a4c7c55e395514cf325c653336a2fe4a47b6b2553520e336db87d1f055c",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/zoom/redact-pii-meeting-intelligence",
+      "name": "Zoom: Redact PII in Meeting Intelligence",
+      "direction": "egress",
+      "publishedAt": "2026-07-12",
+      "apps": [
+        "zoom"
+      ],
+      "industries": [],
+      "bundles": [
+        "hipaa",
+        "gdpr-ccpa",
+        "soc2"
+      ],
+      "tags": [
+        "zoom",
+        "redact-pii",
+        "pii",
+        "dlp",
+        "redaction",
+        "egress",
+        "hipaa",
+        "gdpr-ccpa",
+        "soc2"
+      ],
+      "policyChecksum": "sha256:b770b21e23915717892b25fa6761c49464ca375ac89689f0e456eae6a410ab84",
       "schemaVersion": "1.0.0",
       "minimumGatewayVersion": "1.0.0b24"
     }
   ],
   "apps": {
+    "airtable": "apps/airtable",
+    "asana": "apps/asana",
+    "bigquery": "apps/bigquery",
+    "box": "apps/box",
+    "confluence": "apps/confluence",
+    "databricks": "apps/databricks",
+    "docusign": "apps/docusign",
+    "dropbox": "apps/dropbox",
+    "github": "apps/github",
+    "glean": "apps/glean",
+    "gmail": "apps/gmail",
+    "google-calendar": "apps/google-calendar",
+    "google-drive": "apps/google-drive",
+    "gusto": "apps/gusto",
     "hubspot": "apps/hubspot",
+    "intercom": "apps/intercom",
     "jira": "apps/jira",
+    "linear": "apps/linear",
+    "monday": "apps/monday",
+    "ms365": "apps/ms365",
+    "netsuite": "apps/netsuite",
+    "notion": "apps/notion",
+    "power-bi": "apps/power-bi",
+    "quickbooks": "apps/quickbooks",
     "salesforce": "apps/salesforce",
-    "slack": "apps/slack"
+    "servicenow": "apps/servicenow",
+    "slack": "apps/slack",
+    "snowflake": "apps/snowflake",
+    "stripe": "apps/stripe",
+    "tableau": "apps/tableau",
+    "zapier": "apps/zapier",
+    "zoom": "apps/zoom"
   },
   "industries": {},
   "bundles": {
     "atlassian": "bundles/atlassian",
     "crm": "bundles/crm",
+    "gdpr-ccpa": "bundles/gdpr-ccpa",
+    "hipaa": "bundles/hipaa",
     "im-messaging": "bundles/im-messaging",
-    "slack": "bundles/slack"
+    "pci-dss": "bundles/pci-dss",
+    "slack": "bundles/slack",
+    "soc2": "bundles/soc2",
+    "sox": "bundles/sox"
   }
 }

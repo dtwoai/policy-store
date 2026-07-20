@@ -1,0 +1,478 @@
+- description: ExecuteQuery (PascalCase) result with email, SSN, and a Luhn-valid
+    card — non-exempt caller. All three classes redacted; PascalCase name matched
+    via lowercased suffix.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: powerbi-mcp-ExecuteQuery
+      uri: null
+    subject:
+      sub: auth0|u1
+      claims:
+        groups:
+          - analytics
+    payload:
+      name: powerbi-mcp-ExecuteQuery
+      text:
+        - '{"results":[{"email":"jane@acme.com","ssn":"123-45-6789","card":"4111 1111 1111 1111"}]}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - '{"results":[{"email":"[REDACTED-EMAIL]","ssn":"[REDACTED-SSN]","card":"[REDACTED-CARD]"}]}'
+- description: Exempt caller (full-pii data-steward group, array form) on
+    execute_dax — full response passes through, no transform emitted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: powerbi-mcp-execute_dax
+      uri: null
+    subject:
+      sub: auth0|u2
+      claims:
+        groups:
+          - full-pii
+    payload:
+      name: powerbi-mcp-execute_dax
+      text:
+        - '{"rows":[{"ssn":"123-45-6789"}]}'
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Exempt caller whose IdP emits the group as a bare string (not an
+    array), on ValueSearch — still exempt via the string branch.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: powerbi-mcp-ValueSearch
+      uri: null
+    subject:
+      sub: auth0|u3
+      claims:
+        groups: full-pii
+    payload:
+      name: powerbi-mcp-ValueSearch
+      text:
+        - '{"data":[{"email":"jane@acme.com"}]}'
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Out-of-scope tool (GetSemanticModelSchema) — not a result-returning
+    tool, no transform even with a PII-shaped string.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: powerbi-mcp-GetSemanticModelSchema
+      uri: null
+    subject:
+      sub: auth0|u4
+      claims:
+        groups:
+          - analytics
+    payload:
+      name: powerbi-mcp-GetSemanticModelSchema
+      text:
+        - '{"columns":["123-45-6789"]}'
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: In-scope tool (dax_query_operations, modeling server), non-exempt
+    caller, but no PII in the result — redaction is a no-op, no transform emitted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: powerbi-modeling-dax_query_operations
+      uri: null
+    subject:
+      sub: auth0|u5
+      claims:
+        groups:
+          - analytics
+    payload:
+      name: powerbi-modeling-dax_query_operations
+      text:
+        - '{"rows":[{"region":"us-east1","total":42}]}'
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: GetReportMetadata textbox content carries an email; tool name
+    discovered via tool_metadata.name (resource.name empty) — email redacted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: ""
+      uri: null
+    tool_metadata:
+      name: powerbi-mcp-GetReportMetadata
+    subject:
+      sub: auth0|u6
+      claims:
+        groups:
+          - analytics
+    payload:
+      name: powerbi-mcp-GetReportMetadata
+      text:
+        - '{"page":"Sales","textbox":"Contact bob@acme.com for access"}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - '{"page":"Sales","textbox":"Contact [REDACTED-EMAIL] for access"}'
+- description: desktop_execute_dax result whose only card-shaped run FAILS the Luhn
+    check — left untouched (heuristic card detection, red-team false-positive
+    guard), so no transform is emitted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: powerbi-community-desktop_execute_dax
+      uri: null
+    subject:
+      sub: auth0|u7
+      claims:
+        groups:
+          - analytics
+    payload:
+      name: powerbi-community-desktop_execute_dax
+      text:
+        - '{"rows":[{"ref":"4111 1111 1111 1112"}]}'
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: "No subject/claims at all (fail-closed): non-exempt on execute_dax,
+    so the SSN in the result is redacted."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: powerbi-mcp-execute_dax
+      uri: null
+    payload:
+      name: powerbi-mcp-execute_dax
+      text:
+        - '{"rows":[{"ssn":"078-05-1120"}]}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - '{"rows":[{"ssn":"[REDACTED-SSN]"}]}'
+- description: "Red-team fail-closed: groups claim is an object, not an array/string.
+    The is_array/is_string guards keep the exemption fail-closed, so the SSN is
+    redacted rather than the malformed claim spoofing an exemption."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: powerbi-mcp-ExecuteQuery
+      uri: null
+    subject:
+      sub: auth0|u8
+      claims:
+        groups:
+          role: full-pii
+    payload:
+      name: powerbi-mcp-ExecuteQuery
+      text:
+        - '{"rows":[{"ssn":"123-45-6789"}]}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - '{"rows":[{"ssn":"[REDACTED-SSN]"}]}'
+- description: Mixed content blocks — a string block with an email is redacted, a
+    non-string structured block passes through unchanged, and a clean string block
+    is preserved verbatim.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: powerbi-mcp-ExecuteQuery
+      uri: null
+    subject:
+      sub: auth0|u9
+      claims:
+        groups:
+          - analytics
+    payload:
+      name: powerbi-mcp-ExecuteQuery
+      text:
+        - '{"row":1,"email":"jane@acme.com"}'
+        - type: resource
+          uri: powerbi://model/1
+        - 'no pii in this row'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - '{"row":1,"email":"[REDACTED-EMAIL]"}'
+      - type: resource
+        uri: powerbi://model/1
+      - 'no pii in this row'
+- description: "Ingress-mode call (tool_pre_invoke, mode input) to a matching tool
+    name. The policy scopes on mode == output, so it does not fire on the request
+    path — no transform."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: powerbi-mcp-ExecuteQuery
+      uri: null
+    subject:
+      sub: auth0|u10
+      claims:
+        groups:
+          - analytics
+    payload:
+      name: powerbi-mcp-ExecuteQuery
+      args:
+        dax: EVALUATE 'Customers'
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: "Red-team fix: in-scope tool, payload.text delivered as a bare string
+    rather than an array. Previously this fell open (no redaction); the bare-string
+    clause now redacts the lone string so an off-spec envelope does not leak PII."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: powerbi-mcp-execute_dax
+      uri: null
+    subject:
+      sub: auth0|u11
+      claims:
+        groups:
+          - analytics
+    payload:
+      name: powerbi-mcp-execute_dax
+      text: '{"rows":[{"ssn":"123-45-6789"}]}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text: '{"rows":[{"ssn":"[REDACTED-SSN]"}]}'
+- description: In-scope tool whose payload has no text field at all. Nothing to
+    rewrite — no transform, no error.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: powerbi-mcp-execute_dax
+      uri: null
+    subject:
+      sub: auth0|u12
+      claims:
+        groups:
+          - analytics
+    payload:
+      name: powerbi-mcp-execute_dax
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: "Red-team residual (documented): a content block delivered as a parsed
+    JSON OBJECT rather than a serialized string carries an SSN. The string-walking
+    transform leaves non-string blocks untouched, so this PII leaks — proves the
+    documented structured-block limitation."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: powerbi-mcp-ExecuteQuery
+      uri: null
+    subject:
+      sub: auth0|u13
+      claims:
+        groups:
+          - analytics
+    payload:
+      name: powerbi-mcp-ExecuteQuery
+      text:
+        - rows:
+            - ssn: 123-45-6789
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: "Red-team residual (documented): a Luhn-valid 15-digit Amex-shaped PAN
+    is NOT in 16-digit 4x4 form, so card_pattern never matches and it passes through
+    unredacted — proves the documented card-detection limit (pair with PF-01)."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: powerbi-mcp-ExecuteQuery
+      uri: null
+    subject:
+      sub: auth0|u14
+      claims:
+        groups:
+          - analytics
+    payload:
+      name: powerbi-mcp-ExecuteQuery
+      text:
+        - '{"rows":[{"amex":"378282246310005"}]}'
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: "Red-team residual (documented): an SSN stored base64-encoded
+    (MTIzLTQ1LTY3ODk= == \"123-45-6789\") has no plaintext identifier shape, so no
+    pattern matches and it passes through — proves the documented encoding limit."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: powerbi-mcp-execute_dax
+      uri: null
+    subject:
+      sub: auth0|u15
+      claims:
+        groups:
+          - analytics
+    payload:
+      name: powerbi-mcp-execute_dax
+      text:
+        - '{"rows":[{"ssn_b64":"MTIzLTQ1LTY3ODk="}]}'
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: "Red-team coverage: a Luhn-valid card in single-hyphen 4x4 form
+    (4111-1111-1111-1111) is matched by the separator-tolerant card_pattern and
+    redacted — confirms hyphen-separated PANs are not a bypass."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: powerbi-mcp-ExecuteQuery
+      uri: null
+    subject:
+      sub: auth0|u16
+      claims:
+        groups:
+          - analytics
+    payload:
+      name: powerbi-mcp-ExecuteQuery
+      text:
+        - '{"rows":[{"card":"4111-1111-1111-1111"}]}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - '{"rows":[{"card":"[REDACTED-CARD]"}]}'
+- description: "Red-team coverage: exempt group emitted in a different case
+    (FULL-PII). The exemption lowercases before matching, so the data steward is
+    still exempt and the raw SSN passes through — no over-blocking of a valid grant."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: powerbi-mcp-ExecuteQuery
+      uri: null
+    subject:
+      sub: auth0|u17
+      claims:
+        groups:
+          - FULL-PII
+    payload:
+      name: powerbi-mcp-ExecuteQuery
+      text:
+        - '{"rows":[{"ssn":"123-45-6789"}]}'
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: "Red-team residual (documented): an SSN split across two adjacent
+    fields (ssn_hi 123-45 / ssn_lo 6789) never forms the contiguous 3-2-4
+    hyphenated shape in the serialized block, so ssn_pattern does not match and it
+    passes through — proves the documented split-across-fields limitation (the
+    string-walk cannot reassemble values fragmented across columns)."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: powerbi-mcp-ExecuteQuery
+      uri: null
+    subject:
+      sub: auth0|u18
+      claims:
+        groups:
+          - analytics
+    payload:
+      name: powerbi-mcp-ExecuteQuery
+      text:
+        - '{"rows":[{"ssn_hi":"123-45","ssn_lo":"6789"}]}'
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: "Red-team residual (documented): a Luhn-valid 16-digit PAN grouped
+    with DOTS (4111.1111.1111.1111) is not matched by card_pattern, whose separator
+    class is [- ] only, so it passes through unredacted — proves the documented
+    dot/slash-grouped-card limit (pair with a dedicated PF-01 mask-pan-egress
+    policy for full cardholder-data coverage)."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: powerbi-mcp-execute_dax
+      uri: null
+    subject:
+      sub: auth0|u19
+      claims:
+        groups:
+          - analytics
+    payload:
+      name: powerbi-mcp-execute_dax
+      text:
+        - '{"rows":[{"card":"4111.1111.1111.1111"}]}'
+  output:
+    expectedResult: allow
+  transformApplied: false

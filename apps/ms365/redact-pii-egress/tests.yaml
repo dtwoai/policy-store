@@ -1,0 +1,461 @@
+# Transform-only policy: every case expects allow. The assertions that matter
+# are transformApplied / transformedArgsContain (gate-only keys).
+- description: Out-of-scope M365 tool (drive item metadata) with SSN-looking
+    text. Policy applies no transform and the response passes through
+    unchanged.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: ms365-get-drive-item
+      uri: null
+    payload:
+      name: ms365-get-drive-item
+      text:
+        - "Owner SSN: 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Ingress-mode call to a matching tool name. The policy only
+    fires on the output path, so no transform is applied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-get-mail-message
+      uri: null
+    payload:
+      name: ms365-get-mail-message
+      args:
+        messageId: AAMkAGI2
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Mail read with an SSN and no subject claims at all. The group
+    exemption fails closed, so redaction applies (over-redaction, never
+    disclosure).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: ms365-get-mail-message
+      uri: null
+    payload:
+      name: ms365-get-mail-message
+      text:
+        - "Employee SSN: 123-45-6789."
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    name: ms365-get-mail-message
+    text:
+      - "Employee SSN: [REDACTED-SSN]."
+- description: Mail list response containing a Luhn-valid PAN in 4x4 spaced
+    groups. The card number is redacted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: ms365-list-mail-messages
+      uri: null
+    subject:
+      sub: auth0|u1
+      claims:
+        groups:
+          - marketing
+    payload:
+      name: ms365-list-mail-messages
+      text:
+        - "Card on file: 4111 1111 1111 1111 exp 12/28"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Card on file: [REDACTED-PAN] exp 12/28"
+- description: Excel range with a card-shaped 16-digit number that fails the
+    Luhn check (a reference number, not a PAN). Nothing is redacted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: ms365-get-excel-range
+      uri: null
+    payload:
+      name: ms365-get-excel-range
+      text:
+        - "Ref 4111 1111 1111 1112 booked"
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Excel table rows containing a checksum-valid IBAN in contiguous
+    form. The IBAN is redacted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: ms365-list-excel-table-rows
+      uri: null
+    payload:
+      name: ms365-list-excel-table-rows
+      text:
+        - "Wire to GB29NWBK60161331926819 today"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Wire to [REDACTED-IBAN] today"
+- description: Shared-mailbox message with an IBAN-shaped token that fails the
+    mod-97 checksum (an ID, not an IBAN). Nothing is redacted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: ms365-get-shared-mailbox-message
+      uri: null
+    payload:
+      name: ms365-get-shared-mailbox-message
+      text:
+        - "Tracking ref GB00NWBK60161331926819"
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Meeting transcript containing a separator-formatted US phone
+    number. The phone number is redacted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: ms365-get-meeting-transcript-content
+      uri: null
+    payload:
+      name: ms365-get-meeting-transcript-content
+      text:
+        - "Call me at (206) 555-0100 tomorrow"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Call me at [REDACTED-PHONE] tomorrow"
+- description: Channel messages read by a caller whose groups array contains
+    the placeholder pii-readers group. Exempt — the SSN passes through
+    unredacted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: ms365-list-channel-messages
+      uri: null
+    subject:
+      sub: auth0|u2
+      claims:
+        groups:
+          - pii-readers
+    payload:
+      name: ms365-list-channel-messages
+      text:
+        - "SSN 123-45-6789 for onboarding"
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Chat messages read by a caller whose IdP emits the groups claim
+    as a bare string rather than an array. Exempt — no redaction.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: ms365-list-chat-messages
+      uri: null
+    subject:
+      sub: auth0|u3
+      claims:
+        groups: pii-readers
+    payload:
+      name: ms365-list-chat-messages
+      text:
+        - "SSN 123-45-6789 for onboarding"
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Chat messages read by a non-exempt caller (groups present but
+    not pii-readers). Redaction applies.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: ms365-list-chat-messages
+      uri: null
+    subject:
+      sub: auth0|u4
+      claims:
+        groups:
+          - support
+    payload:
+      name: ms365-list-chat-messages
+      text:
+        - "SSN 123-45-6789 for onboarding"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "SSN [REDACTED-SSN] for onboarding"
+- description: Tool name only available via tool_metadata.name (resource name
+    empty). The fallback branch matches and redaction applies.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: ""
+      uri: null
+    tool_metadata:
+      name: ms365-get-excel-used-range
+    payload:
+      name: ms365-get-excel-used-range
+      text:
+        - "Payroll SSN 078-05-1120"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Payroll SSN [REDACTED-SSN]"
+- description: Mail folder listing with mixed content blocks — a string with an
+    SSN, a non-string structured block, and a clean string. Only the matching
+    string is rewritten; the other blocks are preserved as-is.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: ms365-list-mail-folder-messages
+      uri: null
+    payload:
+      name: ms365-list-mail-folder-messages
+      text:
+        - "Contact SSN: 078-05-1120"
+        - type: resource
+          uri: graph://message/1
+        - no pii here
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Contact SSN: [REDACTED-SSN]"
+      - type: resource
+        uri: graph://message/1
+      - no pii here
+- description: SharePoint list items containing all four PII classes in one
+    block. SSN, Luhn-valid PAN, checksum-valid IBAN, and US phone are all
+    redacted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: ms365-list-sharepoint-site-list-items
+      uri: null
+    payload:
+      name: ms365-list-sharepoint-site-list-items
+      text:
+        - "Row 7: ssn 540-12-3456; card 4111-1111-1111-1111; iban DE89370400440532013000; phone 206-555-0100"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Row 7: ssn [REDACTED-SSN]; card [REDACTED-PAN]; iban [REDACTED-IBAN]; phone [REDACTED-PHONE]"
+- description: Clean response from an in-scope mail tool — no PII patterns
+    match, so no transform is emitted and the response passes through
+    unchanged.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: ms365-get-mail-message
+      uri: null
+    payload:
+      name: ms365-get-mail-message
+      text:
+        - Quarterly review notes attached.
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Tool name in mixed case. Matching is case-insensitive, so
+    redaction still applies.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: MS365-Get-Mail-Message
+      uri: null
+    payload:
+      name: MS365-Get-Mail-Message
+      text:
+        - "SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "SSN [REDACTED-SSN]"
+- description: In-scope tool whose payload has no text array at all. Nothing to
+    rewrite — no transform, no error.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: ms365-get-mail-message
+      uri: null
+    payload:
+      name: ms365-get-mail-message
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: In-scope tool whose payload.text is a bare string rather than
+    the MCP content-block array. The is_array guard keeps the transform
+    undefined rather than emitting a malformed payload.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: ms365-get-mail-message
+      uri: null
+    payload:
+      name: ms365-get-mail-message
+      text: "SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Red-team — Luhn-valid 15-digit Amex (4-6-5 grouping) in a mail
+    body. The 16-digit-only PAN shape does not match it, so it passes through
+    unredacted (documented Known-limitations residual, not a fixable miss).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: ms365-get-mail-message
+      uri: null
+    payload:
+      name: ms365-get-mail-message
+      text:
+        - "Amex on file: 3782 822463 10005"
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Red-team — Luhn-valid 16-digit PAN grouped with dots rather than
+    spaces/hyphens. The [- ] separator class does not include dots, so it is
+    not matched (documented residual).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: ms365-get-excel-range
+      uri: null
+    payload:
+      name: ms365-get-excel-range
+      text:
+        - "card 4111.1111.1111.1111 charged"
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Red-team — US phone with no space after the closing parenthesis
+    ((206)555-0100). The pattern requires a separator after the area code, so
+    it is not matched (documented residual).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: ms365-get-meeting-transcript-content
+      uri: null
+    payload:
+      name: ms365-get-meeting-transcript-content
+      text:
+        - "reach me at (206)555-0100"
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Lowercased IBAN (real IBANs are sometimes transmitted lowercased)
+    in an Excel range. The description claims either letter case is matched; the
+    mod-97 check passes, so it is redacted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: ms365-get-excel-range
+      uri: null
+    payload:
+      name: ms365-get-excel-range
+      text:
+        - "wire to de89370400440532013000 today"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "wire to [REDACTED-IBAN] today"
+- description: get-mail-message-mime is deliberately out of scope (base64/MIME
+    content that regex cannot parse — deny or group-gate it instead). The
+    suffix match must not fire for it even though the name contains
+    get-mail-message.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: ms365-get-mail-message-mime
+      uri: null
+    payload:
+      name: ms365-get-mail-message-mime
+      text:
+        - "SSN 123-45-6789 inside MIME preamble"
+  output:
+    expectedResult: allow
+  transformApplied: false

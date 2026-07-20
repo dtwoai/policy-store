@@ -1,0 +1,629 @@
+- description: Official createEnvelope with status "sent" from a non-sender — rewritten to draft; all other arguments preserved.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: docusign-createEnvelope
+      uri: null
+    subject:
+      sub: agent@example.com
+      claims:
+        groups:
+          - staff
+    payload:
+      name: docusign-createEnvelope
+      args:
+        emailSubject: "Please sign: MSA"
+        status: sent
+        templateId: tpl-1
+        templateRoles:
+          - roleName: Signer
+            name: Ana
+            email: ana@acme.com
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    emailSubject: "Please sign: MSA"
+    status: created
+    templateId: tpl-1
+    templateRoles:
+      - email: ana@acme.com
+        name: Ana
+        roleName: Signer
+
+- description: Official createEnvelope already an explicit draft (status "created") — passes through untouched.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: docusign-createEnvelope
+      uri: null
+    subject:
+      sub: agent@example.com
+      claims:
+        groups:
+          - staff
+    payload:
+      name: docusign-createEnvelope
+      args:
+        emailSubject: draft only
+        status: created
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Authorized sender (esign-senders group) dispatching with status "sent" — the human-authorized path passes through unmodified.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: docusign-createEnvelope
+      uri: null
+    subject:
+      sub: ops@example.com
+      claims:
+        groups:
+          - esign-senders
+    payload:
+      name: docusign-createEnvelope
+      args:
+        emailSubject: "Please sign: MSA"
+        status: sent
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Authorized sender membership among several groups — still exempt, passes through.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: docusign-createEnvelope
+      uri: null
+    subject:
+      sub: ops@example.com
+      claims:
+        groups:
+          - staff
+          - esign-senders
+          - oncall
+    payload:
+      name: docusign-createEnvelope
+      args:
+        status: sent
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Community create_envelope_from_template with status omitted — the community default is "sent", so a missing status is rewritten to an explicit draft.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: docusign-community-create_envelope_from_template
+      uri: null
+    subject:
+      sub: agent@example.com
+      claims:
+        groups:
+          - staff
+    payload:
+      name: docusign-community-create_envelope_from_template
+      args:
+        template_id: tpl-9
+        email_subject: Contract for signature
+        role_assignments:
+          - roleName: Signer
+            name: Bo
+            email: bo@acme.com
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    template_id: tpl-9
+    email_subject: Contract for signature
+    status: created
+
+- description: Community create_envelope_from_documents with status "sent" — rewritten to draft.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: docusign-community-create_envelope_from_documents
+      uri: null
+    subject:
+      sub: agent@example.com
+      claims:
+        groups:
+          - staff
+    payload:
+      name: docusign-community-create_envelope_from_documents
+      args:
+        email_subject: NDA
+        status: sent
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    email_subject: NDA
+    status: created
+
+- description: Unrelated read tool (getEnvelope) — not an envelope-creation call, passes through untouched.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: docusign-getEnvelope
+      uri: null
+    subject:
+      sub: agent@example.com
+      claims:
+        groups:
+          - staff
+    payload:
+      name: docusign-getEnvelope
+      args:
+        envelopeId: env-1
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Red-team: mixed-case tool name (CREATEENVELOPE) — matching is case-insensitive, transform still fires."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: Docusign-Prod-CREATEENVELOPE
+      uri: null
+    subject:
+      sub: agent@example.com
+      claims:
+        groups:
+          - staff
+    payload:
+      name: Docusign-Prod-CREATEENVELOPE
+      args:
+        status: sent
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    status: created
+
+- description: "Red-team: bare createEnvelope with no server prefix — suffix match still catches it."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: createEnvelope
+      uri: null
+    subject:
+      sub: agent@example.com
+      claims:
+        groups:
+          - staff
+    payload:
+      name: createEnvelope
+      args:
+        status: sent
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    status: created
+
+- description: "Red-team: uppercase status SENT — the draft check is case-sensitive-proof; anything that is not 'created' is rewritten."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: docusign-createEnvelope
+      uri: null
+    subject:
+      sub: agent@example.com
+      claims:
+        groups:
+          - staff
+    payload:
+      name: docusign-createEnvelope
+      args:
+        status: SENT
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    status: created
+
+- description: "Red-team: padded status ' sent ' — still not a draft, rewritten to created."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: docusign-createEnvelope
+      uri: null
+    subject:
+      sub: agent@example.com
+      claims:
+        groups:
+          - staff
+    payload:
+      name: docusign-createEnvelope
+      args:
+        status: " sent "
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    status: created
+
+- description: "Red-team: mixed-case already-draft status 'Created' — trim_space + lower treat it as an explicit draft, passes through (either accepted as a draft or rejected by Docusign; neither path emails recipients)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: docusign-createEnvelope
+      uri: null
+    subject:
+      sub: agent@example.com
+      claims:
+        groups:
+          - staff
+    payload:
+      name: docusign-createEnvelope
+      args:
+        status: Created
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Red-team: non-string status (an object) is never treated as a draft — rewritten to a clean 'created'."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: docusign-createEnvelope
+      uri: null
+    subject:
+      sub: agent@example.com
+      claims:
+        groups:
+          - staff
+    payload:
+      name: docusign-createEnvelope
+      args:
+        status:
+          value: sent
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    status: created
+
+- description: "Red-team: no subject/claims at all — the exemption fails closed (no group -> not an authorized sender), so the send is still forced to draft."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: docusign-createEnvelope
+      uri: null
+    payload:
+      name: docusign-createEnvelope
+      args:
+        status: sent
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    status: created
+
+- description: "Red-team: groups claim emitted as a bare string (not an array) — Rego does not iterate a string as a member, so the caller is not exempt and the send is forced to draft."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: docusign-createEnvelope
+      uri: null
+    subject:
+      sub: ops@example.com
+      claims:
+        groups: esign-senders
+    payload:
+      name: docusign-createEnvelope
+      args:
+        status: sent
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    status: created
+
+- description: "Red-team: near-miss group name (esign_senders with an underscore) is not an exact match — not exempt, forced to draft."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: docusign-createEnvelope
+      uri: null
+    subject:
+      sub: ops@example.com
+      claims:
+        groups:
+          - esign_senders
+    payload:
+      name: docusign-createEnvelope
+      args:
+        status: sent
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    status: created
+
+- description: "Red-team (fix): resource.name absent, only the legacy payload.name carries the tool name — the payload.name branch still matches, so a dispatch cannot slip through on a missing resource.name."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      uri: null
+    subject:
+      sub: agent@example.com
+      claims:
+        groups:
+          - staff
+    payload:
+      name: docusign-createEnvelope
+      args:
+        status: sent
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    status: created
+
+- description: "Red-team: args missing entirely — status defaults to empty (not a draft), so the transform still fires and pins status to created; the resulting envelope is at worst an empty draft, never a send."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: docusign-createEnvelope
+      uri: null
+    subject:
+      sub: agent@example.com
+      claims:
+        groups:
+          - staff
+    payload:
+      name: docusign-createEnvelope
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    status: created
+
+- description: "Red-team (documented residual): malformed non-object args (a bare string) — object.union is undefined on a non-object, so no transform fires; such a call carries no valid envelope definition and fails at the Docusign server."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: docusign-createEnvelope
+      uri: null
+    subject:
+      sub: agent@example.com
+      claims:
+        groups:
+          - staff
+    payload:
+      name: docusign-createEnvelope
+      args: "oops-not-an-object"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Red-team (fix): only the legacy `kind` carries tool_pre_invoke (PARC `action` absent) — the is_pre_invoke helper accepts either, so the transform still fires and the send is forced to draft (no fail-open when action is missing)."
+  input:
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: docusign-createEnvelope
+      uri: null
+    subject:
+      sub: agent@example.com
+      claims:
+        groups:
+          - staff
+    payload:
+      name: docusign-createEnvelope
+      args:
+        emailSubject: "Please sign: MSA"
+        status: sent
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    status: created
+
+- description: "Red-team (documented residual): decoy top-level status 'created' + nested envelopeDefinition.status 'sent' — the top-level 'created' trips is_explicit_draft, so the call passes through untouched and the nested 'sent' survives. Only bites a server that honours a nested status; official/community servers take top-level status."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: docusign-createEnvelope
+      uri: null
+    subject:
+      sub: agent@example.com
+      claims:
+        groups:
+          - staff
+    payload:
+      name: docusign-createEnvelope
+      args:
+        status: created
+        envelopeDefinition:
+          emailSubject: MSA
+          status: sent
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Red-team (documented residual): no top-level status + nested envelopeDefinition.status 'sent' — the transform pins the canonical top-level status to 'created'; the nested 'sent' is preserved (server-shape residual). Top-level status is what the official/community create tools read."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: docusign-createEnvelope
+      uri: null
+    subject:
+      sub: agent@example.com
+      claims:
+        groups:
+          - staff
+    payload:
+      name: docusign-createEnvelope
+      args:
+        envelopeDefinition:
+          emailSubject: MSA
+          status: sent
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    status: created
+
+- description: "Red-team (documented residual): non-canonical status key casing (Status: sent) — JSON keys are case-sensitive, so this is not the top-level `status` the policy reads; the transform fires and injects the canonical lowercase status 'created' (which the Docusign lowercase-`status` REST body honours), leaving the mixed-case key as an inert decoy."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: docusign-createEnvelope
+      uri: null
+    subject:
+      sub: agent@example.com
+      claims:
+        groups:
+          - staff
+    payload:
+      name: docusign-createEnvelope
+      args:
+        Status: sent
+        emailSubject: MSA
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    status: created
+    Status: sent
+
+- description: "Red-team (documented residual): updateEnvelope with status 'sent' (dispatching an existing draft) is NOT covered by this policy and passes through — pair with the companion ingress deny on updateEnvelope send/void."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: docusign-updateEnvelope
+      uri: null
+    subject:
+      sub: agent@example.com
+      claims:
+        groups:
+          - staff
+    payload:
+      name: docusign-updateEnvelope
+      args:
+        envelopeId: env-1
+        status: sent
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Red-team (documented residual): tool name with a trailing version segment (docusign-createEnvelope-v2) is not matched by endswith and passes through unmodified with status 'sent'. No documented Docusign create tool names tools this way (the gateway prepends the server name, never appends); confirm exact names with dump-input and extend envelope_create_suffixes if your server differs."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: docusign-createEnvelope-v2
+      uri: null
+    subject:
+      sub: agent@example.com
+      claims:
+        groups:
+          - staff
+    payload:
+      name: docusign-createEnvelope-v2
+      args:
+        status: sent
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Red-team: JSON null status is not a string, so is_explicit_draft is false — the transform fires and pins status to 'created' (fail-safe on a malformed status value)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: docusign-createEnvelope
+      uri: null
+    subject:
+      sub: agent@example.com
+      claims:
+        groups:
+          - staff
+    payload:
+      name: docusign-createEnvelope
+      args:
+        status: null
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    status: created

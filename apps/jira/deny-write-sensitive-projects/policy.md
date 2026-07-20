@@ -6,6 +6,10 @@ tags:
   - access-control
   - data-protection
   - ingress
+  - soc2
+  - gdpr-ccpa
+  - iso27001-nist
+  - finserv-comms
 publishedAt: 2026-06-16
 description: |
   # jira / deny-write-sensitive-projects
@@ -25,6 +29,24 @@ description: |
 
   The set of sensitive projects is configured once at the top of the Rego
   (`sensitive_projects`) and all comparisons are case-insensitive.
+
+  ## Compliance alignment
+
+  This policy instantiates sensitive-scope fencing (family PF-23) on Jira's
+  write path, with a record-protection slice (family PF-06: the delete /
+  archive / edit denials), and supports alignment with:
+
+  - **SOC 2 C1.1, PI1.5** — protects confidential projects and the integrity of
+    stored records by denying agent creation, modification, moves, and links.
+  - **HIPAA §164.308(a)(4), §164.312(c)** — information access management and
+    integrity (anti-alteration) for issues in the protected projects.
+  - **GDPR Art. 5(1)(d), Art. 9** — accuracy (prevents mass agent-driven
+    corruption of records) and protection of special-category data held in
+    fenced projects.
+  - **ISO 27001 A.8.3** — information access restriction on designated Jira
+    projects.
+  - **SEC 17a-4(b) / FINRA 4511(c)** — record-integrity support: agents cannot
+    destroy or alter preserved records in fenced projects over MCP.
 
   ## Behavior
 
@@ -139,12 +161,16 @@ description: |
   - **No identity-based exemptions.** All callers are treated the same. To add an
     InfoSec break-glass user, gate a separate `allow if` branch on
     `input.subject.claims`.
+
+  > **Compliance note.** This policy supports alignment with the cited framework controls **on the MCP path only**. No policy or bundle makes an organization compliant with any framework; web-UI, native-API, and in-app access are outside the gateway's reach by design. Validate against your own compliance program before relying on it.
 direction: ingress
 apps:
   - jira
 industries: []
 bundles:
   - atlassian
+  - soc2
+  - gdpr-ccpa
 schemaVersion: 1.0.0
 minimumGatewayVersion: 1.0.0b24
 ---

@@ -1,0 +1,550 @@
+- description: Read tool (soql_query) is not delete-capable — passes through untouched.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: salesforce-soql_query
+      uri: null
+    payload:
+      name: salesforce-soql_query
+      args:
+        query: SELECT Id FROM Account LIMIT 10
+  output:
+    expectedResult: allow
+- description: Hosted update tool is not over-matched by the delete suffixes — allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: salesforce-updateSobjectRecord
+      uri: null
+    subject:
+      sub: auth0|rep@example.com
+      claims:
+        groups:
+          - sales
+    payload:
+      name: salesforce-updateSobjectRecord
+      args:
+        sobject-name: Contact
+        id: 0035g00000XyZzAAA
+        body:
+          Title: VP Sales
+  output:
+    expectedResult: allow
+- description: smn2gnt create_record does not end with delete_record — allow (suffix
+    precision check).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: sf-community-create_record
+      uri: null
+    payload:
+      name: sf-community-create_record
+      args:
+        object_type: Task
+        data:
+          Subject: Follow-up call
+  output:
+    expectedResult: allow
+- description: Hosted deleteSobjectRecord with no subject/claims at all — exemption
+    fails closed, deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: salesforce-deleteSobjectRecord
+      uri: null
+    payload:
+      name: salesforce-deleteSobjectRecord
+      args:
+        sobject-name: Contact
+        id: 0035g00000XyZzAAA
+  output:
+    expectedResult: deny
+    expectedReason: "The tool 'salesforce-deletesobjectrecord' deletes Salesforce records, which is restricted to the sf-admins group on this channel. Salesforce deletes are only recycle-bin recoverable for about 15 days and cascade to master-detail child records. Ask a Salesforce admin to perform or approve the deletion. Contact your InfoSec team if this block is a false positive."
+- description: Hosted deleteSobjectRecord by a caller whose groups lack sf-admins — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: salesforce-deleteSobjectRecord
+      uri: null
+    subject:
+      sub: auth0|rep@example.com
+      claims:
+        groups:
+          - sales
+          - engineering
+    payload:
+      name: salesforce-deleteSobjectRecord
+      args:
+        sobject-name: Contact
+        id: 0035g00000XyZzAAA
+  output:
+    expectedResult: deny
+    expectedReason: "The tool 'salesforce-deletesobjectrecord' deletes Salesforce records, which is restricted to the sf-admins group on this channel. Salesforce deletes are only recycle-bin recoverable for about 15 days and cascade to master-detail child records. Ask a Salesforce admin to perform or approve the deletion. Contact your InfoSec team if this block is a false positive."
+- description: Hosted deleteSobjectRecord by an sf-admins member — group exemption allows.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: salesforce-deleteSobjectRecord
+      uri: null
+    subject:
+      sub: auth0|admin@example.com
+      claims:
+        groups:
+          - sf-admins
+    payload:
+      name: salesforce-deleteSobjectRecord
+      args:
+        sobject-name: Contact
+        id: 0035g00000XyZzAAA
+  output:
+    expectedResult: allow
+- description: Hosted deleteChildRecord (sobject-deletes) by a non-admin — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: salesforce-deleteChildRecord
+      uri: null
+    subject:
+      sub: auth0|rep@example.com
+      claims:
+        groups:
+          - sales
+    payload:
+      name: salesforce-deleteChildRecord
+      args:
+        sobject-name: Account
+        id: 0015g00000AbCdEAA
+        relationship-path: Contacts
+  output:
+    expectedResult: deny
+    expectedReason: "The tool 'salesforce-deletechildrecord' deletes Salesforce records, which is restricted to the sf-admins group on this channel. Salesforce deletes are only recycle-bin recoverable for about 15 days and cascade to master-detail child records. Ask a Salesforce admin to perform or approve the deletion. Contact your InfoSec team if this block is a false positive."
+- description: Hosted deleteSobjectRecordByRelationship (sobject-all) by a non-admin —
+    deny (the relationship variant does not slip past the base suffix).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: salesforce-deleteSobjectRecordByRelationship
+      uri: null
+    subject:
+      sub: auth0|rep@example.com
+      claims:
+        groups:
+          - sales
+    payload:
+      name: salesforce-deleteSobjectRecordByRelationship
+      args:
+        sobject-name: Account
+        id: 0015g00000AbCdEAA
+        relationship-path: Contacts
+  output:
+    expectedResult: deny
+    expectedReason: "The tool 'salesforce-deletesobjectrecordbyrelationship' deletes Salesforce records, which is restricted to the sf-admins group on this channel. Salesforce deletes are only recycle-bin recoverable for about 15 days and cascade to master-detail child records. Ask a Salesforce admin to perform or approve the deletion. Contact your InfoSec team if this block is a false positive."
+- description: Community smn2gnt delete_record by a non-admin — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: sf-community-delete_record
+      uri: null
+    subject:
+      sub: auth0|rep@example.com
+      claims:
+        groups:
+          - sales
+    payload:
+      name: sf-community-delete_record
+      args:
+        object_type: Contact
+        id: 0035g00000XyZzAAA
+  output:
+    expectedResult: deny
+    expectedReason: "The tool 'sf-community-delete_record' deletes Salesforce records, which is restricted to the sf-admins group on this channel. Salesforce deletes are only recycle-bin recoverable for about 15 days and cascade to master-detail child records. Ask a Salesforce admin to perform or approve the deletion. Contact your InfoSec team if this block is a false positive."
+- description: Community smn2gnt bulk_delete_records by a non-admin — deny (bulk
+    variant has its own suffix).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: sf-community-bulk_delete_records
+      uri: null
+    subject:
+      sub: auth0|rep@example.com
+      claims:
+        groups:
+          - sales
+    payload:
+      name: sf-community-bulk_delete_records
+      args:
+        object_type: Lead
+        ids:
+          - 00Q5g00000AaAaAAA
+          - 00Q5g00000BbBbBAA
+  output:
+    expectedResult: deny
+    expectedReason: "The tool 'sf-community-bulk_delete_records' deletes Salesforce records, which is restricted to the sf-admins group on this channel. Salesforce deletes are only recycle-bin recoverable for about 15 days and cascade to master-detail child records. Ask a Salesforce admin to perform or approve the deletion. Contact your InfoSec team if this block is a false positive."
+- description: tsmztech salesforce_dml_records with operation delete by a non-admin —
+    deny with the DML reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: sf-mcp-salesforce_dml_records
+      uri: null
+    subject:
+      sub: auth0|rep@example.com
+      claims:
+        groups:
+          - sales
+    payload:
+      name: sf-mcp-salesforce_dml_records
+      args:
+        operation: delete
+        objectName: Contact
+        records:
+          - Id: 0035g00000XyZzAAA
+  output:
+    expectedResult: deny
+    expectedReason: "The tool 'sf-mcp-salesforce_dml_records' fronts all Salesforce DML verbs including delete, and this call's 'operation' argument is 'delete', missing, or unreadable, so it fails closed as a delete restricted to the sf-admins group. Retry with an explicit non-delete operation (insert, update, or upsert), or ask a Salesforce admin to perform or approve the deletion. Contact your InfoSec team if this block is a false positive."
+- description: salesforce_dml_records with operation missing entirely — fails closed
+    as a delete, deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: sf-mcp-salesforce_dml_records
+      uri: null
+    subject:
+      sub: auth0|rep@example.com
+      claims:
+        groups:
+          - sales
+    payload:
+      name: sf-mcp-salesforce_dml_records
+      args:
+        objectName: Contact
+        records:
+          - Id: 0035g00000XyZzAAA
+  output:
+    expectedResult: deny
+    expectedReason: "The tool 'sf-mcp-salesforce_dml_records' fronts all Salesforce DML verbs including delete, and this call's 'operation' argument is 'delete', missing, or unreadable, so it fails closed as a delete restricted to the sf-admins group. Retry with an explicit non-delete operation (insert, update, or upsert), or ask a Salesforce admin to perform or approve the deletion. Contact your InfoSec team if this block is a false positive."
+- description: salesforce_dml_records with mixed-case operation Delete — case does not
+    bypass the verb check, deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: sf-mcp-salesforce_dml_records
+      uri: null
+    subject:
+      sub: auth0|rep@example.com
+      claims:
+        groups:
+          - sales
+    payload:
+      name: sf-mcp-salesforce_dml_records
+      args:
+        operation: Delete
+        objectName: Contact
+        records:
+          - Id: 0035g00000XyZzAAA
+  output:
+    expectedResult: deny
+    expectedReason: "The tool 'sf-mcp-salesforce_dml_records' fronts all Salesforce DML verbs including delete, and this call's 'operation' argument is 'delete', missing, or unreadable, so it fails closed as a delete restricted to the sf-admins group. Retry with an explicit non-delete operation (insert, update, or upsert), or ask a Salesforce admin to perform or approve the deletion. Contact your InfoSec team if this block is a false positive."
+- description: salesforce_dml_records with a non-string operation (boolean) — unreadable
+    verb fails closed, deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: sf-mcp-salesforce_dml_records
+      uri: null
+    subject:
+      sub: auth0|rep@example.com
+      claims:
+        groups:
+          - sales
+    payload:
+      name: sf-mcp-salesforce_dml_records
+      args:
+        operation: true
+        objectName: Contact
+        records:
+          - Id: 0035g00000XyZzAAA
+  output:
+    expectedResult: deny
+    expectedReason: "The tool 'sf-mcp-salesforce_dml_records' fronts all Salesforce DML verbs including delete, and this call's 'operation' argument is 'delete', missing, or unreadable, so it fails closed as a delete restricted to the sf-admins group. Retry with an explicit non-delete operation (insert, update, or upsert), or ask a Salesforce admin to perform or approve the deletion. Contact your InfoSec team if this block is a false positive."
+- description: salesforce_dml_records with operation insert by a non-admin — explicit
+    non-delete verb passes through.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: sf-mcp-salesforce_dml_records
+      uri: null
+    subject:
+      sub: auth0|rep@example.com
+      claims:
+        groups:
+          - sales
+    payload:
+      name: sf-mcp-salesforce_dml_records
+      args:
+        operation: insert
+        objectName: Task
+        records:
+          - Subject: Follow-up call
+  output:
+    expectedResult: allow
+- description: salesforce_dml_records with operation delete by an sf-admins member —
+    group exemption allows.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: sf-mcp-salesforce_dml_records
+      uri: null
+    subject:
+      sub: auth0|admin@example.com
+      claims:
+        groups:
+          - sf-admins
+    payload:
+      name: sf-mcp-salesforce_dml_records
+      args:
+        operation: delete
+        objectName: Contact
+        records:
+          - Id: 0035g00000XyZzAAA
+  output:
+    expectedResult: allow
+- description: Uppercase tool-name casing does not bypass the suffix match — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: SALESFORCE-DELETESOBJECTRECORD
+      uri: null
+    payload:
+      name: SALESFORCE-DELETESOBJECTRECORD
+      args:
+        sobject-name: Contact
+        id: 0035g00000XyZzAAA
+  output:
+    expectedResult: deny
+    expectedReason: "The tool 'salesforce-deletesobjectrecord' deletes Salesforce records, which is restricted to the sf-admins group on this channel. Salesforce deletes are only recycle-bin recoverable for about 15 days and cascade to master-detail child records. Ask a Salesforce admin to perform or approve the deletion. Contact your InfoSec team if this block is a false positive."
+- description: Group-name casing is normalized — an SF-Admins membership still exempts
+    a hosted delete.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: salesforce-deleteSobjectRecord
+      uri: null
+    subject:
+      sub: auth0|admin@example.com
+      claims:
+        groups:
+          - SF-Admins
+    payload:
+      name: salesforce-deleteSobjectRecord
+      args:
+        sobject-name: Contact
+        id: 0035g00000XyZzAAA
+  output:
+    expectedResult: allow
+- description: A non-array groups claim (bare string sf-admins) fails closed — no
+    exemption, deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: salesforce-deleteSobjectRecord
+      uri: null
+    subject:
+      sub: auth0|spoof@example.com
+      claims:
+        groups: sf-admins
+    payload:
+      name: salesforce-deleteSobjectRecord
+      args:
+        sobject-name: Contact
+        id: 0035g00000XyZzAAA
+  output:
+    expectedResult: deny
+    expectedReason: "The tool 'salesforce-deletesobjectrecord' deletes Salesforce records, which is restricted to the sf-admins group on this channel. Salesforce deletes are only recycle-bin recoverable for about 15 days and cascade to master-detail child records. Ask a Salesforce admin to perform or approve the deletion. Contact your InfoSec team if this block is a false positive."
+- description: "Red-team: whitespace-padded operation 'delete ' does not slip past the
+    verb allowlist — deny (denylist would have allowed it)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: sf-mcp-salesforce_dml_records
+      uri: null
+    subject:
+      sub: auth0|rep@example.com
+      claims:
+        groups:
+          - sales
+    payload:
+      name: sf-mcp-salesforce_dml_records
+      args:
+        operation: "delete "
+        objectName: Contact
+        records:
+          - Id: 0035g00000XyZzAAA
+  output:
+    expectedResult: deny
+    expectedReason: "The tool 'sf-mcp-salesforce_dml_records' fronts all Salesforce DML verbs including delete, and this call's 'operation' argument is 'delete', missing, or unreadable, so it fails closed as a delete restricted to the sf-admins group. Retry with an explicit non-delete operation (insert, update, or upsert), or ask a Salesforce admin to perform or approve the deletion. Contact your InfoSec team if this block is a false positive."
+- description: "Red-team: an unrecognized destructive verb ('hardDelete') is not on the
+    allowlist and fails closed — deny (defends against server-version drift)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: sf-mcp-salesforce_dml_records
+      uri: null
+    subject:
+      sub: auth0|rep@example.com
+      claims:
+        groups:
+          - sales
+    payload:
+      name: sf-mcp-salesforce_dml_records
+      args:
+        operation: hardDelete
+        objectName: Contact
+        records:
+          - Id: 0035g00000XyZzAAA
+  output:
+    expectedResult: deny
+    expectedReason: "The tool 'sf-mcp-salesforce_dml_records' fronts all Salesforce DML verbs including delete, and this call's 'operation' argument is 'delete', missing, or unreadable, so it fails closed as a delete restricted to the sf-admins group. Retry with an explicit non-delete operation (insert, update, or upsert), or ask a Salesforce admin to perform or approve the deletion. Contact your InfoSec team if this block is a false positive."
+- description: "salesforce_dml_records with operation upsert (allowlisted, mixed case
+    and padded) passes through — allow."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: sf-mcp-salesforce_dml_records
+      uri: null
+    subject:
+      sub: auth0|rep@example.com
+      claims:
+        groups:
+          - sales
+    payload:
+      name: sf-mcp-salesforce_dml_records
+      args:
+        operation: " Upsert "
+        objectName: Lead
+        records:
+          - Id: 00Q5g00000AaAaAAA
+            Email: lead@example.com
+  output:
+    expectedResult: allow
+- description: "Documented residual: escape-hatch tool salesforce_execute_anonymous is
+    NOT a delete-tool suffix and passes this policy — pair with a deny-escape-hatches
+    policy (see Known limitations)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: sf-mcp-salesforce_execute_anonymous
+      uri: null
+    subject:
+      sub: auth0|rep@example.com
+      claims:
+        groups:
+          - sales
+    payload:
+      name: sf-mcp-salesforce_execute_anonymous
+      args:
+        apexCode: "delete [SELECT Id FROM Contact LIMIT 50];"
+  output:
+    expectedResult: allow
+- description: "Documented residual: smn2gnt restful escape hatch passes this policy —
+    delete via arbitrary REST is out of scope here (see Known limitations)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: sf-community-restful
+      uri: null
+    payload:
+      name: sf-community-restful
+      args:
+        method: DELETE
+        path: /services/data/v60.0/sobjects/Contact/0035g00000XyZzAAA
+  output:
+    expectedResult: allow
+- description: Non-Salesforce tool on the same gateway is untouched — allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-slack-post-message
+      uri: null
+    payload:
+      name: slack-mcp-slack-post-message
+      args:
+        channel: C0123456789
+        text: pipeline review at 3
+  output:
+    expectedResult: allow

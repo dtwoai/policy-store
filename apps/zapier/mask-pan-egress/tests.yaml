@@ -1,0 +1,584 @@
+# Tests for zapier.egress.mask_pan — transform-only PAN masking on Zapier MCP
+# read responses (agentic read funnel + classic *_find_*/*_get_* tools). The
+# policy never denies, so every case expects allow; the interesting assertions
+# are the transform ones.
+
+- description: Agentic read funnel (execute_zapier_read_action) returning a
+    serialized QuickBooks record with a contiguous Luhn-valid 16-digit PAN is
+    masked to BIN+last4 for a non-exempt caller.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: zapier-mcp-execute_zapier_read_action
+      uri: null
+    payload:
+      name: zapier-mcp-execute_zapier_read_action
+      text:
+        - "{\"customer\":\"Acme Corp\",\"card_on_file\":\"4111111111111111\"}"
+    subject:
+      sub: auth0|casey@acme.com
+      claims:
+        groups:
+          - support
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "{\"customer\":\"Acme Corp\",\"card_on_file\":\"411111******1111\"}"
+
+- description: Classic-mode find tool (quickbooks_online_find_customer, verified
+    name) — space-separated 4-4-4-4 PAN in a free-text notes field is masked;
+    the masked form drops separators and keeps first six + last four.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: zapier-mcp-quickbooks_online_find_customer
+      uri: null
+    payload:
+      name: zapier-mcp-quickbooks_online_find_customer
+      text:
+        - "notes: customer card 4111 1111 1111 1111, terms Net 30"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "notes: customer card 411111******1111, terms Net 30"
+
+- description: Classic-mode get tool (stripe_get_charge — representative
+    unverified classic name, exercises the -get- substring branch) with a
+    dash-separated PAN is masked.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: zapier-mcp-stripe_get_charge
+      uri: null
+    payload:
+      name: zapier-mcp-stripe_get_charge
+      text:
+        - "charge source: 5555-5555-5555-4444 (mastercard)"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "charge source: 555555******4444 (mastercard)"
+
+- description: Amex 4-6-5 grouped PAN (15 digits, 37 IIN) in a NetSuite-style
+    read response is masked with five masked middle digits.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: zapier-mcp-execute_zapier_read_action
+      uri: null
+    payload:
+      name: zapier-mcp-execute_zapier_read_action
+      text:
+        - "vendor payment method: corporate amex 3782 822463 10005"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "vendor payment method: corporate amex 378282*****0005"
+
+- description: 13-digit Luhn-valid PAN (short Visa range) unseparated in a
+    classic find response is masked with three masked middle digits.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: zapier-mcp-quickbooks_online_find_customer
+      uri: null
+    payload:
+      name: zapier-mcp-quickbooks_online_find_customer
+      text:
+        - "legacy card on file 4222222222222"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "legacy card on file 422222***2222"
+
+- description: Luhn-invalid 16-digit lookalike (order ID) is left untouched —
+    no transform is emitted and the response passes through byte-identical.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: zapier-mcp-execute_zapier_read_action
+      uri: null
+    payload:
+      name: zapier-mcp-execute_zapier_read_action
+      text:
+        - "order 4111111111111112 shipped via tracking 9400111899560000000000"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Epoch timestamps and phone-length digit runs that fail Luhn do
+    not trigger masking — false-positive guard on typical JSON records.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: zapier-mcp-execute_zapier_read_action
+      uri: null
+    payload:
+      name: zapier-mcp-execute_zapier_read_action
+      text:
+        - "{\"created_ms\":1721947200123,\"invoice\":\"INV-2026\",\"status\":\"paid\"}"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: A 20-digit run never matches (no word boundary inside a digit
+    run), so longer identifiers are not partially masked.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: zapier-mcp-execute_zapier_read_action
+      uri: null
+    payload:
+      name: zapier-mcp-execute_zapier_read_action
+      text:
+        - "bank account ref 41111111111111111115 confirmed"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Caller in the placeholder pci-full-pan group receives the
+    unmasked response — exemption branch.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: zapier-mcp-execute_zapier_read_action
+      uri: null
+    payload:
+      name: zapier-mcp-execute_zapier_read_action
+      text:
+        - "refund card 4111111111111111"
+    subject:
+      sub: auth0|pci-analyst@acme.com
+      claims:
+        groups:
+          - pci-full-pan
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Caller in a different group (finance) is not exempt — masking
+    still applies.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: zapier-mcp-quickbooks_online_find_customer
+      uri: null
+    payload:
+      name: zapier-mcp-quickbooks_online_find_customer
+      text:
+        - "card 5555555555554444 on file"
+    subject:
+      sub: auth0|casey@acme.com
+      claims:
+        groups:
+          - finance
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "card 555555******4444 on file"
+
+- description: Missing subject/claims fails closed — with no identity at all
+    the caller is never exempt and masking applies.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: zapier-mcp-execute_zapier_read_action
+      uri: null
+    payload:
+      name: zapier-mcp-execute_zapier_read_action
+      text:
+        - "card 4111111111111111"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "card 411111******1111"
+
+- description: Malformed groups claim (string instead of array) fails closed —
+    caller is not exempt and masking applies.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: zapier-mcp-execute_zapier_read_action
+      uri: null
+    payload:
+      name: zapier-mcp-execute_zapier_read_action
+      text:
+        - "card 4111111111111111"
+    subject:
+      sub: auth0|casey@acme.com
+      claims:
+        groups: pci-full-pan
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "card 411111******1111"
+
+- description: "Object-shaped groups claim (role: pci-full-pan as an object)
+    fails closed — the is_array guard prevents iterating object values, so the
+    caller is not exempt and masking applies."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: zapier-mcp-execute_zapier_read_action
+      uri: null
+    payload:
+      name: zapier-mcp-execute_zapier_read_action
+      text:
+        - "card 4111111111111111"
+    subject:
+      sub: auth0|casey@acme.com
+      claims:
+        groups:
+          role: pci-full-pan
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "card 411111******1111"
+
+- description: "Claim-spoofing surface: exemption group is matched
+    case-sensitively, so an uppercased PCI-FULL-PAN group is NOT exempt and
+    masking still applies (fails closed)."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: zapier-mcp-execute_zapier_read_action
+      uri: null
+    payload:
+      name: zapier-mcp-execute_zapier_read_action
+      text:
+        - "card 4111111111111111"
+    subject:
+      sub: auth0|casey@acme.com
+      claims:
+        groups:
+          - PCI-FULL-PAN
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "card 411111******1111"
+
+- description: "Claim-spoofing surface: a nested-array groups claim
+    ([[pci-full-pan]]) is not a flat string member, so the caller is not exempt
+    and masking still applies (fails closed)."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: zapier-mcp-execute_zapier_read_action
+      uri: null
+    payload:
+      name: zapier-mcp-execute_zapier_read_action
+      text:
+        - "card 4111111111111111"
+    subject:
+      sub: auth0|casey@acme.com
+      claims:
+        groups:
+          - - pci-full-pan
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "card 411111******1111"
+
+- description: "Documented residual (out of scope): the agentic write funnel
+    (execute_zapier_write_action) echoing the written record with a PAN is NOT
+    scanned — no transform is emitted. Pins the read-path-only scope."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: zapier-mcp-execute_zapier_write_action
+      uri: null
+    payload:
+      name: zapier-mcp-execute_zapier_write_action
+      text:
+        - "created payment record with card 4111111111111111"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Documented residual (out of scope): a classic-mode send tool
+    (gmail_send_email, verified name) echoing a PAN in its confirmation is not
+    matched by the find/get rules — no transform."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: zapier-mcp-gmail_send_email
+      uri: null
+    payload:
+      name: zapier-mcp-gmail_send_email
+      text:
+        - "sent email containing 4111111111111111"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Meta-tool get_zapier_skill incidentally matches the -get-
+    substring rule — a Luhn-valid PAN embedded in stored skill text is masked
+    (documented as intended-harmless behavior).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: zapier-mcp-get_zapier_skill
+      uri: null
+    payload:
+      name: zapier-mcp-get_zapier_skill
+      text:
+        - "skill: always refund to card 4111111111111111"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "skill: always refund to card 411111******1111"
+
+- description: "Documented residual (read-meta-tool asymmetry): list_zapier_skills
+    returns the same stored skill text as get_zapier_skill but contains neither
+    -find- nor -get-, so it is NOT matched and a PAN in the skill text passes
+    through unmasked. Pins the agentic read-meta-tool coverage gap."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: zapier-mcp-list_zapier_skills
+      uri: null
+    payload:
+      name: zapier-mcp-list_zapier_skills
+      text:
+        - "skill: always refund to card 4111111111111111"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Multiple distinct PANs in one content block are each masked to
+    their own BIN+last4 form.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: zapier-mcp-execute_zapier_read_action
+      uri: null
+    payload:
+      name: zapier-mcp-execute_zapier_read_action
+      text:
+        - "cards 4111111111111111 and 5555555555554444 on the account"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "cards 411111******1111 and 555555******4444 on the account"
+
+- description: Multiple content blocks — clean blocks pass through unchanged
+    while the block containing a PAN is masked.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: zapier-mcp-execute_zapier_read_action
+      uri: null
+    payload:
+      name: zapier-mcp-execute_zapier_read_action
+      text:
+        - "record 1 of 2: no payment data"
+        - "record 2 of 2: PAN 378282246310005 on file"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "record 1 of 2: no payment data"
+      - "record 2 of 2: PAN 378282*****0005 on file"
+
+- description: Empty text array — nothing to mask, no transform emitted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: zapier-mcp-execute_zapier_read_action
+      uri: null
+    payload:
+      name: zapier-mcp-execute_zapier_read_action
+      text: []
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Hyphenated tool-name delivery (execute-zapier-read-action)
+    matches via underscore normalization and masking applies.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: zapier-gw-execute-zapier-read-action
+      uri: null
+    payload:
+      name: zapier-gw-execute-zapier-read-action
+      text:
+        - "card 6011111111111117"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "card 601111******1117"
+
+- description: "Documented residual (fail-open): a PAN glued to a word
+    character (underscore) in a serialized-JSON token value has no word
+    boundary and is NOT masked — pins the \\b-anchoring residual."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: zapier-mcp-execute_zapier_read_action
+      uri: null
+    payload:
+      name: zapier-mcp-execute_zapier_read_action
+      text:
+        - "{\"source\":\"card_4111111111111111\"}"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Documented residual (encoding): a PAN typed with Unicode
+    fullwidth digits does not match the ASCII-only RE2 \\d class, so no
+    transform is emitted and the digits pass through unmasked."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: zapier-mcp-execute_zapier_read_action
+      uri: null
+    payload:
+      name: zapier-mcp-execute_zapier_read_action
+      text:
+        - "card ４１１１１１１１１１１１１１１１ on file"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Documented residual (fail-open): when payload.text is a bare
+    string instead of an array, the is_array guard leaves the transform
+    undefined and the PAN passes through byte-identical."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: zapier-mcp-execute_zapier_read_action
+      uri: null
+    payload:
+      name: zapier-mcp-execute_zapier_read_action
+      text: "customer card 4111111111111111 on file"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Documented residual (fail-open): a PAN inside a structured
+    object content block (MCP typed {type,text} shape) is NOT a string, so
+    mask_block passes it through unmodified and no transform is emitted."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: zapier-mcp-execute_zapier_read_action
+      uri: null
+    payload:
+      name: zapier-mcp-execute_zapier_read_action
+      text:
+        - type: text
+          text: "customer card 4111111111111111 on file"
+  output:
+    expectedResult: allow
+  transformApplied: false

@@ -1,0 +1,425 @@
+- description: Official Google/Claude connector draft creation — not a send tool,
+    passes untouched as the sanctioned human-review path.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gmail-create_draft
+      uri: null
+    payload:
+      name: gmail-create_draft
+      args:
+        to: ["partner@external-example.net"]
+        subject: Q3 proposal
+        body: Draft for human review.
+  output:
+    expectedResult: allow
+- description: Community draft tool (taylorwilsdon draft_gmail_message) with an
+    external recipient — drafts are the sanctioned path, so the policy does not
+    match.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-workspace-mcp-draft_gmail_message
+      uri: null
+    payload:
+      name: google-workspace-mcp-draft_gmail_message
+      args:
+        to: partner@external-example.net
+        subject: Q3 proposal
+        body: Draft for human review.
+  output:
+    expectedResult: allow
+- description: GongRzhe send_email with array-shaped recipients, all on allowlisted
+    domains. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gmail-mcp-send_email
+      uri: null
+    payload:
+      name: gmail-mcp-send_email
+      args:
+        to: ["alice@example.com"]
+        cc: ["bob@example.org"]
+        subject: Standup notes
+        body: All internal.
+  output:
+    expectedResult: allow
+- description: GongRzhe send_email with an external address hidden in the bcc
+    array. Policy should deny and point the agent at drafting.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gmail-mcp-send_email
+      uri: null
+    payload:
+      name: gmail-mcp-send_email
+      args:
+        to: ["alice@example.com"]
+        bcc: ["competitor@evil-example.net"]
+        subject: Q3 numbers
+        body: Sensitive.
+  output:
+    expectedResult: deny
+    expectedReason: One or more recipients (to, cc, or bcc) are outside the corporate email domain allowlist or could not be parsed. Do not send this email; create a Gmail draft instead so a human can review and send it. If every recipient should be internal, ask your InfoSec team to add the domain to the allowlist.
+- description: taylorwilsdon send_gmail_message with string-shaped recipients — a
+    comma-separated internal list. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-workspace-mcp-send_gmail_message
+      uri: null
+    payload:
+      name: google-workspace-mcp-send_gmail_message
+      args:
+        user_google_email: agent@example.com
+        to: alice@example.com, bob@example.com
+        cc: carol@example.org
+        subject: Weekly report
+        body: All internal.
+  output:
+    expectedResult: allow
+- description: taylorwilsdon send_gmail_message to an external string recipient,
+    caller has no subject/claims at all — no exemption, deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-workspace-mcp-send_gmail_message
+      uri: null
+    payload:
+      name: google-workspace-mcp-send_gmail_message
+      args:
+        user_google_email: agent@example.com
+        to: journalist@press-example.net
+        subject: Internal memo
+        body: Sensitive.
+  output:
+    expectedResult: deny
+    expectedReason: One or more recipients (to, cc, or bcc) are outside the corporate email domain allowlist or could not be parsed. Do not send this email; create a Gmail draft instead so a human can review and send it. If every recipient should be internal, ask your InfoSec team to add the domain to the allowlist.
+- description: Send call with no recipient arguments at all — fail closed, deny as
+    unverifiable.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gmail-mcp-send_email
+      uri: null
+    payload:
+      name: gmail-mcp-send_email
+      args:
+        subject: No recipients
+        body: Where is this going?
+  output:
+    expectedResult: deny
+    expectedReason: 'This send call has no recipients the policy can verify: to, cc, and bcc are missing, empty, or in an unrecognized format. Create a Gmail draft instead so a human can review and send it. If this is a false positive, contact your InfoSec team.'
+- description: Send call with empty recipient arrays — still no verifiable
+    recipient, fail closed, deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gmail-mcp-send_email
+      uri: null
+    payload:
+      name: gmail-mcp-send_email
+      args:
+        to: []
+        cc: []
+        bcc: []
+        subject: Empty lists
+        body: x
+  output:
+    expectedResult: deny
+    expectedReason: 'This send call has no recipients the policy can verify: to, cc, and bcc are missing, empty, or in an unrecognized format. Create a Gmail draft instead so a human can review and send it. If this is a false positive, contact your InfoSec team.'
+- description: Recipient field is an object instead of a string or array —
+    unparseable shape, fail closed, deny as unverifiable.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gmail-mcp-send_email
+      uri: null
+    payload:
+      name: gmail-mcp-send_email
+      args:
+        to:
+          email: alice@example.com
+        subject: Weird shape
+        body: x
+  output:
+    expectedResult: deny
+    expectedReason: 'This send call has no recipients the policy can verify: to, cc, and bcc are missing, empty, or in an unrecognized format. Create a Gmail draft instead so a human can review and send it. If this is a false positive, contact your InfoSec team.'
+- description: Recipient array contains a non-string entry — the entry cannot be
+    parsed to a domain, so it is treated as external and denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gmail-mcp-send_email
+      uri: null
+    payload:
+      name: gmail-mcp-send_email
+      args:
+        to:
+          - email: alice@example.com
+        subject: Object entry
+        body: x
+  output:
+    expectedResult: deny
+    expectedReason: One or more recipients (to, cc, or bcc) are outside the corporate email domain allowlist or could not be parsed. Do not send this email; create a Gmail draft instead so a human can review and send it. If every recipient should be internal, ask your InfoSec team to add the domain to the allowlist.
+- description: 'Red team: semicolon-separated string smuggling an external address
+    ahead of an internal one. The splitter parses both and denies on the external
+    entry.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-workspace-mcp-send_gmail_message
+      uri: null
+    payload:
+      name: google-workspace-mcp-send_gmail_message
+      args:
+        to: attacker@evil-example.net;ceo@example.com
+        subject: Smuggled
+        body: x
+  output:
+    expectedResult: deny
+    expectedReason: One or more recipients (to, cc, or bcc) are outside the corporate email domain allowlist or could not be parsed. Do not send this email; create a Gmail draft instead so a human can review and send it. If every recipient should be internal, ask your InfoSec team to add the domain to the allowlist.
+- description: 'Red team: two addresses space-smuggled into one entry (two "@"
+    signs, no separator). Conservative parsing yields no domain, so the entry is
+    unverifiable and the send is denied.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gmail-mcp-send_email
+      uri: null
+    payload:
+      name: gmail-mcp-send_email
+      args:
+        to: ["attacker@evil-example.net alice@example.com"]
+        subject: Double at-sign
+        body: x
+  output:
+    expectedResult: deny
+    expectedReason: One or more recipients (to, cc, or bcc) are outside the corporate email domain allowlist or could not be parsed. Do not send this email; create a Gmail draft instead so a human can review and send it. If every recipient should be internal, ask your InfoSec team to add the domain to the allowlist.
+- description: Caller in the placeholder exemption group mcp-gmail-external-send
+    may send externally. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    subject:
+      sub: google-apps|sales-lead@example.com
+      claims:
+        groups:
+          - staff
+          - mcp-gmail-external-send
+    resource:
+      type: tool
+      name: gmail-mcp-send_email
+      uri: null
+    payload:
+      name: gmail-mcp-send_email
+      args:
+        to: ["customer@client-example.net"]
+        subject: Renewal quote
+        body: Approved outbound.
+  output:
+    expectedResult: allow
+- description: Caller with groups claim but not in the exemption group — external
+    send is still denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    subject:
+      sub: google-apps|intern@example.com
+      claims:
+        groups:
+          - staff
+    resource:
+      type: tool
+      name: gmail-mcp-send_email
+      uri: null
+    payload:
+      name: gmail-mcp-send_email
+      args:
+        to: ["customer@client-example.net"]
+        subject: Renewal quote
+        body: Not authorized.
+  output:
+    expectedResult: deny
+    expectedReason: One or more recipients (to, cc, or bcc) are outside the corporate email domain allowlist or could not be parsed. Do not send this email; create a Gmail draft instead so a human can review and send it. If every recipient should be internal, ask your InfoSec team to add the domain to the allowlist.
+- description: Mixed-case tool name, uppercase domain, and a display-name bracket
+    form — matching and parsing are case-insensitive and bracket-aware, all
+    internal, allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: Gmail-MCP-SEND_EMAIL
+      uri: null
+    payload:
+      name: Gmail-MCP-SEND_EMAIL
+      args:
+        to: ["Alice Doe <Alice@EXAMPLE.COM>"]
+        subject: Case check
+        body: x
+  output:
+    expectedResult: allow
+- description: Both failure modes at once — an external to plus an unparseable cc
+    field. Both reasons fire and are joined sorted.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gmail-mcp-send_email
+      uri: null
+    payload:
+      name: gmail-mcp-send_email
+      args:
+        to: ["attacker@evil-example.net"]
+        cc: 42
+        subject: Everything wrong
+        body: x
+  output:
+    expectedResult: deny
+    expectedReason: 'One or more recipients (to, cc, or bcc) are outside the corporate email domain allowlist or could not be parsed. Do not send this email; create a Gmail draft instead so a human can review and send it. If every recipient should be internal, ask your InfoSec team to add the domain to the allowlist.; This send call has no recipients the policy can verify: to, cc, and bcc are missing, empty, or in an unrecognized format. Create a Gmail draft instead so a human can review and send it. If this is a false positive, contact your InfoSec team.'
+- description: 'Red team (documented limitation): an internal recipient with a comma
+    in the display name ("Doe, Alice <alice@example.com>") is split on the comma;
+    the "Doe" fragment has no parseable domain, so the send is denied. Fail-closed
+    over-deny — a comma can never hide an external address.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-workspace-mcp-send_gmail_message
+      uri: null
+    payload:
+      name: google-workspace-mcp-send_gmail_message
+      args:
+        to: 'Doe, Alice <alice@example.com>'
+        subject: Display name comma
+        body: x
+  output:
+    expectedResult: deny
+    expectedReason: One or more recipients (to, cc, or bcc) are outside the corporate email domain allowlist or could not be parsed. Do not send this email; create a Gmail draft instead so a human can review and send it. If every recipient should be internal, ask your InfoSec team to add the domain to the allowlist.
+- description: 'Red team: array entry smuggling an internal and an external address
+    into one string ("alice@example.com,attacker@evil.com"). Array entries are not
+    comma-split, so the entry has two "@" signs, yields no domain, and is denied as
+    external — not silently accepted.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gmail-mcp-send_email
+      uri: null
+    payload:
+      name: gmail-mcp-send_email
+      args:
+        to: ["alice@example.com,attacker@evil.com"]
+        subject: Array comma smuggle
+        body: x
+  output:
+    expectedResult: deny
+    expectedReason: One or more recipients (to, cc, or bcc) are outside the corporate email domain allowlist or could not be parsed. Do not send this email; create a Gmail draft instead so a human can review and send it. If every recipient should be internal, ask your InfoSec team to add the domain to the allowlist.
+- description: 'Red team (claim-spoofing surface): a caller whose groups claim is a
+    bare string instead of an array does not satisfy the group-membership check, so
+    the exemption fails closed and the external send is denied.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    subject:
+      sub: google-apps|attacker@example.com
+      claims:
+        groups: mcp-gmail-external-send
+    resource:
+      type: tool
+      name: gmail-mcp-send_email
+      uri: null
+    payload:
+      name: gmail-mcp-send_email
+      args:
+        to: ["ext@evil-example.net"]
+        subject: Spoofed group shape
+        body: x
+  output:
+    expectedResult: deny
+    expectedReason: One or more recipients (to, cc, or bcc) are outside the corporate email domain allowlist or could not be parsed. Do not send this email; create a Gmail draft instead so a human can review and send it. If every recipient should be internal, ask your InfoSec team to add the domain to the allowlist.
+- description: 'Red team: recipient on a subdomain of an allowlisted domain
+    (u@sub.example.com). Domain matching is exact, so the subdomain is not on the
+    allowlist and the send is denied.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gmail-mcp-send_email
+      uri: null
+    payload:
+      name: gmail-mcp-send_email
+      args:
+        to: ["u@sub.example.com"]
+        subject: Subdomain
+        body: x
+  output:
+    expectedResult: deny
+    expectedReason: One or more recipients (to, cc, or bcc) are outside the corporate email domain allowlist or could not be parsed. Do not send this email; create a Gmail draft instead so a human can review and send it. If every recipient should be internal, ask your InfoSec team to add the domain to the allowlist.
+- description: 'Red team (fail-open fix): the send arrives with resource.name absent
+    entirely — only the legacy payload.name identifies it as a send tool. The policy
+    reads the tool name from both fields, so the external send is still denied
+    instead of slipping through as a non-send (allow).'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    payload:
+      name: gmail-mcp-send_email
+      args:
+        to: ["exfil@evil-example.net"]
+        subject: No resource.name
+        body: x
+  output:
+    expectedResult: deny
+    expectedReason: One or more recipients (to, cc, or bcc) are outside the corporate email domain allowlist or could not be parsed. Do not send this email; create a Gmail draft instead so a human can review and send it. If every recipient should be internal, ask your InfoSec team to add the domain to the allowlist.

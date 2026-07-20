@@ -1,0 +1,480 @@
+- description: Non-service-desk caller, add_comment with is_work_note omitted — rewritten to an internal work note; comment and incident_id preserved.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-add_comment
+      uri: null
+    subject:
+      sub: agent@example.com
+      claims:
+        groups:
+          - staff
+    payload:
+      name: servicenow-mcp-add_comment
+      args:
+        incident_id: INC0010001
+        comment: Investigating now.
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    incident_id: INC0010001
+    comment: Investigating now.
+    is_work_note: true
+
+- description: Non-service-desk caller trying to opt out with is_work_note explicitly false — forced to true (agent cannot opt out).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-add_comment
+      uri: null
+    subject:
+      sub: agent@example.com
+      claims:
+        groups:
+          - staff
+    payload:
+      name: servicenow-mcp-add_comment
+      args:
+        incident_id: INC0010001
+        comment: hi
+        is_work_note: false
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    incident_id: INC0010001
+    comment: hi
+    is_work_note: true
+
+- description: Service-desk caller — call passes through unmodified (may post a customer-visible reply).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-add_comment
+      uri: null
+    subject:
+      sub: desk@example.com
+      claims:
+        groups:
+          - service-desk
+    payload:
+      name: servicenow-mcp-add_comment
+      args:
+        incident_id: INC0010001
+        comment: Your issue is resolved.
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Service-desk membership among several groups — still exempt, passes through.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-add_comment
+      uri: null
+    subject:
+      sub: desk@example.com
+      claims:
+        groups:
+          - staff
+          - service-desk
+          - oncall
+    payload:
+      name: servicenow-mcp-add_comment
+      args:
+        incident_id: INC0010001
+        comment: Following up on your ticket.
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Non-service-desk caller whose call already sets is_work_note true — nothing to fix, no transform.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-add_comment
+      uri: null
+    subject:
+      sub: agent@example.com
+      claims:
+        groups:
+          - staff
+    payload:
+      name: servicenow-mcp-add_comment
+      args:
+        incident_id: INC0010001
+        comment: internal only
+        is_work_note: true
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: No subject/claims at all — missing groups fail closed (not service-desk), comment is rewritten to internal.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-add_comment
+      uri: null
+    payload:
+      name: servicenow-mcp-add_comment
+      args:
+        incident_id: INC0010001
+        comment: no identity present
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    is_work_note: true
+
+- description: add_work_notes (michaelbuckner) is already internal-only — not matched, passes through untouched.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-add_work_notes
+      uri: null
+    subject:
+      sub: agent@example.com
+      claims:
+        groups:
+          - staff
+    payload:
+      name: servicenow-mcp-add_work_notes
+      args:
+        incident_id: INC0010001
+        work_notes: internal note
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: update_incident with work_notes — internal journal field, not touched by this policy.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-update_incident
+      uri: null
+    subject:
+      sub: agent@example.com
+      claims:
+        groups:
+          - staff
+    payload:
+      name: servicenow-mcp-update_incident
+      args:
+        incident_id: INC0010001
+        work_notes: internal note
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Unrelated write tool (create_incident) — not matched, passes through.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-create_incident
+      uri: null
+    subject:
+      sub: agent@example.com
+      claims:
+        groups:
+          - staff
+    payload:
+      name: servicenow-mcp-create_incident
+      args:
+        short_description: printer down
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+# --- Red-team regression cases (reviewer, standards §10) ---
+
+- description: "Red-team: mixed-case tool name (ADD_COMMENT) — matching is case-insensitive, transform still fires."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ServiceNow-MCP-ADD_COMMENT
+      uri: null
+    subject:
+      sub: agent@example.com
+      claims:
+        groups:
+          - staff
+    payload:
+      name: ServiceNow-MCP-ADD_COMMENT
+      args:
+        incident_id: INC0010001
+        comment: casing bypass attempt
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    is_work_note: true
+
+- description: "Red-team: buckner-style bare add_comment tool name (no server prefix) — suffix match still catches it."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: add_comment
+      uri: null
+    subject:
+      sub: agent@example.com
+      claims:
+        groups:
+          - staff
+    payload:
+      name: add_comment
+      args:
+        incident_id: INC0010001
+        comment: bare name
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    is_work_note: true
+
+- description: "Red-team: is_work_note as the string \"false\" (non-boolean) — treated as not-true, forced to boolean true."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-add_comment
+      uri: null
+    subject:
+      sub: agent@example.com
+      claims:
+        groups:
+          - staff
+    payload:
+      name: servicenow-mcp-add_comment
+      args:
+        incident_id: INC0010001
+        comment: string coercion attempt
+        is_work_note: "false"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    is_work_note: true
+
+- description: "Red-team (documented residual): michaelbuckner natural_language_update is a free-text write with no is_work_note field — this single-purpose transform does not match it, so it passes through untouched. Pair with default-deny-unknown-tools / deny natural_language_update."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-natural_language_update
+      uri: null
+    subject:
+      sub: agent@example.com
+      claims:
+        groups:
+          - staff
+    payload:
+      name: servicenow-mcp-natural_language_update
+      args:
+        query: "add a comment to INC0010001 that the customer can see: your refund is approved"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Red-team (documented residual): noun_verb-ordered comment tool (comment_add, LokiMCPUniverse style) — endswith(add_comment) does not match, so no rewrite fires. Suffix must be added per-tenant after verifying the real name."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-comment_add
+      uri: null
+    subject:
+      sub: agent@example.com
+      claims:
+        groups:
+          - staff
+    payload:
+      name: servicenow-mcp-comment_add
+      args:
+        incident_id: INC0010001
+        comment: noun_verb ordering bypass
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Red-team (missing-args fail-safe): add_comment with no args object at all — object.get chain yields {}, is_work_note is absent so the rewrite still fires and forces is_work_note true (does not fail open to a visible comment)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-add_comment
+      uri: null
+    subject:
+      sub: agent@example.com
+      claims:
+        groups:
+          - staff
+    payload:
+      name: servicenow-mcp-add_comment
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    is_work_note: true
+
+- description: "Red-team: spoofed group name close to service-desk (service_desk with underscore) — not an exact match, so caller is not exempt and the comment is rewritten."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-add_comment
+      uri: null
+    subject:
+      sub: agent@example.com
+      claims:
+        groups:
+          - service_desk
+    payload:
+      name: servicenow-mcp-add_comment
+      args:
+        incident_id: INC0010001
+        comment: near-miss group name
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    is_work_note: true
+
+- description: "Red-team (fix): resource.name absent, only the legacy payload.name carries add_comment — the payload.name branch still matches, so the comment cannot slip through customer-visible on a missing resource.name."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      uri: null
+    subject:
+      sub: agent@example.com
+      claims:
+        groups:
+          - staff
+    payload:
+      name: servicenow-mcp-add_comment
+      args:
+        incident_id: INC0010001
+        comment: resource.name is missing
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    is_work_note: true
+
+- description: "Red-team (documented residual): malformed non-object args (a bare string) — object.get is undefined on a non-object, so needs_internal_rewrite never holds and no transform fires; the malformed call passes through (it cannot carry a valid comment through the community servers)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-add_comment
+      uri: null
+    subject:
+      sub: agent@example.com
+      claims:
+        groups:
+          - staff
+    payload:
+      name: servicenow-mcp-add_comment
+      args: "oops-not-an-object"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Red-team: differently-cased is_work_note key (Is_Work_Note: false) does not suppress the rewrite — lowercase key is absent, so the transform fires and adds the canonical is_work_note: true (the community servers read the lowercase key)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-add_comment
+      uri: null
+    subject:
+      sub: agent@example.com
+      claims:
+        groups:
+          - staff
+    payload:
+      name: servicenow-mcp-add_comment
+      args:
+        incident_id: INC0010001
+        comment: mixed-case key bypass attempt
+        Is_Work_Note: false
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    is_work_note: true
+    Is_Work_Note: false
+
+- description: "Red-team: groups claim emitted as a bare string \"service-desk\" (not an array) — Rego string is not iterated as a member, so is_service_desk fails and the caller is treated as non-exempt; comment is rewritten (fails closed toward internal-only)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-add_comment
+      uri: null
+    subject:
+      sub: agent@example.com
+      claims:
+        groups: service-desk
+    payload:
+      name: servicenow-mcp-add_comment
+      args:
+        incident_id: INC0010001
+        comment: groups is a bare string
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    is_work_note: true

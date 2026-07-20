@@ -1,0 +1,580 @@
+# Tests for linear.ingress.freeze_destructive_ops
+# Covers every rule branch: pass-through allow (not is_destructive_tool),
+# admin-exempt allow (is_destructive_tool + caller_is_admin), and deny
+# (is_destructive_tool + not caller_is_admin) across the delete/archive/logout
+# verb classes and the removeUserFromTeam suffix. Also covers each fail-closed
+# branch of caller_is_admin and the red-team hardening cases.
+
+# ---------------------------------------------------------------------------
+# Pass-through: non-destructive tools are never touched (allow branch 1).
+# ---------------------------------------------------------------------------
+- description: Read tool (linear_getIssues) by a caller with no subject at all. Not
+    destructive, so the policy passes it through regardless of identity.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: linear-linear_getIssues
+      uri: null
+    payload:
+      name: linear-linear_getIssues
+      args:
+        teamId: T1
+  output:
+    expectedResult: allow
+
+- description: Non-destructive write (linear_createIssue) by a non-admin. Create is
+    not a destructive verb, so it passes through.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: linear-linear_createIssue
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: linear-linear_createIssue
+      args:
+        title: Bug
+  output:
+    expectedResult: allow
+
+- description: Destructive-edit verb (linear_updateIssue) passes through — this policy
+    freezes delete/archive/logout, not updates (documented out of scope).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: linear-linear_updateIssue
+      uri: null
+    payload:
+      name: linear-linear_updateIssue
+      args:
+        id: ISS-1
+        description: overwritten
+  output:
+    expectedResult: allow
+
+- description: A read tool whose name contains 'delete'-adjacent text but not the
+    linear- verb marker (linear_getDocumentContentHistory) passes through — the
+    marker anchors on linear-delete/archive/logout, not bare substrings.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: linear-linear_getDocumentContentHistory
+      uri: null
+    payload:
+      name: linear-linear_getDocumentContentHistory
+      args: {}
+  output:
+    expectedResult: allow
+
+# ---------------------------------------------------------------------------
+# Admin-exempt allow (allow branch 2): destructive + caller_is_admin.
+# ---------------------------------------------------------------------------
+- description: archiveIssue by a caller whose groups claim contains linear-admins.
+    Destructive but admin-exempt, so allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: linear-linear_archiveIssue
+      uri: null
+    subject:
+      sub: admin@example.com
+      claims:
+        groups:
+          - linear-admins
+    payload:
+      name: linear-linear_archiveIssue
+      args:
+        id: ISS-1
+  output:
+    expectedResult: allow
+
+- description: deleteComment by an admin (multiple groups, one is linear-admins). Allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: linear-linear_deleteComment
+      uri: null
+    subject:
+      sub: admin@example.com
+      claims:
+        groups:
+          - engineering
+          - linear-admins
+    payload:
+      name: linear-linear_deleteComment
+      args:
+        id: C1
+  output:
+    expectedResult: allow
+
+- description: removeUserFromTeam by an admin. The removeuserfromteam suffix is
+    destructive but the caller is exempt, so allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: linear-linear_removeUserFromTeam
+      uri: null
+    subject:
+      sub: admin@example.com
+      claims:
+        groups:
+          - linear-admins
+    payload:
+      name: linear-linear_removeUserFromTeam
+      args:
+        userId: U1
+        teamId: T1
+  output:
+    expectedResult: allow
+
+# ---------------------------------------------------------------------------
+# Deny (delete class): destructive + not admin, one case per named tool.
+# ---------------------------------------------------------------------------
+- description: deleteComment by a non-admin (groups present but no linear-admins). Denied
+    with the stable reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: linear-linear_deleteComment
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: linear-linear_deleteComment
+      args:
+        id: C1
+  output:
+    expectedResult: deny
+    expectedReason: "This destructive Linear operation is blocked. Delete and archive tools permanently remove records (comments, issues, initiatives, documents, teams) with no agent-side undo, and the session-logout tools can lock a user out of Linear entirely, so a hallucinated cleanup step or a prompt-injection payload could destroy work or trigger an account denial-of-service. Route this request through a member of your Linear admin group (placeholder: linear-admins) instead. If you believe this block is a false positive, ask your InfoSec team to add you to that group."
+
+- description: deleteInitiative by a caller whose claims exist but carry no groups
+    key. caller_is_admin fails closed (missing groups → []), so denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: linear-linear_deleteInitiative
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        scope: openid profile
+    payload:
+      name: linear-linear_deleteInitiative
+      args:
+        id: INIT-1
+  output:
+    expectedResult: deny
+
+# ---------------------------------------------------------------------------
+# Deny (archive class).
+# ---------------------------------------------------------------------------
+- description: archiveDocument by a non-admin. Denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: linear-linear_archiveDocument
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - support
+    payload:
+      name: linear-linear_archiveDocument
+      args:
+        id: DOC-1
+  output:
+    expectedResult: deny
+
+- description: archiveTeam with no subject block at all. caller_is_admin fails closed
+    (missing subject), so denied — archiving a team removes a whole workspace.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: linear-linear_archiveTeam
+      uri: null
+    payload:
+      name: linear-linear_archiveTeam
+      args:
+        id: T1
+  output:
+    expectedResult: deny
+
+# ---------------------------------------------------------------------------
+# Deny (logout / account-DoS class): all three session tools.
+# ---------------------------------------------------------------------------
+- description: logoutAllSessions by a non-admin — account-level DoS. Denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: linear-linear_logoutAllSessions
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: linear-linear_logoutAllSessions
+      args: {}
+  output:
+    expectedResult: deny
+
+- description: logoutOtherSessions by a non-admin. Denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: linear-linear_logoutOtherSessions
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups: []
+    payload:
+      name: linear-linear_logoutOtherSessions
+      args: {}
+  output:
+    expectedResult: deny
+
+- description: logoutSession by a non-admin. Denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: linear-linear_logoutSession
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: linear-linear_logoutSession
+      args:
+        sessionId: S1
+  output:
+    expectedResult: deny
+
+# ---------------------------------------------------------------------------
+# Deny (removeUserFromTeam suffix branch): non-admin.
+# ---------------------------------------------------------------------------
+- description: removeUserFromTeam by a non-admin — matched by the explicit suffix,
+    not by a delete/archive/logout marker. Denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: linear-linear_removeUserFromTeam
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: linear-linear_removeUserFromTeam
+      args:
+        userId: U1
+        teamId: T1
+  output:
+    expectedResult: deny
+
+# ---------------------------------------------------------------------------
+# Red-team: is_array guard on groups. A groups object whose values include
+# "linear-admins" must NOT grant exemption (would fail open without is_array).
+# ---------------------------------------------------------------------------
+- description: Red-team — groups is an OBJECT {"0":"linear-admins"} rather than an
+    array, on a destructive call. The is_array guard makes caller_is_admin fail
+    closed, so the deleteComment is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: linear-linear_deleteComment
+      uri: null
+    subject:
+      sub: attacker@example.com
+      claims:
+        groups:
+          "0": linear-admins
+    payload:
+      name: linear-linear_deleteComment
+      args:
+        id: C1
+  output:
+    expectedResult: deny
+
+- description: Red-team — groups is a bare STRING "linear-admins" (not an array) on
+    a destructive call. is_array fails, so caller_is_admin is false and the
+    archiveIssue is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: linear-linear_archiveIssue
+      uri: null
+    subject:
+      sub: attacker@example.com
+      claims:
+        groups: linear-admins
+    payload:
+      name: linear-linear_archiveIssue
+      args:
+        id: ISS-1
+  output:
+    expectedResult: deny
+
+# ---------------------------------------------------------------------------
+# Red-team: independent resource/payload name matching. A non-string value in
+# one field must not suppress a genuine destructive verb in the other.
+# ---------------------------------------------------------------------------
+- description: Red-team — resource.name is a non-string (number) but payload.name is
+    the real destructive tool. name_of coerces the number to "", and the payload
+    branch still matches, so the non-admin call is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: 12345
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: linear-linear_deleteInitiative
+      args:
+        id: INIT-1
+  output:
+    expectedResult: deny
+
+- description: Red-team — resource.name carries the destructive verb while payload
+    is entirely absent. The resource branch matches independently, so denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: linear-linear_deleteComment
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - engineering
+  output:
+    expectedResult: deny
+
+# ---------------------------------------------------------------------------
+# Red-team: whitespace padding + underscore normalization + server-name prefix.
+# ---------------------------------------------------------------------------
+- description: Red-team — trailing newline padding on a destructive name. trim_space
+    strips it before matching, so the non-admin call is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "linear-linear_deleteComment\n"
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: "linear-linear_deleteComment\n"
+      args:
+        id: C1
+  output:
+    expectedResult: deny
+
+- description: Red-team — snake_case destructive variant (linear_delete_comment).
+    Underscores normalize to hyphens, so linear-delete- still contains the
+    linear-delete marker and the non-admin call is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: linear_delete_comment
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: linear_delete_comment
+      args:
+        id: C1
+  output:
+    expectedResult: deny
+
+- description: Red-team — arbitrary gateway server-name prefix (foo-linear_deleteComment).
+    The marker anchors on the tool's own linear- prefix, independent of the
+    server name, so the non-admin call is still denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: foo-linear_deleteComment
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: foo-linear_deleteComment
+      args:
+        id: C1
+  output:
+    expectedResult: deny
+
+# ---------------------------------------------------------------------------
+# Red-team: contains-hardening on the removeUserFromTeam verb. A trailing-
+# decorated variant must still be caught (endswith would have missed it).
+# ---------------------------------------------------------------------------
+- description: Red-team — removeUserFromTeam with a trailing-decorated suffix
+    (linear_removeUserFromTeamAndDisable). The verb is matched with contains, not
+    endswith, so the trailing chars do not evade the freeze; non-admin is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: linear-linear_removeUserFromTeamAndDisable
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: linear-linear_removeUserFromTeamAndDisable
+      args:
+        userId: U1
+  output:
+    expectedResult: deny
+
+# ---------------------------------------------------------------------------
+# Red-team (documented residual): non-string name in the ONLY populated field.
+# Coerces to "" → treated as non-destructive → passes through. Harmless because
+# such a malformed PARC cannot route to a real destructive tool at the MCP
+# server. Documents the "Substring matching" Known-limitations note.
+# ---------------------------------------------------------------------------
+- description: Documented residual — resource.name is a non-string (array) and there
+    is no payload fallback. name_of coerces to "", nothing matches, so the call
+    passes through. Not a real evasion — a malformed name does not route to the
+    real deleteComment tool.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name:
+        - linear-linear_deleteComment
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - engineering
+  output:
+    expectedResult: allow
+
+# ---------------------------------------------------------------------------
+# Red-team (documented residual): community server that glues the linear prefix
+# with no underscore separator (linearDeleteComment). Normalization produces
+# lineardeletecomment (no hyphen), so the linear-delete marker does not match.
+# Documents the "Community-prefix assumption" Known-limitations bullet (case b).
+# ---------------------------------------------------------------------------
+- description: Documented residual — no-underscore prefix variant (linearDeleteComment).
+    Without the underscore there is no linear- boundary, so the marker misses and
+    the call passes through. Not a real evasion of the enumerated tacticlaunch set
+    (which always uses linear_<verb>); compose PF-28 default-deny-unknown-tools if
+    you cannot rely on that naming.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: linearDeleteComment
+      uri: null
+    payload:
+      name: linearDeleteComment
+      args:
+        id: C1
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - engineering
+  output:
+    expectedResult: allow

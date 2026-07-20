@@ -1,0 +1,897 @@
+# Tests for intercom.egress.mask_pan — transform-only PAN masking on Intercom
+# conversation responses. The policy never denies, so every case expects
+# allow; the interesting assertions are the transform ones.
+
+- description: get_conversation full-thread read (official server) with a
+    space-grouped 4-4-4-4 PAN in a conversation part is masked to BIN+last4 for
+    a non-exempt caller.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: intercom-mcp-get_conversation
+      uri: null
+    payload:
+      name: intercom-mcp-get_conversation
+      text:
+        - '{"conversation_parts":[{"body":"my card is 4111 1111 1111 1111"}]}'
+    subject:
+      sub: google-apps|casey@acme.com
+      claims:
+        groups:
+          - support
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    name: intercom-mcp-get_conversation
+    text:
+      - '{"conversation_parts":[{"body":"my card is 411111******1111"}]}'
+
+- description: search_conversations (official snake_case) with an unseparated
+    16-digit PAN in a part body is masked; typed conversation tools are in scope
+    unconditionally.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: intercom-mcp-search_conversations
+      uri: null
+    payload:
+      name: intercom-mcp-search_conversations
+      text:
+        - '{"conversations":[{"conversation_parts":[{"body":"pay 4111111111111111 now"}]}]}'
+    subject:
+      sub: google-apps|casey@acme.com
+      claims:
+        groups:
+          - support
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - '{"conversations":[{"conversation_parts":[{"body":"pay 411111******1111 now"}]}]}'
+
+- description: search-conversations (fabian1710 kebab-case) is matched via
+    underscore normalization; the dash-separated PAN is masked (separators
+    dropped in the masked form).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: intercom-mcp-search-conversations
+      uri: null
+    payload:
+      name: intercom-mcp-search-conversations
+      text:
+        - "match: card 4111-1111-1111-1111 on file"
+    subject:
+      sub: google-apps|casey@acme.com
+      claims:
+        groups:
+          - support
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "match: card 411111******1111 on file"
+
+- description: Generic `search` alias (object_type conversations) — the response
+    carries a "type":"conversation" marker, so it is brought into scope and the
+    PAN is masked.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: intercom-mcp-search
+      uri: null
+    payload:
+      name: intercom-mcp-search
+      text:
+        - '{"results":[{"type":"conversation","body":"charge 4242 4242 4242 4242"}]}'
+    subject:
+      sub: google-apps|casey@acme.com
+      claims:
+        groups:
+          - support
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - '{"results":[{"type":"conversation","body":"charge 424242******4242"}]}'
+
+- description: Generic `fetch` alias resolving a conversation_ ID — the
+    conversation_-prefixed ID in the response marks it as conversation data, so
+    it is in scope and the PAN is masked.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: intercom-mcp-fetch
+      uri: null
+    payload:
+      name: intercom-mcp-fetch
+      text:
+        - '{"id":"conversation_123","conversation_parts":[{"body":"card 5555555555554444"}]}'
+    subject:
+      sub: google-apps|casey@acme.com
+      claims:
+        groups:
+          - support
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - '{"id":"conversation_123","conversation_parts":[{"body":"card 555555******4444"}]}'
+
+- description: "Scoping negative: generic `search` returning CONTACT results (no
+    conversation marker) is out of scope even though the response contains a
+    Luhn-valid PAN — passthrough, no transform."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: intercom-mcp-search
+      uri: null
+    payload:
+      name: intercom-mcp-search
+      text:
+        - '{"results":[{"type":"contact","phone":"4242424242424242"}]}'
+    subject:
+      sub: google-apps|casey@acme.com
+      claims:
+        groups:
+          - support
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Amex 4-6-5 grouped PAN (15 digits, 37 IIN) in a conversation part
+    is masked with five masked middle digits.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: intercom-mcp-get_conversation
+      uri: null
+    payload:
+      name: intercom-mcp-get_conversation
+      text:
+        - '{"conversation_parts":[{"body":"corporate amex: 3782 822463 10005"}]}'
+    subject:
+      sub: google-apps|casey@acme.com
+      claims:
+        groups:
+          - support
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - '{"conversation_parts":[{"body":"corporate amex: 378282*****0005"}]}'
+
+- description: 13-digit Luhn-valid PAN (short Visa range) is masked with three
+    masked middle digits.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: intercom-mcp-get_conversation
+      uri: null
+    payload:
+      name: intercom-mcp-get_conversation
+      text:
+        - "card on file 4222222222222 thanks"
+    subject:
+      sub: google-apps|casey@acme.com
+      claims:
+        groups:
+          - support
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "card on file 422222***2222 thanks"
+
+- description: Luhn-INVALID 16-digit lookalike (a ticket/order number) is left
+    untouched — the mandatory Luhn check keeps false positives from being
+    mangled, so no transform is emitted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: intercom-mcp-get_conversation
+      uri: null
+    payload:
+      name: intercom-mcp-get_conversation
+      text:
+        - '{"conversation_parts":[{"body":"order 4111111111111112 shipped"}]}'
+    subject:
+      sub: google-apps|casey@acme.com
+      claims:
+        groups:
+          - support
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Caller in the placeholder pci-full-pan group (fraud/chargeback
+    staff) receives the unmasked response — exemption branch.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: intercom-mcp-get_conversation
+      uri: null
+    payload:
+      name: intercom-mcp-get_conversation
+      text:
+        - '{"conversation_parts":[{"body":"refund card 4111111111111111"}]}'
+    subject:
+      sub: google-apps|fraud-analyst@acme.com
+      claims:
+        groups:
+          - pci-full-pan
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Caller in a different group (support only) is not exempt — masking
+    still applies.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: intercom-mcp-get_conversation
+      uri: null
+    payload:
+      name: intercom-mcp-get_conversation
+      text:
+        - "use 5555555555554444 for the test charge"
+    subject:
+      sub: google-apps|casey@acme.com
+      claims:
+        groups:
+          - support
+          - agents
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "use 555555******4444 for the test charge"
+
+- description: Missing subject/claims fails closed — with no identity at all the
+    caller is never exempt and masking applies.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: intercom-mcp-get_conversation
+      uri: null
+    payload:
+      name: intercom-mcp-get_conversation
+      text:
+        - "thread: card 4111111111111111"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "thread: card 411111******1111"
+
+- description: Malformed groups claim (string instead of array) fails closed —
+    caller is not exempt and masking applies.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: intercom-mcp-get_conversation
+      uri: null
+    payload:
+      name: intercom-mcp-get_conversation
+      text:
+        - "card 4111111111111111"
+    subject:
+      sub: google-apps|casey@acme.com
+      claims:
+        groups: pci-full-pan
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "card 411111******1111"
+
+- description: "Red-team (claim-spoof): object-shaped groups claim
+    (groups={\"role\":\"pci-full-pan\"}) fails closed — the is_array guard
+    prevents iterating object values, so the caller is not exempt and masking
+    applies."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: intercom-mcp-get_conversation
+      uri: null
+    payload:
+      name: intercom-mcp-get_conversation
+      text:
+        - "card 4111111111111111"
+    subject:
+      sub: google-apps|attacker@acme.com
+      claims:
+        groups:
+          role: pci-full-pan
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "card 411111******1111"
+
+- description: "Red-team (claim-spoof): exemption group is matched
+    case-sensitively, so an uppercased PCI-FULL-PAN group is NOT exempt and
+    masking still applies (fails closed)."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: intercom-mcp-get_conversation
+      uri: null
+    payload:
+      name: intercom-mcp-get_conversation
+      text:
+        - "card 4111111111111111"
+    subject:
+      sub: google-apps|casey@acme.com
+      claims:
+        groups:
+          - PCI-FULL-PAN
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "card 411111******1111"
+
+- description: Out-of-scope structured-PII tool (get_contact) is never
+    transformed even when the response contains a PAN — contact card data is a
+    separate concern (see Composition).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: intercom-mcp-get_contact
+      uri: null
+    payload:
+      name: intercom-mcp-get_contact
+      text:
+        - '{"type":"contact","custom_attributes":{"card":"4111111111111111"}}'
+    subject:
+      sub: google-apps|casey@acme.com
+      claims:
+        groups:
+          - support
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Uppercase tool-name delivery (casing bypass attempt) — matching is
+    case-insensitive via lower(), so the transform still applies.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: INTERCOM-MCP-GET_CONVERSATION
+      uri: null
+    payload:
+      name: INTERCOM-MCP-GET_CONVERSATION
+      text:
+        - "card 6011111111111117"
+    subject:
+      sub: google-apps|casey@acme.com
+      claims:
+        groups:
+          - support
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "card 601111******1117"
+
+- description: Ingress-mode call on a matched tool name (tool_pre_invoke). The
+    mode guard keeps this egress transform from firing on the request path.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: intercom-mcp-get_conversation
+      uri: null
+    payload:
+      name: intercom-mcp-get_conversation
+      args:
+        id: "conversation_123"
+    subject:
+      sub: google-apps|casey@acme.com
+      claims:
+        groups:
+          - support
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Multiple distinct PANs in one conversation part are each masked to
+    their own BIN+last4 form.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: intercom-mcp-get_conversation
+      uri: null
+    payload:
+      name: intercom-mcp-get_conversation
+      text:
+        - "cards 4111111111111111 and 5555555555554444 on file"
+    subject:
+      sub: google-apps|casey@acme.com
+      claims:
+        groups:
+          - support
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "cards 411111******1111 and 555555******4444 on file"
+
+- description: Multiple content blocks (parts) — a clean part passes through
+    unchanged while the part containing a PAN is masked.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: intercom-mcp-get_conversation
+      uri: null
+    payload:
+      name: intercom-mcp-get_conversation
+      text:
+        - "no cards here"
+        - "PAN 378282246310005 on file"
+    subject:
+      sub: google-apps|casey@acme.com
+      claims:
+        groups:
+          - support
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "no cards here"
+      - "PAN 378282*****0005 on file"
+
+- description: Empty text array — nothing to mask, no transform emitted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: intercom-mcp-get_conversation
+      uri: null
+    payload:
+      name: intercom-mcp-get_conversation
+      text: []
+    subject:
+      sub: google-apps|casey@acme.com
+      claims:
+        groups:
+          - support
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Documented limitation (split PAN): a single card number typed
+    across two conversation PARTS (delivered as separate content blocks) leaves
+    no block with 13+ contiguous card digits, so neither matches and the PAN is
+    NOT masked. Matching is per-block by design. Pins the split-across-parts
+    residual."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: intercom-mcp-get_conversation
+      uri: null
+    payload:
+      name: intercom-mcp-get_conversation
+      text:
+        - "my card is 4111 1111"
+        - "1111 1111 thanks"
+    subject:
+      sub: google-apps|casey@acme.com
+      claims:
+        groups:
+          - support
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Documented limitation (obfuscation): a PAN separated by dots
+    (non-digit filler other than space/dash) matches neither grouped pattern nor
+    the unseparated run, so it is NOT masked."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: intercom-mcp-get_conversation
+      uri: null
+    payload:
+      name: intercom-mcp-get_conversation
+      text:
+        - "card 4111.1111.1111.1111 on file"
+    subject:
+      sub: google-apps|casey@acme.com
+      claims:
+        groups:
+          - support
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Documented limitation (\\b anchoring): a PAN glued directly to an
+    underscore (a word character in RE2) has no word boundary and is NOT masked
+    — the same anchoring that prevents partial-masking of longer identifiers."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: intercom-mcp-get_conversation
+      uri: null
+    payload:
+      name: intercom-mcp-get_conversation
+      text:
+        - '{"conversation_parts":[{"body":"ref conversation_4111111111111111 end"}]}'
+    subject:
+      sub: google-apps|casey@acme.com
+      claims:
+        groups:
+          - support
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Documented limitation (length ceiling): a 20-digit run never
+    matches (no word boundary inside a digit run), so longer account/reference
+    identifiers are not partially masked."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: intercom-mcp-get_conversation
+      uri: null
+    payload:
+      name: intercom-mcp-get_conversation
+      text:
+        - "account ref 41111111111111111115 confirmed"
+    subject:
+      sub: google-apps|casey@acme.com
+      claims:
+        groups:
+          - support
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Documented limitation (encoding): a PAN typed with Unicode
+    fullwidth digits does not match the ASCII-only RE2 \\d class, so no transform
+    is emitted and the digits pass through unmasked."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: intercom-mcp-get_conversation
+      uri: null
+    payload:
+      name: intercom-mcp-get_conversation
+      text:
+        - "card ４１１１１１１１１１１１１１１１ on file"
+    subject:
+      sub: google-apps|casey@acme.com
+      claims:
+        groups:
+          - support
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Documented residual (fail-open): a PAN inside a structured/object
+    content block (MCP typed {type,text} shape) is not a string, so mask_block
+    passes it through and no transform is emitted."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: intercom-mcp-get_conversation
+      uri: null
+    payload:
+      name: intercom-mcp-get_conversation
+      text:
+        - type: text
+          text: "customer card 4111111111111111 on file"
+    subject:
+      sub: google-apps|casey@acme.com
+      claims:
+        groups:
+          - support
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Documented limitation (unsurveyed community tool): evolsb
+    sync_conversations is not in the suffix list and carries no generic
+    search/fetch alias, so it is out of scope and its PAN passes through
+    unmasked. Add its suffix at import time if that server is in play."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: intercom-mcp-sync_conversations
+      uri: null
+    payload:
+      name: intercom-mcp-sync_conversations
+      text:
+        - "customer card 4111111111111111 on file"
+    subject:
+      sub: google-apps|casey@acme.com
+      claims:
+        groups:
+          - support
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Red-team (alternate tool name): raoulbia-ai community server
+    list_conversations returns full conversation bodies. Previously unscoped and
+    leaked PANs; now a typed conversation read, so the PAN is masked."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: intercom-mcp-list_conversations
+      uri: null
+    payload:
+      name: intercom-mcp-list_conversations
+      text:
+        - "customer card 4111111111111111 on file"
+    subject:
+      sub: google-apps|casey@acme.com
+      claims:
+        groups:
+          - support
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "customer card 411111******1111 on file"
+
+- description: "Red-team (alternate tool name): raoulbia-ai
+    search_conversations_by_customer (does not end in the search-conversations
+    suffix) is now covered by its own suffix, so the dash-grouped PAN is masked."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: intercom-mcp-search_conversations_by_customer
+      uri: null
+    payload:
+      name: intercom-mcp-search_conversations_by_customer
+      text:
+        - "found: 4111-1111-1111-1111"
+    subject:
+      sub: google-apps|casey@acme.com
+      claims:
+        groups:
+          - support
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "found: 411111******1111"
+
+- description: "Red-team (alternate tool name): raoulbia-ai
+    search_tickets_by_customer returns support-ticket bodies (same paste-a-card
+    risk); now in scope, so the PAN is masked."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: intercom-mcp-search_tickets_by_customer
+      uri: null
+    payload:
+      name: intercom-mcp-search_tickets_by_customer
+      text:
+        - '{"ticket":{"body":"charge 378282246310005 please"}}'
+    subject:
+      sub: google-apps|casey@acme.com
+      claims:
+        groups:
+          - support
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - '{"ticket":{"body":"charge 378282*****0005 please"}}'
+
+- description: "Documented residual (fail-open): when payload.text is a bare
+    string instead of an array, the is_array guard leaves the transform
+    undefined and the PAN passes through byte-identical."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: intercom-mcp-get_conversation
+      uri: null
+    payload:
+      name: intercom-mcp-get_conversation
+      text: "customer card 4111111111111111 on file"
+    subject:
+      sub: google-apps|casey@acme.com
+      claims:
+        groups:
+          - support
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Red-team (generic-alias marker bypass): a genuine CONVERSATION
+    body returned via the generic `fetch` alias whose response carries NEITHER a
+    conversation_-prefixed ID NOR a \"type\":\"conversation\" marker is not
+    brought into scope, so a real card number LEAKS unmasked. Pins the leak
+    direction of the documented generic-alias marker dependency (the existing
+    marker-present cases mask; the contact case is legitimately out of scope —
+    this is the residual where conversation data itself escapes)."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: intercom-mcp-fetch
+      uri: null
+    payload:
+      name: intercom-mcp-fetch
+      text:
+        - '{"parts":[{"body":"my card 4111111111111111"}]}'
+    subject:
+      sub: google-apps|casey@acme.com
+      claims:
+        groups:
+          - support
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Red-team (obfuscation, double-space): a 4-4-4-4 PAN separated by
+    DOUBLE spaces matches neither the grouped patterns (which allow exactly one
+    space/dash between groups) nor the unseparated run, so it LEAKS. Pins the
+    single-space/dash separator boundary (existing obfuscation tests cover dots
+    and fullwidth digits, not multi-space)."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: intercom-mcp-get_conversation
+      uri: null
+    payload:
+      name: intercom-mcp-get_conversation
+      text:
+        - "card 4111  1111  1111  1111 on file"
+    subject:
+      sub: google-apps|casey@acme.com
+      claims:
+        groups:
+          - support
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Red-team (length ceiling, glued multi-PAN): two 16-digit PANs
+    concatenated with no separator form a 32-digit run with no interior word
+    boundary, so \\d{13,19}\\b cannot anchor and NEITHER card is masked — they
+    LEAK. (Note: had either PAN also appeared standalone elsewhere in the block,
+    strings.replace_n would have masked the glued copies too; this case has no
+    standalone occurrence, so the run escapes entirely.) Pins the length-ceiling
+    residual for the glued-cards shape."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: intercom-mcp-get_conversation
+      uri: null
+    payload:
+      name: intercom-mcp-get_conversation
+      text:
+        - "dump 41111111111111114242424242424242 end"
+    subject:
+      sub: google-apps|casey@acme.com
+      claims:
+        groups:
+          - support
+  output:
+    expectedResult: allow
+  transformApplied: false

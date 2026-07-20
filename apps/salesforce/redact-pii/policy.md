@@ -6,7 +6,11 @@ tags:
   - dlp
   - redaction
   - egress
-publishedAt: 2026-06-16
+  - soc2
+  - hipaa
+  - gdpr-ccpa
+  - iso27001-nist
+publishedAt: 2026-07-12
 description: |
   # salesforce / redact-pii
 
@@ -24,6 +28,17 @@ description: |
   `Name` and `Account` are intentionally left intact so records stay usable —
   extend `redact_fields` (e.g. add `Name`, `FirstName`, `LastName`) if full-PII
   redaction is required.
+
+  ## Compliance alignment
+
+  - **SOC 2 CC6.7** — restricts the movement of personal contact information out of Salesforce over the agent channel by masking it in responses.
+  - **SOC 2 C1.1** — supports identification and protection of confidential information (contact PII fields) on the read path.
+  - **HIPAA §164.502(b) / §164.514(d)** — supports minimum-necessary access: agents get working records without direct contact identifiers.
+  - **HIPAA §164.514(a)–(b)** — supports de-identification practice by stripping Safe-Harbor identifier classes (phone, email, address, birthdate) from responses.
+  - **PCI DSS 3.4.1** — the 16-digit card-number pattern masks PANs that leak into Salesforce text fields when displayed to the caller.
+  - **GDPR Art. 5(1)(c) / Art. 5(1)(f)** — data minimisation and security of processing on agent reads of personal data.
+  - **CCPA/CPRA §1798.121 / §1798.150** — supports limiting sensitive PI exposure and reduces nonredacted-PI breach surface on the MCP path.
+  - **ISO 27001 A.8.11 / A.8.12** — data masking and data-leakage prevention applied at the gateway.
 
   ## Why egress
 
@@ -83,12 +98,17 @@ description: |
     different prefix won't be covered until the check is adjusted.
   - **No identity-based exemptions.** All callers get the same redaction. Add an
     `input.subject.claims`-gated branch if a break-glass role needs raw values.
+
+  > **Compliance note.** This policy supports alignment with the cited framework controls **on the MCP path only**. No policy or bundle makes an organization compliant with any framework; web-UI, native-API, and in-app access are outside the gateway's reach by design. Validate against your own compliance program before relying on it.
 direction: egress
 apps:
   - salesforce
 industries: []
 bundles:
   - crm
+  - soc2
+  - hipaa
+  - gdpr-ccpa
 schemaVersion: 1.0.0
 minimumGatewayVersion: 1.0.0b24
 ---

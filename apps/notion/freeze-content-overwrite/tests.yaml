@@ -1,0 +1,328 @@
+- description: Read tool (notion-fetch) is outside the overwrite surface. Policy
+    should allow (pass-through branch).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: notion-notion-fetch
+      uri: null
+    payload:
+      name: notion-notion-fetch
+      args:
+        id: 1a2b3c4d-5e6f-7081-92a3-b4c5d6e7f809
+  output:
+    expectedResult: allow
+- description: notion-create-pages ends with "-pages", not "-update-page" — the
+    near-miss suffix must not match. Allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: notion-notion-create-pages
+      uri: null
+    payload:
+      name: notion-notion-create-pages
+      args:
+        parent:
+          page_id: 1a2b3c4d-5e6f-7081-92a3-b4c5d6e7f809
+        pages:
+          - properties:
+              title: Meeting notes
+            content: "## Agenda"
+  output:
+    expectedResult: allow
+- description: notion-duplicate-page ends with "-page" but not "-update-page" —
+    the near-miss suffix must not match. Allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: notion-notion-duplicate-page
+      uri: null
+    payload:
+      name: notion-notion-duplicate-page
+      args:
+        page_id: 1a2b3c4d-5e6f-7081-92a3-b4c5d6e7f809
+  output:
+    expectedResult: allow
+- description: notion-update-page with command insert_content_after (the
+    recommended additive alternative). Allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: notion-notion-update-page
+      uri: null
+    payload:
+      name: notion-notion-update-page
+      args:
+        page_id: 1a2b3c4d-5e6f-7081-92a3-b4c5d6e7f809
+        command: insert_content_after
+        new_str: "## Follow-ups\n- Circulate the draft"
+  output:
+    expectedResult: allow
+- description: notion-update-page with command update_properties — property
+    edits are additive-class and pass through. Allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: notion-notion-update-page
+      uri: null
+    payload:
+      name: notion-notion-update-page
+      args:
+        page_id: 1a2b3c4d-5e6f-7081-92a3-b4c5d6e7f809
+        command: update_properties
+        properties:
+          Status: In review
+  output:
+    expectedResult: allow
+- description: notion-update-page with args present but no command key —
+    object.get defaults to "" and the call is not treated as an overwrite;
+    the server's own validation handles the malformed call. Allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: notion-notion-update-page
+      uri: null
+    payload:
+      name: notion-notion-update-page
+      args:
+        page_id: 1a2b3c4d-5e6f-7081-92a3-b4c5d6e7f809
+        icon: "📌"
+  output:
+    expectedResult: allow
+- description: notion-update-page with no args object at all — the nested
+    object.get chain defaults safely and the call is not treated as an
+    overwrite. Allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: notion-notion-update-page
+      uri: null
+    payload:
+      name: notion-notion-update-page
+  output:
+    expectedResult: allow
+- description: Legacy official local server's update-page behind a server named
+    "notion" appears as notion-update-page and matches the suffix — but it takes
+    no command argument, so it always passes. Allow (documents the overlap).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: notion-update-page
+      uri: null
+    payload:
+      name: notion-update-page
+      args:
+        page_id: 1a2b3c4d-5e6f-7081-92a3-b4c5d6e7f809
+        properties:
+          title: Renamed page
+  output:
+    expectedResult: allow
+- description: notion-update-page with command replace_content — the full-page
+    overwrite. Deny with the overwrite reason regardless of identity.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: notion-notion-update-page
+      uri: null
+    subject:
+      sub: google-apps|admin@example.com
+      claims:
+        groups:
+          - infosec
+    payload:
+      name: notion-notion-update-page
+      args:
+        page_id: 1a2b3c4d-5e6f-7081-92a3-b4c5d6e7f809
+        command: replace_content
+        new_str: Cleaned up!
+  output:
+    expectedResult: deny
+    expectedReason: "Full-page overwrites are blocked: notion-update-page with command \"replace_content\" replaces the entire page body, recoverable only through Notion page history and invisibly from the agent's viewpoint. Append with command \"insert_content_after\" instead, or make the full rewrite by hand in the Notion UI. Contact your InfoSec team if a full overwrite is legitimately required."
+- description: Unprefixed deployment — bare hosted tool name notion-update-page
+    with replace_content still matches the suffix. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: notion-update-page
+      uri: null
+    payload:
+      name: notion-update-page
+      args:
+        page_id: 1a2b3c4d-5e6f-7081-92a3-b4c5d6e7f809
+        command: replace_content
+        new_str: ""
+  output:
+    expectedResult: deny
+    expectedReason: "Full-page overwrites are blocked: notion-update-page with command \"replace_content\" replaces the entire page body, recoverable only through Notion page history and invisibly from the agent's viewpoint. Append with command \"insert_content_after\" instead, or make the full rewrite by hand in the Notion UI. Contact your InfoSec team if a full overwrite is legitimately required."
+# --- Red-team cases (standards §10) ---
+- description: "Red-team: mixed-case tool name (Notion-Notion-Update-Page) and
+    capitalized command (Replace_Content) — both are lowercased before
+    comparison. Deny."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: Notion-Notion-Update-Page
+      uri: null
+    payload:
+      name: Notion-Notion-Update-Page
+      args:
+        page_id: 1a2b3c4d-5e6f-7081-92a3-b4c5d6e7f809
+        command: Replace_Content
+        new_str: Cleaned up!
+  output:
+    expectedResult: deny
+    expectedReason: "Full-page overwrites are blocked: notion-update-page with command \"replace_content\" replaces the entire page body, recoverable only through Notion page history and invisibly from the agent's viewpoint. Append with command \"insert_content_after\" instead, or make the full rewrite by hand in the Notion UI. Contact your InfoSec team if a full overwrite is legitimately required."
+- description: "Red-team: whitespace-padded command ' replace_content\\n' —
+    trim_space normalizes the value before comparison, so a server that strips
+    the command before dispatch cannot be used to slip an overwrite past the
+    policy. Deny."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: notion-notion-update-page
+      uri: null
+    payload:
+      name: notion-notion-update-page
+      args:
+        page_id: 1a2b3c4d-5e6f-7081-92a3-b4c5d6e7f809
+        command: " replace_content\n"
+        new_str: Cleaned up!
+  output:
+    expectedResult: deny
+    expectedReason: "Full-page overwrites are blocked: notion-update-page with command \"replace_content\" replaces the entire page body, recoverable only through Notion page history and invisibly from the agent's viewpoint. Append with command \"insert_content_after\" instead, or make the full rewrite by hand in the Notion UI. Contact your InfoSec team if a full overwrite is legitimately required."
+- description: "Red-team: whitespace-padded NON-destructive command
+    ' insert_content_after ' must still pass — trim_space normalization must
+    not over-block the additive commands. Allow."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: notion-notion-update-page
+      uri: null
+    payload:
+      name: notion-notion-update-page
+      args:
+        page_id: 1a2b3c4d-5e6f-7081-92a3-b4c5d6e7f809
+        command: " insert_content_after "
+        new_str: appended text
+  output:
+    expectedResult: allow
+- description: "Red-team: non-string command (array containing replace_content)
+    — the is_string guard leaves requested_command undefined, so the call is
+    not treated as an overwrite; the server's schema validation rejects it.
+    Allow."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: notion-notion-update-page
+      uri: null
+    payload:
+      name: notion-notion-update-page
+      args:
+        page_id: 1a2b3c4d-5e6f-7081-92a3-b4c5d6e7f809
+        command:
+          - replace_content
+        new_str: Cleaned up!
+  output:
+    expectedResult: allow
+- description: "Red-team: interior-whitespace command 'replace _content' is NOT
+    normalized and passes the policy — documented residual. It also fails the
+    hosted server's exact-string command dispatch, so no overwrite occurs.
+    Allow (documents the boundary)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: notion-notion-update-page
+      uri: null
+    payload:
+      name: notion-notion-update-page
+      args:
+        page_id: 1a2b3c4d-5e6f-7081-92a3-b4c5d6e7f809
+        command: "replace _content"
+        new_str: Cleaned up!
+  output:
+    expectedResult: allow
+- description: "Red-team (encoding): zero-width space inside the command token
+    ('replace\u200b_content') is NOT normalized and passes the policy — documented
+    residual. The hosted server's exact-string enum dispatch rejects this value,
+    so no overwrite occurs. Allow (locks in the documented encoding boundary)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: notion-notion-update-page
+      uri: null
+    payload:
+      name: notion-notion-update-page
+      args:
+        page_id: 1a2b3c4d-5e6f-7081-92a3-b4c5d6e7f809
+        command: "replace​_content"
+        new_str: Cleaned up!
+  output:
+    expectedResult: allow
+- description: "Red-team (encoding): full-width Unicode homoglyphs of
+    'replace_content' are NOT folded to ASCII and pass the policy — documented
+    residual. The value is a different string from the server's exact-string
+    command enum, so no overwrite occurs. Allow (locks in the documented
+    homoglyph boundary)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: notion-notion-update-page
+      uri: null
+    payload:
+      name: notion-notion-update-page
+      args:
+        page_id: 1a2b3c4d-5e6f-7081-92a3-b4c5d6e7f809
+        command: "ｒｅｐｌａｃｅ_ｃｏｎｔｅｎｔ"
+        new_str: Cleaned up!
+  output:
+    expectedResult: allow

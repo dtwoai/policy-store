@@ -1,0 +1,486 @@
+- description: Read tool outside the destructive set, caller has no claims at
+    all. Policy should allow (pass-through branch).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: mcp-atlassian-jira_get_issue
+      uri: null
+    payload:
+      name: mcp-atlassian-jira_get_issue
+      args:
+        issue_key: PROJ-123
+  output:
+    expectedResult: allow
+- description: Adding a watcher is a non-destructive write and must not be caught
+    by the jira_remove_watcher suffix. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: mcp-atlassian-jira_add_watcher
+      uri: null
+    payload:
+      name: mcp-atlassian-jira_add_watcher
+      args:
+        issue_key: PROJ-123
+        account_id: 5b10a2844c20165700ede21g
+  output:
+    expectedResult: allow
+- description: Creating an issue link is non-destructive and must not be caught
+    by the jira_remove_issue_link suffix. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: mcp-atlassian-jira_create_issue_link
+      uri: null
+    payload:
+      name: mcp-atlassian-jira_create_issue_link
+      args:
+        type: Blocks
+        inward_issue_key: PROJ-1
+        outward_issue_key: PROJ-2
+  output:
+    expectedResult: allow
+- description: Delete issue with no subject block at all (no IdP claims reached
+    the gateway). Fails closed — deny with reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: mcp-atlassian-jira_delete_issue
+      uri: null
+    payload:
+      name: mcp-atlassian-jira_delete_issue
+      args:
+        issue_key: PROJ-123
+  output:
+    expectedResult: deny
+    expectedReason: "This destructive Jira operation (delete issue, remove issue link, or remove watcher) is frozen on the agent channel because it is irreversible: records must survive agent error and prompt injection. Perform the deletion through a human-reviewed native Jira workflow instead. For legitimate admin cleanup, ask a member of your Jira admin group (placeholder: jira-admins) to run it, or ask your InfoSec team to add you to that group."
+- description: Delete issue by a caller whose groups do not include jira-admins.
+    Deny with reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: mcp-atlassian-jira_delete_issue
+      uri: null
+    subject:
+      sub: google-apps|user@acme.com
+      claims:
+        groups:
+          - engineering
+          - finance
+    payload:
+      name: mcp-atlassian-jira_delete_issue
+      args:
+        issue_key: PROJ-123
+  output:
+    expectedResult: deny
+    expectedReason: "This destructive Jira operation (delete issue, remove issue link, or remove watcher) is frozen on the agent channel because it is irreversible: records must survive agent error and prompt injection. Perform the deletion through a human-reviewed native Jira workflow instead. For legitimate admin cleanup, ask a member of your Jira admin group (placeholder: jira-admins) to run it, or ask your InfoSec team to add you to that group."
+- description: Delete issue by a caller who carries jira-admins among other
+    groups. Break-glass branch allows the call.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: mcp-atlassian-jira_delete_issue
+      uri: null
+    subject:
+      sub: google-apps|admin@acme.com
+      claims:
+        groups:
+          - engineering
+          - jira-admins
+    payload:
+      name: mcp-atlassian-jira_delete_issue
+      args:
+        issue_key: PROJ-123
+  output:
+    expectedResult: allow
+- description: Remove issue link by a non-admin caller. The jira_remove_issue_link
+    suffix matches and the call is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: mcp-atlassian-jira_remove_issue_link
+      uri: null
+    subject:
+      sub: google-apps|user@acme.com
+      claims:
+        groups:
+          - sales
+    payload:
+      name: mcp-atlassian-jira_remove_issue_link
+      args:
+        link_id: "10001"
+  output:
+    expectedResult: deny
+    expectedReason: "This destructive Jira operation (delete issue, remove issue link, or remove watcher) is frozen on the agent channel because it is irreversible: records must survive agent error and prompt injection. Perform the deletion through a human-reviewed native Jira workflow instead. For legitimate admin cleanup, ask a member of your Jira admin group (placeholder: jira-admins) to run it, or ask your InfoSec team to add you to that group."
+- description: Remove watcher by a non-admin caller. The jira_remove_watcher
+    suffix matches and the call is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: mcp-atlassian-jira_remove_watcher
+      uri: null
+    subject:
+      sub: google-apps|user@acme.com
+      claims:
+        groups:
+          - support
+    payload:
+      name: mcp-atlassian-jira_remove_watcher
+      args:
+        issue_key: PROJ-123
+        account_id: 5b10a2844c20165700ede21g
+  output:
+    expectedResult: deny
+    expectedReason: "This destructive Jira operation (delete issue, remove issue link, or remove watcher) is frozen on the agent channel because it is irreversible: records must survive agent error and prompt injection. Perform the deletion through a human-reviewed native Jira workflow instead. For legitimate admin cleanup, ask a member of your Jira admin group (placeholder: jira-admins) to run it, or ask your InfoSec team to add you to that group."
+- description: Remove watcher by a jira-admins member. Break-glass branch allows.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: mcp-atlassian-jira_remove_watcher
+      uri: null
+    subject:
+      sub: google-apps|admin@acme.com
+      claims:
+        groups:
+          - jira-admins
+    payload:
+      name: mcp-atlassian-jira_remove_watcher
+      args:
+        issue_key: PROJ-123
+        account_id: 5b10a2844c20165700ede21g
+  output:
+    expectedResult: allow
+- description: Mixed-case tool name (MCP-Atlassian-JIRA_Delete_Issue) must still
+    match the delete suffix — matching is case-insensitive. Deny for non-admin.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: MCP-Atlassian-JIRA_Delete_Issue
+      uri: null
+    subject:
+      sub: google-apps|user@acme.com
+      claims:
+        groups:
+          - finance
+    payload:
+      name: MCP-Atlassian-JIRA_Delete_Issue
+      args:
+        issue_key: PROJ-123
+  output:
+    expectedResult: deny
+    expectedReason: "This destructive Jira operation (delete issue, remove issue link, or remove watcher) is frozen on the agent channel because it is irreversible: records must survive agent error and prompt injection. Perform the deletion through a human-reviewed native Jira workflow instead. For legitimate admin cleanup, ask a member of your Jira admin group (placeholder: jira-admins) to run it, or ask your InfoSec team to add you to that group."
+- description: Unprefixed deployment — tool name is exactly jira_delete_issue (no
+    gateway server-name prefix). The suffix match still catches it. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: jira_delete_issue
+      uri: null
+    payload:
+      name: jira_delete_issue
+      args:
+        issue_key: PROJ-123
+  output:
+    expectedResult: deny
+    expectedReason: "This destructive Jira operation (delete issue, remove issue link, or remove watcher) is frozen on the agent channel because it is irreversible: records must survive agent error and prompt injection. Perform the deletion through a human-reviewed native Jira workflow instead. For legitimate admin cleanup, ask a member of your Jira admin group (placeholder: jira-admins) to run it, or ask your InfoSec team to add you to that group."
+- description: Claims present but the groups claim is missing entirely. Fails
+    closed — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: mcp-atlassian-jira_delete_issue
+      uri: null
+    subject:
+      sub: google-apps|user@acme.com
+      claims:
+        org_id: org_abc123
+    payload:
+      name: mcp-atlassian-jira_delete_issue
+      args:
+        issue_key: PROJ-123
+  output:
+    expectedResult: deny
+    expectedReason: "This destructive Jira operation (delete issue, remove issue link, or remove watcher) is frozen on the agent channel because it is irreversible: records must survive agent error and prompt injection. Perform the deletion through a human-reviewed native Jira workflow instead. For legitimate admin cleanup, ask a member of your Jira admin group (placeholder: jira-admins) to run it, or ask your InfoSec team to add you to that group."
+- description: Groups claim is a bare string ("jira-admins") instead of an array.
+    Membership iteration over a string fails closed — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: mcp-atlassian-jira_delete_issue
+      uri: null
+    subject:
+      sub: google-apps|user@acme.com
+      claims:
+        groups: jira-admins
+    payload:
+      name: mcp-atlassian-jira_delete_issue
+      args:
+        issue_key: PROJ-123
+  output:
+    expectedResult: deny
+    expectedReason: "This destructive Jira operation (delete issue, remove issue link, or remove watcher) is frozen on the agent channel because it is irreversible: records must survive agent error and prompt injection. Perform the deletion through a human-reviewed native Jira workflow instead. For legitimate admin cleanup, ask a member of your Jira admin group (placeholder: jira-admins) to run it, or ask your InfoSec team to add you to that group."
+- description: "Red-team type confusion: resource.name is a non-string (number)
+    while payload.name carries a real delete tool. The names are matched
+    independently, so the malformed resource.name cannot suppress the delete —
+    deny (fail-closed)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: 42
+      uri: null
+    subject:
+      sub: google-apps|user@acme.com
+      claims:
+        groups:
+          - finance
+    payload:
+      name: mcp-atlassian-jira_delete_issue
+      args:
+        issue_key: PROJ-123
+  output:
+    expectedResult: deny
+    expectedReason: "This destructive Jira operation (delete issue, remove issue link, or remove watcher) is frozen on the agent channel because it is irreversible: records must survive agent error and prompt injection. Perform the deletion through a human-reviewed native Jira workflow instead. For legitimate admin cleanup, ask a member of your Jira admin group (placeholder: jira-admins) to run it, or ask your InfoSec team to add you to that group."
+- description: "Red-team type confusion: payload.name is a non-string (array)
+    while resource.name carries a real destructive tool. Independent matching
+    still catches the suffix — deny (fail-closed)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: mcp-atlassian-jira_remove_issue_link
+      uri: null
+    subject:
+      sub: google-apps|user@acme.com
+      claims:
+        groups:
+          - finance
+    payload:
+      name:
+        - malformed
+      args:
+        link_id: "10001"
+  output:
+    expectedResult: deny
+    expectedReason: "This destructive Jira operation (delete issue, remove issue link, or remove watcher) is frozen on the agent channel because it is irreversible: records must survive agent error and prompt injection. Perform the deletion through a human-reviewed native Jira workflow instead. For legitimate admin cleanup, ask a member of your Jira admin group (placeholder: jira-admins) to run it, or ask your InfoSec team to add you to that group."
+- description: "Red-team type confusion: resource.name is null while payload.name
+    carries a real delete tool. null coerces to empty string, payload branch
+    still matches — deny (fail-closed)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: null
+      uri: null
+    payload:
+      name: mcp-atlassian-jira_delete_issue
+      args:
+        issue_key: PROJ-123
+  output:
+    expectedResult: deny
+    expectedReason: "This destructive Jira operation (delete issue, remove issue link, or remove watcher) is frozen on the agent channel because it is irreversible: records must survive agent error and prompt injection. Perform the deletion through a human-reviewed native Jira workflow instead. For legitimate admin cleanup, ask a member of your Jira admin group (placeholder: jira-admins) to run it, or ask your InfoSec team to add you to that group."
+- description: "Red-team break-glass spoof: groups claim is an OBJECT/map whose
+    value is jira-admins ({\"role\": \"jira-admins\"}). A bare `some group in
+    groups` iterates object VALUES and would satisfy break-glass; the is_array
+    guard rejects any non-array shape, so this fails closed — deny."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: mcp-atlassian-jira_delete_issue
+      uri: null
+    subject:
+      sub: google-apps|user@acme.com
+      claims:
+        groups:
+          role: jira-admins
+    payload:
+      name: mcp-atlassian-jira_delete_issue
+      args:
+        issue_key: PROJ-123
+  output:
+    expectedResult: deny
+    expectedReason: "This destructive Jira operation (delete issue, remove issue link, or remove watcher) is frozen on the agent channel because it is irreversible: records must survive agent error and prompt injection. Perform the deletion through a human-reviewed native Jira workflow instead. For legitimate admin cleanup, ask a member of your Jira admin group (placeholder: jira-admins) to run it, or ask your InfoSec team to add you to that group."
+- description: "Break-glass positive control after the is_array hardening: a
+    genuine array groups claim containing jira-admins still allows the delete, so
+    the fix did not break the intended maintenance path."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: mcp-atlassian-jira_delete_issue
+      uri: null
+    subject:
+      sub: google-apps|admin@acme.com
+      claims:
+        groups:
+          - jira-admins
+    payload:
+      name: mcp-atlassian-jira_delete_issue
+      args:
+        issue_key: PROJ-123
+  output:
+    expectedResult: allow
+- description: "Batching attack vector: the community server's real batch tool
+    jira_batch_get_changelogs is a read, and no batch/composite tool on the
+    Atlassian community or Rovo server can invoke delete/remove (verified against
+    the landscape note). It is not a frozen suffix and passes through — allow.
+    Documents that no batch route reaches the frozen tools."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: mcp-atlassian-jira_batch_get_changelogs
+      uri: null
+    payload:
+      name: mcp-atlassian-jira_batch_get_changelogs
+      args:
+        issue_ids_or_keys:
+          - PROJ-1
+          - PROJ-2
+  output:
+    expectedResult: allow
+- description: Destructive verb embedded mid-string (jira_delete_issue_link_v2)
+    does not end with a frozen suffix, so it is not caught. Documents the
+    exact-suffix limitation. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: mcp-atlassian-jira_delete_issue_comment
+      uri: null
+    payload:
+      name: mcp-atlassian-jira_delete_issue_comment
+      args:
+        issue_key: PROJ-123
+        comment_id: "10500"
+  output:
+    expectedResult: allow
+- description: "Red-team malformed container (fix): resource is a bare string
+    carrying the delete tool name instead of an object, payload likewise. Before
+    hardening, object.get(<string>, 'name', '') dropped the name and the call
+    failed OPEN (allow=true). name_of now matches the string container directly —
+    deny (fail-closed)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource: mcp-atlassian-jira_delete_issue
+    payload: mcp-atlassian-jira_delete_issue
+  output:
+    expectedResult: deny
+    expectedReason: "This destructive Jira operation (delete issue, remove issue link, or remove watcher) is frozen on the agent channel because it is irreversible: records must survive agent error and prompt injection. Perform the deletion through a human-reviewed native Jira workflow instead. For legitimate admin cleanup, ask a member of your Jira admin group (placeholder: jira-admins) to run it, or ask your InfoSec team to add you to that group."
+- description: "Red-team malformed container (fix): resource block omitted
+    entirely, payload is a bare string carrying the delete tool name. The
+    string-container branch on payload still catches it — deny (fail-closed)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    payload: mcp-atlassian-jira_delete_issue
+  output:
+    expectedResult: deny
+    expectedReason: "This destructive Jira operation (delete issue, remove issue link, or remove watcher) is frozen on the agent channel because it is irreversible: records must survive agent error and prompt injection. Perform the deletion through a human-reviewed native Jira workflow instead. For legitimate admin cleanup, ask a member of your Jira admin group (placeholder: jira-admins) to run it, or ask your InfoSec team to add you to that group."
+- description: "Red-team malformed container (fix): resource is an array and
+    payload is a number — neither carries a usable destructive name, so both
+    resolve to '' and the call is a non-destructive pass-through. Confirms the
+    hardening does not over-match legitimate non-object noise. Allow."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      - jira_get_issue
+    payload: 123
+  output:
+    expectedResult: allow
+- description: "Red-team suffix-padding (documented limitation): a trailing
+    newline on the tool name ('...jira_delete_issue\\n') does not end in a frozen
+    suffix and passes through. Not reachable via the gateway (the upstream MCP
+    server routes only exact registered names), but pinned so any future trim/
+    normalisation change is deliberate. Allow."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "mcp-atlassian-jira_delete_issue\n"
+      uri: null
+    payload:
+      name: "mcp-atlassian-jira_delete_issue\n"
+      args:
+        issue_key: PROJ-123
+  output:
+    expectedResult: allow
+- description: "Red-team suffix-padding (documented limitation): surrounding
+    whitespace on the tool name (' ...jira_delete_issue ') does not end in a
+    frozen suffix and passes through. Same non-reachable-via-gateway rationale;
+    pinned to document current behaviour. Allow."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: " mcp-atlassian-jira_delete_issue "
+      uri: null
+    payload:
+      name: " mcp-atlassian-jira_delete_issue "
+      args:
+        issue_key: PROJ-123
+  output:
+    expectedResult: allow

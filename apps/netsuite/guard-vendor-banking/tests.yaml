@@ -1,0 +1,607 @@
+- description: Read tool (ns_getRecord) is not a guarded write — allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_getRecord
+      uri: null
+    subject:
+      sub: auth0|jane
+      claims: {}
+    payload:
+      name: netsuite-mcp-ns_getRecord
+      arguments:
+        recordType: vendor
+        id: "123"
+  output:
+    expectedResult: allow
+
+- description: Create on a non-vendor record (customer) with bank-looking data — recordType is not vendor, allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_createRecord
+      uri: null
+    subject:
+      sub: auth0|jane
+      claims:
+        groups:
+          - viewer
+    payload:
+      name: netsuite-mcp-ns_createRecord
+      arguments:
+        recordType: customer
+        data: '{"accountNumber":"000123456789","companyName":"Acme"}'
+  output:
+    expectedResult: allow
+
+- description: Vendor update touching only non-banking fields — allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_updateRecord
+      uri: null
+    subject:
+      sub: auth0|jane
+      claims: {}
+    payload:
+      name: netsuite-mcp-ns_updateRecord
+      arguments:
+        recordType: vendor
+        data: '{"companyName":"Acme Supplies","email":"ap@acme.example"}'
+  output:
+    expectedResult: allow
+
+- description: Vendor bank routing change by a caller with no groups claim — deny (fail closed on identity).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_updateRecord
+      uri: null
+    subject:
+      sub: auth0|jane
+      claims: {}
+    payload:
+      name: netsuite-mcp-ns_updateRecord
+      arguments:
+        recordType: vendor
+        data: '{"accountNumber":"000123456789","routingNumber":"021000021"}'
+  output:
+    expectedResult: deny
+    expectedReason: "Editing vendor banking or payment-instruction details through the agent is blocked to prevent payment fraud. Make vendor bank changes through your reviewed accounts-payable (AP) process instead. Contact your finance team if this is a false positive."
+
+- description: Vendor create with a bank field (IBAN/SWIFT) by a non-AP group — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_createRecord
+      uri: null
+    subject:
+      sub: auth0|jane
+      claims:
+        groups:
+          - viewer
+    payload:
+      name: netsuite-mcp-ns_createRecord
+      arguments:
+        recordType: vendor
+        data: '{"iban":"DE89370400440532013000","swiftCode":"COBADEFFXXX"}'
+  output:
+    expectedResult: deny
+    expectedReason: "Editing vendor banking or payment-instruction details through the agent is blocked to prevent payment fraud. Make vendor bank changes through your reviewed accounts-payable (AP) process instead. Contact your finance team if this is a false positive."
+
+- description: Vendor edit with a bank field nested inside a sublist — recursive walk catches it, deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_updateRecord
+      uri: null
+    subject:
+      sub: auth0|jane
+      claims:
+        groups:
+          - viewer
+    payload:
+      name: netsuite-mcp-ns_updateRecord
+      arguments:
+        recordType: vendor
+        data: '{"companyName":"Acme","financialInstitution":{"routingNumber":"021000021"}}'
+  output:
+    expectedResult: deny
+
+- description: Vendor payment-method change by a non-AP caller — deny (payment-instruction branch).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_updateRecord
+      uri: null
+    subject:
+      sub: auth0|jane
+      claims:
+        groups:
+          - accountant
+    payload:
+      name: netsuite-mcp-ns_updateRecord
+      arguments:
+        recordType: vendor
+        data: '{"paymentMethod":"EFT"}'
+  output:
+    expectedResult: deny
+
+- description: Vendor bank edit performed by an ap-manager — allowlisted, allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_updateRecord
+      uri: null
+    subject:
+      sub: auth0|paul
+      claims:
+        groups:
+          - ap-manager
+    payload:
+      name: netsuite-mcp-ns_updateRecord
+      arguments:
+        recordType: vendor
+        data: '{"accountNumber":"000123456789","routingNumber":"021000021"}'
+  output:
+    expectedResult: allow
+
+- description: ap-manager membership is case-insensitive (AP-Manager) — allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_updateRecord
+      uri: null
+    subject:
+      sub: auth0|paul
+      claims:
+        groups:
+          - AP-Manager
+    payload:
+      name: netsuite-mcp-ns_updateRecord
+      arguments:
+        recordType: vendor
+        data: '{"iban":"DE89370400440532013000"}'
+  output:
+    expectedResult: allow
+
+- description: Vendor bank edit with a wrong group present — deny (fail closed on group).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_updateRecord
+      uri: null
+    subject:
+      sub: auth0|jane
+      claims:
+        groups:
+          - controller
+          - viewer
+    payload:
+      name: netsuite-mcp-ns_updateRecord
+      arguments:
+        recordType: vendor
+        data: '{"bankAccountNumber":"55554444"}'
+  output:
+    expectedResult: deny
+
+- description: Vendor write with present-but-malformed JSON data — deny (fail closed, cannot verify).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_updateRecord
+      uri: null
+    subject:
+      sub: auth0|jane
+      claims: {}
+    payload:
+      name: netsuite-mcp-ns_updateRecord
+      arguments:
+        recordType: vendor
+        data: '{"accountNumber":'
+  output:
+    expectedResult: deny
+
+- description: Vendor write with no arguments at all — recordType defaults empty, not a vendor banking edit, allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_updateRecord
+      uri: null
+    subject:
+      sub: auth0|jane
+      claims: {}
+    payload:
+      name: netsuite-mcp-ns_updateRecord
+  output:
+    expectedResult: allow
+
+- description: Argument fallback — args populated under the generic payload.args key (not arguments); bank field still detected, deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_updateRecord
+      uri: null
+    subject:
+      sub: auth0|jane
+      claims:
+        groups:
+          - viewer
+    payload:
+      name: netsuite-mcp-ns_updateRecord
+      args:
+        recordType: vendor
+        data: '{"routingNumber":"021000021"}'
+  output:
+    expectedResult: deny
+
+# Red-team: recordType padded with surrounding whitespace must not evade the
+# exact `== "vendor"` match. Normalized (trim_space) before comparison.
+- description: Red-team — recordType padded with whitespace (" vendor ") on a bank edit — normalized, deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_updateRecord
+      uri: null
+    subject:
+      sub: auth0|jane
+      claims:
+        groups:
+          - viewer
+    payload:
+      name: netsuite-mcp-ns_updateRecord
+      arguments:
+        recordType: " vendor "
+        data: '{"routingNumber":"021000021"}'
+  output:
+    expectedResult: deny
+    expectedReason: "Editing vendor banking or payment-instruction details through the agent is blocked to prevent payment fraud. Make vendor bank changes through your reviewed accounts-payable (AP) process instead. Contact your finance team if this is a false positive."
+
+- description: Red-team — recordType with a trailing tab ("vendor\t") on a bank edit — normalized, deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_updateRecord
+      uri: null
+    subject:
+      sub: auth0|jane
+      claims: {}
+    payload:
+      name: netsuite-mcp-ns_updateRecord
+      arguments:
+        recordType: "vendor\t"
+        data: '{"iban":"DE89370400440532013000"}'
+  output:
+    expectedResult: deny
+
+# Red-team: a fail-open path — when the generic `args` container is a scalar
+# (not an object), object.union used to type-error and leave ns_args undefined,
+# which silently disabled the check. The banking edit lives in `arguments`; it
+# must still be denied. as_object() coercion closes this.
+- description: Red-team — payload.args is a scalar string while arguments carries the bank edit — must not fail open, deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_updateRecord
+      uri: null
+    subject:
+      sub: auth0|jane
+      claims:
+        groups:
+          - viewer
+    payload:
+      name: netsuite-mcp-ns_updateRecord
+      args: "recordType=vendor"
+      arguments:
+        recordType: vendor
+        data: '{"routingNumber":"021000021"}'
+  output:
+    expectedResult: deny
+    expectedReason: "Editing vendor banking or payment-instruction details through the agent is blocked to prevent payment fraud. Make vendor bank changes through your reviewed accounts-payable (AP) process instead. Contact your finance team if this is a false positive."
+
+- description: Red-team — the whole bank edit under the scalar-shadowed args container works after coercion (arguments scalar, args object), deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_updateRecord
+      uri: null
+    subject:
+      sub: auth0|jane
+      claims: {}
+    payload:
+      name: netsuite-mcp-ns_updateRecord
+      arguments: "not-an-object"
+      args:
+        recordType: vendor
+        data: '{"iban":"DE89370400440532013000"}'
+  output:
+    expectedResult: deny
+
+# Documentation case: the policy inspects field *keys*, not values, so a bank
+# number smuggled into a non-banking field's value (e.g. a free-text "notes"
+# field) is allowed — it does not write the vendor's routing/account field and
+# so is not a payment-redirect vector. See "Bank field names are pattern-based"
+# in Known limitations.
+- description: Value-only smuggling — bank digits inside a benign "notes" value (no bank key) — not a banking edit, allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_updateRecord
+      uri: null
+    subject:
+      sub: auth0|jane
+      claims: {}
+    payload:
+      name: netsuite-mcp-ns_updateRecord
+      arguments:
+        recordType: vendor
+        data: '{"notes":"remit to routing 021000021 account 123456"}'
+  output:
+    expectedResult: allow
+
+# Red-team FIX: an account-number field whose key ends in "account" with no
+# numeric suffix (payeeAccount) used to slip past `account[_ ]?(number|no|num)`.
+# The payment-context prefix pattern now catches it.
+- description: Red-team FIX — payeeAccount redirect field (no numeric suffix) — caught by payment-context prefix, deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_updateRecord
+      uri: null
+    subject:
+      sub: auth0|jane
+      claims:
+        groups:
+          - viewer
+    payload:
+      name: netsuite-mcp-ns_updateRecord
+      arguments:
+        recordType: vendor
+        data: '{"payeeAccount":"000123456789"}'
+  output:
+    expectedResult: deny
+    expectedReason: "Editing vendor banking or payment-instruction details through the agent is blocked to prevent payment fraud. Make vendor bank changes through your reviewed accounts-payable (AP) process instead. Contact your finance team if this is a false positive."
+
+- description: Red-team FIX — directDepositAccount redirect field — caught by payment-context prefix, deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_updateRecord
+      uri: null
+    subject:
+      sub: auth0|jane
+      claims: {}
+    payload:
+      name: netsuite-mcp-ns_updateRecord
+      arguments:
+        recordType: vendor
+        data: '{"directDepositAccount":"55554444"}'
+  output:
+    expectedResult: deny
+
+- description: Red-team FIX — UK sort code (routing equivalent) — caught by sort-code pattern, deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_updateRecord
+      uri: null
+    subject:
+      sub: auth0|jane
+      claims:
+        groups:
+          - viewer
+    payload:
+      name: netsuite-mcp-ns_updateRecord
+      arguments:
+        recordType: vendor
+        data: '{"sortCode":"60-16-13","bankName":"Barclays"}'
+  output:
+    expectedResult: deny
+
+- description: Red-team FIX — bank number/id field — caught by bank-number pattern, deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_updateRecord
+      uri: null
+    subject:
+      sub: auth0|jane
+      claims: {}
+    payload:
+      name: netsuite-mcp-ns_updateRecord
+      arguments:
+        recordType: vendor
+        data: '{"bankNumber":"021000021"}'
+  output:
+    expectedResult: deny
+
+# Red-team FIX: bank fields passed as SIBLINGS of `data` (alternate argument
+# keys) rather than inside the `data` string. Top-level arg keys are now
+# inspected, so this no longer evades the check even though `data` itself is
+# benign.
+- description: Red-team FIX — bank fields at top level of arguments (siblings of data) — top-level keys inspected, deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_updateRecord
+      uri: null
+    subject:
+      sub: auth0|jane
+      claims:
+        groups:
+          - viewer
+    payload:
+      name: netsuite-mcp-ns_updateRecord
+      arguments:
+        recordType: vendor
+        accountNumber: "000123456789"
+        routingNumber: "021000021"
+        data: '{"companyName":"Acme"}'
+  output:
+    expectedResult: deny
+    expectedReason: "Editing vendor banking or payment-instruction details through the agent is blocked to prevent payment fraud. Make vendor bank changes through your reviewed accounts-payable (AP) process instead. Contact your finance team if this is a false positive."
+
+# Red-team FIX: request omits resource.name but carries the tool id in
+# payload.name. This used to fail open (not a target tool -> allow); matching
+# payload.name too now classifies it as a guarded write.
+- description: Red-team FIX — resource.name missing, tool id only in payload.name — classified via payload.name, deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      uri: null
+    subject:
+      sub: auth0|jane
+      claims:
+        groups:
+          - viewer
+    payload:
+      name: netsuite-mcp-ns_updateRecord
+      arguments:
+        recordType: vendor
+        data: '{"routingNumber":"021000021"}'
+  output:
+    expectedResult: deny
+    expectedReason: "Editing vendor banking or payment-instruction details through the agent is blocked to prevent payment fraud. Make vendor bank changes through your reviewed accounts-payable (AP) process instead. Contact your finance team if this is a false positive."
+
+# Red-team DOCUMENTED residual: a BIC/ABA acronym buried mid-camelCase is not
+# matched (token-leading only). Not a redirect on its own — a BIC identifies a
+# bank but does not move funds without an account/IBAN change (which IS caught).
+# See "Bank field names" in Known limitations.
+- description: Red-team DOC — beneficiaryBic only (mid-camelCase bic, no account/iban) — not a redirect vector, allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_updateRecord
+      uri: null
+    subject:
+      sub: auth0|jane
+      claims: {}
+    payload:
+      name: netsuite-mcp-ns_updateRecord
+      arguments:
+        recordType: vendor
+        data: '{"beneficiaryBic":"COBADEFFXXX"}'
+  output:
+    expectedResult: allow
+
+# Red-team DOCUMENTED residual: a differently-cased argument key ("recordtype")
+# is not schema-valid — NetSuite rejects it rather than writing a vendor — so
+# recordType defaults empty and the call is not treated as a vendor edit.
+- description: Red-team DOC — mis-cased argument key (recordtype) is not a schema-valid vendor write, allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_updateRecord
+      uri: null
+    subject:
+      sub: auth0|jane
+      claims: {}
+    payload:
+      name: netsuite-mcp-ns_updateRecord
+      arguments:
+        recordtype: vendor
+        data: '{"routingNumber":"021000021"}'
+  output:
+    expectedResult: allow
+
+# Red-team DOCUMENTED residual: a field named exactly "account" (or glAccount)
+# is intentionally NOT matched — on a vendor record it is almost always a GL
+# reference; matching it would false-positive on nearly every vendor edit. A
+# genuine bank field must carry a number suffix / acct / payment-context prefix.
+- description: Red-team DOC — bare "account" and "glAccount" keys (GL references) are intentionally not matched, allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_updateRecord
+      uri: null
+    subject:
+      sub: auth0|jane
+      claims: {}
+    payload:
+      name: netsuite-mcp-ns_updateRecord
+      arguments:
+        recordType: vendor
+        data: '{"account":"5000","glAccount":"6010","expenseAccount":"7000"}'
+  output:
+    expectedResult: allow

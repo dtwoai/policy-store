@@ -1,0 +1,394 @@
+# Branch coverage:
+#   allow: non-SQL tool (Cortex/list) · exempt admin · read-only SELECT
+#   deny:  mutating SQL for non-exempt caller (each statement class + red-team)
+- description: Read-only SELECT on the Labs run_snowflake_query tool. No mutating
+    keyword — allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: snowflake-mcp-run_snowflake_query
+      uri: null
+    payload:
+      name: snowflake-mcp-run_snowflake_query
+      args:
+        query: SELECT id, total FROM orders LIMIT 10
+  output:
+    expectedResult: allow
+- description: SELECT with created_at/updated_at columns. Word-boundary anchoring
+    means these do not trip CREATE/UPDATE — allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: snowflake-mcp-read_query
+      uri: null
+    payload:
+      name: snowflake-mcp-read_query
+      args:
+        query: SELECT id, created_at, updated_at FROM merge_log
+  output:
+    expectedResult: allow
+- description: Cortex Analyst natural-language tool. Not a SQL tool; the word
+    "update" in prose is irrelevant — allow (pass-through).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: snowflake-mcp-CORTEX_ANALYST_MESSAGE
+      uri: null
+    payload:
+      name: snowflake-mcp-CORTEX_ANALYST_MESSAGE
+      args:
+        message: update me on this quarter's revenue and delete nothing
+  output:
+    expectedResult: allow
+- description: Cortex Search tool whose name ends in "query" but not "read_query".
+    Not a matched SQL tool — allow (pass-through, no suffix collision).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: snowflake-mcp-CORTEX_SEARCH_SERVICE_QUERY
+      uri: null
+    payload:
+      name: snowflake-mcp-CORTEX_SEARCH_SERVICE_QUERY
+      args:
+        query: contracts mentioning DROP clauses
+  output:
+    expectedResult: allow
+- description: Read/list helper (list_databases). Not a SQL-carrying tool — allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: snowflake-mcp-list_databases
+      uri: null
+    payload:
+      name: snowflake-mcp-list_databases
+      args: {}
+  output:
+    expectedResult: allow
+- description: DROP TABLE via run_snowflake_query, non-exempt caller. Destructive —
+    deny with the mutating-SQL reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: snowflake-mcp-run_snowflake_query
+      uri: null
+    payload:
+      name: snowflake-mcp-run_snowflake_query
+      args:
+        query: DROP TABLE customers
+    subject:
+      sub: google-apps|analyst@dtwo.ai
+      claims:
+        groups:
+          - analysts
+  output:
+    expectedResult: deny
+    expectedReason: This Snowflake statement performs a mutating or destructive operation (DROP, TRUNCATE, DELETE, UPDATE, INSERT, MERGE, ALTER, CREATE, GRANT, or REVOKE — including CREATE USER / CREATE ROLE) and is blocked on the agent MCP path, which is read-only. Rewrite it as a SELECT, or have a member of the data-platform-admins group run break-glass DDL. If this was a false positive, contact your data platform team.
+- description: INSERT via community write_query. Mutating — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: snowflake-mcp-write_query
+      uri: null
+    payload:
+      name: snowflake-mcp-write_query
+      args:
+        query: INSERT INTO audit (event) VALUES ('x')
+  output:
+    expectedResult: deny
+- description: Lowercase "delete" via managed system_execute_sql. Case-insensitive
+    match — deny (proves (?i)).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: snowflake-mcp-system_execute_sql
+      uri: null
+    payload:
+      name: snowflake-mcp-system_execute_sql
+      args:
+        query: delete from ledger where id = 5
+  output:
+    expectedResult: deny
+- description: GRANT statement (privilege change) via run_snowflake_query. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: snowflake-mcp-run_snowflake_query
+      uri: null
+    payload:
+      name: snowflake-mcp-run_snowflake_query
+      args:
+        query: GRANT ROLE sysadmin TO USER bob
+  output:
+    expectedResult: deny
+- description: CREATE USER governance DDL via managed server, covered by the CREATE
+    class. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: snowflake-mcp-system_execute_sql
+      uri: null
+    payload:
+      name: snowflake-mcp-system_execute_sql
+      args:
+        query: CREATE USER attacker PASSWORD='x'
+  output:
+    expectedResult: deny
+- description: Multi-line ALTER statement. Word boundaries work across newlines —
+    deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: snowflake-mcp-run_snowflake_query
+      uri: null
+    payload:
+      name: snowflake-mcp-run_snowflake_query
+      args:
+        query: |
+          -- housekeeping
+          ALTER TABLE orders
+            ADD COLUMN note STRING
+  output:
+    expectedResult: deny
+- description: Red-team — mutating verb hidden in EXECUTE IMMEDIATE string literal.
+    The keyword still appears, so the regex catches it — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: snowflake-mcp-run_snowflake_query
+      uri: null
+    payload:
+      name: snowflake-mcp-run_snowflake_query
+      args:
+        query: EXECUTE IMMEDIATE 'TRUNCATE TABLE staging'
+  output:
+    expectedResult: deny
+- description: Red-team — SQL delivered under an alternate `statement` argument key
+    instead of `query`. Defensive fallback still inspects it — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: snowflake-mcp-run_snowflake_query
+      uri: null
+    payload:
+      name: snowflake-mcp-run_snowflake_query
+      args:
+        statement: UPDATE accounts SET balance = 0
+  output:
+    expectedResult: deny
+- description: Break-glass — caller in data-platform-admins runs DROP. Exempt —
+    allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: snowflake-mcp-run_snowflake_query
+      uri: null
+    payload:
+      name: snowflake-mcp-run_snowflake_query
+      args:
+        query: DROP TABLE stale_events
+    subject:
+      sub: google-apps|dba@dtwo.ai
+      claims:
+        groups:
+          - engineering
+          - data-platform-admins
+  output:
+    expectedResult: allow
+- description: Non-admin group running DELETE. Groups present but not the exempt
+    one — deny (exemption is not satisfied).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: snowflake-mcp-run_snowflake_query
+      uri: null
+    payload:
+      name: snowflake-mcp-run_snowflake_query
+      args:
+        query: DELETE FROM invoices WHERE paid = false
+    subject:
+      sub: google-apps|analyst@dtwo.ai
+      claims:
+        groups:
+          - analysts
+          - viewers
+  output:
+    expectedResult: deny
+- description: Red-team — no subject/claims at all, mutating TRUNCATE. object.get
+    chain yields empty groups so the exemption fails closed — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: snowflake-mcp-run_snowflake_query
+      uri: null
+    payload:
+      name: snowflake-mcp-run_snowflake_query
+      args:
+        query: TRUNCATE TABLE transactions
+  output:
+    expectedResult: deny
+- description: Red-team — `data-platform-admins` spoofed as a string instead of a
+    list member. `some g in caller_groups` over a string iterates characters, none
+    equal to the group name, so the exemption does not fire — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: snowflake-mcp-run_snowflake_query
+      uri: null
+    payload:
+      name: snowflake-mcp-run_snowflake_query
+      args:
+        query: DROP DATABASE prod
+    subject:
+      sub: google-apps|analyst@dtwo.ai
+      claims:
+        groups: data-platform-admins
+  output:
+    expectedResult: deny
+- description: Red-team — Labs drop_object carries no SQL string (structured args),
+    so the SQL-text check can't see it. Matched by tool name and denied for a
+    non-exempt caller — closes the structured-DDL bypass.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: snowflake-mcp-drop_object
+      uri: null
+    payload:
+      name: snowflake-mcp-drop_object
+      args:
+        object_type: Database
+        target_object:
+          name: prod
+  output:
+    expectedResult: deny
+    expectedReason: This Snowflake tool performs a structured schema/object mutation (create/alter/drop of a database, schema, table, view, warehouse, role, or user) and is blocked on the agent MCP path, which is read-only. Route the change through your change-management process, or have a member of the data-platform-admins group run it as break-glass DDL. If this was a false positive, contact your data platform team.
+- description: Red-team — Labs create_object (structured DDL, no query arg). Matched
+    by tool name — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: snowflake-mcp-create_object
+      uri: null
+    payload:
+      name: snowflake-mcp-create_object
+      args:
+        object_type: Role
+        target_object:
+          name: superuser
+  output:
+    expectedResult: deny
+- description: Break-glass — data-platform-admins runs the structured drop_object.
+    Exempt — allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: snowflake-mcp-drop_object
+      uri: null
+    payload:
+      name: snowflake-mcp-drop_object
+      args:
+        object_type: Table
+        target_object:
+          name: stale_events
+    subject:
+      sub: google-apps|dba@dtwo.ai
+      claims:
+        groups:
+          - data-platform-admins
+  output:
+    expectedResult: allow
+- description: Documented residual — managed-server SQL tool under an admin-chosen
+    name (`sales-sql`) matches no known suffix, so this DROP passes through. This
+    is the known managed-naming bypass; requires the PF-28 companion. Asserted as
+    allow to pin the residual.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: snowflake-mcp-sales-sql
+      uri: null
+    payload:
+      name: snowflake-mcp-sales-sql
+      args:
+        query: DROP TABLE customers
+  output:
+    expectedResult: allow
+- description: Documented limitation — SQL supplied as a non-string (list) is not
+    inspected; treated as inert and allowed rather than erroring the rule open.
+    Verified schemas type `query` as a string.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: snowflake-mcp-run_snowflake_query
+      uri: null
+    payload:
+      name: snowflake-mcp-run_snowflake_query
+      args:
+        query:
+          - DROP TABLE x
+  output:
+    expectedResult: allow

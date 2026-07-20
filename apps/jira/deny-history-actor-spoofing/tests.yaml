@@ -1,0 +1,492 @@
+- description: Non-transition read tool (getjiraissue). Not in scope. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-getjiraissue
+      uri: null
+    payload:
+      name: atlassian-getjiraissue
+      args:
+        issueIdOrKey: DEV-7
+  output:
+    expectedResult: allow
+- description: Transition with no historyMetadata — a normal workflow move. Policy
+    should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-transitionjiraissue
+      uri: null
+    payload:
+      name: atlassian-transitionjiraissue
+      args:
+        issueIdOrKey: DEV-7
+        transition:
+          id: "31"
+  output:
+    expectedResult: allow
+- description: Transition with a full historyMetadata block (spoofed actor + cause).
+    Policy should deny with the spoofing reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-transitionjiraissue
+      uri: null
+    payload:
+      name: atlassian-transitionjiraissue
+      args:
+        issueIdOrKey: DEV-7
+        transition:
+          id: "31"
+        historyMetadata:
+          actor:
+            displayName: Jane Approver
+            avatarUrl: https://example.com/jane.png
+          cause:
+            displayName: quarterly review
+          generator:
+            displayName: workflow-bot
+  output:
+    expectedResult: deny
+    expectedReason: This Jira write call includes a historyMetadata block, which lets the caller stamp a fabricated actor, cause, or generator onto the issue's change history and forge who performed the change. Remove the historyMetadata field and retry so Jira records the real actor. Contact your admin if a vetted integration must set change-history metadata.
+- description: Transition with only a partial historyMetadata (actor only). Presence
+    is enough. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-transitionjiraissue
+      uri: null
+    payload:
+      name: atlassian-transitionjiraissue
+      args:
+        issueIdOrKey: DEV-7
+        transition:
+          id: "31"
+        historyMetadata:
+          actor:
+            displayName: Someone Else
+  output:
+    expectedResult: deny
+    expectedReason: This Jira write call includes a historyMetadata block, which lets the caller stamp a fabricated actor, cause, or generator onto the issue's change history and forge who performed the change. Remove the historyMetadata field and retry so Jira records the real actor. Contact your admin if a vetted integration must set change-history metadata.
+- description: Transition with an empty historyMetadata object. Presence of the key
+    (non-null) denies. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-transitionjiraissue
+      uri: null
+    payload:
+      name: atlassian-transitionjiraissue
+      args:
+        issueIdOrKey: DEV-7
+        transition:
+          id: "31"
+        historyMetadata: {}
+  output:
+    expectedResult: deny
+    expectedReason: This Jira write call includes a historyMetadata block, which lets the caller stamp a fabricated actor, cause, or generator onto the issue's change history and forge who performed the change. Remove the historyMetadata field and retry so Jira records the real actor. Contact your admin if a vetted integration must set change-history metadata.
+- description: Transition with historyMetadata explicitly null — stamps nothing, so
+    it is treated as absent. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-transitionjiraissue
+      uri: null
+    payload:
+      name: atlassian-transitionjiraissue
+      args:
+        issueIdOrKey: DEV-7
+        transition:
+          id: "31"
+        historyMetadata: null
+  output:
+    expectedResult: allow
+- description: Transition with no args key at all — benign transition, no
+    historyMetadata possible. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-transitionjiraissue
+      uri: null
+    payload:
+      name: atlassian-transitionjiraissue
+  output:
+    expectedResult: allow
+- description: Uppercase tool name (TRANSITIONJIRAISSUE) with historyMetadata —
+    suffix match must be case-insensitive. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ATLASSIAN-TRANSITIONJIRAISSUE
+      uri: null
+    payload:
+      name: ATLASSIAN-TRANSITIONJIRAISSUE
+      args:
+        issueIdOrKey: DEV-7
+        historyMetadata:
+          actor:
+            displayName: Spoofed
+  output:
+    expectedResult: deny
+    expectedReason: This Jira write call includes a historyMetadata block, which lets the caller stamp a fabricated actor, cause, or generator onto the issue's change history and forge who performed the change. Remove the historyMetadata field and retry so Jira records the real actor. Contact your admin if a vetted integration must set change-history metadata.
+- description: Alternate gateway server-name prefix (atlassian-jira-mcp-...) with
+    historyMetadata — suffix match keeps it portable. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-jira-mcp-transitionjiraissue
+      uri: null
+    payload:
+      name: atlassian-jira-mcp-transitionjiraissue
+      args:
+        issueIdOrKey: DEV-7
+        historyMetadata:
+          generator:
+            displayName: fake-generator
+  output:
+    expectedResult: deny
+    expectedReason: This Jira write call includes a historyMetadata block, which lets the caller stamp a fabricated actor, cause, or generator onto the issue's change history and forge who performed the change. Remove the historyMetadata field and retry so Jira records the real actor. Contact your admin if a vetted integration must set change-history metadata.
+- description: RED-TEAM (alternate-tool bypass) — editJiraIssue is an equivalent
+    route to the same change log (historyMetadata is part of Jira's REST edit-issue
+    body). Must be denied, not allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-editjiraissue
+      uri: null
+    payload:
+      name: atlassian-editjiraissue
+      args:
+        issueIdOrKey: DEV-7
+        fields:
+          summary: updated
+        historyMetadata:
+          actor:
+            displayName: Spoofed
+  output:
+    expectedResult: deny
+    expectedReason: This Jira write call includes a historyMetadata block, which lets the caller stamp a fabricated actor, cause, or generator onto the issue's change history and forge who performed the change. Remove the historyMetadata field and retry so Jira records the real actor. Contact your admin if a vetted integration must set change-history metadata.
+- description: RED-TEAM (alternate-tool bypass) — createJiraIssue with historyMetadata
+    (create-and-transition route). Must be denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-jira-mcp-createjiraissue
+      uri: null
+    payload:
+      name: atlassian-jira-mcp-createjiraissue
+      args:
+        projectKey: DEV
+        summary: New issue
+        historyMetadata:
+          actor:
+            displayName: Spoofed
+  output:
+    expectedResult: deny
+    expectedReason: This Jira write call includes a historyMetadata block, which lets the caller stamp a fabricated actor, cause, or generator onto the issue's change history and forge who performed the change. Remove the historyMetadata field and retry so Jira records the real actor. Contact your admin if a vetted integration must set change-history metadata.
+- description: editJiraIssue with no historyMetadata — a normal field edit. Must
+    still pass through unchanged. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-editjiraissue
+      uri: null
+    payload:
+      name: atlassian-editjiraissue
+      args:
+        issueIdOrKey: DEV-7
+        fields:
+          summary: updated
+  output:
+    expectedResult: allow
+- description: RED-TEAM (fail-closed) — malformed transition payload where args is a
+    bare string, not an object. Cannot be inspected, so it must be denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-transitionjiraissue
+      uri: null
+    payload:
+      name: atlassian-transitionjiraissue
+      args: "historyMetadata"
+  output:
+    expectedResult: deny
+    expectedReason: This Jira write call has a malformed arguments object and cannot be checked for change-history actor spoofing, so it is denied. Resend the request with a well-formed arguments object and no historyMetadata block.
+- description: RED-TEAM (fail-closed) — malformed payload where args is an ARRAY
+    smuggling historyMetadata. is_object fails, so it falls through to deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-transitionjiraissue
+      uri: null
+    payload:
+      name: atlassian-transitionjiraissue
+      args:
+        - historyMetadata:
+            actor:
+              displayName: Spoofed
+  output:
+    expectedResult: deny
+    expectedReason: This Jira write call has a malformed arguments object and cannot be checked for change-history actor spoofing, so it is denied. Resend the request with a well-formed arguments object and no historyMetadata block.
+- description: RED-TEAM (value coercion) — historyMetadata as a bare non-null string,
+    not an object. Any non-null value counts as present. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-transitionjiraissue
+      uri: null
+    payload:
+      name: atlassian-transitionjiraissue
+      args:
+        issueIdOrKey: DEV-7
+        historyMetadata: "Spoofed"
+  output:
+    expectedResult: deny
+    expectedReason: This Jira write call includes a historyMetadata block, which lets the caller stamp a fabricated actor, cause, or generator onto the issue's change history and forge who performed the change. Remove the historyMetadata field and retry so Jira records the real actor. Contact your admin if a vetted integration must set change-history metadata.
+- description: RED-TEAM (documented limitation) — community server tool
+    jira_transition_issue does not match any official write suffix, so even with
+    historyMetadata it is out of scope. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-jira_transition_issue
+      uri: null
+    payload:
+      name: atlassian-jira_transition_issue
+      args:
+        issue_key: DEV-7
+        historyMetadata:
+          actor:
+            displayName: Spoofed
+  output:
+    expectedResult: allow
+- description: RED-TEAM (documented limitation) — community server tool
+    jira_update_issue does not match the editjiraissue suffix (underscores), so it
+    is out of scope even with historyMetadata. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-jira_update_issue
+      uri: null
+    payload:
+      name: atlassian-jira_update_issue
+      args:
+        issue_key: DEV-7
+        historyMetadata:
+          actor:
+            displayName: Spoofed
+  output:
+    expectedResult: allow
+- description: RED-TEAM (documented limitation) — alternate-cased key
+    (historymetadata) is inert upstream (Jira honors only historyMetadata), so it
+    is not matched. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-transitionjiraissue
+      uri: null
+    payload:
+      name: atlassian-transitionjiraissue
+      args:
+        issueIdOrKey: DEV-7
+        historymetadata:
+          actor:
+            displayName: Spoofed
+  output:
+    expectedResult: allow
+- description: RED-TEAM (scope) — getTransitionsForJiraIssue is a read tool whose
+    lowercased name ends with "forjiraissue", NOT "transitionjiraissue", so the
+    suffix set must not match it. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-gettransitionsforjiraissue
+      uri: null
+    payload:
+      name: atlassian-gettransitionsforjiraissue
+      args:
+        issueIdOrKey: DEV-7
+        historyMetadata:
+          actor:
+            displayName: Spoofed
+  output:
+    expectedResult: allow
+- description: RED-TEAM (missing resource) — empty input with no resource/name must
+    not crash; tool_name resolves to "" and is not a write tool. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    payload:
+      args:
+        historyMetadata:
+          actor:
+            displayName: Spoofed
+  output:
+    expectedResult: allow
+- description: RED-TEAM (nested smuggling, FIXED) — historyMetadata hidden inside
+    createJiraIssue's open additional_fields object, whose merge into the REST body
+    is connector-defined. Deep scan must catch it. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-createjiraissue
+      uri: null
+    payload:
+      name: atlassian-createjiraissue
+      args:
+        projectKey: DEV
+        summary: New issue
+        additional_fields:
+          historyMetadata:
+            actor:
+              displayName: Spoofed
+  output:
+    expectedResult: deny
+    expectedReason: This Jira write call includes a historyMetadata block, which lets the caller stamp a fabricated actor, cause, or generator onto the issue's change history and forge who performed the change. Remove the historyMetadata field and retry so Jira records the real actor. Contact your admin if a vetted integration must set change-history metadata.
+- description: RED-TEAM (nested smuggling, FIXED) — historyMetadata hidden inside
+    transitionJiraIssue's open update object. Deep scan must catch it. Policy should
+    deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-transitionjiraissue
+      uri: null
+    payload:
+      name: atlassian-transitionjiraissue
+      args:
+        issueIdOrKey: DEV-7
+        transition:
+          id: "31"
+        update:
+          historyMetadata:
+            actor:
+              displayName: Spoofed
+  output:
+    expectedResult: deny
+    expectedReason: This Jira write call includes a historyMetadata block, which lets the caller stamp a fabricated actor, cause, or generator onto the issue's change history and forge who performed the change. Remove the historyMetadata field and retry so Jira records the real actor. Contact your admin if a vetted integration must set change-history metadata.
+- description: RED-TEAM (false-positive guard) — the deep scan matches only object
+    KEYS named historyMetadata; a string VALUE containing the word (e.g. in a
+    summary/description) must not trip it. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-editjiraissue
+      uri: null
+    payload:
+      name: atlassian-editjiraissue
+      args:
+        issueIdOrKey: DEV-7
+        fields:
+          summary: Investigate historyMetadata spoofing in our audit pipeline
+          description: The historyMetadata field lets callers forge actors.
+  output:
+    expectedResult: allow
+- description: Nested historyMetadata explicitly null inside additional_fields —
+    stamps nothing, treated as absent at any depth. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-createjiraissue
+      uri: null
+    payload:
+      name: atlassian-createjiraissue
+      args:
+        projectKey: DEV
+        summary: New issue
+        additional_fields:
+          historyMetadata: null
+  output:
+    expectedResult: allow
+- description: RED-TEAM (documented limitation) — community batch route
+    jira_batch_create_issues does not match any official suffix, so it is out of
+    scope even with a nested historyMetadata. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-jira_batch_create_issues
+      uri: null
+    payload:
+      name: atlassian-jira_batch_create_issues
+      args:
+        issues:
+          - project_key: DEV
+            summary: Issue A
+            additional_fields:
+              historyMetadata:
+                actor:
+                  displayName: Spoofed
+  output:
+    expectedResult: allow

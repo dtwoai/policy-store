@@ -1,0 +1,451 @@
+# Reason string used by every deny case (kept in one place for easy tuning):
+# it must match the sprintf output in policy.md exactly.
+- description: Official read tool (get_file_content) with no subject at all —
+    reads pass for everyone.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-remote-get_file_content
+      uri: null
+    payload:
+      name: box-remote-get_file_content
+      args:
+        file_id: "12345"
+  output:
+    expectedResult: allow
+- description: Community read tool (box_search_tool) for a caller with unrelated
+    groups — reads pass regardless of identity.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-community-box_search_tool
+      uri: null
+    subject:
+      sub: auth0|bob
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: box-community-box_search_tool
+      args:
+        query: quarterly report
+  output:
+    expectedResult: allow
+- description: Box AI read-like tool (ai_qa_single_file) with empty claims —
+    treated as a read, allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-remote-ai_qa_single_file
+      uri: null
+    subject:
+      sub: auth0|carol
+      claims: {}
+    payload:
+      name: box-remote-ai_qa_single_file
+      args:
+        file_id: "9876"
+        prompt: summarize this contract
+  output:
+    expectedResult: allow
+- description: Community shared-link READ variant (box_shared_link_file_get_tool)
+    without the group — no mutating verb segment, so it passes.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-community-box_shared_link_file_get_tool
+      uri: null
+    subject:
+      sub: auth0|bob
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: box-community-box_shared_link_file_get_tool
+      args:
+        file_id: "555"
+  output:
+    expectedResult: allow
+- description: Non-tool ingress hook (prompt_pre_fetch) with a non-mutating name —
+    policy only gates mutating-looking tool names, so it passes.
+  input:
+    action: prompt_pre_fetch
+    kind: prompt_pre_fetch
+    mode: input
+    resource:
+      type: prompt
+      name: greeting
+      uri: null
+    payload:
+      prompt_id: greeting
+      args:
+        user: alice
+  output:
+    expectedResult: allow
+- description: Official write (move_file) by a member of box-writers — allowed
+    (verified-suffix branch, official dialect).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-remote-move_file
+      uri: null
+    subject:
+      sub: auth0|alice
+      claims:
+        groups:
+          - box-writers
+    payload:
+      name: box-remote-move_file
+      args:
+        file_id: "12345"
+        parent_folder_id: "777"
+  output:
+    expectedResult: allow
+- description: Community write (box_folder_create_tool) when box-writers is one of
+    several groups — allowed (verified-suffix branch, community dialect).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-community-box_folder_create_tool
+      uri: null
+    subject:
+      sub: auth0|alice
+      claims:
+        groups:
+          - engineering
+          - box-writers
+    payload:
+      name: box-community-box_folder_create_tool
+      args:
+        parent_folder_id: "0"
+        name: New Folder
+  output:
+    expectedResult: allow
+- description: Community collaboration-create tool (no mutating verb in its name)
+    by a writer — allowed via the box_collaboration_ stem branch.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-community-box_collaboration_file_user_by_user_login_tool
+      uri: null
+    subject:
+      sub: auth0|alice
+      claims:
+        groups:
+          - box-writers
+    payload:
+      name: box-community-box_collaboration_file_user_by_user_login_tool
+      args:
+        file_id: "12345"
+        user_login: teammate@example.com
+        role: editor
+  output:
+    expectedResult: allow
+- description: Official write (upload_file) by a caller whose groups do not include
+    box-writers — denied with the standard reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-remote-upload_file
+      uri: null
+    subject:
+      sub: auth0|alice
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: box-remote-upload_file
+      args:
+        parent_folder_id: "0"
+        name: report.pdf
+  output:
+    expectedResult: deny
+    expectedReason: Box write tools are restricted to members of the 'box-writers' group — this account has read-only Box access through the gateway. Ask your identity admin to add you to 'box-writers', or hand this step to a teammate with Box write access. If this tool is actually read-only, contact your InfoSec team to update the policy.
+- description: Sharing tool (add_file_shared_link) with no subject in the input at
+    all — identity lookup fails closed, write denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-remote-add_file_shared_link
+      uri: null
+    payload:
+      name: box-remote-add_file_shared_link
+      args:
+        file_id: "12345"
+        access: open
+  output:
+    expectedResult: deny
+    expectedReason: Box write tools are restricted to members of the 'box-writers' group — this account has read-only Box access through the gateway. Ask your identity admin to add you to 'box-writers', or hand this step to a teammate with Box write access. If this tool is actually read-only, contact your InfoSec team to update the policy.
+- description: get_upload_url (mints an upload URL — a write on the official server)
+    with an empty groups array — denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-remote-get_upload_url
+      uri: null
+    subject:
+      sub: auth0|bob
+      claims:
+        groups: []
+    payload:
+      name: box-remote-get_upload_url
+      args:
+        parent_folder_id: "0"
+        name: upload.bin
+  output:
+    expectedResult: deny
+- description: Community destructive tool (box_file_delete_tool) without the group —
+    denied (community verified-suffix branch).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-community-box_file_delete_tool
+      uri: null
+    subject:
+      sub: auth0|bob
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: box-community-box_file_delete_tool
+      args:
+        file_id: "12345"
+  output:
+    expectedResult: deny
+- description: Community collaboration-create tool without the group — its name has
+    no mutating verb, so this exercises the box_collaboration_ stem branch.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-community-box_collaboration_folder_group_by_group_id_tool
+      uri: null
+    subject:
+      sub: auth0|bob
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: box-community-box_collaboration_folder_group_by_group_id_tool
+      args:
+        folder_id: "42"
+        group_id: "777"
+        role: editor
+  output:
+    expectedResult: deny
+- description: Community shared-link WRITE (box_shared_link_file_create_or_update_tool)
+    without the group — caught by the mutating-verb net.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-community-box_shared_link_file_create_or_update_tool
+      uri: null
+    subject:
+      sub: auth0|bob
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: box-community-box_shared_link_file_create_or_update_tool
+      args:
+        file_id: "555"
+        access: open
+  output:
+    expectedResult: deny
+- description: Unknown future tool with a mutating-looking name
+    (set_file_classification) — not on any verified list, still fails closed via
+    the verb net.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-remote-set_file_classification
+      uri: null
+    subject:
+      sub: auth0|bob
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: box-remote-set_file_classification
+      args:
+        file_id: "12345"
+        classification: internal
+  output:
+    expectedResult: deny
+- description: Uppercased write tool name (BOX-REMOTE-UPLOAD_FILE) without the
+    group — matching is case-insensitive, so still denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: BOX-REMOTE-UPLOAD_FILE
+      uri: null
+    subject:
+      sub: auth0|bob
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: BOX-REMOTE-UPLOAD_FILE
+      args:
+        parent_folder_id: "0"
+        name: report.pdf
+  output:
+    expectedResult: deny
+- description: groups claim is a plain string ("box-writers") instead of an array —
+    malformed shape fails closed, write denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-remote-upload_file
+      uri: null
+    subject:
+      sub: auth0|mallory
+      claims:
+        groups: box-writers
+    payload:
+      name: box-remote-upload_file
+      args:
+        parent_folder_id: "0"
+        name: report.pdf
+  output:
+    expectedResult: deny
+- description: Red-team — groups claim shaped as an object whose VALUE is the writer
+    group name ({"role":"box-writers"}). `some x in obj` iterates values, so this
+    would fail OPEN without the is_array guard. Non-array shape must fail closed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-remote-upload_file
+      uri: null
+    subject:
+      sub: auth0|mallory
+      claims:
+        groups:
+          role: box-writers
+    payload:
+      name: box-remote-upload_file
+      args:
+        parent_folder_id: "0"
+        name: report.pdf
+  output:
+    expectedResult: deny
+    expectedReason: Box write tools are restricted to members of the 'box-writers' group — this account has read-only Box access through the gateway. Ask your identity admin to add you to 'box-writers', or hand this step to a teammate with Box write access. If this tool is actually read-only, contact your InfoSec team to update the policy.
+- description: Red-team — object-shaped groups with the writer name buried among
+    several values ({"a":"eng","b":"box-writers"}) — still fails closed, write denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-community-box_file_delete_tool
+      uri: null
+    subject:
+      sub: auth0|mallory
+      claims:
+        groups:
+          a: engineering
+          b: box-writers
+    payload:
+      name: box-community-box_file_delete_tool
+      args:
+        file_id: "12345"
+  output:
+    expectedResult: deny
+- description: Red-team — camelCase write tool name (uploadFile) with no separators
+    and no writer group. The camel-boundary split must still surface the `upload`
+    verb so the tool fails closed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-remote-uploadFile
+      uri: null
+    subject:
+      sub: auth0|bob
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: box-remote-uploadFile
+      args:
+        parent_folder_id: "0"
+        name: report.pdf
+  output:
+    expectedResult: deny
+- description: Hub write (add_items_to_hub) by a writer — allowed; the same call
+    without the group would deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-remote-add_items_to_hub
+      uri: null
+    subject:
+      sub: auth0|alice
+      claims:
+        groups:
+          - box-writers
+    payload:
+      name: box-remote-add_items_to_hub
+      args:
+        hub_id: "h1"
+        items:
+          - type: file
+            id: "12345"
+  output:
+    expectedResult: allow

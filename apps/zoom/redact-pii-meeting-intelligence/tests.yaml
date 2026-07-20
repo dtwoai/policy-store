@@ -1,0 +1,528 @@
+# Transform-only policy: every case expects allow. The assertions that matter
+# are transformApplied / transformedArgsContain (gate-only keys).
+
+- description: Recording resource (transcript) with an email and a phone number.
+    Both are rewritten to typed placeholders.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: zoom-get_recording_resource
+      uri: null
+    payload:
+      name: zoom-get_recording_resource
+      text:
+        - "Reach Dana at dana@example.com or 206-555-0100."
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    name: zoom-get_recording_resource
+    text:
+      - "Reach Dana at [REDACTED_EMAIL] or [REDACTED_PHONE]."
+
+- description: Meeting assets response containing a hyphenated US SSN read aloud
+    during intake. The SSN is redacted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: zoom-get_meeting_assets
+      uri: null
+    payload:
+      name: zoom-get_meeting_assets
+      text:
+        - "Patient confirmed SSN 123-45-6789 for the record."
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Patient confirmed SSN [REDACTED_SSN] for the record."
+
+- description: Zoom Docs content (get_file_content) with all three PII classes in
+    one block. Email, phone, and SSN are all redacted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: zoom-get_file_content
+      uri: null
+    payload:
+      name: zoom-get_file_content
+      text:
+        - "Owner alex@corp.io, cell (206) 555-0100, ssn 540-12-3456."
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Owner [REDACTED_EMAIL], cell [REDACTED_PHONE], ssn [REDACTED_SSN]."
+
+- description: Community get_recording_transcript response with an email. The
+    community-server suffix is in scope and the email is redacted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: zoom-mcp-get_recording_transcript
+      uri: null
+    payload:
+      name: zoom-mcp-get_recording_transcript
+      text:
+        - "Speaker 1: email me at jordan@example.org after the call."
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Speaker 1: email me at [REDACTED_EMAIL] after the call."
+
+- description: Tool name only available via tool_metadata.name (resource name
+    empty). The fallback branch matches and redaction applies.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: ""
+      uri: null
+    tool_metadata:
+      name: zoom-get_recording_resource
+    payload:
+      name: zoom-get_recording_resource
+      text:
+        - "Follow up: casey@example.com"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Follow up: [REDACTED_EMAIL]"
+
+- description: Tool name in mixed case. Matching is case-insensitive, so
+    redaction still applies.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: ZOOM-Get_Recording_Resource
+      uri: null
+    payload:
+      name: ZOOM-Get_Recording_Resource
+      text:
+        - "SSN 078-05-1120 mentioned."
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "SSN [REDACTED_SSN] mentioned."
+
+- description: Serialized-JSON string block from a recording resource. The regex
+    runs over the serialized text, so the embedded email is redacted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: zoom-get_recording_resource
+      uri: null
+    payload:
+      name: zoom-get_recording_resource
+      text:
+        - '{"speaker":"Dana","utterance":"ping me at dana@example.com"}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - '{"speaker":"Dana","utterance":"ping me at [REDACTED_EMAIL]"}'
+
+- description: Mixed content blocks — a string with PII, a non-string structured
+    block, and a clean string. Only the matching string is rewritten; the other
+    blocks are preserved as-is.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: zoom-get_meeting_assets
+      uri: null
+    payload:
+      name: zoom-get_meeting_assets
+      text:
+        - "Contact: pat@example.com"
+        - type: resource
+          uri: zoom://recording/1
+        - no pii here
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Contact: [REDACTED_EMAIL]"
+      - type: resource
+        uri: zoom://recording/1
+      - no pii here
+
+- description: Out-of-scope Zoom tool (search_meetings) with an email. The policy
+    only touches the four meeting-intelligence read tools, so no transform.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: zoom-search_meetings
+      uri: null
+    payload:
+      name: zoom-search_meetings
+      text:
+        - "Contact: dana@example.com"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Ingress-mode call to a matching tool name. The policy only fires
+    on the output path, so no transform is applied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-get_recording_resource
+      uri: null
+    payload:
+      name: zoom-get_recording_resource
+      args:
+        meetingId: "8899"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Clean response from an in-scope tool — no PII patterns match, so
+    no transform is emitted and the response passes through unchanged.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: zoom-get_recording_resource
+      uri: null
+    payload:
+      name: zoom-get_recording_resource
+      text:
+        - "Summary: the team agreed to ship on Friday."
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: In-scope tool whose payload has no text array at all. Nothing to
+    rewrite — no transform, no error.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: zoom-get_recording_resource
+      uri: null
+    payload:
+      name: zoom-get_recording_resource
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: In-scope tool whose payload.text is a bare string rather than the
+    MCP content-block array. The is_array guard keeps the transform undefined
+    rather than emitting a malformed payload.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: zoom-get_recording_resource
+      uri: null
+    payload:
+      name: zoom-get_recording_resource
+      text: "dana@example.com"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Red-team — bare 10-digit phone run (no separators). The pattern
+    requires separators, so it is not matched (documented residual).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: zoom-get_recording_resource
+      uri: null
+    payload:
+      name: zoom-get_recording_resource
+      text:
+        - "call 2065550100 back"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Red-team — US phone with no space after the closing parenthesis
+    ((206)555-0100). The pattern requires a separator after the area code, so it
+    is not matched (documented residual).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: zoom-get_recording_transcript
+      uri: null
+    payload:
+      name: zoom-get_recording_transcript
+      text:
+        - "reach me at (206)555-0100"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Red-team — bare 9-digit run that could be an unhyphenated SSN. The
+    SSN pattern matches the hyphenated form only, so it passes through
+    (documented residual — bare 9-digit runs collide with meeting IDs).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: zoom-get_meeting_assets
+      uri: null
+    payload:
+      name: zoom-get_meeting_assets
+      text:
+        - "record id 123456789 archived"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Red-team — a near-miss tool name (recordings_list) that contains
+    "recording" but is not one of the four in-scope suffixes. No transform.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: zoom-recordings_list
+      uri: null
+    payload:
+      name: zoom-recordings_list
+      text:
+        - "Owner: sam@example.com"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Red-team — structured MCP content block ({type,text}) rather than a
+    bare string. The policy walks string entries only, so a PII-bearing object
+    block passes through unredacted (documented residual — non-string blocks are
+    not walked; verify your gateway's response shape).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: zoom-get_recording_resource
+      uri: null
+    payload:
+      name: zoom-get_recording_resource
+      text:
+        - type: text
+          text: "email dana@example.com and ssn 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Red-team — a version-suffixed upstream tool (get_recording_resource_v2)
+    is not an exact in-scope suffix, so its response is returned unredacted
+    (documented fail-open residual — a renamed/versioned tool evades the scope
+    list; re-verify verb names after a Zoom MCP upgrade).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: zoom-get_recording_resource_v2
+      uri: null
+    payload:
+      name: zoom-get_recording_resource_v2
+      text:
+        - "Reach Dana at dana@example.com"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Red-team — cross-connector PII pulled through search_zoom (Workday
+    SSN) is out of scope and passes through unredacted (documented residual —
+    fence search_zoom at ingress with a constrain-aggregator companion; this
+    egress policy does not backstop it).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: zoom-search_zoom
+      uri: null
+    payload:
+      name: zoom-search_zoom
+      text:
+        - "Workday record: SSN 123-45-6789 for employee E-4471."
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Red-team (fixed) — space-separated SSN (123 45 6789) read aloud
+    during intake. Phones already caught space-separated form, so an SSN in the
+    same rendering must not leak; the 3-2-4 space form is now redacted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: zoom-get_recording_resource
+      uri: null
+    payload:
+      name: zoom-get_recording_resource
+      text:
+        - "Patient SSN 123 45 6789 confirmed for the record."
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Patient SSN [REDACTED_SSN] confirmed for the record."
+
+- description: Red-team (regression guard) — a Zoom meeting ID in 3-4-4 spaced
+    form (886 1234 5678) must NOT match the 3-2-4 SSN shape, so it is not
+    over-redacted and no transform is emitted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: zoom-get_recording_resource
+      uri: null
+    payload:
+      name: zoom-get_recording_resource
+      text:
+        - "Meeting ID 886 1234 5678 — join to review."
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Red-team — dotted SSN form (123.45.6789). Dotted separators are
+    deliberately excluded (too version/IP-like), so this passes through
+    unredacted (documented residual — hyphen/space 3-2-4 form only).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: zoom-get_meeting_assets
+      uri: null
+    payload:
+      name: zoom-get_meeting_assets
+      text:
+        - "legacy note 123.45.6789 archived"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Red-team (fixed) — egress hook with action=tool_post_invoke but mode
+    unset. The is_egress branch matches on action, so redaction still fires and
+    there is no fail-open leak from an absent mode field.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    resource:
+      type: tool
+      name: zoom-get_recording_resource
+      uri: null
+    payload:
+      name: zoom-get_recording_resource
+      text:
+        - "Reach Dana at dana@example.com"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Reach Dana at [REDACTED_EMAIL]"
+
+- description: Red-team (fixed) — tool name present only under payload.name
+    (resource.name empty, no tool_metadata). payload.name is a candidate surface,
+    so the call is in scope and the SSN is redacted rather than slipping through.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: ""
+      uri: null
+    payload:
+      name: zoom-get_recording_transcript
+      text:
+        - "Patient SSN 123-45-6789 confirmed."
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Patient SSN [REDACTED_SSN] confirmed."
+
+- description: Red-team — an email split across two adjacent content blocks
+    ("dana@" | "example.com"). Each block is scanned independently, so neither
+    half matches the local@domain.tld shape and both pass through unredacted
+    (documented residual — split-across-blocks values are not reassembled before
+    scanning; the agent could rejoin them).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: zoom-get_recording_resource
+      uri: null
+    payload:
+      name: zoom-get_recording_resource
+      text:
+        - "email dana@"
+        - "example.com after the call"
+  output:
+    expectedResult: allow
+  transformApplied: false

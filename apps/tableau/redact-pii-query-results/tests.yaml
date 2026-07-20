@@ -1,0 +1,986 @@
+# Transform-only policy: every case expects allow. The assertions that matter
+# are transformApplied / transformedArgsContain (gate-only keys). Each feeds ONLY
+# the object under `input` to OPA as the input document.
+
+# --- query-datasource: email redacted (non-analyst caller)
+- description: >
+    query-datasource returns a VDS row with an email. In scope, caller not in
+    data-analysts -> email redacted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: tableau-query-datasource
+      uri: null
+    subject:
+      sub: auth0|u1
+      claims:
+        groups:
+          - support
+    payload:
+      name: tableau-query-datasource
+      text:
+        - "cust 42 | contact jane.doe@acme.com booked"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "cust 42 | contact [REDACTED-EMAIL] booked"
+
+# --- get-view-data: separator-formatted US phone redacted
+- description: >
+    get-view-data CSV contains a separator-formatted US phone number. Redacted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: tableau-get-view-data
+      uri: null
+    subject:
+      sub: auth0|u1
+      claims:
+        groups:
+          - support
+    payload:
+      name: tableau-get-view-data
+      text:
+        - "Call the lead at (206) 555-0100 tomorrow"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Call the lead at [REDACTED-PHONE] tomorrow"
+
+# --- get-custom-view-data: hyphenated SSN redacted
+- description: >
+    get-custom-view-data result contains a canonical hyphenated SSN. Redacted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: tableau-get-custom-view-data
+      uri: null
+    subject:
+      sub: auth0|u1
+      claims:
+        groups:
+          - support
+    payload:
+      name: tableau-get-custom-view-data
+      text:
+        - "employee lists SSN 078-05-1120 on record"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "employee lists SSN [REDACTED-SSN] on record"
+
+# --- generate-pulse-insight-brief: Luhn-valid grouped PAN masked to BIN+last4
+- description: >
+    Pulse insight brief narrative contains a grouped 4-4-4-4 PAN. Masked to
+    BIN+last4 with separators dropped.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: tableau-generate-pulse-insight-brief
+      uri: null
+    subject:
+      sub: auth0|u1
+      claims:
+        groups:
+          - support
+    payload:
+      name: tableau-generate-pulse-insight-brief
+      text:
+        - "Q3 revenue tied to card 4111 1111 1111 1111 last month."
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Q3 revenue tied to card 411111******1111 last month."
+
+# --- generate-pulse-metric-value-insight-bundle: all four classes in one block
+- description: >
+    Pulse metric-value insight bundle carries email, phone, SSN, and a Luhn-valid
+    unseparated 16-digit PAN in one block. All four are handled: PAN masked,
+    SSN/phone/email redacted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: tableau-generate-pulse-metric-value-insight-bundle
+      uri: null
+    subject:
+      sub: auth0|u1
+      claims:
+        groups:
+          - support
+    payload:
+      name: tableau-generate-pulse-metric-value-insight-bundle
+      text:
+        - "cust 42 | jane@acme.com | 206-555-0100 | ssn 540-12-3456 | 4111111111111111"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "cust 42 | [REDACTED-EMAIL] | [REDACTED-PHONE] | ssn [REDACTED-SSN] | 411111******1111"
+
+# --- Amex 4-6-5 PAN masked
+- description: >
+    query-datasource returns an Amex-shaped 15-digit PAN grouped 4-6-5 (34/37
+    IIN). Masked to BIN+last4.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: tableau-query-datasource
+      uri: null
+    subject:
+      sub: auth0|u1
+      claims:
+        groups:
+          - support
+    payload:
+      name: tableau-query-datasource
+      text:
+        - "card on file: 3782 822463 10005"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "card on file: 378282*****0005"
+
+# --- Exempt: data-analysts group (array) sees raw content, no transform
+- description: >
+    Caller is in the placeholder data-analysts group. Response passes through
+    unredacted/unmasked — the transform rule is undefined.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: tableau-get-view-data
+      uri: null
+    subject:
+      sub: auth0|u2
+      claims:
+        groups:
+          - data-analysts
+    payload:
+      name: tableau-get-view-data
+      text:
+        - "cust 42,jane@acme.com,4111111111111111"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+# --- Exempt: data-analysts as a bare string groups claim
+- description: >
+    IdP emits the groups claim as a bare string equal to data-analysts. Cleared
+    — no redaction.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: tableau-query-datasource
+      uri: null
+    subject:
+      sub: auth0|u3
+      claims:
+        groups: data-analysts
+    payload:
+      name: tableau-query-datasource
+      text:
+        - "SSN 123-45-6789 for onboarding"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+# --- Non-exempt group present but not data-analysts -> redaction applies
+- description: >
+    Caller has a groups array without data-analysts. SSN is redacted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: tableau-query-datasource
+      uri: null
+    subject:
+      sub: auth0|u4
+      claims:
+        groups:
+          - analysts
+    payload:
+      name: tableau-query-datasource
+      text:
+        - "SSN 123-45-6789 for onboarding"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "SSN [REDACTED-SSN] for onboarding"
+
+# --- Fail-closed: no subject at all -> still redacted
+- description: >
+    Response with no subject block. The exemption is fail-closed, so PII is
+    still redacted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: tableau-query-datasource
+      uri: null
+    payload:
+      name: tableau-query-datasource
+      text:
+        - "contact jane@acme.com in row 1"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "contact [REDACTED-EMAIL] in row 1"
+
+# --- Fail-closed: malformed groups claim (object, not array/string)
+- description: >
+    groups claim is an object, not an array or string. The is_array/is_string
+    guards keep the exemption fail-closed, so redaction applies.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: tableau-get-view-data
+      uri: null
+    subject:
+      sub: auth0|u5
+      claims:
+        groups:
+          role: data-analysts
+    payload:
+      name: tableau-get-view-data
+      text:
+        - "SSN 078-05-1120 seen"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "SSN [REDACTED-SSN] seen"
+
+# --- Out-of-scope image tool: get-view-image is NOT touched (denied at ingress)
+- description: >
+    get-view-image returns a PNG and is deliberately out of scope for this
+    egress redaction (denied at ingress by fence-datasource-scope). Even with a
+    PII-shaped string present, no transform fires.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: tableau-get-view-image
+      uri: null
+    subject:
+      sub: auth0|u1
+      claims:
+        groups:
+          - support
+    payload:
+      name: tableau-get-view-image
+      text:
+        - "alt text: contact jane@acme.com"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+# --- Out-of-scope image tool: get-custom-view-image not touched
+- description: >
+    get-custom-view-image (PNG) is out of scope; a PAN-shaped string in an
+    accompanying text block is not masked here.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: tableau-get-custom-view-image
+      uri: null
+    subject:
+      sub: auth0|u1
+      claims:
+        groups:
+          - support
+    payload:
+      name: tableau-get-custom-view-image
+      text:
+        - "render note 4111111111111111"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+# --- Out-of-scope metadata tool: list-datasources not touched
+- description: >
+    A catalog/metadata tool (list-datasources) does not carry row-level data and
+    is out of scope. No transform even if an SSN-looking string appears.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: tableau-list-datasources
+      uri: null
+    payload:
+      name: tableau-list-datasources
+      text:
+        - "owner SSN: 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+# --- Ingress-mode call to a matching name: only fires on output path
+- description: >
+    Ingress (tool_pre_invoke) call to a matching tool name. The policy only
+    fires on the output path, so no transform is applied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: tableau-query-datasource
+      uri: null
+    payload:
+      name: tableau-query-datasource
+      args:
+        datasourceLuid: abc-123
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+# --- Clean in-scope response: no PII -> no transform
+- description: >
+    Clean response from an in-scope tool — no patterns match, so no transform is
+    emitted and the response passes through unchanged.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: tableau-query-datasource
+      uri: null
+    subject:
+      sub: auth0|u1
+      claims:
+        groups:
+          - support
+    payload:
+      name: tableau-query-datasource
+      text:
+        - "Quarterly revenue totals attached, no personal data."
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+# --- Luhn-invalid digit run: not a PAN, no transform
+- description: >
+    A Luhn-invalid 16-digit run (bad check digit) is not a PAN and no other PII
+    is present. No transform; response returned byte-identical.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: tableau-query-datasource
+      uri: null
+    subject:
+      sub: auth0|u1
+      claims:
+        groups:
+          - support
+    payload:
+      name: tableau-query-datasource
+      text:
+        - "row id 4111111111111112 in export"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+# --- Mixed content blocks: string redacted, non-string preserved, clean string kept
+- description: >
+    A string block with an SSN, a non-string structured block, and a clean
+    string. Only the matching string is rewritten; the other blocks are kept.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: tableau-get-view-data
+      uri: null
+    subject:
+      sub: auth0|u1
+      claims:
+        groups:
+          - support
+    payload:
+      name: tableau-get-view-data
+      text:
+        - "Contact SSN: 078-05-1120"
+        - type: resource
+          uri: tableau://view/1
+        - no pii here
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Contact SSN: [REDACTED-SSN]"
+      - type: resource
+        uri: tableau://view/1
+      - no pii here
+
+# --- tool_metadata.name fallback (resource.name empty)
+- description: >
+    Tool name only available via tool_metadata.name (resource name empty). The
+    fallback branch matches and redaction applies.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: ""
+      uri: null
+    tool_metadata:
+      name: tableau-get-view-data
+    subject:
+      sub: auth0|u1
+      claims:
+        groups:
+          - support
+    payload:
+      name: tableau-get-view-data
+      text:
+        - "Payroll SSN 078-05-1120"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Payroll SSN [REDACTED-SSN]"
+
+# --- Mixed-case tool name still matches
+- description: >
+    Tool name in mixed case. Matching is case-insensitive, so redaction still
+    applies.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: Tableau-Query-Datasource
+      uri: null
+    subject:
+      sub: auth0|u1
+      claims:
+        groups:
+          - support
+    payload:
+      name: Tableau-Query-Datasource
+      text:
+        - "SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "SSN [REDACTED-SSN]"
+
+# --- In-scope tool, payload.text is a bare string (non-array) -> fail-open
+- description: >
+    payload.text delivered as a bare string rather than an array. The transform
+    requires is_array(text_blocks), so it does not fire (documented fail-open).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: tableau-query-datasource
+      uri: null
+    subject:
+      sub: auth0|u1
+      claims:
+        groups:
+          - support
+    payload:
+      name: tableau-query-datasource
+      text: "SSN 123-45-6789 in a bare string"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+# --- In-scope tool with no text array at all
+- description: >
+    In-scope tool whose payload has no text field. Nothing to rewrite — no
+    transform, no error.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: tableau-query-datasource
+      uri: null
+    subject:
+      sub: auth0|u1
+      claims:
+        groups:
+          - support
+    payload:
+      name: tableau-query-datasource
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+# --- Red-team: bare 9-digit SSN run (no hyphens) not matched
+- description: >
+    Red-team — bare 9-digit SSN run with no hyphens. The conservative hyphenated
+    pattern does not match it (documented residual — avoids colliding with row
+    IDs).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: tableau-query-datasource
+      uri: null
+    subject:
+      sub: auth0|u1
+      claims:
+        groups:
+          - support
+    payload:
+      name: tableau-query-datasource
+      text:
+        - "id 123456789 in results"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+# --- Red-team: 20+-digit run has no internal word boundary -> not masked
+- description: >
+    Red-team — a 20-digit run has no internal word boundary, so the 13-19 PAN
+    pattern cannot match it. No transform — a long identifier is never partially
+    masked.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: tableau-query-datasource
+      uri: null
+    subject:
+      sub: auth0|u1
+      claims:
+        groups:
+          - support
+    payload:
+      name: tableau-query-datasource
+      text:
+        - "trace id 41111111111111114567"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+# --- Red-team: SSN with trailing digit glued on -> word-boundary residual
+- description: >
+    Red-team — SSN with an extra trailing digit and no delimiter (123-45-67890).
+    The trailing \b anchor is not satisfied, so it passes through unredacted
+    (documented word-boundary residual).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: tableau-get-view-data
+      uri: null
+    subject:
+      sub: auth0|u1
+      claims:
+        groups:
+          - support
+    payload:
+      name: tableau-get-view-data
+      text:
+        - "ref 123-45-67890 in export"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+# --- Red-team: dot-separated SSN not matched (separator residual)
+- description: >
+    Red-team — dot-separated SSN (123.45.6789). The SSN pattern matches hyphens
+    only and the 3-3-4 phone pattern does not fit a 3-2-4 shape, so it passes
+    through unredacted (documented separator residual).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: tableau-query-datasource
+      uri: null
+    subject:
+      sub: auth0|u1
+      claims:
+        groups:
+          - support
+    payload:
+      name: tableau-query-datasource
+      text:
+        - "ssn 123.45.6789 on file"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+# --- Red-team: email-shaped substring inside a connection string over-matches
+- description: >
+    Red-team — email-shaped substring inside a DSN/connection string. The email
+    pattern over-matches and redacts it (documented residual — safe
+    over-redaction on egress, never disclosure).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: tableau-query-datasource
+      uri: null
+    subject:
+      sub: auth0|u1
+      claims:
+        groups:
+          - support
+    payload:
+      name: tableau-query-datasource
+      text:
+        - "dsn: user:pw@db.internal.example.com"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "dsn: user:[REDACTED-EMAIL]"
+
+# --- Red-team: PAN fused to a word character (underscore) is missed
+- description: >
+    Red-team — a PAN glued directly to a word character (acct_4111111111111111).
+    The \b anchor finds no boundary between an underscore/letter and a digit, so
+    the PAN is not masked (documented word-boundary residual).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: tableau-query-datasource
+      uri: null
+    subject:
+      sub: auth0|u1
+      claims:
+        groups:
+          - support
+    payload:
+      name: tableau-query-datasource
+      text:
+        - "acct_4111111111111111 in ledger"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+# --- Red-team: grouped-PAN shadowing — a leading non-card 4-4 window consumes the
+#     scan so a real trailing grouped PAN leaks (documented shadowing residual)
+- description: >
+    Red-team — two leading 4-digit groups form a non-Luhn 16-digit window that
+    the non-overlapping scanner consumes first; the real grouped PAN in the
+    trailing groups is never isolated and passes through unmasked (documented
+    "adjacent grouped digit windows can shadow a grouped PAN" residual).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: tableau-query-datasource
+      uri: null
+    subject:
+      sub: auth0|u1
+      claims:
+        groups:
+          - support
+    payload:
+      name: tableau-query-datasource
+      text:
+        - "1234 5678 4111 1111 1111 1111"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+# --- Red-team: dot-separated PAN not masked (separator residual)
+- description: >
+    Red-team — a 4-4-4-4 PAN separated by dots (4000.0000.0000.0002). The grouped
+    pattern accepts only space/dash separators and the unseparated pattern needs
+    13+ contiguous digits, so the dotted PAN passes through unmasked (documented
+    "separators other than space/dash" residual).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: tableau-query-datasource
+      uri: null
+    subject:
+      sub: auth0|u1
+      claims:
+        groups:
+          - support
+    payload:
+      name: tableau-query-datasource
+      text:
+        - "card 4000.0000.0000.0002 x"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+# --- Red-team: full-width/Unicode digits not matched (RE2 \d is ASCII-only)
+- description: >
+    Red-team — an SSN written with full-width Unicode digits. RE2 \d matches only
+    ASCII digits, so the value is not recognized and passes through unredacted
+    (documented Unicode/full-width residual).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: tableau-query-datasource
+      uri: null
+    subject:
+      sub: auth0|u1
+      claims:
+        groups:
+          - support
+    payload:
+      name: tableau-query-datasource
+      text:
+        - "ssn ０７８-０５-１１２０ on file"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+# --- Red-team: PII carried inside a native (non-string) object content block leaks
+- description: >
+    Red-team — a content block delivered as a native JSON object (not a string)
+    carrying an SSN and a Luhn-valid PAN in its own "text" field. redact_block
+    passes non-string blocks through untouched, so this fails open (documented
+    "structured/non-string content blocks are not processed" residual).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: tableau-query-datasource
+      uri: null
+    subject:
+      sub: auth0|u1
+      claims:
+        groups:
+          - support
+    payload:
+      name: tableau-query-datasource
+      text:
+        - type: text
+          text: "ssn 078-05-1120 pan 4000000000000002"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+# --- Red-team: Tableau Next (analyze_data, snake_case) is out of scope -> leaks
+- description: >
+    Red-team — the separate Tableau Next product exposes disjoint snake_case
+    tools (analyze_data). Its name ends in none of the in-scope suffixes, so no
+    transform fires and its PII-laden answer reaches the agent unredacted
+    (documented "official web server only — Tableau Next is not covered"
+    residual). Attach a separate egress policy for Tableau Next.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: tableau-next-analyze_data
+      uri: null
+    subject:
+      sub: auth0|u1
+      claims:
+        groups:
+          - support
+    payload:
+      name: tableau-next-analyze_data
+      text:
+        - "customer jane@acme.com ssn 540-12-3456 spent the most"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+# --- Exempt: case-insensitive uppercase group name still matches -> no redaction
+- description: >
+    Red-team — the exempt group is matched case-insensitively, as the description
+    claims. A caller whose groups array holds DATA-ANALYSTS (uppercase) is exempt
+    and receives raw content, so no transform fires.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: tableau-query-datasource
+      uri: null
+    subject:
+      sub: auth0|u6
+      claims:
+        groups:
+          - DATA-ANALYSTS
+    payload:
+      name: tableau-query-datasource
+      text:
+        - "ssn 540-12-3456 on file"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+# --- Fail-closed: groups array holds only a non-string element (no eval error)
+- description: >
+    Red-team — the groups claim is an array whose only element is a number, not a
+    string. lower() on the non-string element yields an undefined binding rather
+    than a hard evaluation error, so is_exempt stays false, the transform is still
+    defined, and redaction applies (fail-closed — no fail-open leak).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: tableau-query-datasource
+      uri: null
+    subject:
+      sub: auth0|u7
+      claims:
+        groups:
+          - 123
+    payload:
+      name: tableau-query-datasource
+      text:
+        - "ssn 540-12-3456 on file"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "ssn [REDACTED-SSN] on file"
+
+# --- Fail-open guard passes: exempt string survives alongside a non-string element
+- description: >
+    Red-team — a mixed groups array carrying a non-string element (123) and the
+    exempt string. The non-string element does not error the rule; the exempt
+    string still matches, so the caller is exempt and no transform fires.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: tableau-query-datasource
+      uri: null
+    subject:
+      sub: auth0|u8
+      claims:
+        groups:
+          - 123
+          - data-analysts
+    payload:
+      name: tableau-query-datasource
+      text:
+        - "ssn 540-12-3456 on file"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+# --- Multi-row CSV in one block: embedded newlines don't defeat per-row matching
+- description: >
+    Red-team — a multi-row CSV delivered as one string block with embedded
+    newlines. \b-anchored patterns match per line, so PII on every row (email on
+    row 2, SSN on row 3, Luhn-valid PAN on row 4) is redacted/masked; newlines do
+    not shield later rows.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: tableau-get-view-data
+      uri: null
+    subject:
+      sub: auth0|u1
+      claims:
+        groups:
+          - support
+    payload:
+      name: tableau-get-view-data
+      text:
+        - "name,detail\njohn,john@a.com\njane,540-12-3456\nacct,4111111111111111"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "name,detail\njohn,[REDACTED-EMAIL]\njane,[REDACTED-SSN]\nacct,411111******1111"

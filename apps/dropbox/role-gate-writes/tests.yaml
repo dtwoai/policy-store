@@ -1,0 +1,786 @@
+# Tests for dropbox.ingress.role_gate_writes
+# Branches covered:
+#   allow  - read tools pass through without any group (ListFolder, GetFileContent, Search, WhoAmI, ListFileRevisions, GetFileRequest)
+#   allow  - each write suffix + caller in dropbox-writers group
+#   deny   - each write suffix across all three dialects without the group
+#   deny   - subject/claims entirely absent (fail closed)
+#   deny   - groups claim non-array string (fail closed)
+#   deny   - empty groups array (fail closed)
+#   allow  - group name matched case-insensitively (DROPBOX-WRITERS)
+#   deny   - gateway server-name prefix still matched by suffix (red team)
+#   allow  - scope boundary: Delete and CreateSharedLink pass through (companion policies own them)
+#   allow  - copy suffix does NOT over-match copy_item / no separator handling
+
+# ---------------------------------------------------------------------------
+# Reads pass through with no group at all.
+
+- description: ListFolder is a read tool — passes through with no writers group.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-ListFolder
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: dropbox-ListFolder
+      args:
+        path: /Projects
+  output:
+    expectedResult: allow
+
+- description: GetFileContent is a read tool — passes through even with no groups claim.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-GetFileContent
+      uri: null
+    payload:
+      name: dropbox-GetFileContent
+      args:
+        path: /Projects/roadmap.pdf
+  output:
+    expectedResult: allow
+
+- description: Search is a read tool — passes through with no writers group.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-Search
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: dropbox-Search
+      args:
+        query: quarterly
+  output:
+    expectedResult: allow
+
+- description: WhoAmI is a read tool — passes through with no groups claim.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-WhoAmI
+      uri: null
+    payload:
+      name: dropbox-WhoAmI
+      args: {}
+  output:
+    expectedResult: allow
+
+- description: ListFileRevisions (revision read) passes through with no writers group.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-ListFileRevisions
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: dropbox-ListFileRevisions
+      args:
+        path: /Projects/roadmap.pdf
+  output:
+    expectedResult: allow
+
+- description: GetFileRequest (file-request read) passes through with no writers group.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-GetFileRequest
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: dropbox-GetFileRequest
+      args:
+        id: fr_123
+  output:
+    expectedResult: allow
+
+# ---------------------------------------------------------------------------
+# Writers-group member is allowed the write tools.
+
+- description: Writers-group member uploads a file (official CreateFile). Allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-CreateFile
+      uri: null
+    subject:
+      sub: google-apps|ops@example.com
+      claims:
+        groups:
+          - dropbox-writers
+    payload:
+      name: dropbox-CreateFile
+      args:
+        path: /Projects/notes.txt
+        content: hello
+  output:
+    expectedResult: allow
+
+- description: Writers-group member creates a folder (official CreateFolder). Allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-CreateFolder
+      uri: null
+    subject:
+      sub: google-apps|ops@example.com
+      claims:
+        groups:
+          - dropbox-writers
+    payload:
+      name: dropbox-CreateFolder
+      args:
+        path: /Projects/new
+  output:
+    expectedResult: allow
+
+- description: Writers-group member restores a folder (official RestoreFolder). Allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-RestoreFolder
+      uri: null
+    subject:
+      sub: google-apps|ops@example.com
+      claims:
+        groups:
+          - dropbox-writers
+    payload:
+      name: dropbox-RestoreFolder
+      args:
+        path: /Projects
+  output:
+    expectedResult: allow
+
+- description: Writers-group member uploads via community upload_file (dbx-mcp-server). Allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-upload_file
+      uri: null
+    subject:
+      sub: google-apps|ops@example.com
+      claims:
+        groups:
+          - dropbox-writers
+    payload:
+      name: dropbox-upload_file
+      args:
+        path: /Projects/x.bin
+        content: aGVsbG8=
+  output:
+    expectedResult: allow
+
+- description: Group name matched case-insensitively (DROPBOX-WRITERS) on a write. Allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-CreateFolder
+      uri: null
+    subject:
+      sub: google-apps|ops@example.com
+      claims:
+        groups:
+          - DROPBOX-WRITERS
+    payload:
+      name: dropbox-CreateFolder
+      args:
+        path: /Projects/new
+  output:
+    expectedResult: allow
+
+# ---------------------------------------------------------------------------
+# Writes denied for callers lacking the group — every dialect / suffix.
+
+- description: Official CreateFolder, caller lacks writers group. Deny with reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-CreateFolder
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: dropbox-CreateFolder
+      args:
+        path: /Projects/new
+  output:
+    expectedResult: deny
+    expectedReason: "This Dropbox tool writes to the workspace (create, upload, copy, move, or restore) and is limited to members of the 'dropbox-writers' group; your account has read-only Dropbox access on the agent path. Ask your Dropbox administrator to add you to the 'dropbox-writers' group if you need write access. Contact your InfoSec team if this restriction looks wrong."
+
+- description: Official CreateFile, caller lacks writers group. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-CreateFile
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: dropbox-CreateFile
+      args:
+        path: /Projects/notes.txt
+        content: hello
+  output:
+    expectedResult: deny
+
+- description: Official Copy, caller lacks writers group. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-Copy
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: dropbox-Copy
+      args:
+        from_path: /a
+        to_path: /b
+  output:
+    expectedResult: deny
+
+- description: Official Move, caller lacks writers group. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-Move
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: dropbox-Move
+      args:
+        from_path: /a
+        to_path: /b
+  output:
+    expectedResult: deny
+
+- description: Official RestoreFileRevision, caller lacks writers group. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-RestoreFileRevision
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: dropbox-RestoreFileRevision
+      args:
+        path: /a
+        rev: abc123
+  output:
+    expectedResult: deny
+
+- description: Official RestoreFolder, caller lacks writers group. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-RestoreFolder
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: dropbox-RestoreFolder
+      args:
+        path: /Projects
+  output:
+    expectedResult: deny
+
+- description: Community create_folder (dbx-mcp-server), caller lacks writers group. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-create_folder
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: dropbox-create_folder
+      args:
+        path: /Projects/new
+  output:
+    expectedResult: deny
+
+- description: Community upload_file (dbx-mcp-server), caller lacks writers group. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-upload_file
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: dropbox-upload_file
+      args:
+        path: /Projects/x.bin
+        content: aGVsbG8=
+  output:
+    expectedResult: deny
+
+- description: Community copy_item (dbx-mcp-server), caller lacks writers group. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-copy_item
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: dropbox-copy_item
+      args:
+        src: /a
+        dest: /b
+  output:
+    expectedResult: deny
+
+- description: Community move_item (dbx-mcp-server), caller lacks writers group. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-move_item
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: dropbox-move_item
+      args:
+        src: /a
+        dest: /b
+  output:
+    expectedResult: deny
+
+- description: Community ngs dropbox_upload, caller lacks writers group. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-dropbox_upload
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: dropbox-dropbox_upload
+      args:
+        path: /Projects/x.bin
+        content: aGVsbG8=
+  output:
+    expectedResult: deny
+
+- description: Community ngs dropbox_create_folder, caller lacks writers group. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-dropbox_create_folder
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: dropbox-dropbox_create_folder
+      args:
+        path: /Projects/new
+  output:
+    expectedResult: deny
+
+- description: Community ngs dropbox_copy, caller lacks writers group. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-dropbox_copy
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: dropbox-dropbox_copy
+      args:
+        src: /a
+        dest: /b
+  output:
+    expectedResult: deny
+
+- description: Community ngs dropbox_move, caller lacks writers group. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-dropbox_move
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: dropbox-dropbox_move
+      args:
+        src: /a
+        dest: /b
+  output:
+    expectedResult: deny
+
+- description: Community ngs dropbox_restore_file, caller lacks writers group. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-dropbox_restore_file
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: dropbox-dropbox_restore_file
+      args:
+        path: /a
+        revision: abc123
+  output:
+    expectedResult: deny
+
+# ---------------------------------------------------------------------------
+# Fail-closed identity cases.
+
+- description: No subject/claims at all on a write — grant fails closed. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-CreateFolder
+      uri: null
+    payload:
+      name: dropbox-CreateFolder
+      args:
+        path: /Projects/new
+  output:
+    expectedResult: deny
+
+- description: Groups claim is a non-array string (malformed) on a write — iteration fails, grant fails closed. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-CreateFolder
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups: dropbox-writers
+    payload:
+      name: dropbox-CreateFolder
+      args:
+        path: /Projects/new
+  output:
+    expectedResult: deny
+
+- description: Empty groups array on a write — grant fails closed. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-CreateFolder
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups: []
+    payload:
+      name: dropbox-CreateFolder
+      args:
+        path: /Projects/new
+  output:
+    expectedResult: deny
+
+# ---------------------------------------------------------------------------
+# Red team + scope-boundary cases.
+
+- description: Red team — full gateway server-name prefix still matched by suffix on a write. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-mcp-server-CreateFile
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: dropbox-mcp-server-CreateFile
+      args:
+        path: /Projects/notes.txt
+        content: hello
+  output:
+    expectedResult: deny
+
+- description: Scope boundary — Delete is intentionally NOT gated here (destructive-freeze owns it); passes through even for a read-only caller. Allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-Delete
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: dropbox-Delete
+      args:
+        path: /Projects/old.txt
+  output:
+    expectedResult: allow
+
+- description: Scope boundary — CreateSharedLink is intentionally NOT gated here (guard-share-links owns it); passes through this policy. Allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-CreateSharedLink
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: dropbox-CreateSharedLink
+      args:
+        path: /Projects/roadmap.pdf
+  output:
+    expectedResult: allow
+
+# ---------------------------------------------------------------------------
+# Red team (reviewer) — tool-name normalization.
+
+- description: Red team — trailing space padded onto a write tool name must not evade the suffix match (trim_space). Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "dropbox-CreateFile "
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: "dropbox-CreateFile "
+      args:
+        path: /Projects/notes.txt
+        content: hello
+  output:
+    expectedResult: deny
+
+- description: Red team — trailing newline padded onto a write tool name must not evade the suffix match (trim_space). Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "dropbox-CreateFolder\n"
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: "dropbox-CreateFolder\n"
+      args:
+        path: /Projects/new
+  output:
+    expectedResult: deny
+
+- description: Red team — leading whitespace on a write tool name must not evade the suffix match (trim_space). Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "  dropbox-upload_file"
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: "  dropbox-upload_file"
+      args:
+        path: /Projects/x.bin
+        content: aGVsbG8=
+  output:
+    expectedResult: deny
+
+- description: Documented residual — a non-standard prefix separator (dot) is NOT matched by the -/_ suffix test, so the write passes through ungated (Known limitations). Allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox.CreateFile
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: dropbox.CreateFile
+      args:
+        path: /Projects/notes.txt
+        content: hello
+  output:
+    expectedResult: allow

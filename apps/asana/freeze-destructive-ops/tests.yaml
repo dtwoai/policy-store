@@ -1,0 +1,634 @@
+# Reason string is identical across every deny case; anchored here for reuse.
+- description: "Red-team under-match (FIXED): bare-verb delete_section behind the
+    gateway prefix (asana-delete_section) with NO community asana_ tool prefix.
+    Before the fix the suffix was asana_delete_section, so this bare official-style
+    name slipped through and was allowed; the bare-verb suffix now catches it —
+    deny for non-admin."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: asana-delete_section
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - marketing
+    payload:
+      name: asana-delete_section
+      args:
+        section_id: "1209999"
+  output:
+    expectedResult: deny
+    expectedReason: "This Asana deletion is blocked because deletions over MCP are irreversible: delete_task permanently removes a task and its non-shared subtasks with no trash-restore path, so a destroyed record survives nowhere else. Route this request through a member of your Asana admin group (placeholder: asana-admins) instead. If you believe this block is a false positive, ask your InfoSec team to add you to that group."
+- description: "Red-team under-match (FIXED): bare-verb delete_tag behind the gateway
+    prefix (asana-delete_tag). Now caught by the bare-verb suffix — deny."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: asana-delete_tag
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - marketing
+    payload:
+      name: asana-delete_tag
+      args:
+        tag_id: "1207777"
+  output:
+    expectedResult: deny
+    expectedReason: "This Asana deletion is blocked because deletions over MCP are irreversible: delete_task permanently removes a task and its non-shared subtasks with no trash-restore path, so a destroyed record survives nowhere else. Route this request through a member of your Asana admin group (placeholder: asana-admins) instead. If you believe this block is a false positive, ask your InfoSec team to add you to that group."
+- description: "Red-team under-match (FIXED): bare-verb delete_project_status behind
+    the gateway prefix (asana-delete_project_status). Now caught — deny."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: asana-delete_project_status
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - marketing
+    payload:
+      name: asana-delete_project_status
+      args:
+        project_status_gid: "1208888"
+  output:
+    expectedResult: deny
+    expectedReason: "This Asana deletion is blocked because deletions over MCP are irreversible: delete_task permanently removes a task and its non-shared subtasks with no trash-restore path, so a destroyed record survives nowhere else. Route this request through a member of your Asana admin group (placeholder: asana-admins) instead. If you believe this block is a false positive, ask your InfoSec team to add you to that group."
+- description: "Bare-verb delete_section by an asana-admins member — admin branch
+    still allows after the suffix broadening (no regression)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: asana-delete_section
+      uri: null
+    subject:
+      sub: admin@example.com
+      claims:
+        groups:
+          - asana-admins
+    payload:
+      name: asana-delete_section
+      args:
+        section_id: "1209999"
+  output:
+    expectedResult: allow
+- description: Read tool (get_task) outside the destructive set, caller has no
+    claims at all. Pass-through allow branch.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: asana-get_task
+      uri: null
+    payload:
+      name: asana-get_task
+      args:
+        task_id: "1201234567890"
+  output:
+    expectedResult: allow
+- description: Non-destructive write (create_tasks, official batch) is not gated.
+    Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: asana-create_tasks
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - marketing
+    payload:
+      name: asana-create_tasks
+      args:
+        data: []
+  output:
+    expectedResult: allow
+- description: Community non-destructive write (asana_update_task) is not gated.
+    Note asana_update_task does not end with any destructive suffix. Allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: asana-asana_update_task
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - marketing
+    payload:
+      name: asana-asana_update_task
+      args:
+        task_id: "1201234567890"
+        completed: true
+  output:
+    expectedResult: allow
+- description: Official delete_task by a non-admin. delete_task suffix matches.
+    Deny with reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: asana-delete_task
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - marketing
+    payload:
+      name: asana-delete_task
+      args:
+        task_id: "1201234567890"
+  output:
+    expectedResult: deny
+    expectedReason: "This Asana deletion is blocked because deletions over MCP are irreversible: delete_task permanently removes a task and its non-shared subtasks with no trash-restore path, so a destroyed record survives nowhere else. Route this request through a member of your Asana admin group (placeholder: asana-admins) instead. If you believe this block is a false positive, ask your InfoSec team to add you to that group."
+- description: Community asana_delete_task by a non-admin. Ends with delete_task,
+    so the same suffix catches it. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: asana-asana_delete_task
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: asana-asana_delete_task
+      args:
+        task_id: "1201234567890"
+  output:
+    expectedResult: deny
+    expectedReason: "This Asana deletion is blocked because deletions over MCP are irreversible: delete_task permanently removes a task and its non-shared subtasks with no trash-restore path, so a destroyed record survives nowhere else. Route this request through a member of your Asana admin group (placeholder: asana-admins) instead. If you believe this block is a false positive, ask your InfoSec team to add you to that group."
+- description: delete_task by an asana-admins member (among other groups). Admin
+    branch allows the call.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: asana-delete_task
+      uri: null
+    subject:
+      sub: admin@example.com
+      claims:
+        groups:
+          - engineering
+          - asana-admins
+    payload:
+      name: asana-delete_task
+      args:
+        task_id: "1201234567890"
+  output:
+    expectedResult: allow
+- description: Community asana_delete_section by a non-admin. Community-only
+    destructive suffix matches. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: asana-asana_delete_section
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - marketing
+    payload:
+      name: asana-asana_delete_section
+      args:
+        section_id: "1209999"
+  output:
+    expectedResult: deny
+    expectedReason: "This Asana deletion is blocked because deletions over MCP are irreversible: delete_task permanently removes a task and its non-shared subtasks with no trash-restore path, so a destroyed record survives nowhere else. Route this request through a member of your Asana admin group (placeholder: asana-admins) instead. If you believe this block is a false positive, ask your InfoSec team to add you to that group."
+- description: Community asana_delete_project_status by a non-admin. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: asana-asana_delete_project_status
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - sales
+    payload:
+      name: asana-asana_delete_project_status
+      args:
+        project_status_gid: "1208888"
+  output:
+    expectedResult: deny
+    expectedReason: "This Asana deletion is blocked because deletions over MCP are irreversible: delete_task permanently removes a task and its non-shared subtasks with no trash-restore path, so a destroyed record survives nowhere else. Route this request through a member of your Asana admin group (placeholder: asana-admins) instead. If you believe this block is a false positive, ask your InfoSec team to add you to that group."
+- description: Community asana_delete_tag by a non-admin. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: asana-asana_delete_tag
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - marketing
+    payload:
+      name: asana-asana_delete_tag
+      args:
+        tag_id: "1207777"
+  output:
+    expectedResult: deny
+    expectedReason: "This Asana deletion is blocked because deletions over MCP are irreversible: delete_task permanently removes a task and its non-shared subtasks with no trash-restore path, so a destroyed record survives nowhere else. Route this request through a member of your Asana admin group (placeholder: asana-admins) instead. If you believe this block is a false positive, ask your InfoSec team to add you to that group."
+- description: asana_delete_section by an asana-admins member. Admin branch allows.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: asana-asana_delete_section
+      uri: null
+    subject:
+      sub: admin@example.com
+      claims:
+        groups:
+          - asana-admins
+    payload:
+      name: asana-asana_delete_section
+      args:
+        section_id: "1209999"
+  output:
+    expectedResult: allow
+- description: Bare (unprefixed/local) official delete_task, non-admin. Suffix
+    match still fires without a gateway prefix. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: delete_task
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - marketing
+    payload:
+      name: delete_task
+      args:
+        task_id: "1201234567890"
+  output:
+    expectedResult: deny
+    expectedReason: "This Asana deletion is blocked because deletions over MCP are irreversible: delete_task permanently removes a task and its non-shared subtasks with no trash-restore path, so a destroyed record survives nowhere else. Route this request through a member of your Asana admin group (placeholder: asana-admins) instead. If you believe this block is a false positive, ask your InfoSec team to add you to that group."
+- description: Mixed-case tool name (Asana-Delete_Task) must still match — matching
+    is case-insensitive. Deny for non-admin.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: Asana-Delete_Task
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - marketing
+    payload:
+      name: Asana-Delete_Task
+      args:
+        task_id: "1201234567890"
+  output:
+    expectedResult: deny
+    expectedReason: "This Asana deletion is blocked because deletions over MCP are irreversible: delete_task permanently removes a task and its non-shared subtasks with no trash-restore path, so a destroyed record survives nowhere else. Route this request through a member of your Asana admin group (placeholder: asana-admins) instead. If you believe this block is a false positive, ask your InfoSec team to add you to that group."
+- description: delete_task with no subject block at all (no IdP claims reached the
+    gateway). Fails closed — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: asana-delete_task
+      uri: null
+    payload:
+      name: asana-delete_task
+      args:
+        task_id: "1201234567890"
+  output:
+    expectedResult: deny
+    expectedReason: "This Asana deletion is blocked because deletions over MCP are irreversible: delete_task permanently removes a task and its non-shared subtasks with no trash-restore path, so a destroyed record survives nowhere else. Route this request through a member of your Asana admin group (placeholder: asana-admins) instead. If you believe this block is a false positive, ask your InfoSec team to add you to that group."
+- description: Claims present but the groups claim is missing entirely. Fails
+    closed — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: asana-delete_task
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        org_id: org_abc123
+    payload:
+      name: asana-delete_task
+      args:
+        task_id: "1201234567890"
+  output:
+    expectedResult: deny
+    expectedReason: "This Asana deletion is blocked because deletions over MCP are irreversible: delete_task permanently removes a task and its non-shared subtasks with no trash-restore path, so a destroyed record survives nowhere else. Route this request through a member of your Asana admin group (placeholder: asana-admins) instead. If you believe this block is a false positive, ask your InfoSec team to add you to that group."
+- description: "Placeholder-claim spoofing surface: groups is a bare string
+    (\"asana-admins\") instead of an array. Membership iteration over a string
+    fails closed — deny."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: asana-delete_task
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups: asana-admins
+    payload:
+      name: asana-delete_task
+      args:
+        task_id: "1201234567890"
+  output:
+    expectedResult: deny
+    expectedReason: "This Asana deletion is blocked because deletions over MCP are irreversible: delete_task permanently removes a task and its non-shared subtasks with no trash-restore path, so a destroyed record survives nowhere else. Route this request through a member of your Asana admin group (placeholder: asana-admins) instead. If you believe this block is a false positive, ask your InfoSec team to add you to that group."
+- description: "Red-team type confusion: resource.name is a non-string (number)
+    while payload.name carries a real delete_task. Independent matching means the
+    malformed resource.name cannot suppress the delete — deny (fail-closed)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: 42
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - marketing
+    payload:
+      name: asana-delete_task
+      args:
+        task_id: "1201234567890"
+  output:
+    expectedResult: deny
+    expectedReason: "This Asana deletion is blocked because deletions over MCP are irreversible: delete_task permanently removes a task and its non-shared subtasks with no trash-restore path, so a destroyed record survives nowhere else. Route this request through a member of your Asana admin group (placeholder: asana-admins) instead. If you believe this block is a false positive, ask your InfoSec team to add you to that group."
+- description: "Red-team type confusion: payload.name is a non-string (array)
+    while resource.name carries a real asana_delete_tag. Independent matching
+    still catches the destructive suffix — deny (fail-closed)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: asana-asana_delete_tag
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - marketing
+    payload:
+      name:
+        - malformed
+      args:
+        tag_id: "1207777"
+  output:
+    expectedResult: deny
+    expectedReason: "This Asana deletion is blocked because deletions over MCP are irreversible: delete_task permanently removes a task and its non-shared subtasks with no trash-restore path, so a destroyed record survives nowhere else. Route this request through a member of your Asana admin group (placeholder: asana-admins) instead. If you believe this block is a false positive, ask your InfoSec team to add you to that group."
+- description: "Red-team type confusion: resource.name is null while payload.name
+    carries a real delete_task. null coerces to empty string, payload branch
+    still matches — deny (fail-closed)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: null
+      uri: null
+    payload:
+      name: asana-delete_task
+      args:
+        task_id: "1201234567890"
+  output:
+    expectedResult: deny
+    expectedReason: "This Asana deletion is blocked because deletions over MCP are irreversible: delete_task permanently removes a task and its non-shared subtasks with no trash-restore path, so a destroyed record survives nowhere else. Route this request through a member of your Asana admin group (placeholder: asana-admins) instead. If you believe this block is a false positive, ask your InfoSec team to add you to that group."
+- description: "Red-team near-miss: a plural bulk name ending in delete_tasks does
+    NOT end with the delete_task suffix, so it is not gated by this policy (a
+    documented limitation — cover with a batch/write policy). Allow."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: asana-bulk_delete_tasks
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - marketing
+    payload:
+      name: asana-bulk_delete_tasks
+      args:
+        task_ids: []
+  output:
+    expectedResult: allow
+- description: "Red-team suffix evasion (FIXED): tool name padded with a trailing
+    newline (asana-delete_task\\n). trim_space strips it before the endswith check,
+    so the destructive suffix still matches — deny for non-admin."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "asana-delete_task\n"
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - marketing
+    payload:
+      name: "asana-delete_task\n"
+      args:
+        task_id: "1201234567890"
+  output:
+    expectedResult: deny
+    expectedReason: "This Asana deletion is blocked because deletions over MCP are irreversible: delete_task permanently removes a task and its non-shared subtasks with no trash-restore path, so a destroyed record survives nowhere else. Route this request through a member of your Asana admin group (placeholder: asana-admins) instead. If you believe this block is a false positive, ask your InfoSec team to add you to that group."
+- description: "Red-team suffix evasion (FIXED): tool name padded with a trailing
+    space (\"asana-delete_task \"). trim_space strips it before matching — deny."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "asana-delete_task "
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - marketing
+    payload:
+      name: "asana-delete_task "
+      args:
+        task_id: "1201234567890"
+  output:
+    expectedResult: deny
+    expectedReason: "This Asana deletion is blocked because deletions over MCP are irreversible: delete_task permanently removes a task and its non-shared subtasks with no trash-restore path, so a destroyed record survives nowhere else. Route this request through a member of your Asana admin group (placeholder: asana-admins) instead. If you believe this block is a false positive, ask your InfoSec team to add you to that group."
+- description: "Red-team admin-gate fail-open (FIXED): groups claim is an OBJECT
+    whose values include the admin group name ({\"0\":\"asana-admins\"}). Without the
+    is_array guard, `some group in groups` would iterate object values and grant
+    admin; the guard forces this non-array shape to fail closed — deny."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: asana-delete_task
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          "0": asana-admins
+    payload:
+      name: asana-delete_task
+      args:
+        task_id: "1201234567890"
+  output:
+    expectedResult: deny
+    expectedReason: "This Asana deletion is blocked because deletions over MCP are irreversible: delete_task permanently removes a task and its non-shared subtasks with no trash-restore path, so a destroyed record survives nowhere else. Route this request through a member of your Asana admin group (placeholder: asana-admins) instead. If you believe this block is a false positive, ask your InfoSec team to add you to that group."
+- description: "Red-team suffix evasion (regression): tool name padded with a
+    trailing NBSP (U+00A0, \"asana-delete_task\\xA0\"). trim_space uses Go
+    unicode.IsSpace, which treats NBSP as whitespace, so it is stripped before the
+    endswith check and the suffix still matches — deny. Locks in that the
+    whitespace normalization is Unicode-aware, not ASCII-only."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "asana-delete_task\xA0"
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - marketing
+    payload:
+      name: "asana-delete_task\xA0"
+      args:
+        task_id: "1201234567890"
+  output:
+    expectedResult: deny
+    expectedReason: "This Asana deletion is blocked because deletions over MCP are irreversible: delete_task permanently removes a task and its non-shared subtasks with no trash-restore path, so a destroyed record survives nowhere else. Route this request through a member of your Asana admin group (placeholder: asana-admins) instead. If you believe this block is a false positive, ask your InfoSec team to add you to that group."
+- description: "Red-team claim spoofing (regression): groups is an ARRAY whose one
+    element is an object carrying the admin name ([{\"name\":\"asana-admins\"}]).
+    is_array passes, but the element is an object, not the string \"asana-admins\",
+    so `group == admin_group` is false and the admin branch fails closed — deny.
+    Complements the string-groups and object-container-groups spoof cases."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: asana-delete_task
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - name: asana-admins
+    payload:
+      name: asana-delete_task
+      args:
+        task_id: "1201234567890"
+  output:
+    expectedResult: deny
+    expectedReason: "This Asana deletion is blocked because deletions over MCP are irreversible: delete_task permanently removes a task and its non-shared subtasks with no trash-restore path, so a destroyed record survives nowhere else. Route this request through a member of your Asana admin group (placeholder: asana-admins) instead. If you believe this block is a false positive, ask your InfoSec team to add you to that group."
+- description: "Red-team residual (DOCUMENTED, not fixed): a trailing zero-width
+    space (U+200B) after the verb is a non-whitespace code point that trim_space
+    does NOT strip, so endswith misses and the call passes through. This is not a
+    real evasion — a padded name does not route to the real delete tool on the
+    gateway — but it documents the exact-suffix boundary. Allow."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "asana-delete_task​"
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - marketing
+    payload:
+      name: "asana-delete_task​"
+      args:
+        task_id: "1201234567890"
+  output:
+    expectedResult: allow

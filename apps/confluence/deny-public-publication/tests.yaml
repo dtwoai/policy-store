@@ -1,0 +1,467 @@
+# Tests for confluence/deny-public-publication (package confluence.ingress.deny_public_publication).
+# Covers every rule branch: non-publish passthrough, blog block, public-space
+# block (official spaceId + community space_id fallback), allowed-create draft
+# transform, comms exemption (deny + transform), community tool names, update
+# never-transformed, joined multi-reason, and fail-closed / null-safe edges.
+
+- description: Non-publish Confluence tool (read) passes through untouched, no transform.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-getconfluencepage
+      uri: null
+    subject:
+      sub: google-apps|agent@acme.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: atlassian-getconfluencepage
+      args:
+        pageId: "12345"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Agent (non-comms) creates an org-wide blog on the official tool. Deny with the blog reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-createconfluencepage
+      uri: null
+    subject:
+      sub: google-apps|agent@acme.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: atlassian-createconfluencepage
+      args:
+        spaceId: TEAM123
+        title: Q3 launch
+        contentType: blog
+        body: "..."
+  output:
+    expectedResult: deny
+    expectedReason: "This Confluence write publishes a blog post, which broadcasts to your whole organization. Agent-initiated blog posts are blocked. Post it as a regular page in a team space instead, or ask a member of the comms team to publish it. Contact your admin if you believe this is a false positive."
+
+- description: Blog contentType is matched case-insensitively ("BLOG"). Deny with the blog reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-createconfluencepage
+      uri: null
+    subject:
+      sub: google-apps|agent@acme.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: atlassian-createconfluencepage
+      args:
+        spaceId: TEAM123
+        title: Q3 launch
+        contentType: BLOG
+        body: "..."
+  output:
+    expectedResult: deny
+    expectedReason: "This Confluence write publishes a blog post, which broadcasts to your whole organization. Agent-initiated blog posts are blocked. Post it as a regular page in a team space instead, or ask a member of the comms team to publish it. Contact your admin if you believe this is a false positive."
+
+- description: Mixed-case tool-name suffix still matches (lowercased). Blog create by non-comms is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ATLASSIAN-CreateConfluencePage
+      uri: null
+    subject:
+      sub: google-apps|agent@acme.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: ATLASSIAN-CreateConfluencePage
+      args:
+        spaceId: TEAM123
+        contentType: blog
+        body: "..."
+  output:
+    expectedResult: deny
+    expectedReason: "This Confluence write publishes a blog post, which broadcasts to your whole organization. Agent-initiated blog posts are blocked. Post it as a regular page in a team space instead, or ask a member of the comms team to publish it. Contact your admin if you believe this is a false positive."
+
+- description: Agent (non-comms) updates a page in a public / anonymous-access space (official spaceId). Deny with the public-space reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-updateconfluencepage
+      uri: null
+    subject:
+      sub: google-apps|agent@acme.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: atlassian-updateconfluencepage
+      args:
+        spaceId: PUBLIC-SPACE-ID
+        pageId: "123"
+        title: Notice
+        body: "..."
+  output:
+    expectedResult: deny
+    expectedReason: "This Confluence write targets a public or anonymous-access space, which would publish externally visible content. Agent-initiated writes to public spaces are blocked. Move the content to an internal space, or ask a member of the comms team to publish it. Contact your admin if this space should not be treated as public."
+
+- description: Community update tool writes into a public space via the space_id fallback key. Deny with the public-space reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: mcp-atlassian-confluence_update_page
+      uri: null
+    subject:
+      sub: google-apps|agent@acme.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: mcp-atlassian-confluence_update_page
+      args:
+        space_id: ANONYMOUS-SPACE-ID
+        page_id: "123"
+        title: Notice
+        body: "..."
+  output:
+    expectedResult: deny
+    expectedReason: "This Confluence write targets a public or anonymous-access space, which would publish externally visible content. Agent-initiated writes to public spaces are blocked. Move the content to an internal space, or ask a member of the comms team to publish it. Contact your admin if this space should not be treated as public."
+
+- description: Community create tool broadcasts a blog. Deny with the blog reason (community tool-name matching).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: mcp-atlassian-confluence_create_page
+      uri: null
+    subject:
+      sub: google-apps|agent@acme.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: mcp-atlassian-confluence_create_page
+      args:
+        space_id: TEAM123
+        contentType: blog
+        body: "..."
+  output:
+    expectedResult: deny
+    expectedReason: "This Confluence write publishes a blog post, which broadcasts to your whole organization. Agent-initiated blog posts are blocked. Post it as a regular page in a team space instead, or ask a member of the comms team to publish it. Contact your admin if you believe this is a false positive."
+
+- description: Blog into a public space fires both reasons, joined and sorted (blog reason sorts before the public-space reason).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-createconfluencepage
+      uri: null
+    subject:
+      sub: google-apps|agent@acme.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: atlassian-createconfluencepage
+      args:
+        spaceId: PUBLIC-SPACE-ID
+        contentType: blog
+        body: "..."
+  output:
+    expectedResult: deny
+    expectedReason: "This Confluence write publishes a blog post, which broadcasts to your whole organization. Agent-initiated blog posts are blocked. Post it as a regular page in a team space instead, or ask a member of the comms team to publish it. Contact your admin if you believe this is a false positive.; This Confluence write targets a public or anonymous-access space, which would publish externally visible content. Agent-initiated writes to public spaces are blocked. Move the content to an internal space, or ask a member of the comms team to publish it. Contact your admin if this space should not be treated as public."
+
+- description: Ordinary page create by a non-comms agent is allowed but forced to draft + private.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-createconfluencepage
+      uri: null
+    subject:
+      sub: google-apps|agent@acme.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: atlassian-createconfluencepage
+      args:
+        spaceId: TEAM123
+        title: Runbook
+        contentType: page
+        status: current
+        body: "..."
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    status: draft
+    isPrivate: true
+    spaceId: TEAM123
+
+- description: Create with no args at all is null-safe — not a blog, not a public space, so allowed and still forced to draft + private.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-createconfluencepage
+      uri: null
+    subject:
+      sub: google-apps|agent@acme.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: atlassian-createconfluencepage
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    status: draft
+    isPrivate: true
+
+- description: Ordinary page UPDATE by a non-comms agent is allowed and never transformed (updates touch content a human already created).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-updateconfluencepage
+      uri: null
+    subject:
+      sub: google-apps|agent@acme.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: atlassian-updateconfluencepage
+      args:
+        spaceId: TEAM123
+        pageId: "123"
+        title: Runbook v2
+        body: "..."
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Comms-group member may publish an org-wide blog, and their create is not draft-forced (full control).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-createconfluencepage
+      uri: null
+    subject:
+      sub: google-apps|comms-lead@acme.com
+      claims:
+        groups:
+          - comms
+    payload:
+      name: atlassian-createconfluencepage
+      args:
+        spaceId: NEWS
+        title: All-hands recap
+        contentType: blog
+        body: "..."
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Comms-group member may write into a public space (exempt), no transform.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-updateconfluencepage
+      uri: null
+    subject:
+      sub: google-apps|comms-lead@acme.com
+      claims:
+        groups:
+          - comms
+    payload:
+      name: atlassian-updateconfluencepage
+      args:
+        spaceId: PUBLIC-SPACE-ID
+        pageId: "9"
+        body: "..."
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Red-team (fixed) — whitespace-padded contentType " blog\n" is still detected as a blog after trim_space and denied, not treated as an ordinary page.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-createconfluencepage
+      uri: null
+    subject:
+      sub: google-apps|agent@acme.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: atlassian-createconfluencepage
+      args:
+        spaceId: TEAM123
+        title: Q3 launch
+        contentType: " blog\n"
+        body: "..."
+  output:
+    expectedResult: deny
+    expectedReason: "This Confluence write publishes a blog post, which broadcasts to your whole organization. Agent-initiated blog posts are blocked. Post it as a regular page in a team space instead, or ask a member of the comms team to publish it. Contact your admin if you believe this is a false positive."
+
+- description: Red-team (fixed) — community create tool broadcasts a blog via the snake_case content_type key. The blog check reads content_type as a fallback, so this is denied, not treated as an ordinary page.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: mcp-atlassian-confluence_create_page
+      uri: null
+    subject:
+      sub: google-apps|agent@acme.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: mcp-atlassian-confluence_create_page
+      args:
+        space_id: TEAM123
+        title: Q3 launch
+        content_type: blog
+        body: "..."
+  output:
+    expectedResult: deny
+    expectedReason: "This Confluence write publishes a blog post, which broadcasts to your whole organization. Agent-initiated blog posts are blocked. Post it as a regular page in a team space instead, or ask a member of the comms team to publish it. Contact your admin if you believe this is a false positive."
+
+- description: Red-team (documented residual) — a non-comms agent flips its own draft to status:"current" via an update on an internal (non-blog, non-public) page. Updates are never transformed and internal publication is not denied, so this passes through. Blog/public writes remain hard-denied; see Known limitations.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-updateconfluencepage
+      uri: null
+    subject:
+      sub: google-apps|agent@acme.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: atlassian-updateconfluencepage
+      args:
+        spaceId: TEAM123
+        pageId: "123"
+        status: current
+        body: "..."
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Red-team (documented residual) — community confluence_move_page relocating a page INTO a public space is not a matched create/update tool, so it passes through untouched. Out of scope for this policy; freeze/group-gate move on community deployments. See Known limitations.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: mcp-atlassian-confluence_move_page
+      uri: null
+    subject:
+      sub: google-apps|agent@acme.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: mcp-atlassian-confluence_move_page
+      args:
+        page_id: "123"
+        target_space_id: PUBLIC-SPACE-ID
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Red-team (documented residual) — non-comms UPDATE by pageId only (no spaceId) to a page that already lives in a public space is not space-checked, because the space is not part of an update request. Passes through un-transformed. Creates into public spaces are still hard-denied; see Known limitations.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-updateconfluencepage
+      uri: null
+    subject:
+      sub: google-apps|agent@acme.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: atlassian-updateconfluencepage
+      args:
+        pageId: "555"
+        title: Edited notice
+        body: "..."
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Fail-closed — a blog create with no subject/claims at all is not exempt and is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-createconfluencepage
+      uri: null
+    payload:
+      name: atlassian-createconfluencepage
+      args:
+        spaceId: TEAM123
+        contentType: blog
+        body: "..."
+  output:
+    expectedResult: deny
+    expectedReason: "This Confluence write publishes a blog post, which broadcasts to your whole organization. Agent-initiated blog posts are blocked. Post it as a regular page in a team space instead, or ask a member of the comms team to publish it. Contact your admin if you believe this is a false positive."

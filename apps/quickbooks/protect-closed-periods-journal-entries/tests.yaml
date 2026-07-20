@@ -1,0 +1,524 @@
+- description: Read tool (get_journal_entry) by a non-controller — not a write, allowed (out of scope).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: qbo-mcp-get_journal_entry
+      uri: null
+    subject:
+      claims:
+        groups:
+          - ap
+    payload:
+      name: qbo-mcp-get_journal_entry
+      args:
+        id: "42"
+  output:
+    expectedResult: allow
+
+- description: Destructive delete_journal_entry by a non-controller — out of PF-11 scope here (PF-06 freeze-destructive-ops handles it), allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: qbo-mcp-delete_journal_entry
+      uri: null
+    subject:
+      claims:
+        groups:
+          - ap
+    payload:
+      name: qbo-mcp-delete_journal_entry
+      args:
+        id: "42"
+  output:
+    expectedResult: allow
+
+- description: A non-journal-entry create tool (create_invoice) by a non-controller — other create/update tools are out of scope, allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: qbo-mcp-create_invoice
+      uri: null
+    subject:
+      claims:
+        groups:
+          - ap
+    payload:
+      name: qbo-mcp-create_invoice
+      args:
+        customer_ref: "12"
+  output:
+    expectedResult: allow
+
+- description: Create a journal entry with no subject/claims at all — fails closed, denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: qbo-mcp-create_journal_entry
+      uri: null
+    payload:
+      name: qbo-mcp-create_journal_entry
+      args:
+        line_items:
+          - amount: 999999
+  output:
+    expectedResult: deny
+    expectedReason: "Direct journal-entry writes to the QuickBooks general ledger are restricted to the controller role. A manual journal entry restates the ledger without flowing through a normal transaction workflow, so it is gated for segregation of duties. Ask a controller to post the entry, or request the controller group from your finance systems administrator if you believe this is a false positive."
+
+- description: Non-controller group (ap) updates a journal entry — denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: qbo-mcp-update_journal_entry
+      uri: null
+    subject:
+      claims:
+        groups:
+          - ap
+    payload:
+      name: qbo-mcp-update_journal_entry
+      args:
+        id: "7"
+        line_items:
+          - amount: 100
+  output:
+    expectedResult: deny
+    expectedReason: "Direct journal-entry writes to the QuickBooks general ledger are restricted to the controller role. A manual journal entry restates the ledger without flowing through a normal transaction workflow, so it is gated for segregation of duties. Ask a controller to post the entry, or request the controller group from your finance systems administrator if you believe this is a false positive."
+
+- description: Controller group creates a journal entry — allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: qbo-mcp-create_journal_entry
+      uri: null
+    subject:
+      claims:
+        groups:
+          - controller
+    payload:
+      name: qbo-mcp-create_journal_entry
+      args:
+        line_items:
+          - amount: 500
+  output:
+    expectedResult: allow
+
+- description: Controller group updates a journal entry — allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: qbo-mcp-update_journal_entry
+      uri: null
+    subject:
+      claims:
+        groups:
+          - controller
+    payload:
+      name: qbo-mcp-update_journal_entry
+      args:
+        id: "7"
+  output:
+    expectedResult: allow
+
+- description: Mixed-case server-prefixed tool name (QBO-MCP-create_journal_entry) with empty groups — suffix matched case-insensitively, denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: QBO-MCP-create_journal_entry
+      uri: null
+    subject:
+      claims:
+        groups: []
+    payload:
+      name: QBO-MCP-create_journal_entry
+      args:
+        line_items:
+          - amount: 1
+  output:
+    expectedResult: deny
+    expectedReason: "Direct journal-entry writes to the QuickBooks general ledger are restricted to the controller role. A manual journal entry restates the ledger without flowing through a normal transaction workflow, so it is gated for segregation of duties. Ask a controller to post the entry, or request the controller group from your finance systems administrator if you believe this is a false positive."
+
+- description: Controller group name in mixed case (Controller) — matched case-insensitively, allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: qbo-mcp-create_journal_entry
+      uri: null
+    subject:
+      claims:
+        groups:
+          - Controller
+    payload:
+      name: qbo-mcp-create_journal_entry
+      args: {}
+  output:
+    expectedResult: allow
+
+- description: Near-miss group name (controllers) must not satisfy the exact controller membership — denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: qbo-mcp-create_journal_entry
+      uri: null
+    subject:
+      claims:
+        groups:
+          - controllers
+    payload:
+      name: qbo-mcp-create_journal_entry
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "Direct journal-entry writes to the QuickBooks general ledger are restricted to the controller role. A manual journal entry restates the ledger without flowing through a normal transaction workflow, so it is gated for segregation of duties. Ask a controller to post the entry, or request the controller group from your finance systems administrator if you believe this is a false positive."
+
+- description: Red-team — hvkshetry mega-tool `transaction` with operation=create against entity_type JournalEntry by a non-controller. Denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: qbo-mcp-transaction
+      uri: null
+    subject:
+      claims:
+        groups:
+          - ap
+    payload:
+      name: qbo-mcp-transaction
+      args:
+        operation: create
+        entity_type: JournalEntry
+  output:
+    expectedResult: deny
+    expectedReason: "Direct journal-entry writes to the QuickBooks general ledger are restricted to the controller role. A manual journal entry restates the ledger without flowing through a normal transaction workflow, so it is gated for segregation of duties. Ask a controller to post the entry, or request the controller group from your finance systems administrator if you believe this is a false positive."
+
+- description: Red-team — mega-tool `reference` with operation=update against entity_type journal_entry (snake_case) by a non-controller. Normalized, denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: qbo-mcp-reference
+      uri: null
+    subject:
+      claims:
+        groups:
+          - bookkeeper
+    payload:
+      name: qbo-mcp-reference
+      args:
+        operation: update
+        entity_type: journal_entry
+  output:
+    expectedResult: deny
+    expectedReason: "Direct journal-entry writes to the QuickBooks general ledger are restricted to the controller role. A manual journal entry restates the ledger without flowing through a normal transaction workflow, so it is gated for segregation of duties. Ask a controller to post the entry, or request the controller group from your finance systems administrator if you believe this is a false positive."
+
+- description: Red-team — mega-tool `transaction` with operation=create against entity_type "journal entry" (space-separated) by a non-controller. Separators stripped, denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: qbo-mcp-transaction
+      uri: null
+    subject:
+      claims:
+        groups:
+          - ap
+    payload:
+      name: qbo-mcp-transaction
+      args:
+        operation: create
+        entity_type: journal entry
+  output:
+    expectedResult: deny
+    expectedReason: "Direct journal-entry writes to the QuickBooks general ledger are restricted to the controller role. A manual journal entry restates the ledger without flowing through a normal transaction workflow, so it is gated for segregation of duties. Ask a controller to post the entry, or request the controller group from your finance systems administrator if you believe this is a false positive."
+
+- description: Mega-tool `transaction` create JournalEntry with args under the `arguments` container key instead of `args`, non-controller. Merged container still reads it — denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: qbo-mcp-transaction
+      uri: null
+    subject:
+      claims:
+        groups:
+          - ap
+    payload:
+      name: qbo-mcp-transaction
+      arguments:
+        operation: create
+        entity_type: JournalEntry
+  output:
+    expectedResult: deny
+    expectedReason: "Direct journal-entry writes to the QuickBooks general ledger are restricted to the controller role. A manual journal entry restates the ledger without flowing through a normal transaction workflow, so it is gated for segregation of duties. Ask a controller to post the entry, or request the controller group from your finance systems administrator if you believe this is a false positive."
+
+- description: Controller uses the mega-tool `transaction` to create a JournalEntry — allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: qbo-mcp-transaction
+      uri: null
+    subject:
+      claims:
+        groups:
+          - controller
+    payload:
+      name: qbo-mcp-transaction
+      args:
+        operation: create
+        entity_type: JournalEntry
+  output:
+    expectedResult: allow
+
+- description: Mega-tool `transaction` with operation=delete against JournalEntry — delete is out of scope for this policy (PF-06), allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: qbo-mcp-transaction
+      uri: null
+    subject:
+      claims:
+        groups:
+          - ap
+    payload:
+      name: qbo-mcp-transaction
+      args:
+        operation: delete
+        entity_type: JournalEntry
+  output:
+    expectedResult: allow
+
+- description: Mega-tool `transaction` with operation=create against a non-journal-entry entity (Invoice) — not a JE restatement, allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: qbo-mcp-transaction
+      uri: null
+    subject:
+      claims:
+        groups:
+          - ap
+    payload:
+      name: qbo-mcp-transaction
+      args:
+        operation: create
+        entity_type: Invoice
+  output:
+    expectedResult: allow
+
+- description: Red-team — mega-tool `transaction` with no readable operation by a non-controller. Cannot tell it is a JE create/update, allowed (documented residual).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: qbo-mcp-transaction
+      uri: null
+    subject:
+      claims:
+        groups:
+          - ap
+    payload:
+      name: qbo-mcp-transaction
+      args:
+        entity_type: JournalEntry
+  output:
+    expectedResult: allow
+
+- description: Red-team — mega-tool `transaction` with entity_type smuggled as an ARRAY ["JournalEntry"] and operation create, non-controller. Substring match on the normalized token catches the wrapped value — denied (fail-closed).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: qbo-mcp-transaction
+      uri: null
+    subject:
+      claims:
+        groups:
+          - ap
+    payload:
+      name: qbo-mcp-transaction
+      args:
+        operation: create
+        entity_type:
+          - JournalEntry
+  output:
+    expectedResult: deny
+    expectedReason: "Direct journal-entry writes to the QuickBooks general ledger are restricted to the controller role. A manual journal entry restates the ledger without flowing through a normal transaction workflow, so it is gated for segregation of duties. Ask a controller to post the entry, or request the controller group from your finance systems administrator if you believe this is a false positive."
+
+- description: Red-team — mega-tool `transaction` with operation smuggled as an ARRAY ["create"] against entity JournalEntry, non-controller. Substring match on the operation token catches it — denied (fail-closed).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: qbo-mcp-transaction
+      uri: null
+    subject:
+      claims:
+        groups:
+          - ap
+    payload:
+      name: qbo-mcp-transaction
+      args:
+        operation:
+          - create
+        entity_type: JournalEntry
+  output:
+    expectedResult: deny
+    expectedReason: "Direct journal-entry writes to the QuickBooks general ledger are restricted to the controller role. A manual journal entry restates the ledger without flowing through a normal transaction workflow, so it is gated for segregation of duties. Ask a controller to post the entry, or request the controller group from your finance systems administrator if you believe this is a false positive."
+
+- description: Red-team — mega-tool `transaction` with entity_type nested in an OBJECT and operation update, non-controller. Normalized stringification still contains the journalentry token — denied (fail-closed).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: qbo-mcp-transaction
+      uri: null
+    subject:
+      claims:
+        groups:
+          - bookkeeper
+    payload:
+      name: qbo-mcp-transaction
+      args:
+        operation: update
+        entity_type:
+          value: JournalEntry
+  output:
+    expectedResult: deny
+    expectedReason: "Direct journal-entry writes to the QuickBooks general ledger are restricted to the controller role. A manual journal entry restates the ledger without flowing through a normal transaction workflow, so it is gated for segregation of duties. Ask a controller to post the entry, or request the controller group from your finance systems administrator if you believe this is a false positive."
+
+- description: Red-team — mega-tool `transaction` create with entity_type punctuated as "Journal.Entry" to dodge a spaces/underscores/hyphens-only normalizer, non-controller. Stripping every non-alphanumeric char collapses it to journalentry — denied (fail-closed).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: qbo-mcp-transaction
+      uri: null
+    subject:
+      claims:
+        groups:
+          - ap
+    payload:
+      name: qbo-mcp-transaction
+      args:
+        operation: create
+        entity_type: Journal.Entry
+  output:
+    expectedResult: deny
+    expectedReason: "Direct journal-entry writes to the QuickBooks general ledger are restricted to the controller role. A manual journal entry restates the ledger without flowing through a normal transaction workflow, so it is gated for segregation of duties. Ask a controller to post the entry, or request the controller group from your finance systems administrator if you believe this is a false positive."
+
+- description: Red-team — mega-tool `transaction` with the verb split as "cre-ate" against entity JournalEntry, non-controller. Non-alphanumeric normalization collapses the operation to "create" — denied (fail-closed).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: qbo-mcp-transaction
+      uri: null
+    subject:
+      claims:
+        groups:
+          - ap
+    payload:
+      name: qbo-mcp-transaction
+      args:
+        operation: cre-ate
+        entity_type: JournalEntry
+  output:
+    expectedResult: deny
+    expectedReason: "Direct journal-entry writes to the QuickBooks general ledger are restricted to the controller role. A manual journal entry restates the ledger without flowing through a normal transaction workflow, so it is gated for segregation of duties. Ask a controller to post the entry, or request the controller group from your finance systems administrator if you believe this is a false positive."
+
+- description: Claim-spoof shape — groups supplied as a bare string "controller" (not an array) on a JE create. Membership requires a string element of the groups list, so this does not grant — denied (fail-closed).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: qbo-mcp-create_journal_entry
+      uri: null
+    subject:
+      claims:
+        groups: controller
+    payload:
+      name: qbo-mcp-create_journal_entry
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "Direct journal-entry writes to the QuickBooks general ledger are restricted to the controller role. A manual journal entry restates the ledger without flowing through a normal transaction workflow, so it is gated for segregation of duties. Ask a controller to post the entry, or request the controller group from your finance systems administrator if you believe this is a false positive."
+
+- description: Claim-spoof shape — groups member is an object {name controller} rather than a string. Non-string members are skipped, so membership is not satisfied — denied (fail-closed).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: qbo-mcp-create_journal_entry
+      uri: null
+    subject:
+      claims:
+        groups:
+          - name: controller
+    payload:
+      name: qbo-mcp-create_journal_entry
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "Direct journal-entry writes to the QuickBooks general ledger are restricted to the controller role. A manual journal entry restates the ledger without flowing through a normal transaction workflow, so it is gated for segregation of duties. Ask a controller to post the entry, or request the controller group from your finance systems administrator if you believe this is a false positive."

@@ -7,7 +7,10 @@ tags:
   - access-control
   - governance
   - ingress
-publishedAt: 2026-06-16
+  - soc2
+  - gdpr-ccpa
+  - iso27001-nist
+publishedAt: 2026-07-12
 description: |
   # salesforce / protect-contact-fields
 
@@ -23,6 +26,15 @@ description: |
   includes one of the protected fields is denied, with a reason naming the
   offending fields. Updates to other Contact fields, updates to other sobjects,
   and all other tools pass through unchanged.
+
+  ## Compliance alignment
+
+  - **SOC 2 CC6.1** — logical access security over protected assets: the sensitive slice of the Contact object (ownership, PII, consent flags) cannot be modified through the agent channel.
+  - **SOC 2 C1.1** — supports identifying and protecting confidential information by fencing named Contact fields against agent writes.
+  - **HIPAA §164.308(a)(4)** — supports information access management: agents may work Contacts without the ability to alter identifying or contact data.
+  - **HIPAA §164.312(c)** — supports integrity safeguards by preventing improper alteration of contact identity, linkage, and consent records via MCP.
+  - **GDPR Art. 5(1)(d) / Art. 5(1)(f)** — supports accuracy and security of processing: an agent error or prompt injection cannot rewrite emails, names, ownership, or opt-out/consent state (`DoNotCall`, `HasOptedOutOfEmail`, `HasOptedOutOfFax`).
+  - **ISO 27001 A.8.3** — information access restriction at field granularity on the write path.
 
   ## Why ingress
 
@@ -111,12 +123,16 @@ description: |
   - **No identity-based exemptions.** All callers are treated the same. To allow a
     break-glass role to edit protected fields, add an `allow if` branch gated on
     `input.subject.claims`.
+
+  > **Compliance note.** This policy supports alignment with the cited framework controls **on the MCP path only**. No policy or bundle makes an organization compliant with any framework; web-UI, native-API, and in-app access are outside the gateway's reach by design. Validate against your own compliance program before relying on it.
 direction: ingress
 apps:
   - salesforce
 industries: []
 bundles:
   - crm
+  - soc2
+  - gdpr-ccpa
 schemaVersion: 1.0.0
 minimumGatewayVersion: 1.0.0b24
 ---

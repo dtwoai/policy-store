@@ -1,0 +1,373 @@
+- description: Read tool (GetFileContent) — not destructive, passes through.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-GetFileContent
+      uri: null
+    payload:
+      name: dropbox-GetFileContent
+      args:
+        path: /Projects/roadmap.pdf
+  output:
+    expectedResult: allow
+
+- description: Move (rename/relocate) is intentionally NOT frozen — left to the path-fencing and role-gate policies.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-Move
+      uri: null
+    payload:
+      name: dropbox-Move
+      args:
+        from_path: /a/x.txt
+        to_path: /b/x.txt
+  output:
+    expectedResult: allow
+
+- description: Copy is not frozen either — another routine write left to companion policies.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-Copy
+      uri: null
+    payload:
+      name: dropbox-Copy
+      args:
+        from_path: /a/x.txt
+        to_path: /b/x.txt
+  output:
+    expectedResult: allow
+
+- description: ListRestoreEvents (read-only restore history) must NOT be caught by the restore suffixes.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-ListRestoreEvents
+      uri: null
+    payload:
+      name: dropbox-ListRestoreEvents
+      args: {}
+  output:
+    expectedResult: allow
+
+- description: Official Delete — file deletion is frozen (delete reason).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-Delete
+      uri: null
+    payload:
+      name: dropbox-Delete
+      args:
+        path: /Finance/2026/ledger.xlsx
+  output:
+    expectedResult: deny
+    expectedReason: "Deleting Dropbox files through an agent is frozen. Delete the item yourself in the Dropbox web or desktop app so a human owns the decision. Deleted files are recoverable only within your plan's retention window, so a mistaken or bulk agent delete may be permanent. Contact your InfoSec team if this block is a false positive."
+
+- description: Community dbx-mcp-server safe_delete_item — deletion is frozen (delete reason).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dbx-mcp-safe_delete_item
+      uri: null
+    payload:
+      name: dbx-mcp-safe_delete_item
+      args:
+        path: /docs/old.txt
+  output:
+    expectedResult: deny
+    expectedReason: "Deleting Dropbox files through an agent is frozen. Delete the item yourself in the Dropbox web or desktop app so a human owns the decision. Deleted files are recoverable only within your plan's retention window, so a mistaken or bulk agent delete may be permanent. Contact your InfoSec team if this block is a false positive."
+
+- description: Community ngs dropbox_delete — deletion is frozen (delete reason).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-mcp-dropbox_delete
+      uri: null
+    payload:
+      name: dropbox-mcp-dropbox_delete
+      args:
+        path: /docs/old.txt
+  output:
+    expectedResult: deny
+    expectedReason: "Deleting Dropbox files through an agent is frozen. Delete the item yourself in the Dropbox web or desktop app so a human owns the decision. Deleted files are recoverable only within your plan's retention window, so a mistaken or bulk agent delete may be permanent. Contact your InfoSec team if this block is a false positive."
+
+- description: Delete with missing args — name-only match still denies (fail-closed).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-Delete
+      uri: null
+    payload:
+      name: dropbox-Delete
+  output:
+    expectedResult: deny
+    expectedReason: "Deleting Dropbox files through an agent is frozen. Delete the item yourself in the Dropbox web or desktop app so a human owns the decision. Deleted files are recoverable only within your plan's retention window, so a mistaken or bulk agent delete may be permanent. Contact your InfoSec team if this block is a false positive."
+
+- description: Uppercase casing (DROPBOX-DELETE) — matching is case-insensitive, still denies.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: DROPBOX-DELETE
+      uri: null
+    payload:
+      name: DROPBOX-DELETE
+      args:
+        path: /x
+  output:
+    expectedResult: deny
+    expectedReason: "Deleting Dropbox files through an agent is frozen. Delete the item yourself in the Dropbox web or desktop app so a human owns the decision. Deleted files are recoverable only within your plan's retention window, so a mistaken or bulk agent delete may be permanent. Contact your InfoSec team if this block is a false positive."
+
+- description: Official RestoreFolder — folder rewind is frozen (restore reason).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-RestoreFolder
+      uri: null
+    payload:
+      name: dropbox-RestoreFolder
+      args:
+        path: /Shared/Team
+        rev: "2026-01-01T00:00:00Z"
+  output:
+    expectedResult: deny
+    expectedReason: "Rewinding a Dropbox folder to an earlier point in time, or restoring a previous file revision, is frozen on the agent channel — it can silently revert an entire shared folder or resurface content that was deliberately removed. Perform the restore yourself in the Dropbox web app so a human owns the decision. Contact your InfoSec team if this block is a false positive."
+
+- description: Official RestoreFileRevision — revision resurrection is frozen (restore reason).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-RestoreFileRevision
+      uri: null
+    payload:
+      name: dropbox-RestoreFileRevision
+      args:
+        path: /docs/report.docx
+        rev: abc123
+  output:
+    expectedResult: deny
+    expectedReason: "Rewinding a Dropbox folder to an earlier point in time, or restoring a previous file revision, is frozen on the agent channel — it can silently revert an entire shared folder or resurface content that was deliberately removed. Perform the restore yourself in the Dropbox web app so a human owns the decision. Contact your InfoSec team if this block is a false positive."
+
+- description: Community ngs dropbox_restore_file — revision resurrection is frozen (restore reason).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-mcp-dropbox_restore_file
+      uri: null
+    payload:
+      name: dropbox-mcp-dropbox_restore_file
+      args:
+        path: /docs/report.docx
+        revision: abc123
+  output:
+    expectedResult: deny
+    expectedReason: "Rewinding a Dropbox folder to an earlier point in time, or restoring a previous file revision, is frozen on the agent channel — it can silently revert an entire shared folder or resurface content that was deliberately removed. Perform the restore yourself in the Dropbox web app so a human owns the decision. Contact your InfoSec team if this block is a false positive."
+
+- description: Bare tool name with no gateway prefix (exact match on 'delete') — denies.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: Delete
+      uri: null
+    payload:
+      name: Delete
+      args:
+        path: /x
+  output:
+    expectedResult: deny
+    expectedReason: "Deleting Dropbox files through an agent is frozen. Delete the item yourself in the Dropbox web or desktop app so a human owns the decision. Deleted files are recoverable only within your plan's retention window, so a mistaken or bulk agent delete may be permanent. Contact your InfoSec team if this block is a false positive."
+
+# --- Red-team regression cases (reviewer-added) ---
+
+# Documented residual: "Overwrites are not deletion." An agent can replace a
+# file's content by re-uploading over it without ever calling a delete tool.
+# The official text-only CreateFile is NOT frozen here — locks the documented
+# residual so a future edit can't silently start/stop blocking it unnoticed.
+- description: Official CreateFile (overwrite) is NOT frozen — documented overwrite residual, passes through.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-CreateFile
+      uri: null
+    payload:
+      name: dropbox-CreateFile
+      args:
+        path: /Finance/2026/ledger.xlsx
+        content: "overwritten"
+  output:
+    expectedResult: allow
+
+# Community dbx-mcp-server upload_file takes arbitrary base64 (any file type),
+# so it can overwrite any existing path. Same documented overwrite residual.
+- description: Community dbx-mcp-server upload_file (base64 overwrite) is NOT frozen — documented residual.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dbx-mcp-upload_file
+      uri: null
+    payload:
+      name: dbx-mcp-upload_file
+      args:
+        path: /Finance/2026/ledger.xlsx
+        content: "YmFzZTY0"
+  output:
+    expectedResult: allow
+
+# ngs dropbox_upload overwrite — same residual on the third dialect.
+- description: Community ngs dropbox_upload (overwrite) is NOT frozen — documented residual.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-mcp-dropbox_upload
+      uri: null
+    payload:
+      name: dropbox-mcp-dropbox_upload
+      args:
+        path: /docs/report.docx
+        content: "hi"
+  output:
+    expectedResult: allow
+
+# Regression: ListFileRevisions is a read tool whose name contains "revision".
+# It must NOT be caught by the `restorefilerevision` restore suffix.
+- description: Read-only ListFileRevisions (contains 'revision') must NOT match the restore suffix.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-ListFileRevisions
+      uri: null
+    payload:
+      name: dropbox-ListFileRevisions
+      args:
+        path: /docs/report.docx
+  output:
+    expectedResult: allow
+
+# Regression: community move_item (rename/relocate) stays out of scope — must
+# not be caught by any delete/restore suffix (contains neither).
+- description: Community dbx-mcp-server move_item is NOT frozen — Move family is out of scope.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dbx-mcp-move_item
+      uri: null
+    payload:
+      name: dbx-mcp-move_item
+      args:
+        source_path: /a/x.txt
+        destination_path: /b/x.txt
+  output:
+    expectedResult: allow
+
+# Documented residual (Known limitations: "Matching is a full-token suffix, not a
+# substring"). The generic `delete` suffix only fires when the name ENDS in
+# `delete`, so a batch/qualified delete tool ends in `_batch` and slips through.
+# Dropbox's HTTP API has a real `/files/delete_batch`; no in-scope MCP dialect
+# exposes it today. Locks the pass-through so a future edit can't silently change
+# it, and flags that such a name must be added to `delete_suffixes` explicitly.
+- description: Hypothetical delete_batch (trailing qualifier after 'delete') is NOT caught — documented full-token-suffix residual.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-delete_batch
+      uri: null
+    payload:
+      name: dropbox-delete_batch
+      args:
+        paths: ["/a", "/b"]
+  output:
+    expectedResult: allow
+
+# Same residual: a `PermanentlyDelete`-style name does not END in a listed suffix
+# (`permanentlydelete` != `delete` and has no `-`/`_` boundary before `delete`),
+# so it passes through. Not an in-scope tool; must be enumerated if a fork adds it.
+- description: Hypothetical PermanentlyDelete (no boundary before 'delete') is NOT caught — documented residual.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-PermanentlyDelete
+      uri: null
+    payload:
+      name: dropbox-PermanentlyDelete
+      args:
+        path: /x
+  output:
+    expectedResult: allow
+
+# Fail-open probe: tool name entirely absent (resource.name missing). The
+# gateway always populates resource.name for tool hooks, but confirm the
+# name-only matcher defaults to "" (matches nothing) → allow, not a crash.
+- description: Missing resource.name defaults to "" — no destructive match, allow (no fail-closed on unknown name).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      uri: null
+    payload:
+      args:
+        path: /x
+  output:
+    expectedResult: allow

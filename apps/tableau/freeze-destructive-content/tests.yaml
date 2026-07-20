@@ -1,0 +1,529 @@
+# Reason string is stable and identical for every deny branch.
+- description: Read tool outside the destructive family, caller has no claims at
+    all. Policy should allow (pass-through branch).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: tableau-list-workbooks
+      uri: null
+    payload:
+      name: tableau-list-workbooks
+      args: {}
+  output:
+    expectedResult: allow
+- description: Read tool whose name superficially resembles the frozen family —
+    list-extract-refresh-tasks (plural). Must NOT over-match the singular
+    delete/update suffixes. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: tableau-list-extract-refresh-tasks
+      uri: null
+    subject:
+      sub: analyst@example.com
+      claims:
+        groups:
+          - data-analysts
+    payload:
+      name: tableau-list-extract-refresh-tasks
+      args: {}
+  output:
+    expectedResult: allow
+- description: delete-workbook by a non-admin (groups do not include
+    tableau-admins). Deny with reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: tableau-delete-workbook
+      uri: null
+    subject:
+      sub: analyst@example.com
+      claims:
+        groups:
+          - data-analysts
+    payload:
+      name: tableau-delete-workbook
+      args:
+        workbookId: wb-luid-1
+  output:
+    expectedResult: deny
+    expectedReason: "This Tableau content operation is blocked because it is hard to reverse: deleted workbooks and data sources sit in the recycle bin for only a limited window before they are gone for good, and a silently stopped or rescheduled extract refresh leaves dashboards stale while they still look live. Ask a member of your Tableau admin group (placeholder: tableau-admins) to run it, or ask your InfoSec team to add you to that group if you believe you should have access."
+- description: delete-workbook by a caller who carries tableau-admins among other
+    groups. Admin branch allows the call.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: tableau-delete-workbook
+      uri: null
+    subject:
+      sub: admin@example.com
+      claims:
+        groups:
+          - engineering
+          - tableau-admins
+    payload:
+      name: tableau-delete-workbook
+      args:
+        workbookId: wb-luid-1
+  output:
+    expectedResult: allow
+- description: confirm-delete-datasource (confirm- twin) by a non-admin. The twin
+    is a separately-registered tool and must be gated too. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: tableau-confirm-delete-datasource
+      uri: null
+    subject:
+      sub: analyst@example.com
+      claims:
+        groups:
+          - data-analysts
+    payload:
+      name: tableau-confirm-delete-datasource
+      args:
+        datasourceId: ds-luid-1
+        confirm: true
+  output:
+    expectedResult: deny
+    expectedReason: "This Tableau content operation is blocked because it is hard to reverse: deleted workbooks and data sources sit in the recycle bin for only a limited window before they are gone for good, and a silently stopped or rescheduled extract refresh leaves dashboards stale while they still look live. Ask a member of your Tableau admin group (placeholder: tableau-admins) to run it, or ask your InfoSec team to add you to that group if you believe you should have access."
+- description: delete-datasource with no subject block at all (no IdP claims
+    reached the gateway). Fails closed — deny with reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: tableau-delete-datasource
+      uri: null
+    payload:
+      name: tableau-delete-datasource
+      args:
+        datasourceId: ds-luid-2
+  output:
+    expectedResult: deny
+    expectedReason: "This Tableau content operation is blocked because it is hard to reverse: deleted workbooks and data sources sit in the recycle bin for only a limited window before they are gone for good, and a silently stopped or rescheduled extract refresh leaves dashboards stale while they still look live. Ask a member of your Tableau admin group (placeholder: tableau-admins) to run it, or ask your InfoSec team to add you to that group if you believe you should have access."
+- description: delete-extract-refresh-task by a non-admin. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: tableau-delete-extract-refresh-task
+      uri: null
+    subject:
+      sub: analyst@example.com
+      claims:
+        groups:
+          - data-analysts
+    payload:
+      name: tableau-delete-extract-refresh-task
+      args:
+        taskId: task-luid-1
+  output:
+    expectedResult: deny
+    expectedReason: "This Tableau content operation is blocked because it is hard to reverse: deleted workbooks and data sources sit in the recycle bin for only a limited window before they are gone for good, and a silently stopped or rescheduled extract refresh leaves dashboards stale while they still look live. Ask a member of your Tableau admin group (placeholder: tableau-admins) to run it, or ask your InfoSec team to add you to that group if you believe you should have access."
+- description: update-cloud-extract-refresh-task (a write, not a delete — silent
+    reschedule) by a non-admin. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: tableau-update-cloud-extract-refresh-task
+      uri: null
+    subject:
+      sub: analyst@example.com
+      claims:
+        groups:
+          - data-analysts
+    payload:
+      name: tableau-update-cloud-extract-refresh-task
+      args:
+        taskId: task-luid-2
+        schedule: monthly
+  output:
+    expectedResult: deny
+    expectedReason: "This Tableau content operation is blocked because it is hard to reverse: deleted workbooks and data sources sit in the recycle bin for only a limited window before they are gone for good, and a silently stopped or rescheduled extract refresh leaves dashboards stale while they still look live. Ask a member of your Tableau admin group (placeholder: tableau-admins) to run it, or ask your InfoSec team to add you to that group if you believe you should have access."
+- description: confirm-update-cloud-extract-refresh-task (confirm- twin of the
+    write) by a non-admin. Twin gated. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: tableau-confirm-update-cloud-extract-refresh-task
+      uri: null
+    subject:
+      sub: analyst@example.com
+      claims:
+        groups:
+          - data-analysts
+    payload:
+      name: tableau-confirm-update-cloud-extract-refresh-task
+      args:
+        taskId: task-luid-2
+        confirm: true
+  output:
+    expectedResult: deny
+    expectedReason: "This Tableau content operation is blocked because it is hard to reverse: deleted workbooks and data sources sit in the recycle bin for only a limited window before they are gone for good, and a silently stopped or rescheduled extract refresh leaves dashboards stale while they still look live. Ask a member of your Tableau admin group (placeholder: tableau-admins) to run it, or ask your InfoSec team to add you to that group if you believe you should have access."
+- description: confirm-delete-extract-refresh-task by a tableau-admins member.
+    Admin branch allows.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: tableau-confirm-delete-extract-refresh-task
+      uri: null
+    subject:
+      sub: admin@example.com
+      claims:
+        groups:
+          - tableau-admins
+    payload:
+      name: tableau-confirm-delete-extract-refresh-task
+      args:
+        taskId: task-luid-1
+        confirm: true
+  output:
+    expectedResult: allow
+- description: Mixed-case tool name (Tableau-Delete-Workbook) must still match —
+    matching is case-insensitive. Deny for non-admin.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: Tableau-Delete-Workbook
+      uri: null
+    subject:
+      sub: analyst@example.com
+      claims:
+        groups:
+          - data-analysts
+    payload:
+      name: Tableau-Delete-Workbook
+      args:
+        workbookId: wb-luid-1
+  output:
+    expectedResult: deny
+    expectedReason: "This Tableau content operation is blocked because it is hard to reverse: deleted workbooks and data sources sit in the recycle bin for only a limited window before they are gone for good, and a silently stopped or rescheduled extract refresh leaves dashboards stale while they still look live. Ask a member of your Tableau admin group (placeholder: tableau-admins) to run it, or ask your InfoSec team to add you to that group if you believe you should have access."
+- description: Unprefixed deployment — bare kebab tool name delete-datasource
+    (no gateway server-name prefix). endswith still matches. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: delete-datasource
+      uri: null
+    subject:
+      sub: analyst@example.com
+      claims:
+        groups:
+          - data-analysts
+    payload:
+      name: delete-datasource
+      args:
+        datasourceId: ds-luid-3
+  output:
+    expectedResult: deny
+    expectedReason: "This Tableau content operation is blocked because it is hard to reverse: deleted workbooks and data sources sit in the recycle bin for only a limited window before they are gone for good, and a silently stopped or rescheduled extract refresh leaves dashboards stale while they still look live. Ask a member of your Tableau admin group (placeholder: tableau-admins) to run it, or ask your InfoSec team to add you to that group if you believe you should have access."
+- description: snake_case community variant delete_workbook. Underscores are
+    normalized to hyphens before matching, so it is gated. Deny for non-admin.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: tableau_delete_workbook
+      uri: null
+    subject:
+      sub: analyst@example.com
+      claims:
+        groups:
+          - data-analysts
+    payload:
+      name: tableau_delete_workbook
+      args:
+        workbook_id: wb-luid-1
+  output:
+    expectedResult: deny
+    expectedReason: "This Tableau content operation is blocked because it is hard to reverse: deleted workbooks and data sources sit in the recycle bin for only a limited window before they are gone for good, and a silently stopped or rescheduled extract refresh leaves dashboards stale while they still look live. Ask a member of your Tableau admin group (placeholder: tableau-admins) to run it, or ask your InfoSec team to add you to that group if you believe you should have access."
+- description: Claims present but the groups claim is missing entirely. Fails
+    closed — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: tableau-delete-datasource
+      uri: null
+    subject:
+      sub: analyst@example.com
+      claims:
+        org_id: org_abc123
+    payload:
+      name: tableau-delete-datasource
+      args:
+        datasourceId: ds-luid-2
+  output:
+    expectedResult: deny
+    expectedReason: "This Tableau content operation is blocked because it is hard to reverse: deleted workbooks and data sources sit in the recycle bin for only a limited window before they are gone for good, and a silently stopped or rescheduled extract refresh leaves dashboards stale while they still look live. Ask a member of your Tableau admin group (placeholder: tableau-admins) to run it, or ask your InfoSec team to add you to that group if you believe you should have access."
+- description: "Placeholder-claim spoofing surface: groups is a bare string
+    (\"tableau-admins\") instead of an array. Membership iteration over a string
+    fails closed — deny."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: tableau-delete-workbook
+      uri: null
+    subject:
+      sub: analyst@example.com
+      claims:
+        groups: tableau-admins
+    payload:
+      name: tableau-delete-workbook
+      args:
+        workbookId: wb-luid-1
+  output:
+    expectedResult: deny
+    expectedReason: "This Tableau content operation is blocked because it is hard to reverse: deleted workbooks and data sources sit in the recycle bin for only a limited window before they are gone for good, and a silently stopped or rescheduled extract refresh leaves dashboards stale while they still look live. Ask a member of your Tableau admin group (placeholder: tableau-admins) to run it, or ask your InfoSec team to add you to that group if you believe you should have access."
+- description: "Red-team type confusion: resource.name is a non-string (number)
+    while payload.name carries a real delete tool. The names are matched
+    independently, so the malformed resource.name cannot suppress the delete —
+    deny (fail-closed)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: 42
+      uri: null
+    subject:
+      sub: analyst@example.com
+      claims:
+        groups:
+          - data-analysts
+    payload:
+      name: tableau-delete-datasource
+      args:
+        datasourceId: ds-luid-2
+  output:
+    expectedResult: deny
+    expectedReason: "This Tableau content operation is blocked because it is hard to reverse: deleted workbooks and data sources sit in the recycle bin for only a limited window before they are gone for good, and a silently stopped or rescheduled extract refresh leaves dashboards stale while they still look live. Ask a member of your Tableau admin group (placeholder: tableau-admins) to run it, or ask your InfoSec team to add you to that group if you believe you should have access."
+- description: "Red-team type confusion: payload.name is a non-string (array)
+    while resource.name carries a real delete tool. Independent matching still
+    catches the delete suffix — deny (fail-closed)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: tableau-delete-workbook
+      uri: null
+    subject:
+      sub: analyst@example.com
+      claims:
+        groups:
+          - data-analysts
+    payload:
+      name:
+        - malformed
+      args:
+        workbookId: wb-luid-1
+  output:
+    expectedResult: deny
+    expectedReason: "This Tableau content operation is blocked because it is hard to reverse: deleted workbooks and data sources sit in the recycle bin for only a limited window before they are gone for good, and a silently stopped or rescheduled extract refresh leaves dashboards stale while they still look live. Ask a member of your Tableau admin group (placeholder: tableau-admins) to run it, or ask your InfoSec team to add you to that group if you believe you should have access."
+- description: "Red-team type confusion: resource.name is null while payload.name
+    carries a real delete tool. null coerces to empty string, payload branch
+    still matches — deny (fail-closed)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: null
+      uri: null
+    payload:
+      name: tableau-delete-workbook
+      args:
+        workbookId: wb-luid-1
+  output:
+    expectedResult: deny
+    expectedReason: "This Tableau content operation is blocked because it is hard to reverse: deleted workbooks and data sources sit in the recycle bin for only a limited window before they are gone for good, and a silently stopped or rescheduled extract refresh leaves dashboards stale while they still look live. Ask a member of your Tableau admin group (placeholder: tableau-admins) to run it, or ask your InfoSec team to add you to that group if you believe you should have access."
+- description: "Red-team whitespace evasion: tool name padded with a trailing space
+    (tableau-delete-workbook<space>). trim_space strips it before the endswith
+    match, so the freeze still catches it. Deny for non-admin."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "tableau-delete-workbook "
+      uri: null
+    subject:
+      sub: analyst@example.com
+      claims:
+        groups:
+          - data-analysts
+    payload:
+      name: "tableau-delete-workbook "
+      args:
+        workbookId: wb-luid-1
+  output:
+    expectedResult: deny
+    expectedReason: "This Tableau content operation is blocked because it is hard to reverse: deleted workbooks and data sources sit in the recycle bin for only a limited window before they are gone for good, and a silently stopped or rescheduled extract refresh leaves dashboards stale while they still look live. Ask a member of your Tableau admin group (placeholder: tableau-admins) to run it, or ask your InfoSec team to add you to that group if you believe you should have access."
+- description: "Red-team newline evasion: tool name ends with a newline
+    (tableau-delete-datasource\n). trim_space strips the trailing newline so the
+    delete suffix is still matched. Deny for non-admin."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "tableau-delete-datasource\n"
+      uri: null
+    subject:
+      sub: analyst@example.com
+      claims:
+        groups:
+          - data-analysts
+    payload:
+      name: "tableau-delete-datasource\n"
+      args:
+        datasourceId: ds-luid-9
+  output:
+    expectedResult: deny
+    expectedReason: "This Tableau content operation is blocked because it is hard to reverse: deleted workbooks and data sources sit in the recycle bin for only a limited window before they are gone for good, and a silently stopped or rescheduled extract refresh leaves dashboards stale while they still look live. Ask a member of your Tableau admin group (placeholder: tableau-admins) to run it, or ask your InfoSec team to add you to that group if you believe you should have access."
+- description: "Red-team fail-open (fixed): groups is an OBJECT whose value is the
+    admin name ({\"0\": \"tableau-admins\"}), not an array. Before the is_array
+    guard, `some group in groups` iterated object values, found the admin string,
+    and granted the exemption. The guard makes any non-array groups value fail
+    closed as the description promises. Deny for the destructive call."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: tableau-delete-workbook
+      uri: null
+    subject:
+      sub: analyst@example.com
+      claims:
+        groups:
+          "0": tableau-admins
+    payload:
+      name: tableau-delete-workbook
+      args:
+        workbookId: wb-luid-1
+  output:
+    expectedResult: deny
+    expectedReason: "This Tableau content operation is blocked because it is hard to reverse: deleted workbooks and data sources sit in the recycle bin for only a limited window before they are gone for good, and a silently stopped or rescheduled extract refresh leaves dashboards stale while they still look live. Ask a member of your Tableau admin group (placeholder: tableau-admins) to run it, or ask your InfoSec team to add you to that group if you believe you should have access."
+- description: "Documented residual (not a policy bypass): an internal extra
+    separator (delete-data-source) does not end with the registered
+    delete-datasource suffix, so it does not match. Safe because the server routes
+    tool names by exact match — this string names no real tool. Policy allows."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: tableau-delete-data-source
+      uri: null
+    subject:
+      sub: analyst@example.com
+      claims:
+        groups:
+          - data-analysts
+    payload:
+      name: tableau-delete-data-source
+      args:
+        datasourceId: ds-luid-1
+  output:
+    expectedResult: allow
+- description: "Documented residual (not a policy bypass): a camelCase name
+    (tableauDeleteWorkbook) has no hyphen/underscore separator, so it does not
+    match the kebab suffix. This is safe because the official and known community
+    servers route tool names by exact match — this string names no real tool and
+    cannot execute a delete. Policy allows (no match)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: tableauDeleteWorkbook
+      uri: null
+    subject:
+      sub: analyst@example.com
+      claims:
+        groups:
+          - data-analysts
+    payload:
+      name: tableauDeleteWorkbook
+      args:
+        workbookId: wb-luid-1
+  output:
+    expectedResult: allow
+- description: "Red-team residual (documented, not a policy bypass): the tool name
+    ends with a zero-width space (U+200B, \\u200b) after delete-workbook. Unlike a
+    trailing regular space/newline, ZWSP is a format character that trim_space does
+    NOT strip, so the endswith suffix match misses it and the policy allows. This is
+    safe only because the server routes tool names by exact match — the ZWSP-suffixed
+    string names no registered tool and cannot execute a delete. Verifies the
+    documented boundary: trim_space handles whitespace, not zero-width chars. Allows."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "tableau-delete-workbook​"
+      uri: null
+    subject:
+      sub: analyst@example.com
+      claims:
+        groups:
+          - data-analysts
+    payload:
+      name: "tableau-delete-workbook​"
+      args:
+        workbookId: wb-luid-1
+  output:
+    expectedResult: allow

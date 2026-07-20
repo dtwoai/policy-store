@@ -1,0 +1,532 @@
+- description: Official read tool (list payrolls) passes through untouched — no-op on the read-only official server.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gusto-mcp-list_company_payrolls
+      uri: null
+    payload:
+      name: gusto-mcp-list_company_payrolls
+      args:
+        company_uuid: "abc-123"
+  output:
+    expectedResult: allow
+- description: Official read tool get_payroll is allowed — "get" is not a write verb and it has no submit substring.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gusto-mcp-get_payroll
+      uri: null
+    payload:
+      name: gusto-mcp-get_payroll
+      args:
+        payroll_uuid: "pay-1"
+  output:
+    expectedResult: allow
+- description: Official read with a long underscored name (pay schedule assignments) is not over-matched — allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gusto-mcp-list_company_pay_schedule_assignments
+      uri: null
+    payload:
+      name: gusto-mcp-list_company_pay_schedule_assignments
+      args: {}
+  output:
+    expectedResult: allow
+- description: Read tool with no args key at all is still allowed — name-only policy, reads pass.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gusto-mcp-get_gusto_employee
+      uri: null
+    payload:
+      name: gusto-mcp-get_gusto_employee
+  output:
+    expectedResult: allow
+- description: create_ verb (employee create) is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gusto-mcp-create_employee
+      uri: null
+    payload:
+      name: gusto-mcp-create_employee
+      args:
+        first_name: Ada
+  output:
+    expectedResult: deny
+    expectedReason: "Agent-initiated payroll writes and deletions are frozen by policy on this Gusto pipeline. Create, update, delete, and payroll-submit actions — including any wired through an aggregator such as StackOne — are blocked because they are money-movement-adjacent and effectively irreversible once a pay run processes. Make the change as a human in the Gusto UI. Contact your InfoSec team if this block is a false positive."
+- description: update_ verb (compensation update) is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gusto-mcp-update_compensation
+      uri: null
+    payload:
+      name: gusto-mcp-update_compensation
+      args:
+        rate: "999999"
+  output:
+    expectedResult: deny
+    expectedReason: "Agent-initiated payroll writes and deletions are frozen by policy on this Gusto pipeline. Create, update, delete, and payroll-submit actions — including any wired through an aggregator such as StackOne — are blocked because they are money-movement-adjacent and effectively irreversible once a pay run processes. Make the change as a human in the Gusto UI. Contact your InfoSec team if this block is a false positive."
+- description: delete_ verb (payroll deletion) is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gusto-mcp-delete_payroll
+      uri: null
+    payload:
+      name: gusto-mcp-delete_payroll
+      args:
+        payroll_uuid: "pay-1"
+  output:
+    expectedResult: deny
+    expectedReason: "Agent-initiated payroll writes and deletions are frozen by policy on this Gusto pipeline. Create, update, delete, and payroll-submit actions — including any wired through an aggregator such as StackOne — are blocked because they are money-movement-adjacent and effectively irreversible once a pay run processes. Make the change as a human in the Gusto UI. Contact your InfoSec team if this block is a false positive."
+- description: Hyphen-dialect create- (bank-account create) is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gusto-mcp-create-bank_account
+      uri: null
+    payload:
+      name: gusto-mcp-create-bank_account
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "Agent-initiated payroll writes and deletions are frozen by policy on this Gusto pipeline. Create, update, delete, and payroll-submit actions — including any wired through an aggregator such as StackOne — are blocked because they are money-movement-adjacent and effectively irreversible once a pay run processes. Make the change as a human in the Gusto UI. Contact your InfoSec team if this block is a false positive."
+- description: Hyphen-dialect delete- (bank-account delete) is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gusto-mcp-delete-bank_account
+      uri: null
+    payload:
+      name: gusto-mcp-delete-bank_account
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "Agent-initiated payroll writes and deletions are frozen by policy on this Gusto pipeline. Create, update, delete, and payroll-submit actions — including any wired through an aggregator such as StackOne — are blocked because they are money-movement-adjacent and effectively irreversible once a pay run processes. Make the change as a human in the Gusto UI. Contact your InfoSec team if this block is a false positive."
+- description: submit substring (payroll submission — money movement) is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gusto-mcp-submit_payroll
+      uri: null
+    payload:
+      name: gusto-mcp-submit_payroll
+      args:
+        payroll_uuid: "pay-1"
+  output:
+    expectedResult: deny
+    expectedReason: "Agent-initiated payroll writes and deletions are frozen by policy on this Gusto pipeline. Create, update, delete, and payroll-submit actions — including any wired through an aggregator such as StackOne — are blocked because they are money-movement-adjacent and effectively irreversible once a pay run processes. Make the change as a human in the Gusto UI. Contact your InfoSec team if this block is a false positive."
+- description: "Red-team: resubmit_payroll still contains the submit substring and is denied."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gusto-mcp-resubmit_payroll
+      uri: null
+    payload:
+      name: gusto-mcp-resubmit_payroll
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "Agent-initiated payroll writes and deletions are frozen by policy on this Gusto pipeline. Create, update, delete, and payroll-submit actions — including any wired through an aggregator such as StackOne — are blocked because they are money-movement-adjacent and effectively irreversible once a pay run processes. Make the change as a human in the Gusto UI. Contact your InfoSec team if this block is a false positive."
+- description: "Aggregator hris_ create action (StackOne, unverified name shape) is denied via the verb token."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: stackone-hris_create_employee
+      uri: null
+    payload:
+      name: stackone-hris_create_employee
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "Agent-initiated payroll writes and deletions are frozen by policy on this Gusto pipeline. Create, update, delete, and payroll-submit actions — including any wired through an aggregator such as StackOne — are blocked because they are money-movement-adjacent and effectively irreversible once a pay run processes. Make the change as a human in the Gusto UI. Contact your InfoSec team if this block is a false positive."
+- description: "Aggregator hris_ delete action (StackOne payroll deletion) is denied."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: stackone-hris_delete_payroll
+      uri: null
+    payload:
+      name: stackone-hris_delete_payroll
+      args:
+        id: "pay_123"
+  output:
+    expectedResult: deny
+    expectedReason: "Agent-initiated payroll writes and deletions are frozen by policy on this Gusto pipeline. Create, update, delete, and payroll-submit actions — including any wired through an aggregator such as StackOne — are blocked because they are money-movement-adjacent and effectively irreversible once a pay run processes. Make the change as a human in the Gusto UI. Contact your InfoSec team if this block is a false positive."
+- description: "Red-team: verb in trailing position (hris_employee_create) is denied via the end-of-string branch."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: stackone-hris_employee_create
+      uri: null
+    payload:
+      name: stackone-hris_employee_create
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "Agent-initiated payroll writes and deletions are frozen by policy on this Gusto pipeline. Create, update, delete, and payroll-submit actions — including any wired through an aggregator such as StackOne — are blocked because they are money-movement-adjacent and effectively irreversible once a pay run processes. Make the change as a human in the Gusto UI. Contact your InfoSec team if this block is a false positive."
+- description: "Aggregator hris_ read (hris_get_employee) is allowed — the verb match leaves reads alone."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: stackone-hris_get_employee
+      uri: null
+    payload:
+      name: stackone-hris_get_employee
+      args:
+        id: "emp_1"
+  output:
+    expectedResult: allow
+- description: "Red-team: casing does not bypass — uppercase CREATE_EMPLOYEE is lowercased and denied."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: GUSTO-MCP-CREATE_EMPLOYEE
+      uri: null
+    payload:
+      name: GUSTO-MCP-CREATE_EMPLOYEE
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "Agent-initiated payroll writes and deletions are frozen by policy on this Gusto pipeline. Create, update, delete, and payroll-submit actions — including any wired through an aggregator such as StackOne — are blocked because they are money-movement-adjacent and effectively irreversible once a pay run processes. Make the change as a human in the Gusto UI. Contact your InfoSec team if this block is a false positive."
+- description: "Uppercase read name (LIST_COMPANY_PAYROLLS) is normalized and allowed — casing is not a false-positive source."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: GUSTO-MCP-LIST_COMPANY_PAYROLLS
+      uri: null
+    payload:
+      name: GUSTO-MCP-LIST_COMPANY_PAYROLLS
+      args: {}
+  output:
+    expectedResult: allow
+- description: "Red-team boundary: a name containing 'created' as a substring (not a delimited verb token) is NOT over-matched — allow."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gusto-mcp-list_created_reports
+      uri: null
+    payload:
+      name: gusto-mcp-list_created_reports
+      args: {}
+  output:
+    expectedResult: allow
+- description: "Fail-closed: a call whose tool name is missing entirely (no resource.name) is denied by default with the missing-name reason."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      uri: null
+    payload:
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "This Gusto call was denied because it arrived without a recognizable tool name. Retry with a valid Gusto tool, or make the change as a human in the Gusto UI. Contact your InfoSec team if this block is a false positive."
+- description: "Fail-closed: write-shaped name with no args key at all is still denied (name-only policy — missing args cannot route a write past it)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gusto-mcp-delete_payroll
+      uri: null
+    payload:
+      name: gusto-mcp-delete_payroll
+  output:
+    expectedResult: deny
+    expectedReason: "Agent-initiated payroll writes and deletions are frozen by policy on this Gusto pipeline. Create, update, delete, and payroll-submit actions — including any wired through an aggregator such as StackOne — are blocked because they are money-movement-adjacent and effectively irreversible once a pay run processes. Make the change as a human in the Gusto UI. Contact your InfoSec team if this block is a false positive."
+- description: Community kebab-case read (get-all-employees) is allowed — no write verb, no submit.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gusto-community-get-all-employees
+      uri: null
+    payload:
+      name: gusto-community-get-all-employees
+      args:
+        terminated: false
+  output:
+    expectedResult: allow
+- description: "Red-team FIX: camelCase leading verb (createEmployee) is normalized and denied."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gusto-mcp-createEmployee
+      uri: null
+    payload:
+      name: gusto-mcp-createEmployee
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "Agent-initiated payroll writes and deletions are frozen by policy on this Gusto pipeline. Create, update, delete, and payroll-submit actions — including any wired through an aggregator such as StackOne — are blocked because they are money-movement-adjacent and effectively irreversible once a pay run processes. Make the change as a human in the Gusto UI. Contact your InfoSec team if this block is a false positive."
+- description: "Red-team FIX: camelCase update verb (updateCompensation) is denied."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: stackone-updateCompensation
+      uri: null
+    payload:
+      name: stackone-updateCompensation
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "Agent-initiated payroll writes and deletions are frozen by policy on this Gusto pipeline. Create, update, delete, and payroll-submit actions — including any wired through an aggregator such as StackOne — are blocked because they are money-movement-adjacent and effectively irreversible once a pay run processes. Make the change as a human in the Gusto UI. Contact your InfoSec team if this block is a false positive."
+- description: "Red-team FIX: camelCase delete verb (deletePayroll) is denied."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: stackone-deletePayroll
+      uri: null
+    payload:
+      name: stackone-deletePayroll
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "Agent-initiated payroll writes and deletions are frozen by policy on this Gusto pipeline. Create, update, delete, and payroll-submit actions — including any wired through an aggregator such as StackOne — are blocked because they are money-movement-adjacent and effectively irreversible once a pay run processes. Make the change as a human in the Gusto UI. Contact your InfoSec team if this block is a false positive."
+- description: "Red-team FIX: camelCase TRAILING verb (employeeCreate) is denied via the normalized end-of-string branch."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: stackone-employeeCreate
+      uri: null
+    payload:
+      name: stackone-employeeCreate
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "Agent-initiated payroll writes and deletions are frozen by policy on this Gusto pipeline. Create, update, delete, and payroll-submit actions — including any wired through an aggregator such as StackOne — are blocked because they are money-movement-adjacent and effectively irreversible once a pay run processes. Make the change as a human in the Gusto UI. Contact your InfoSec team if this block is a false positive."
+- description: "Red-team FIX: dot-namespaced delete (svc.delete.payroll) is denied — '.' is a delimiter."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: svc.delete.payroll
+      uri: null
+    payload:
+      name: svc.delete.payroll
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "Agent-initiated payroll writes and deletions are frozen by policy on this Gusto pipeline. Create, update, delete, and payroll-submit actions — including any wired through an aggregator such as StackOne — are blocked because they are money-movement-adjacent and effectively irreversible once a pay run processes. Make the change as a human in the Gusto UI. Contact your InfoSec team if this block is a false positive."
+- description: "Red-team FIX: camelCase submit (submitPayroll) still hits the submit substring and is denied."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gusto-mcp-submitPayroll
+      uri: null
+    payload:
+      name: gusto-mcp-submitPayroll
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "Agent-initiated payroll writes and deletions are frozen by policy on this Gusto pipeline. Create, update, delete, and payroll-submit actions — including any wired through an aggregator such as StackOne — are blocked because they are money-movement-adjacent and effectively irreversible once a pay run processes. Make the change as a human in the Gusto UI. Contact your InfoSec team if this block is a false positive."
+- description: "Red-team FIX (no false positive): camelCase read (getEmployee) is allowed."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gusto-mcp-getEmployee
+      uri: null
+    payload:
+      name: gusto-mcp-getEmployee
+      args: {}
+  output:
+    expectedResult: allow
+- description: "Red-team FIX (no false positive): camelCase read containing 'Created' (listCreatedReports) is allowed — normalized 'created' is not a delimited verb token."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gusto-mcp-listCreatedReports
+      uri: null
+    payload:
+      name: gusto-mcp-listCreatedReports
+      args: {}
+  output:
+    expectedResult: allow
+- description: "Documented residual (Known limitations): verb fused with no word boundary (createbankaccount) is NOT caught — pin exact names per tenant."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gusto-mcp-createbankaccount
+      uri: null
+    payload:
+      name: gusto-mcp-createbankaccount
+      args: {}
+  output:
+    expectedResult: allow
+- description: "Red-team FIX (acronym-prefixed PascalCase): HRISCreateEmployee — acronym glued before the verb is split by the two-pass normalizer and denied."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: stackone-HRISCreateEmployee
+      uri: null
+    payload:
+      name: stackone-HRISCreateEmployee
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "Agent-initiated payroll writes and deletions are frozen by policy on this Gusto pipeline. Create, update, delete, and payroll-submit actions — including any wired through an aggregator such as StackOne — are blocked because they are money-movement-adjacent and effectively irreversible once a pay run processes. Make the change as a human in the Gusto UI. Contact your InfoSec team if this block is a false positive."
+- description: "Red-team FIX (acronym-prefixed PascalCase delete): HRISDeletePayroll is denied."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: stackone-HRISDeletePayroll
+      uri: null
+    payload:
+      name: stackone-HRISDeletePayroll
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "Agent-initiated payroll writes and deletions are frozen by policy on this Gusto pipeline. Create, update, delete, and payroll-submit actions — including any wired through an aggregator such as StackOne — are blocked because they are money-movement-adjacent and effectively irreversible once a pay run processes. Make the change as a human in the Gusto UI. Contact your InfoSec team if this block is a false positive."
+- description: "Red-team FIX (acronym-prefixed PascalCase update): HRISUpdateCompensation is denied."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: stackone-HRISUpdateCompensation
+      uri: null
+    payload:
+      name: stackone-HRISUpdateCompensation
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "Agent-initiated payroll writes and deletions are frozen by policy on this Gusto pipeline. Create, update, delete, and payroll-submit actions — including any wired through an aggregator such as StackOne — are blocked because they are money-movement-adjacent and effectively irreversible once a pay run processes. Make the change as a human in the Gusto UI. Contact your InfoSec team if this block is a false positive."
+- description: "Red-team FIX (digit-prefixed camelCase): v2CreateEmployee — a version digit before the verb is split and denied."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gusto-mcp-v2CreateEmployee
+      uri: null
+    payload:
+      name: gusto-mcp-v2CreateEmployee
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "Agent-initiated payroll writes and deletions are frozen by policy on this Gusto pipeline. Create, update, delete, and payroll-submit actions — including any wired through an aggregator such as StackOne — are blocked because they are money-movement-adjacent and effectively irreversible once a pay run processes. Make the change as a human in the Gusto UI. Contact your InfoSec team if this block is a false positive."
+- description: "Red-team FIX (no false positive): acronym-prefixed read HRISGetEmployee is allowed — the two-pass split does not manufacture a write verb."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: stackone-HRISGetEmployee
+      uri: null
+    payload:
+      name: stackone-HRISGetEmployee
+      args: {}
+  output:
+    expectedResult: allow
+- description: "Documented residual (Known limitations): non-matched write verb 'run_payroll' is NOT caught — outside the create/update/delete/submit vocabulary."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gusto-mcp-run_payroll
+      uri: null
+    payload:
+      name: gusto-mcp-run_payroll
+      args: {}
+  output:
+    expectedResult: allow

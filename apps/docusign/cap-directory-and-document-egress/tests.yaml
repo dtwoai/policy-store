@@ -1,0 +1,450 @@
+# Tests for docusign/cap-directory-and-document-egress
+# (package docusign.egress.cap_directory_and_document_egress)
+- description: Unrelated Docusign egress (getEnvelope) passes untouched — no deny,
+    no transform.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: docusign-getEnvelope
+      uri: null
+    subject:
+      sub: auth0|carol
+      claims:
+        groups:
+          - everyone
+    payload:
+      name: docusign-getEnvelope
+      text:
+        - '{"envelopeId":"abc-123","status":"completed"}'
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Non-admin caller reads the user directory (30 users) — allowed, but
+    the users array is truncated to the first 25 and a policy notice is added.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: docusign-getUsers
+      uri: null
+    subject:
+      sub: auth0|carol
+      claims:
+        groups:
+          - everyone
+    payload:
+      name: docusign-getUsers
+      text:
+        - '{"users":["u1","u2","u3","u4","u5","u6","u7","u8","u9","u10","u11","u12","u13","u14","u15","u16","u17","u18","u19","u20","u21","u22","u23","u24","u25","u26","u27","u28","u29","u30"]}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - '{"notice":"Truncated to the first 25 users by gateway policy. Ask your Docusign administrator for admin access if you need the full directory.","users":["u1","u2","u3","u4","u5","u6","u7","u8","u9","u10","u11","u12","u13","u14","u15","u16","u17","u18","u19","u20","u21","u22","u23","u24","u25"]}'
+- description: Admin caller reads the same 30-user directory — full listing passes
+    with no transform.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: docusign-getUsers
+      uri: null
+    subject:
+      sub: auth0|alice
+      claims:
+        groups:
+          - admin
+          - everyone
+    payload:
+      name: docusign-getUsers
+      text:
+        - '{"users":["u1","u2","u3","u4","u5","u6","u7","u8","u9","u10","u11","u12","u13","u14","u15","u16","u17","u18","u19","u20","u21","u22","u23","u24","u25","u26","u27","u28","u29","u30"]}'
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Non-admin directory read already within the 25-user bound — passes
+    unchanged (no transform emitted, response stays byte-identical).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: docusign-getUsers
+      uri: null
+    subject:
+      sub: auth0|carol
+      claims:
+        groups:
+          - everyone
+    payload:
+      name: docusign-getUsers
+      text:
+        - '{"users":["u1","u2","u3","u4","u5","u6","u7","u8","u9","u10"]}'
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Non-admin getUsers whose content block is not JSON — documented
+    fail-open on shape; passes untruncated.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: docusign-getUsers
+      uri: null
+    subject:
+      sub: auth0|carol
+      claims:
+        groups:
+          - everyone
+    payload:
+      name: docusign-getUsers
+      text:
+        - "userName,email\nu1,u1@example.com"
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Community download_envelope_document by a caller without the
+    contracts-read group — denied with the documented reason (base64 PDF egress
+    gated to least privilege).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: docusign-mcp-download_envelope_document
+      uri: null
+    subject:
+      sub: auth0|carol
+      claims:
+        groups:
+          - everyone
+    payload:
+      name: docusign-mcp-download_envelope_document
+      text:
+        - '{"contentBase64":"JVBERi0xLjcKJb..."}'
+  output:
+    expectedResult: deny
+    expectedReason: Downloading signed envelope documents through the agent is restricted to members of the contracts-read group. Review the document in the Docusign web app instead, or ask your Docusign administrator for access. Contact your InfoSec team if you believe this is a false positive.
+- description: Same download by a contracts-read member — allowed, no transform.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: docusign-mcp-download_envelope_document
+      uri: null
+    subject:
+      sub: auth0|bob
+      claims:
+        groups:
+          - contracts-read
+          - everyone
+    payload:
+      name: docusign-mcp-download_envelope_document
+      text:
+        - '{"contentBase64":"JVBERi0xLjcKJb..."}'
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Download with no subject block at all (no IdP / claims missing) —
+    the group check fails closed and the download is denied.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: docusign-mcp-download_envelope_document
+      uri: null
+    payload:
+      name: docusign-mcp-download_envelope_document
+      text:
+        - '{"contentBase64":"JVBERi0xLjcKJb..."}'
+  output:
+    expectedResult: deny
+    expectedReason: Downloading signed envelope documents through the agent is restricted to members of the contracts-read group. Review the document in the Docusign web app instead, or ask your Docusign administrator for access. Contact your InfoSec team if you believe this is a false positive.
+- description: Download tool identified only via tool_metadata.name (legacy egress
+    surface, resource block absent) — still matched and denied for non-members.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    tool_metadata:
+      name: docusign-mcp-download_envelope_document
+    subject:
+      sub: auth0|carol
+      claims:
+        groups:
+          - everyone
+    payload:
+      name: docusign-mcp-download_envelope_document
+      text:
+        - '{"contentBase64":"JVBERi0xLjcKJb..."}'
+  output:
+    expectedResult: deny
+    expectedReason: Downloading signed envelope documents through the agent is restricted to members of the contracts-read group. Review the document in the Docusign web app instead, or ask your Docusign administrator for access. Contact your InfoSec team if you believe this is a false positive.
+- description: IdP emits the groups claim as a single bare string rather than an
+    array — string-shaped membership is honored and the download is allowed.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: docusign-mcp-download_envelope_document
+      uri: null
+    subject:
+      sub: auth0|bob
+      claims:
+        groups: contracts-read
+    payload:
+      name: docusign-mcp-download_envelope_document
+      text:
+        - '{"contentBase64":"JVBERi0xLjcKJb..."}'
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Mixed-case tool name (Docusign-GetUsers) from a non-admin — matching
+    is case-insensitive, so the 30-user listing is still truncated.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: Docusign-GetUsers
+      uri: null
+    subject:
+      sub: auth0|carol
+      claims:
+        groups:
+          - everyone
+    payload:
+      name: Docusign-GetUsers
+      text:
+        - '{"users":["u1","u2","u3","u4","u5","u6","u7","u8","u9","u10","u11","u12","u13","u14","u15","u16","u17","u18","u19","u20","u21","u22","u23","u24","u25","u26","u27","u28","u29","u30"]}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - '{"notice":"Truncated to the first 25 users by gateway policy. Ask your Docusign administrator for admin access if you need the full directory.","users":["u1","u2","u3","u4","u5","u6","u7","u8","u9","u10","u11","u12","u13","u14","u15","u16","u17","u18","u19","u20","u21","u22","u23","u24","u25"]}'
+- description: Single-user tool getUserInfo is not caught by the getusers suffix —
+    passes with no transform even for a non-admin (suffix precision, by design).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: docusign-getUserInfo
+      uri: null
+    subject:
+      sub: auth0|carol
+      claims:
+        groups:
+          - everyone
+    payload:
+      name: docusign-getUserInfo
+      text:
+        - '{"users":["u1","u2","u3","u4","u5","u6","u7","u8","u9","u10","u11","u12","u13","u14","u15","u16","u17","u18","u19","u20","u21","u22","u23","u24","u25","u26","u27","u28","u29","u30"]}'
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Red-team residual — 30 users split across two content blocks of 15
+    each. The cap counts per block, so neither block exceeds 25 and the full roster
+    passes through untruncated (documented cross-block split residual).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: docusign-getUsers
+      uri: null
+    subject:
+      sub: auth0|carol
+      claims:
+        groups:
+          - everyone
+    payload:
+      name: docusign-getUsers
+      text:
+        - '{"users":["u1","u2","u3","u4","u5","u6","u7","u8","u9","u10","u11","u12","u13","u14","u15"]}'
+        - '{"users":["u16","u17","u18","u19","u20","u21","u22","u23","u24","u25","u26","u27","u28","u29","u30"]}'
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Red-team residual — getUsers body is a bare top-level JSON array (not
+    an object with a users key). is_object fails, so nothing is truncated (documented
+    shape fail-open).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: docusign-getUsers
+      uri: null
+    subject:
+      sub: auth0|carol
+      claims:
+        groups:
+          - everyone
+    payload:
+      name: docusign-getUsers
+      text:
+        - '[{"u":1},{"u":2},{"u":3},{"u":4},{"u":5},{"u":6},{"u":7},{"u":8},{"u":9},{"u":10},{"u":11},{"u":12},{"u":13},{"u":14},{"u":15},{"u":16},{"u":17},{"u":18},{"u":19},{"u":20},{"u":21},{"u":22},{"u":23},{"u":24},{"u":25},{"u":26},{"u":27},{"u":28},{"u":29},{"u":30}]'
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Red-team residual — getUsers body delivered as a scalar string rather
+    than the documented payload.text array. The is_array guard is not met, so no
+    truncation is emitted (documented shape fail-open).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: docusign-getUsers
+      uri: null
+    subject:
+      sub: auth0|carol
+      claims:
+        groups:
+          - everyone
+    payload:
+      name: docusign-getUsers
+      text: '{"users":["u1","u2","u3","u4","u5","u6","u7","u8","u9","u10","u11","u12","u13","u14","u15","u16","u17","u18","u19","u20","u21","u22","u23","u24","u25","u26","u27","u28","u29","u30"]}'
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Multiple content blocks — the oversized users block is truncated
+    while the sibling non-matching block passes through unchanged.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: docusign-getUsers
+      uri: null
+    subject:
+      sub: auth0|carol
+      claims:
+        groups:
+          - everyone
+    payload:
+      name: docusign-getUsers
+      text:
+        - '{"resultSetSize":"30"}'
+        - '{"users":["u1","u2","u3","u4","u5","u6","u7","u8","u9","u10","u11","u12","u13","u14","u15","u16","u17","u18","u19","u20","u21","u22","u23","u24","u25","u26","u27","u28","u29","u30"]}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - '{"resultSetSize":"30"}'
+      - '{"notice":"Truncated to the first 25 users by gateway policy. Ask your Docusign administrator for admin access if you need the full directory.","users":["u1","u2","u3","u4","u5","u6","u7","u8","u9","u10","u11","u12","u13","u14","u15","u16","u17","u18","u19","u20","u21","u22","u23","u24","u25"]}'
+- description: Red-team bypass (fixed) — download tool identified ONLY via payload.name,
+    with resource.name and tool_metadata absent. Before the fix the deny failed open
+    (allow=true) because only resource.name/tool_metadata.name were checked; payload.name
+    is now the third matched egress surface, so the download is denied.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    subject:
+      sub: auth0|carol
+      claims:
+        groups:
+          - everyone
+    payload:
+      name: docusign-mcp-download_envelope_document
+      text:
+        - '{"contentBase64":"JVBERi0xLjcKJb..."}'
+  output:
+    expectedResult: deny
+    expectedReason: Downloading signed envelope documents through the agent is restricted to members of the contracts-read group. Review the document in the Docusign web app instead, or ask your Docusign administrator for access. Contact your InfoSec team if you believe this is a false positive.
+- description: Red-team bypass (fixed) — getUsers 30-user roster delivered with the
+    tool name only on payload.name (non-admin). The truncation transform now fires
+    via the payload.name surface and the roster is cut to 25.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    subject:
+      sub: auth0|carol
+      claims:
+        groups:
+          - everyone
+    payload:
+      name: docusign-getUsers
+      text:
+        - '{"users":["u1","u2","u3","u4","u5","u6","u7","u8","u9","u10","u11","u12","u13","u14","u15","u16","u17","u18","u19","u20","u21","u22","u23","u24","u25","u26","u27","u28","u29","u30"]}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - '{"notice":"Truncated to the first 25 users by gateway policy. Ask your Docusign administrator for admin access if you need the full directory.","users":["u1","u2","u3","u4","u5","u6","u7","u8","u9","u10","u11","u12","u13","u14","u15","u16","u17","u18","u19","u20","u21","u22","u23","u24","u25"]}'
+- description: Red-team residual — getUsers body nests the roster under a renamed key
+    ({"result":{"users":[…]}}). The top level is an object but has no top-level users
+    array, so nothing is truncated (documented shape fail-open, nested-key variant).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: docusign-getUsers
+      uri: null
+    subject:
+      sub: auth0|carol
+      claims:
+        groups:
+          - everyone
+    payload:
+      name: docusign-getUsers
+      text:
+        - '{"result":{"users":["u1","u2","u3","u4","u5","u6","u7","u8","u9","u10","u11","u12","u13","u14","u15","u16","u17","u18","u19","u20","u21","u22","u23","u24","u25","u26","u27","u28","u29","u30"]}}'
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Red-team residual — CData server reaches the same user table via the
+    SQL surface (docusign_run_query). It is neither the getusers nor the download
+    suffix, so it passes through untouched (documented — this policy does not parse SQL).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: docusign_run_query
+      uri: null
+    subject:
+      sub: auth0|carol
+      claims:
+        groups:
+          - everyone
+    payload:
+      name: docusign_run_query
+      text:
+        - '{"rows":[{"userName":"u1","email":"u1@example.com"},{"userName":"u2","email":"u2@example.com"}]}'
+  output:
+    expectedResult: allow
+  transformApplied: false

@@ -1,0 +1,255 @@
+- description: Payment link with an attacker-controlled redirect_url. Transform
+    strips the key; price and quantity survive untouched.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: stripe-mcp-create_payment_link
+      uri: null
+    payload:
+      name: stripe-mcp-create_payment_link
+      args:
+        price: price_1QxAbC
+        quantity: 1
+        redirect_url: https://stripe-thanks.attacker.example/collect
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transform:
+    transformed_payload:
+      price: price_1QxAbC
+      quantity: 1
+- description: Payment link with no redirect_url at all. Nothing to scrub —
+    no transform emitted.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: stripe-mcp-create_payment_link
+      uri: null
+    payload:
+      name: stripe-mcp-create_payment_link
+      args:
+        price: price_1QxAbC
+        quantity: 2
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Payment link with an empty-string redirect_url. Treated as absent —
+    no transform emitted.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: stripe-mcp-create_payment_link
+      uri: null
+    payload:
+      name: stripe-mcp-create_payment_link
+      args:
+        price: price_1QxAbC
+        quantity: 1
+        redirect_url: ""
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: With the shipped EMPTY allowlist, even a plausibly-legitimate
+    corporate redirect host is stripped. Pin allowed_redirect_hosts at import
+    time to let your own domains through.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: stripe-mcp-create_payment_link
+      uri: null
+    payload:
+      name: stripe-mcp-create_payment_link
+      args:
+        price: price_1QxAbC
+        quantity: 1
+        redirect_url: https://checkout.example.com/thanks
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    price: price_1QxAbC
+    quantity: 1
+- description: Scheme-less redirect_url ("evil.example/phish") cannot be host-parsed.
+    Fails closed — stripped.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: stripe-mcp-create_payment_link
+      uri: null
+    payload:
+      name: stripe-mcp-create_payment_link
+      args:
+        price: price_1QxAbC
+        quantity: 1
+        redirect_url: evil.example/phish
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transform:
+    transformed_payload:
+      price: price_1QxAbC
+      quantity: 1
+- description: Userinfo trick — "https://checkout.example.com@evil.example/" has
+    real host evil.example after the last "@". Stripped.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: stripe-mcp-create_payment_link
+      uri: null
+    payload:
+      name: stripe-mcp-create_payment_link
+      args:
+        price: price_1QxAbC
+        quantity: 1
+        redirect_url: https://checkout.example.com@evil.example/collect
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transform:
+    transformed_payload:
+      price: price_1QxAbC
+      quantity: 1
+- description: Non-string redirect_url (object smuggling) cannot be host-parsed.
+    Fails closed — stripped.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: stripe-mcp-create_payment_link
+      uri: null
+    payload:
+      name: stripe-mcp-create_payment_link
+      args:
+        price: price_1QxAbC
+        quantity: 1
+        redirect_url:
+          url: https://evil.example/collect
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transform:
+    transformed_payload:
+      price: price_1QxAbC
+      quantity: 1
+- description: Uppercase gateway prefix and tool name still match — the suffix
+    check is case-insensitive.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: STRIPE-MCP-CREATE_PAYMENT_LINK
+      uri: null
+    payload:
+      name: STRIPE-MCP-CREATE_PAYMENT_LINK
+      args:
+        price: price_1QxAbC
+        quantity: 1
+        redirect_url: https://evil.example/collect
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transform:
+    transformed_payload:
+      price: price_1QxAbC
+      quantity: 1
+- description: Unrelated Stripe tool carrying a redirect_url-shaped argument is
+    left alone — the scrub is scoped to payment-link creation.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: stripe-mcp-create_customer
+      uri: null
+    payload:
+      name: stripe-mcp-create_customer
+      args:
+        name: Ada Lovelace
+        redirect_url: https://evil.example/collect
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Payment-link call with args missing entirely. Nothing to scrub and
+    the transform-only default still allows.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: stripe-mcp-create_payment_link
+      uri: null
+    payload:
+      name: stripe-mcp-create_payment_link
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: 'Red-team (fail-open): resource.name absent, tool identified only by
+    the legacy payload.name alias. The scrub must still fire — matching on the
+    alias closes the fail-open where a missing resource.name let the redirect pass.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    payload:
+      name: stripe-mcp-create_payment_link
+      args:
+        price: price_1QxAbC
+        quantity: 1
+        redirect_url: https://evil.example/collect
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transform:
+    transformed_payload:
+      price: price_1QxAbC
+      quantity: 1
+- description: 'Red-team (backslash host confusion): "https://evil.example\@allowed.example/"
+    — a WHATWG browser treats "\" as an authority terminator and navigates to
+    evil.example, not the allowlistable allowed.example. Host extraction must not
+    read allowed.example here; the redirect is stripped and stays stripped even
+    if allowed.example is later pinned.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: stripe-mcp-create_payment_link
+      uri: null
+    payload:
+      name: stripe-mcp-create_payment_link
+      args:
+        price: price_1QxAbC
+        quantity: 1
+        redirect_url: 'https://evil.example\@allowed.example/collect'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transform:
+    transformed_payload:
+      price: price_1QxAbC
+      quantity: 1

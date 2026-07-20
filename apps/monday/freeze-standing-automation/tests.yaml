@@ -1,0 +1,544 @@
+- description: Non-persistence tool (board read) passes through untouched.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-mcp-get_board_items_page
+      uri: null
+    payload:
+      name: monday-mcp-get_board_items_page
+      args:
+        boardId: 12345
+  output:
+    expectedResult: allow
+
+- description: Red-team false positive — link_board_items_workflow ends in _workflow
+    but is not a targeted suffix; must be allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-mcp-link_board_items_workflow
+      uri: null
+    payload:
+      name: monday-mcp-link_board_items_workflow
+      args: {}
+  output:
+    expectedResult: allow
+
+- description: create_automation by a non-admin caller is denied (automation reason).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-mcp-create_automation
+      uri: null
+    subject:
+      sub: google-apps|bot@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: monday-mcp-create_automation
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "This monday tool installs a standing automation or workflow that keeps running after this session ends, which per-call governance cannot see or stop, so the gateway blocks agent and prompt-driven callers from creating one. Have a human set up the automation directly in the monday UI instead. If you are a designated automation author, ask your admin to add your IdP group to this policy's allow-list."
+
+- description: manage_automations by a non-admin caller is denied (automation reason).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-mcp-manage_automations
+      uri: null
+    subject:
+      sub: google-apps|bot@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: monday-mcp-manage_automations
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "This monday tool installs a standing automation or workflow that keeps running after this session ends, which per-call governance cannot see or stop, so the gateway blocks agent and prompt-driven callers from creating one. Have a human set up the automation directly in the monday UI instead. If you are a designated automation author, ask your admin to add your IdP group to this policy's allow-list."
+
+- description: create_workflow by a non-admin caller is denied (automation reason).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-mcp-create_workflow
+      uri: null
+    subject:
+      sub: google-apps|bot@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: monday-mcp-create_workflow
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "This monday tool installs a standing automation or workflow that keeps running after this session ends, which per-call governance cannot see or stop, so the gateway blocks agent and prompt-driven callers from creating one. Have a human set up the automation directly in the monday UI instead. If you are a designated automation author, ask your admin to add your IdP group to this policy's allow-list."
+
+- description: update_workflow by a non-admin caller is denied (automation reason).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-mcp-update_workflow
+      uri: null
+    subject:
+      sub: google-apps|bot@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: monday-mcp-update_workflow
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "This monday tool installs a standing automation or workflow that keeps running after this session ends, which per-call governance cannot see or stop, so the gateway blocks agent and prompt-driven callers from creating one. Have a human set up the automation directly in the monday UI instead. If you are a designated automation author, ask your admin to add your IdP group to this policy's allow-list."
+
+- description: plan_workflow by a non-admin caller is denied (automation reason).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-mcp-plan_workflow
+      uri: null
+    subject:
+      sub: google-apps|bot@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: monday-mcp-plan_workflow
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "This monday tool installs a standing automation or workflow that keeps running after this session ends, which per-call governance cannot see or stop, so the gateway blocks agent and prompt-driven callers from creating one. Have a human set up the automation directly in the monday UI instead. If you are a designated automation author, ask your admin to add your IdP group to this policy's allow-list."
+
+- description: publish_workflow (bare name, no gateway prefix) by a non-admin caller
+    is denied (automation reason).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: publish_workflow
+      uri: null
+    subject:
+      sub: google-apps|bot@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: publish_workflow
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "This monday tool installs a standing automation or workflow that keeps running after this session ends, which per-call governance cannot see or stop, so the gateway blocks agent and prompt-driven callers from creating one. Have a human set up the automation directly in the monday UI instead. If you are a designated automation author, ask your admin to add your IdP group to this policy's allow-list."
+
+- description: manage_agent with no subject/claims at all is denied (agent reason,
+    fails closed on missing groups).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-mcp-manage_agent
+      uri: null
+    payload:
+      name: monday-mcp-manage_agent
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "This monday tool manages an autonomous monday AI agent that keeps acting after this session ends, which per-call governance cannot see or stop, so the gateway blocks agent and prompt-driven callers from creating or configuring one. Have a human set up the agent directly in the monday UI instead. If you are a designated automation author, ask your admin to add your IdP group to this policy's allow-list."
+
+- description: manage_agent_triggers by a non-admin caller is denied (agent reason).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-mcp-manage_agent_triggers
+      uri: null
+    subject:
+      sub: google-apps|bot@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: monday-mcp-manage_agent_triggers
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "This monday tool manages an autonomous monday AI agent that keeps acting after this session ends, which per-call governance cannot see or stop, so the gateway blocks agent and prompt-driven callers from creating or configuring one. Have a human set up the agent directly in the monday UI instead. If you are a designated automation author, ask your admin to add your IdP group to this policy's allow-list."
+
+- description: manage_agent_skills by a non-admin caller is denied (agent reason).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-mcp-manage_agent_skills
+      uri: null
+    subject:
+      sub: google-apps|bot@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: monday-mcp-manage_agent_skills
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "This monday tool manages an autonomous monday AI agent that keeps acting after this session ends, which per-call governance cannot see or stop, so the gateway blocks agent and prompt-driven callers from creating or configuring one. Have a human set up the agent directly in the monday UI instead. If you are a designated automation author, ask your admin to add your IdP group to this policy's allow-list."
+
+- description: manage_agent_knowledge by a non-admin caller is denied (agent reason).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-mcp-manage_agent_knowledge
+      uri: null
+    subject:
+      sub: google-apps|bot@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: monday-mcp-manage_agent_knowledge
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "This monday tool manages an autonomous monday AI agent that keeps acting after this session ends, which per-call governance cannot see or stop, so the gateway blocks agent and prompt-driven callers from creating or configuring one. Have a human set up the agent directly in the monday UI instead. If you are a designated automation author, ask your admin to add your IdP group to this policy's allow-list."
+
+- description: Case-insensitive, bare-name evasion — CREATE_AUTOMATION uppercase is
+    still denied (automation reason).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: CREATE_AUTOMATION
+      uri: null
+    subject:
+      sub: google-apps|bot@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: CREATE_AUTOMATION
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "This monday tool installs a standing automation or workflow that keeps running after this session ends, which per-call governance cannot see or stop, so the gateway blocks agent and prompt-driven callers from creating one. Have a human set up the automation directly in the monday UI instead. If you are a designated automation author, ask your admin to add your IdP group to this policy's allow-list."
+
+- description: Underscore-separated gateway/community prefix (monday_create_automation)
+    is denied (automation reason).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday_create_automation
+      uri: null
+    subject:
+      sub: google-apps|bot@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: monday_create_automation
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "This monday tool installs a standing automation or workflow that keeps running after this session ends, which per-call governance cannot see or stop, so the gateway blocks agent and prompt-driven callers from creating one. Have a human set up the automation directly in the monday UI instead. If you are a designated automation author, ask your admin to add your IdP group to this policy's allow-list."
+
+- description: Platform-admin group is allow-listed — create_automation is permitted.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-mcp-create_automation
+      uri: null
+    subject:
+      sub: google-apps|ops@example.com
+      claims:
+        groups:
+          - platform-admin
+    payload:
+      name: monday-mcp-create_automation
+      args: {}
+  output:
+    expectedResult: allow
+
+- description: Platform-admin group (case-insensitive match) may configure an AI agent.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-mcp-manage_agent
+      uri: null
+    subject:
+      sub: google-apps|ops@example.com
+      claims:
+        groups:
+          - Platform-Admin
+    payload:
+      name: monday-mcp-manage_agent
+      args: {}
+  output:
+    expectedResult: allow
+
+- description: Malformed groups claim (string, not array) fails closed — create_automation
+    denied (automation reason).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-mcp-create_automation
+      uri: null
+    subject:
+      sub: google-apps|bot@example.com
+      claims:
+        groups: platform-admin
+    payload:
+      name: monday-mcp-create_automation
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "This monday tool installs a standing automation or workflow that keeps running after this session ends, which per-call governance cannot see or stop, so the gateway blocks agent and prompt-driven callers from creating one. Have a human set up the automation directly in the monday UI instead. If you are a designated automation author, ask your admin to add your IdP group to this policy's allow-list."
+
+- description: Red-team claim spoof — object-shaped groups claim whose VALUE spells
+    platform-admin must NOT grant the exemption; fails closed (is_array guard).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-mcp-create_automation
+      uri: null
+    subject:
+      sub: google-apps|bot@example.com
+      claims:
+        groups:
+          role: platform-admin
+    payload:
+      name: monday-mcp-create_automation
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "This monday tool installs a standing automation or workflow that keeps running after this session ends, which per-call governance cannot see or stop, so the gateway blocks agent and prompt-driven callers from creating one. Have a human set up the automation directly in the monday UI instead. If you are a designated automation author, ask your admin to add your IdP group to this policy's allow-list."
+
+- description: Red-team claim spoof — object-shaped groups claim whose KEY is
+    platform-admin must NOT grant the exemption; fails closed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-mcp-manage_agent
+      uri: null
+    subject:
+      sub: google-apps|bot@example.com
+      claims:
+        groups:
+          platform-admin: true
+    payload:
+      name: monday-mcp-manage_agent
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "This monday tool manages an autonomous monday AI agent that keeps acting after this session ends, which per-call governance cannot see or stop, so the gateway blocks agent and prompt-driven callers from creating or configuring one. Have a human set up the agent directly in the monday UI instead. If you are a designated automation author, ask your admin to add your IdP group to this policy's allow-list."
+
+- description: Red-team — array groups claim with a non-string element alongside the
+    real admin group still grants (non-string skipped, is_string guard, no type error).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-mcp-create_automation
+      uri: null
+    subject:
+      sub: google-apps|ops@example.com
+      claims:
+        groups:
+          - 123
+          - platform-admin
+    payload:
+      name: monday-mcp-create_automation
+      args: {}
+  output:
+    expectedResult: allow
+
+- description: Red-team — array groups claim of only non-string elements fails closed
+    (no admin, no type error) — create_automation denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-mcp-create_automation
+      uri: null
+    subject:
+      sub: google-apps|bot@example.com
+      claims:
+        groups:
+          - 123
+          - 456
+    payload:
+      name: monday-mcp-create_automation
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "This monday tool installs a standing automation or workflow that keeps running after this session ends, which per-call governance cannot see or stop, so the gateway blocks agent and prompt-driven callers from creating one. Have a human set up the automation directly in the monday UI instead. If you are a designated automation author, ask your admin to add your IdP group to this policy's allow-list."
+
+- description: Red-team — near-miss group name platform-admin-readonly is NOT the admin
+    group (exact set membership, not substring); create_automation denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-mcp-create_automation
+      uri: null
+    subject:
+      sub: google-apps|bot@example.com
+      claims:
+        groups:
+          - platform-admin-readonly
+    payload:
+      name: monday-mcp-create_automation
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "This monday tool installs a standing automation or workflow that keeps running after this session ends, which per-call governance cannot see or stop, so the gateway blocks agent and prompt-driven callers from creating one. Have a human set up the automation directly in the monday UI instead. If you are a designated automation author, ask your admin to add your IdP group to this policy's allow-list."
+
+- description: Known limitation (documented) — the GraphQL escape hatch all_monday_api
+    carries no targeted tool name, so this name-based policy passes it through. Attach
+    the escape-hatch deny companion. This case locks that residual behavior.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-mcp-all_monday_api
+      uri: null
+    payload:
+      name: monday-mcp-all_monday_api
+      args:
+        query: "mutation { create_automation }"
+  output:
+    expectedResult: allow
+
+- description: Known limitation (documented) — all_api_write is likewise not targeted
+    by this policy and passes through (companion policy required).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-mcp-all_api_write
+      uri: null
+    payload:
+      name: monday-mcp-all_api_write
+      args: {}
+  output:
+    expectedResult: allow
+
+- description: Red-team / known limitation (documented) — a gateway prefix joined by a
+    non-`-`/`_` separator (dot) is NOT matched by the suffix branch and passes through.
+    Only `-` and `_` count as separators; DTwo emits those, so this is a residual for
+    unusual custom naming schemes. Locks the documented behavior.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday.mcp.create_automation
+      uri: null
+    subject:
+      sub: google-apps|bot@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: monday.mcp.create_automation
+      args: {}
+  output:
+    expectedResult: allow
+
+- description: Red-team / known limitation (documented) — colon-separated prefix on an
+    agent tool likewise passes through (non-`-`/`_` separator not matched).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "monday:manage_agent"
+      uri: null
+    payload:
+      name: "monday:manage_agent"
+      args: {}
+  output:
+    expectedResult: allow
+
+- description: Red-team — a non-string (numeric) tool name is coerced to "" rather than
+    handed to lower(), so no type error is raised and the call falls through to allow
+    (matches nothing). Locks the is_string / not-is_string tool_name branch.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: 12345
+      uri: null
+    payload:
+      name: "12345"
+      args: {}
+  output:
+    expectedResult: allow

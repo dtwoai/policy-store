@@ -1,0 +1,333 @@
+# Tests for monday/default-deny-unknown-tools.
+# Covers every branch of the allowlist gate:
+#   - allow: bare official name, sakce monday_-prefixed name, gateway-prefixed
+#     name, case-insensitive match, read + reversible-write suffixes;
+#   - deny (fail closed): GraphQL escape hatch, manage_tools, batch create_items
+#     (documented endswith non-match), missing/empty name, non-string name,
+#     non-ASCII homoglyph (Unicode case-fold / spoof guard);
+#   - documented residual: prefix glued directly to an allowlisted suffix.
+
+- description: Bare official read on the allowlist (get_board_items_page) is allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: get_board_items_page
+      uri: null
+    payload:
+      name: get_board_items_page
+      args:
+        boardId: 12345
+  output:
+    expectedResult: allow
+
+- description: Gateway-prefixed read (monday-mcp-get_board_items_page) ends with an allowlisted suffix and is allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-mcp-get_board_items_page
+      uri: null
+    payload:
+      name: monday-mcp-get_board_items_page
+      args:
+        boardId: 12345
+  output:
+    expectedResult: allow
+
+- description: sakce community spelling (monday_create_item) ends with create_item and is allowed by the single suffix entry.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday_create_item
+      uri: null
+    payload:
+      name: monday_create_item
+      args:
+        boardId: 12345
+        itemName: New lead
+  output:
+    expectedResult: allow
+
+- description: Reversible-write suffix create_update is allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-mcp-create_update
+      uri: null
+    payload:
+      name: monday-mcp-create_update
+      args:
+        itemId: 42
+  output:
+    expectedResult: allow
+
+- description: Matching is case-insensitive (SEARCH) — an allowlisted suffix in uppercase is allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: SEARCH
+      uri: null
+    payload:
+      name: SEARCH
+      args:
+        searchTerm: q3 deals
+  output:
+    expectedResult: allow
+
+- description: GraphQL escape hatch (all_monday_api) is not allowlisted — denied by default with the drift reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-mcp-all_monday_api
+      uri: null
+    payload:
+      name: monday-mcp-all_monday_api
+      args:
+        query: "mutation { delete_item (item_id: 42) { id } }"
+  output:
+    expectedResult: deny
+    expectedReason: "This monday tool is not on the audited allowlist, so the gateway denies it by default and surfaces the call as tool drift. This fails closed against the GraphQL escape hatch (all_monday_api / all_api_read / all_api_write), the self-expanding manage_tools, the beta dynamic-API tools, and the developer apps-mode surface (monday_apps_export_storage_data, monday_apps_set_environment_variable) — any one of which could reduce every other monday policy to one opaque query string. Ask a gateway admin to review the tool and, if it is safe for agents, add its verified suffix to the allowlist."
+
+- description: Self-expanding toolset (manage_tools) is not allowlisted and is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-mcp-manage_tools
+      uri: null
+    payload:
+      name: monday-mcp-manage_tools
+      args: {}
+  output:
+    expectedResult: deny
+
+- description: Developer apps-mode tool (monday_apps_export_storage_data) is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday_apps_export_storage_data
+      uri: null
+    payload:
+      name: monday_apps_export_storage_data
+      args: {}
+  output:
+    expectedResult: deny
+
+- description: Batch write create_items does NOT end with the allowlisted create_item suffix (last chars are "create_items") and is therefore denied — documented endswith non-collision.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-mcp-create_items
+      uri: null
+    payload:
+      name: monday-mcp-create_items
+      args:
+        boardId: 12345
+        items: []
+  output:
+    expectedResult: deny
+
+- description: Destructive delete_item is not allowlisted and is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: delete_item
+      uri: null
+    payload:
+      name: delete_item
+      args:
+        itemId: 42
+  output:
+    expectedResult: deny
+
+- description: Empty tool name matches nothing and is denied (fail closed).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ""
+      uri: null
+    payload:
+      name: ""
+      args: {}
+  output:
+    expectedResult: deny
+
+- description: Non-string tool name (number) is coerced to "" instead of raising a lower() type error — clean, reasoned deny (fail closed).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: 12345
+      uri: null
+    payload:
+      name: 12345
+      args: {}
+  output:
+    expectedResult: deny
+
+- description: Homoglyph of an allowlisted suffix (Cyrillic "ѕearch") fails the raw ASCII guard before lower() runs and is denied — closes the Unicode case-fold / spoof evasion.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "ѕearch"
+      uri: null
+    payload:
+      name: "ѕearch"
+      args:
+        searchTerm: q3 deals
+  output:
+    expectedResult: deny
+
+- description: Documented endswith residual — a prefix glued directly to an allowlisted suffix (xcreate_item) still matches and is allowed. Recorded in Known limitations; use full gateway tool names if stricter matching is required.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: xcreate_item
+      uri: null
+    payload:
+      name: xcreate_item
+      args:
+        boardId: 12345
+  output:
+    expectedResult: allow
+
+- description: >-
+    Red-team regression — an embedded newline splicing a denied tool onto an
+    allowlisted suffix ("delete_item\nsearch") is denied. The raw ASCII guard
+    regex (^[A-Za-z0-9._-]+$) is NOT multiline in OPA/Go, so $ anchors to
+    end-of-text and the newline breaks the whole-string match before endswith
+    ever sees "search". Locks the non-multiline anchoring assumption.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "delete_item\nsearch"
+      uri: null
+    payload:
+      name: "delete_item\nsearch"
+      args: {}
+  output:
+    expectedResult: deny
+
+- description: >-
+    Red-team regression — leading/trailing whitespace padding around an
+    allowlisted suffix ("  search ") fails the raw ASCII character-class guard
+    (space is outside [A-Za-z0-9._-]) and is denied. Locks the guard's
+    strictness against whitespace-smuggled names.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "  search "
+      uri: null
+    payload:
+      name: "  search "
+      args:
+        searchTerm: q3 deals
+  output:
+    expectedResult: deny
+
+- description: >-
+    Red-team finding (documented drift blind spot) — a plausible future/renamed
+    tool ending in the short generic suffix "search" (advanced_search) is
+    auto-allowed by endswith, NOT surfaced as drift. Suffix matching cannot
+    distinguish this from a legitimate gateway-prefixed "monday-mcp-search", so
+    the residual is recorded under Known limitations; drop "search" and pin the
+    full gateway name if drift alerting on the search family is required. Locks
+    the behavior so the blind spot stays visible.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: advanced_search
+      uri: null
+    payload:
+      name: advanced_search
+      args:
+        searchTerm: q3 deals
+  output:
+    expectedResult: allow
+
+- description: >-
+    Red-team regression — the broad-read tool get_full_board_data, explicitly
+    called out as excluded in the description, does not end with any allowlisted
+    suffix and is denied. Locks the stated exclusion of high-volume board reads.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-mcp-get_full_board_data
+      uri: null
+    payload:
+      name: monday-mcp-get_full_board_data
+      args:
+        boardId: 12345
+  output:
+    expectedResult: deny
+
+- description: >-
+    Red-team regression — create_update_in_monday (official write tool) ends in
+    "in_monday", NOT the allowlisted "create_update" suffix, so the single
+    create_update entry does not accidentally admit it. Locks a claimed
+    non-collision.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: create_update_in_monday
+      uri: null
+    payload:
+      name: create_update_in_monday
+      args:
+        itemId: 42
+  output:
+    expectedResult: deny

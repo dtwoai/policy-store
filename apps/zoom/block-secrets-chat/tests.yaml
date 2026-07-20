@@ -1,0 +1,332 @@
+# Exact deny reason reused across deny cases:
+#  R = 'This Zoom Team Chat message looks like it contains a secret (API key,
+#      password, bearer token, or private key). Store the credential in your
+#      secret manager and share a reference instead of the raw value. Contact
+#      your InfoSec team if this was a false positive.'
+
+- description: Non-chat tool (meeting search) is unaffected — allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-workspace-search_meetings
+      uri: null
+    payload:
+      name: zoom-workspace-search_meetings
+      args:
+        q: quarterly review
+  output:
+    expectedResult: allow
+
+- description: Normal Team Chat message — no secret patterns. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-team-chat-zoom_chat_message_send
+      uri: null
+    payload:
+      name: zoom-team-chat-zoom_chat_message_send
+      args:
+        chat_session_id: abc123
+        message_content: standup in 5
+  output:
+    expectedResult: allow
+
+- description: Chat send body contains an OpenAI-shaped API key. Policy should deny with the reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-team-chat-zoom_chat_message_send
+      uri: null
+    payload:
+      name: zoom-team-chat-zoom_chat_message_send
+      args:
+        chat_session_id: abc123
+        message_content: "here's the api_key: sk-abcdef0123456789abcdef0123456789"
+  output:
+    expectedResult: deny
+    expectedReason: This Zoom Team Chat message looks like it contains a secret (API key, password, bearer token, or private key). Store the credential in your secret manager and share a reference instead of the raw value. Contact your InfoSec team if this was a false positive.
+
+- description: Chat UPDATE body contains a password key=value pair. Covers the update tool branch — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-team-chat-zoom_chat_message_update
+      uri: null
+    payload:
+      name: zoom-team-chat-zoom_chat_message_update
+      args:
+        chat_session_id: abc123
+        messageId: msg-99
+        message_content: "fixed it, password=Hunter2SuperSecret!"
+  output:
+    expectedResult: deny
+    expectedReason: This Zoom Team Chat message looks like it contains a secret (API key, password, bearer token, or private key). Store the credential in your secret manager and share a reference instead of the raw value. Contact your InfoSec team if this was a false positive.
+
+- description: Red-team — Bearer authorization token in the body. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-team-chat-zoom_chat_message_send
+      uri: null
+    payload:
+      name: zoom-team-chat-zoom_chat_message_send
+      args:
+        chat_session_id: abc123
+        message_content: "curl -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9'"
+  output:
+    expectedResult: deny
+    expectedReason: This Zoom Team Chat message looks like it contains a secret (API key, password, bearer token, or private key). Store the credential in your secret manager and share a reference instead of the raw value. Contact your InfoSec team if this was a false positive.
+
+- description: Red-team — PEM private-key header in the body. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-team-chat-zoom_chat_message_send
+      uri: null
+    payload:
+      name: zoom-team-chat-zoom_chat_message_send
+      args:
+        chat_session_id: abc123
+        message_content: "-----BEGIN RSA PRIVATE KEY-----\nMIIEpAIBAAKCAQEA..."
+  output:
+    expectedResult: deny
+    expectedReason: This Zoom Team Chat message looks like it contains a secret (API key, password, bearer token, or private key). Store the credential in your secret manager and share a reference instead of the raw value. Contact your InfoSec team if this was a false positive.
+
+- description: Red-team — tool name arrives upper/mixed case; suffix match is case-insensitive, so a secret still denies.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ZOOM-TEAM-CHAT-ZOOM_CHAT_MESSAGE_SEND
+      uri: null
+    payload:
+      name: ZOOM-TEAM-CHAT-ZOOM_CHAT_MESSAGE_SEND
+      args:
+        chat_session_id: abc123
+        message_content: "token: ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+  output:
+    expectedResult: deny
+    expectedReason: This Zoom Team Chat message looks like it contains a secret (API key, password, bearer token, or private key). Store the credential in your secret manager and share a reference instead of the raw value. Contact your InfoSec team if this was a false positive.
+
+- description: Red-team — chat send call omits args entirely; empty body means nothing to leak, so allow (fail-open on absence, not the guarded write).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-team-chat-zoom_chat_message_send
+      uri: null
+    payload:
+      name: zoom-team-chat-zoom_chat_message_send
+  output:
+    expectedResult: allow
+
+- description: Red-team — a different zoom_chat_ tool (contact_add) is NOT guarded by this policy; even with a secret-shaped arg it passes through.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-team-chat-zoom_chat_contact_add
+      uri: null
+    payload:
+      name: zoom-team-chat-zoom_chat_contact_add
+      args:
+        message_content: "api_key: sk-abcdef0123456789abcdef0123456789"
+  output:
+    expectedResult: allow
+
+- description: >-
+    Red-team (regex edge, newlines) — a secret sitting after several newlines in
+    a multi-line message body still denies; the patterns are unanchored and \s
+    spans newlines, so this is NOT a bypass.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-team-chat-zoom_chat_message_send
+      uri: null
+    payload:
+      name: zoom-team-chat-zoom_chat_message_send
+      args:
+        chat_session_id: abc123
+        message_content: "hey team\nsee thread below\n\napi_key: sk-abcdef0123456789abcdef0123456789\nthanks"
+  output:
+    expectedResult: deny
+    expectedReason: This Zoom Team Chat message looks like it contains a secret (API key, password, bearer token, or private key). Store the credential in your secret manager and share a reference instead of the raw value. Contact your InfoSec team if this was a false positive.
+
+- description: >-
+    Red-team (encoding bypass, DOCUMENTED residual) — a base64-encoded secret has
+    no key:value delimiter or provider prefix, so no pattern matches and it is
+    allowed through. Regex-over-text cannot catch deliberately encoded secrets;
+    documented under Known limitations.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-team-chat-zoom_chat_message_send
+      uri: null
+    payload:
+      name: zoom-team-chat-zoom_chat_message_send
+      args:
+        chat_session_id: abc123
+        message_content: "here you go: c2stYWJjZGVmMDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODk="
+  output:
+    expectedResult: allow
+
+- description: >-
+    Red-team (obfuscation bypass, DOCUMENTED residual) — a unicode fullwidth
+    look-alike key (ｐａssword:) does not match the ASCII password pattern, so the
+    secret is allowed. Documented under Known limitations (encoding/obfuscation).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-team-chat-zoom_chat_message_send
+      uri: null
+    payload:
+      name: zoom-team-chat-zoom_chat_message_send
+      args:
+        chat_session_id: abc123
+        message_content: "ｐａssword: Hunter2SuperSecretValue"
+  output:
+    expectedResult: allow
+
+- description: >-
+    Red-team (prose bypass, DOCUMENTED residual) — a secret written as prose with
+    no key:value/key=value delimiter and no provider prefix ("the password is X")
+    is not matched and is allowed. Documented under Known limitations.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-team-chat-zoom_chat_message_send
+      uri: null
+    payload:
+      name: zoom-team-chat-zoom_chat_message_send
+      args:
+        chat_session_id: abc123
+        message_content: "reminder the password is Hunter2SuperSecret please rotate it"
+  output:
+    expectedResult: allow
+
+- description: >-
+    Red-team (escape-hatch route, DOCUMENTED residual) — the workspace/docs write
+    tool create_new_file_with_markdown carries the same secret in its `content`
+    arg but is NOT a Team Chat send/update verb, so this chat-scoped policy does
+    not inspect it and the secret lands in a Zoom Doc. Close with a companion
+    block-secrets policy on doc-write tools (Known limitations).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-workspace-create_new_file_with_markdown
+      uri: null
+    payload:
+      name: zoom-workspace-create_new_file_with_markdown
+      args:
+        file_name: leak
+        content: "api_key: sk-abcdef0123456789abcdef0123456789"
+  output:
+    expectedResult: allow
+
+- description: >-
+    Red-team (escape-hatch route, DOCUMENTED residual) — the docs sub-server
+    write tool create_file_with_content (naming divergence from the workspace
+    server's create_new_file_with_markdown) carries the same secret in its
+    `content` arg but is NOT a Team Chat send/update verb, so this chat-scoped
+    policy does not inspect it and the secret lands in a Zoom Doc. Close with a
+    companion block-secrets policy on doc-write tools (Known limitations).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-docs-create_file_with_content
+      uri: null
+    payload:
+      name: zoom-docs-create_file_with_content
+      args:
+        file_name: leak
+        content: "api_key: sk-abcdef0123456789abcdef0123456789"
+  output:
+    expectedResult: allow
+
+- description: >-
+    Red-team (escape-hatch route, DOCUMENTED residual) — the Whiteboard
+    sub-server's script-driven create tool create_a_whiteboard_by_script is a
+    second text-write route. It carries the secret in its content/script arg but
+    is NOT a Team Chat send/update verb, so this chat-scoped policy does not
+    inspect it and the secret lands in a Zoom Whiteboard. Close with a companion
+    block-secrets policy on whiteboard-write tools (Known limitations).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-whiteboard-create_a_whiteboard_by_script
+      uri: null
+    payload:
+      name: zoom-whiteboard-create_a_whiteboard_by_script
+      args:
+        title: leak
+        script: "api_key: sk-abcdef0123456789abcdef0123456789"
+  output:
+    expectedResult: allow
+
+- description: >-
+    Red-team (field-scope bypass, DOCUMENTED residual) — a guarded send call
+    whose message_content is benign but that hides the secret in the
+    message_format argument. The policy inspects message_content only, so
+    message_format is not checked and the secret is allowed through. Documented
+    under Known limitations (message_content only).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-team-chat-zoom_chat_message_send
+      uri: null
+    payload:
+      name: zoom-team-chat-zoom_chat_message_send
+      args:
+        chat_session_id: abc123
+        message_content: "see formatting below"
+        message_format: "api_key: sk-abcdef0123456789abcdef0123456789"
+  output:
+    expectedResult: allow

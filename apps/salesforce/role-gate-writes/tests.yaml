@@ -1,0 +1,568 @@
+- description: Non-Salesforce tool passes through untouched.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-slack-post-message
+      uri: null
+    payload:
+      name: slack-mcp-slack-post-message
+      args:
+        channel: C0123456789
+        text: hello
+  output:
+    expectedResult: allow
+
+- description: Hosted read tool (soql_query) is allowed for everyone, no group needed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: salesforce-soql_query
+      uri: null
+    payload:
+      name: salesforce-soql_query
+      args:
+        query: SELECT Id FROM Account
+  output:
+    expectedResult: allow
+
+- description: Community read tool (tsmztech salesforce_query_records) allowed by suffix, no group.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: sf-mcp-salesforce_query_records
+      uri: null
+    payload:
+      name: sf-mcp-salesforce_query_records
+      args:
+        query: SELECT Id FROM Contact
+  output:
+    expectedResult: allow
+
+- description: smn2gnt read via run_soql_query, covered by the soql_query suffix, allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: sf-mcp-run_soql_query
+      uri: null
+    payload:
+      name: sf-mcp-run_soql_query
+      args:
+        query: SELECT Id FROM Lead
+  output:
+    expectedResult: allow
+
+- description: Hosted create tool for a member of the sales group is allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: salesforce-createSobjectRecord
+      uri: null
+    subject:
+      sub: auth0|rep@example.com
+      claims:
+        groups:
+          - sales
+    payload:
+      name: salesforce-createSobjectRecord
+      args:
+        sobject-name: Contact
+        body:
+          LastName: Doe
+  output:
+    expectedResult: allow
+
+- description: Hosted mutations update tool for a member of the support group is allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: salesforce-updateRecord
+      uri: null
+    subject:
+      sub: auth0|agent@example.com
+      claims:
+        groups:
+          - support
+    payload:
+      name: salesforce-updateRecord
+      args:
+        sobject-name: Case
+        id: 5003000000abcdeAAA
+        body:
+          Status: Working
+  output:
+    expectedResult: allow
+
+- description: Community write (smn2gnt bulk_create_records) for a sales member is allowed by suffix.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: sf-mcp-bulk_create_records
+      uri: null
+    subject:
+      sub: auth0|rep@example.com
+      claims:
+        groups:
+          - sales
+    payload:
+      name: sf-mcp-bulk_create_records
+      args:
+        object_type: Task
+        data: []
+  output:
+    expectedResult: allow
+
+- description: Create tool for a caller outside the approved groups is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: salesforce-createSobjectRecord
+      uri: null
+    subject:
+      sub: auth0|intern@example.com
+      claims:
+        groups:
+          - marketing
+    payload:
+      name: salesforce-createSobjectRecord
+      args:
+        sobject-name: Opportunity
+        body:
+          Amount: 50000
+  output:
+    expectedResult: deny
+    expectedReason: "The tool 'salesforce-createsobjectrecord' creates or updates Salesforce records, which is limited to members of the sales or support groups on this channel. Ask an approved team member to make the change, or request membership in the appropriate group. Contact your InfoSec team if this block is a false positive."
+
+- description: Write tool with no subject/claims fails closed (denied).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: salesforce-createRecord
+      uri: null
+    payload:
+      name: salesforce-createRecord
+      args:
+        sobject-name: Contact
+        body:
+          LastName: Doe
+  output:
+    expectedResult: deny
+    expectedReason: "The tool 'salesforce-createrecord' creates or updates Salesforce records, which is limited to members of the sales or support groups on this channel. Ask an approved team member to make the change, or request membership in the appropriate group. Contact your InfoSec team if this block is a false positive."
+
+- description: tsmztech salesforce_dml_records is gated as a write; a non-member is denied (operation not inspected here).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: sf-mcp-salesforce_dml_records
+      uri: null
+    subject:
+      sub: auth0|intern@example.com
+      claims:
+        groups:
+          - marketing
+    payload:
+      name: sf-mcp-salesforce_dml_records
+      args:
+        operation: insert
+        objectName: Task
+        records:
+          - Subject: Call
+  output:
+    expectedResult: deny
+    expectedReason: "The tool 'sf-mcp-salesforce_dml_records' creates or updates Salesforce records, which is limited to members of the sales or support groups on this channel. Ask an approved team member to make the change, or request membership in the appropriate group. Contact your InfoSec team if this block is a false positive."
+
+- description: Case-insensitive matching — uppercased write tool for a non-member is still denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: SALESFORCE-CreateSobjectRecord
+      uri: null
+    subject:
+      sub: auth0|intern@example.com
+      claims:
+        groups:
+          - MARKETING
+    payload:
+      name: SALESFORCE-CreateSobjectRecord
+      args:
+        sobject-name: Account
+        body:
+          Name: Acme
+  output:
+    expectedResult: deny
+    expectedReason: "The tool 'salesforce-createsobjectrecord' creates or updates Salesforce records, which is limited to members of the sales or support groups on this channel. Ask an approved team member to make the change, or request membership in the appropriate group. Contact your InfoSec team if this block is a false positive."
+
+- description: Delete tool passes through unchanged (governed by the freeze-record-deletes companion), no group needed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: salesforce-deleteSobjectRecord
+      uri: null
+    payload:
+      name: salesforce-deleteSobjectRecord
+      args:
+        sobject-name: Contact
+        id: 0035000000abcdeAAA
+  output:
+    expectedResult: allow
+
+- description: Unknown Salesforce tool (escape hatch under the salesforce- prefix) fails closed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: salesforce-apex_execute
+      uri: null
+    payload:
+      name: salesforce-apex_execute
+      args:
+        code: "delete [SELECT Id FROM Contact];"
+  output:
+    expectedResult: deny
+    expectedReason: "The Salesforce tool 'salesforce-apex_execute' is not on this gateway's recognized read, create/update, or delete list, so it is denied by default (fail closed). If this is a legitimate Salesforce tool, add its name suffix to the policy's read or write list. Contact your InfoSec team to review."
+
+- description: Group member (sales) can also invoke the schema-management write tool.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: sf-mcp-salesforce_manage_object
+      uri: null
+    subject:
+      sub: auth0|admin@example.com
+      claims:
+        groups:
+          - support
+    payload:
+      name: sf-mcp-salesforce_manage_object
+      args:
+        operation: create
+        objectName: Widget__c
+  output:
+    expectedResult: allow
+
+# --- Red-team regression cases (standards §10) ---
+
+- description: Red-team - FLS-management tool under the salesforce- prefix fails closed (privileged write not in write list).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: salesforce-salesforce_manage_field_permissions
+      uri: null
+    payload:
+      name: salesforce-salesforce_manage_field_permissions
+      args:
+        operation: grant
+        field: SSN__c
+  output:
+    expectedResult: deny
+    expectedReason: "The Salesforce tool 'salesforce-salesforce_manage_field_permissions' is not on this gateway's recognized read, create/update, or delete list, so it is denied by default (fail closed). If this is a legitimate Salesforce tool, add its name suffix to the policy's read or write list. Contact your InfoSec team to review."
+
+- description: Red-team (documented residual) - escape hatch under a non-salesforce- server prefix passes through ungated; deny-escape-hatches is the required companion.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: sf-mcp-tooling_execute
+      uri: null
+    payload:
+      name: sf-mcp-tooling_execute
+      args:
+        path: /services/data/v60.0/tooling/sobjects
+  output:
+    expectedResult: allow
+
+- description: Red-team (documented residual) - tsmztech write_apex under a non-salesforce- prefix is not a recognized suffix and passes through; attach deny-escape-hatches.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: sf-mcp-salesforce_write_apex
+      uri: null
+    payload:
+      name: sf-mcp-salesforce_write_apex
+      args:
+        apexClass: "public class X {}"
+  output:
+    expectedResult: allow
+
+- description: Red-team (documented residual, argument-blind) - a group member can delete via salesforce_dml_records operation=delete; only freeze-record-deletes inspects operation.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: sf-mcp-salesforce_dml_records
+      uri: null
+    subject:
+      sub: auth0|rep@example.com
+      claims:
+        groups:
+          - sales
+    payload:
+      name: sf-mcp-salesforce_dml_records
+      args:
+        operation: delete
+        objectName: Contact
+        records:
+          - Id: 0035000000abcdeAAA
+  output:
+    expectedResult: allow
+
+- description: Red-team (claim-spoof / malformed groups) - a non-array string groups claim fails closed on a write.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: salesforce-createSobjectRecord
+      uri: null
+    subject:
+      sub: auth0|attacker@example.com
+      claims:
+        groups: sales
+    payload:
+      name: salesforce-createSobjectRecord
+      args:
+        sobject-name: Opportunity
+        body:
+          Amount: 999999
+  output:
+    expectedResult: deny
+    expectedReason: "The tool 'salesforce-createsobjectrecord' creates or updates Salesforce records, which is limited to members of the sales or support groups on this channel. Ask an approved team member to make the change, or request membership in the appropriate group. Contact your InfoSec team if this block is a false positive."
+
+- description: Red-team (malformed groups) - a null groups claim fails closed on a write.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: salesforce-createRecord
+      uri: null
+    subject:
+      sub: auth0|attacker@example.com
+      claims:
+        groups: null
+    payload:
+      name: salesforce-createRecord
+      args:
+        sobject-name: Contact
+        body:
+          LastName: X
+  output:
+    expectedResult: deny
+    expectedReason: "The tool 'salesforce-createrecord' creates or updates Salesforce records, which is limited to members of the sales or support groups on this channel. Ask an approved team member to make the change, or request membership in the appropriate group. Contact your InfoSec team if this block is a false positive."
+
+- description: Red-team (fail-closed) - subject present but claims object entirely absent fails closed on a write.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: salesforce-updateRecord
+      uri: null
+    subject:
+      sub: auth0|attacker@example.com
+    payload:
+      name: salesforce-updateRecord
+      args:
+        sobject-name: Case
+        id: 5003000000abcdeAAA
+        body:
+          Status: Closed
+  output:
+    expectedResult: deny
+    expectedReason: "The tool 'salesforce-updaterecord' creates or updates Salesforce records, which is limited to members of the sales or support groups on this channel. Ask an approved team member to make the change, or request membership in the appropriate group. Contact your InfoSec team if this block is a false positive."
+
+- description: Red-team (case-insensitive membership) - a member whose IdP group value is mixed-case (Sales) is still allowed to write.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: salesforce-createSobjectRecord
+      uri: null
+    subject:
+      sub: auth0|rep@example.com
+      claims:
+        groups:
+          - Sales
+    payload:
+      name: salesforce-createSobjectRecord
+      args:
+        sobject-name: Contact
+        body:
+          LastName: Doe
+  output:
+    expectedResult: allow
+
+- description: Red-team (claim-spoof, FIXED) - an object/map-shaped groups claim whose value is an approved group name fails closed (is_array guard; would allow without it).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: salesforce-createSobjectRecord
+      uri: null
+    subject:
+      sub: auth0|attacker@example.com
+      claims:
+        groups:
+          "0": sales
+    payload:
+      name: salesforce-createSobjectRecord
+      args:
+        sobject-name: Opportunity
+        body:
+          Amount: 999999
+  output:
+    expectedResult: deny
+    expectedReason: "The tool 'salesforce-createsobjectrecord' creates or updates Salesforce records, which is limited to members of the sales or support groups on this channel. Ask an approved team member to make the change, or request membership in the appropriate group. Contact your InfoSec team if this block is a false positive."
+
+- description: Red-team (robustness) - a valid array member alongside a non-string junk entry still grants the write.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: salesforce-createRecord
+      uri: null
+    subject:
+      sub: auth0|rep@example.com
+      claims:
+        groups:
+          - 12345
+          - sales
+    payload:
+      name: salesforce-createRecord
+      args:
+        sobject-name: Contact
+        body:
+          LastName: Doe
+  output:
+    expectedResult: allow
+
+- description: Red-team (documented residual) - salesforce_execute_anonymous (arbitrary Apex) under a non-salesforce- prefix passes through ungated; deny-escape-hatches is the required companion.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: sf-mcp-salesforce_execute_anonymous
+      uri: null
+    payload:
+      name: sf-mcp-salesforce_execute_anonymous
+      args:
+        apexCode: "delete [SELECT Id FROM Contact];"
+  output:
+    expectedResult: allow
+
+- description: Red-team (documented residual) - FLS-widening tool under a non-salesforce- prefix passes through ungated; deny-escape-hatches matches it by suffix.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: sf-mcp-salesforce_manage_field_permissions
+      uri: null
+    payload:
+      name: sf-mcp-salesforce_manage_field_permissions
+      args:
+        operation: grant
+        field: SSN__c
+  output:
+    expectedResult: allow
+
+- description: Red-team (fail-closed) - an escape hatch WITH the salesforce- prefix is denied as an unrecognized tool.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: salesforce-execute_anonymous
+      uri: null
+    payload:
+      name: salesforce-execute_anonymous
+      args:
+        apexCode: "System.debug('x');"
+  output:
+    expectedResult: deny
+    expectedReason: "The Salesforce tool 'salesforce-execute_anonymous' is not on this gateway's recognized read, create/update, or delete list, so it is denied by default (fail closed). If this is a legitimate Salesforce tool, add its name suffix to the policy's read or write list. Contact your InfoSec team to review."
+
+- description: Red-team (beta naming, fail-closed) - a beta-era plural hosted write name under the salesforce- prefix is not a recognized suffix, so it fails closed even for a group member.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: salesforce-create_records
+      uri: null
+    subject:
+      sub: auth0|rep@example.com
+      claims:
+        groups:
+          - sales
+    payload:
+      name: salesforce-create_records
+      args:
+        sobject-name: Contact
+  output:
+    expectedResult: deny
+    expectedReason: "The Salesforce tool 'salesforce-create_records' is not on this gateway's recognized read, create/update, or delete list, so it is denied by default (fail closed). If this is a legitimate Salesforce tool, add its name suffix to the policy's read or write list. Contact your InfoSec team to review."

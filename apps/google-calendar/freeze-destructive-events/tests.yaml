@@ -1,0 +1,759 @@
+# Reason strings referenced below (kept exactly in sync with policy.md):
+#   R_DELETE   — delete tools / manage_event deletes limited to calendar-admins
+#   R_NO_ACTION — manage_event missing usable action (fail closed, non-admins)
+#   R_SERIES   — series-wide modificationScope blocked for everyone
+#   R_NO_SCOPE — manage_event missing usable modificationScope (fail closed, everyone)
+
+- description: Read tool (list_events) is outside the event-mutation family. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gcal-mcp-list_events
+      uri: null
+    payload:
+      name: gcal-mcp-list_events
+      args:
+        startTime: "2026-07-01T00:00:00Z"
+        endTime: "2026-07-31T00:00:00Z"
+  output:
+    expectedResult: allow
+
+- description: nspady get-event ends in "-event" but is not a mutation verb — suffix family must not overreach reads. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-calendar-mcp-get-event
+      uri: null
+    payload:
+      name: google-calendar-mcp-get-event
+      args:
+        eventId: abc123
+  output:
+    expectedResult: allow
+
+- description: Plain single-event create with no modificationScope (the normal shape for create calls) by a non-admin. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-calendar-mcp-create-event
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: google-calendar-mcp-create-event
+      args:
+        summary: 1:1 with Sam
+        start: "2026-07-16T10:00:00Z"
+        end: "2026-07-16T10:30:00Z"
+        calendarId: primary
+  output:
+    expectedResult: allow
+
+- description: Single-instance update (modificationScope thisEventOnly) by a non-admin. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-calendar-mcp-update-event
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: google-calendar-mcp-update-event
+      args:
+        eventId: abc123
+        summary: Standup (moved)
+        modificationScope: thisEventOnly
+  output:
+    expectedResult: allow
+
+- description: nspady delete-event (kebab-case) with no subject claims at all — grant must fail closed. Policy should deny with the delete reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-calendar-mcp-delete-event
+      uri: null
+    payload:
+      name: google-calendar-mcp-delete-event
+      args:
+        calendarId: primary
+        eventId: abc123
+  output:
+    expectedResult: deny
+    expectedReason: Deleting calendar events through the agent is limited to the calendar-admins group because Google Calendar offers no MCP-level undo. Ask a calendar administrator to remove the event, or contact your IT team if you believe this is a false positive.
+
+- description: Official Google delete_event (snake_case) in uppercase, caller in an unrelated group — matching must be case-insensitive and delimiter-normalized. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: GCAL-DELETE_EVENT
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: GCAL-DELETE_EVENT
+      args:
+        eventId: abc123
+  output:
+    expectedResult: deny
+    expectedReason: Deleting calendar events through the agent is limited to the calendar-admins group because Google Calendar offers no MCP-level undo. Ask a calendar administrator to remove the event, or contact your IT team if you believe this is a false positive.
+
+- description: Delete by a calendar-admins member (mixed-case group spelling) — group match is case-insensitive. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-calendar-mcp-delete-event
+      uri: null
+    subject:
+      sub: google-apps|admin@example.com
+      claims:
+        groups:
+          - Calendar-Admins
+    payload:
+      name: google-calendar-mcp-delete-event
+      args:
+        calendarId: primary
+        eventId: abc123
+  output:
+    expectedResult: allow
+
+- description: manage_event with action delete and a single-instance scope by a non-admin — the consolidated tool's delete path. Policy should deny with the delete reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: workspace-mcp-manage_event
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: workspace-mcp-manage_event
+      args:
+        action: delete
+        eventId: abc123
+        modificationScope: thisEventOnly
+  output:
+    expectedResult: deny
+    expectedReason: Deleting calendar events through the agent is limited to the calendar-admins group because Google Calendar offers no MCP-level undo. Ask a calendar administrator to remove the event, or contact your IT team if you believe this is a false positive.
+
+- description: manage_event with action update and a delimiter-variant single-instance scope (this_event_only) by a non-admin. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: workspace-mcp-manage_event
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: workspace-mcp-manage_event
+      args:
+        action: update
+        eventId: abc123
+        summary: Sprint review (renamed)
+        modificationScope: this_event_only
+  output:
+    expectedResult: allow
+
+- description: manage_event with the action argument absent (scope present and single) by a non-admin — indistinguishable from a delete, must fail closed. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: workspace-mcp-manage_event
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: workspace-mcp-manage_event
+      args:
+        eventId: abc123
+        modificationScope: single
+  output:
+    expectedResult: deny
+    expectedReason: This manage_event call did not include a usable action argument, so it cannot be distinguished from a delete and was denied. Retry with an explicit action such as create or update, or contact your IT team if you believe this is a false positive.
+
+- description: manage_event with the action argument absent but the caller in calendar-admins (scope single) — the missing-action fail-closed protects the delete rule, which admins are exempt from. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: workspace-mcp-manage_event
+      uri: null
+    subject:
+      sub: google-apps|admin@example.com
+      claims:
+        groups:
+          - calendar-admins
+    payload:
+      name: workspace-mcp-manage_event
+      args:
+        eventId: abc123
+        modificationScope: thisEventOnly
+  output:
+    expectedResult: allow
+
+- description: update-event with modificationScope all by a non-admin — series-wide edit. Policy should deny with the series reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-calendar-mcp-update-event
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: google-calendar-mcp-update-event
+      args:
+        eventId: abc123
+        start: "2026-07-16T09:00:00Z"
+        modificationScope: all
+  output:
+    expectedResult: deny
+    expectedReason: Series-wide recurring-event changes are blocked for all callers because they can silently move or wipe standing meetings with no MCP-level undo. Retry with modificationScope set to a single instance, or make series-wide changes in the Google Calendar UI.
+
+- description: delete-event with modificationScope thisAndFollowing by a calendar-admins member — admins are exempt from the delete rule but never from the series-wide rule. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-calendar-mcp-delete-event
+      uri: null
+    subject:
+      sub: google-apps|admin@example.com
+      claims:
+        groups:
+          - calendar-admins
+    payload:
+      name: google-calendar-mcp-delete-event
+      args:
+        calendarId: primary
+        eventId: abc123
+        modificationScope: thisAndFollowing
+  output:
+    expectedResult: deny
+    expectedReason: Series-wide recurring-event changes are blocked for all callers because they can silently move or wipe standing meetings with no MCP-level undo. Retry with modificationScope set to a single instance, or make series-wide changes in the Google Calendar UI.
+
+- description: Official create_event with modificationScope future — series-wide scope on a create/write tool is denied too. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gcal-create_event
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: gcal-create_event
+      args:
+        summary: Weekly sync
+        startTime: "2026-07-16T10:00:00Z"
+        endTime: "2026-07-16T10:30:00Z"
+        modificationScope: future
+  output:
+    expectedResult: deny
+    expectedReason: Series-wide recurring-event changes are blocked for all callers because they can silently move or wipe standing meetings with no MCP-level undo. Retry with modificationScope set to a single instance, or make series-wide changes in the Google Calendar UI.
+
+- description: manage_event with action create but no modificationScope by a non-admin — series blast radius unverifiable on the consolidated tool, must fail closed. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: workspace-mcp-manage_event
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: workspace-mcp-manage_event
+      args:
+        action: create
+        summary: Coffee chat
+  output:
+    expectedResult: deny
+    expectedReason: This manage_event call did not include a usable modificationScope argument, so its recurring-series blast radius cannot be verified and it was denied. Retry with modificationScope set to a single instance, or contact your IT team if you believe this is a false positive.
+
+- description: manage_event with action delete and no modificationScope by a calendar-admins member — the admin exemption covers the delete rule, but the missing-scope fail-closed applies to everyone. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: workspace-mcp-manage_event
+      uri: null
+    subject:
+      sub: google-apps|admin@example.com
+      claims:
+        groups:
+          - calendar-admins
+    payload:
+      name: workspace-mcp-manage_event
+      args:
+        action: delete
+        eventId: abc123
+  output:
+    expectedResult: deny
+    expectedReason: This manage_event call did not include a usable modificationScope argument, so its recurring-series blast radius cannot be verified and it was denied. Retry with modificationScope set to a single instance, or contact your IT team if you believe this is a false positive.
+
+- description: manage_event with action delete and no modificationScope by a non-admin — both the delete rule and the missing-scope fail-closed fire; reasons join sorted. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: workspace-mcp-manage_event
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: workspace-mcp-manage_event
+      args:
+        action: delete
+        eventId: abc123
+  output:
+    expectedResult: deny
+    expectedReason: Deleting calendar events through the agent is limited to the calendar-admins group because Google Calendar offers no MCP-level undo. Ask a calendar administrator to remove the event, or contact your IT team if you believe this is a false positive.; This manage_event call did not include a usable modificationScope argument, so its recurring-series blast radius cannot be verified and it was denied. Retry with modificationScope set to a single instance, or contact your IT team if you believe this is a false positive.
+
+- description: manage_event with no args at all by a non-admin — both fail-closed rules fire (missing action, missing scope); reasons join sorted. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: workspace-mcp-manage_event
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: workspace-mcp-manage_event
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: This manage_event call did not include a usable action argument, so it cannot be distinguished from a delete and was denied. Retry with an explicit action such as create or update, or contact your IT team if you believe this is a false positive.; This manage_event call did not include a usable modificationScope argument, so its recurring-series blast radius cannot be verified and it was denied. Retry with modificationScope set to a single instance, or contact your IT team if you believe this is a false positive.
+
+- description: manage_event with a non-string action (null) and single scope by a non-admin — an unusable action must fail closed exactly like a missing one. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: workspace-mcp-manage_event
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: workspace-mcp-manage_event
+      args:
+        action: null
+        eventId: abc123
+        modificationScope: single
+  output:
+    expectedResult: deny
+    expectedReason: This manage_event call did not include a usable action argument, so it cannot be distinguished from a delete and was denied. Retry with an explicit action such as create or update, or contact your IT team if you believe this is a false positive.
+
+- description: manage_event with action update but a non-string modificationScope (null) by a non-admin — an unusable scope must fail closed exactly like a missing one. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: workspace-mcp-manage_event
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: workspace-mcp-manage_event
+      args:
+        action: update
+        eventId: abc123
+        modificationScope: null
+  output:
+    expectedResult: deny
+    expectedReason: This manage_event call did not include a usable modificationScope argument, so its recurring-series blast radius cannot be verified and it was denied. Retry with modificationScope set to a single instance, or contact your IT team if you believe this is a false positive.
+
+# --- Red-team regression cases (reviewer, standards §10) --------------------
+
+- description: "Red-team A1 — manage_event with action=cancel (destructive synonym, not literal 'delete') by a non-admin, single scope. Synonym must be caught, not slip through as a create/update. Policy should deny with the delete reason."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: workspace-mcp-manage_event
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: workspace-mcp-manage_event
+      args:
+        action: cancel
+        eventId: abc123
+        modificationScope: single
+  output:
+    expectedResult: deny
+    expectedReason: Deleting calendar events through the agent is limited to the calendar-admins group because Google Calendar offers no MCP-level undo. Ask a calendar administrator to remove the event, or contact your IT team if you believe this is a false positive.
+
+- description: "Red-team A1 — manage_event with action=remove (destructive synonym) by a non-admin, single scope. Policy should deny with the delete reason."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: workspace-mcp-manage_event
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: workspace-mcp-manage_event
+      args:
+        action: remove
+        eventId: abc123
+        modificationScope: single
+  output:
+    expectedResult: deny
+    expectedReason: Deleting calendar events through the agent is limited to the calendar-admins group because Google Calendar offers no MCP-level undo. Ask a calendar administrator to remove the event, or contact your IT team if you believe this is a false positive.
+
+- description: "Red-team A1 residual (documented limitation) — manage_event with an action verb outside the destructive set (expunge) by a non-admin, single scope. Treated as a non-destructive create/update and allowed; documents the unverified-enum residual. Policy should allow."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: workspace-mcp-manage_event
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: workspace-mcp-manage_event
+      args:
+        action: expunge
+        eventId: abc123
+        modificationScope: single
+  output:
+    expectedResult: allow
+
+- description: "Red-team A3 — dual scope keys: a safe camelCase modificationScope=single paired with a series-wide snake_case modification_scope=all. Both keys are inspected; the series-wide value must be caught. Policy should deny with the series reason."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gcal-update_event
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: gcal-update_event
+      args:
+        eventId: abc123
+        modificationScope: single
+        modification_scope: all
+  output:
+    expectedResult: deny
+    expectedReason: Series-wide recurring-event changes are blocked for all callers because they can silently move or wipe standing meetings with no MCP-level undo. Retry with modificationScope set to a single instance, or make series-wide changes in the Google Calendar UI.
+
+- description: "Red-team A4 — dual scope keys: camelCase modificationScope=null (present-but-unusable) with a series-wide snake_case modification_scope=all. The usable snake value must still be caught. Policy should deny with the series reason."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gcal-update_event
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: gcal-update_event
+      args:
+        eventId: abc123
+        modificationScope: null
+        modification_scope: all
+  output:
+    expectedResult: deny
+    expectedReason: Series-wide recurring-event changes are blocked for all callers because they can silently move or wipe standing meetings with no MCP-level undo. Retry with modificationScope set to a single instance, or make series-wide changes in the Google Calendar UI.
+
+- description: "Red-team A5 — nspady update-event carrying a futureStartDate (this-and-following split) and no modificationScope by a non-admin. futureStartDate is a series blast-radius control and must be treated as series-wide. Policy should deny with the series reason."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-calendar-mcp-update-event
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: google-calendar-mcp-update-event
+      args:
+        eventId: abc123
+        summary: Standup (moved)
+        futureStartDate: "2026-08-01T00:00:00Z"
+  output:
+    expectedResult: deny
+    expectedReason: Series-wide recurring-event changes are blocked for all callers because they can silently move or wipe standing meetings with no MCP-level undo. Retry with modificationScope set to a single instance, or make series-wide changes in the Google Calendar UI.
+
+- description: "Red-team A10 — delete tool where resource.name is absent but the legacy payload.name alias carries the delete tool name, non-admin. Tool matching must fall back to payload.name. Policy should deny with the delete reason."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: gcal-delete_event
+      args:
+        eventId: abc123
+  output:
+    expectedResult: deny
+    expectedReason: Deleting calendar events through the agent is limited to the calendar-admins group because Google Calendar offers no MCP-level undo. Ask a calendar administrator to remove the event, or contact your IT team if you believe this is a false positive.
+
+# --- Reviewer round 2: argument-key-spelling bypass (fixed) -----------------
+
+- description: "Red-team A11 (FIXED) — series-wide edit hidden under a kebab-case scope key (modification-scope=all) on a dedicated update tool, non-admin. Before the fix only camelCase/snake_case keys were inspected and this failed OPEN; the key is now normalized. Policy should deny with the series reason."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gcal-update_event
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: gcal-update_event
+      args:
+        eventId: abc123
+        modification-scope: all
+  output:
+    expectedResult: deny
+    expectedReason: Series-wide recurring-event changes are blocked for all callers because they can silently move or wipe standing meetings with no MCP-level undo. Retry with modificationScope set to a single instance, or make series-wide changes in the Google Calendar UI.
+
+- description: "Red-team A12 (FIXED) — series-wide edit hidden under a PascalCase scope key (ModificationScope=all) on a dedicated update tool, non-admin. Key normalization must catch it. Policy should deny with the series reason."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gcal-update_event
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: gcal-update_event
+      args:
+        eventId: abc123
+        ModificationScope: all
+  output:
+    expectedResult: deny
+    expectedReason: Series-wide recurring-event changes are blocked for all callers because they can silently move or wipe standing meetings with no MCP-level undo. Retry with modificationScope set to a single instance, or make series-wide changes in the Google Calendar UI.
+
+- description: "Red-team A13 (FIXED) — futureStartDate split control hidden under a kebab-case key (future-start-date) on a dedicated update tool, non-admin. Key normalization must catch it. Policy should deny with the series reason."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-calendar-mcp-update-event
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: google-calendar-mcp-update-event
+      args:
+        eventId: abc123
+        future-start-date: "2026-08-01T00:00:00Z"
+  output:
+    expectedResult: deny
+    expectedReason: Series-wide recurring-event changes are blocked for all callers because they can silently move or wipe standing meetings with no MCP-level undo. Retry with modificationScope set to a single instance, or make series-wide changes in the Google Calendar UI.
+
+- description: "Red-team A14 (documented residual) — recognized scope key with a non-string ARRAY value ([\"all\"]) on a dedicated update tool, non-admin. Only string values are inspected; a non-string value on a dedicated tool passes the scope check (the server rejects it). Documents the value-type fail-open. Policy should allow."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gcal-update_event
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: gcal-update_event
+      args:
+        eventId: abc123
+        modificationScope:
+          - all
+  output:
+    expectedResult: allow
+
+- description: "Red-team A15 — alternate-spelled scope key (modification-scope=all) on the consolidated manage_event tool, action=update, non-admin. manage_event fails closed on any unusable/unverifiable scope, and the normalized key now recognizes this value as series-wide. Policy should deny with the series reason."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: workspace-mcp-manage_event
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: workspace-mcp-manage_event
+      args:
+        action: update
+        eventId: abc123
+        modification-scope: all
+  output:
+    expectedResult: deny
+    expectedReason: Series-wide recurring-event changes are blocked for all callers because they can silently move or wipe standing meetings with no MCP-level undo. Retry with modificationScope set to a single instance, or make series-wide changes in the Google Calendar UI.
+
+- description: "Red-team A16 — alternate-cased action key (Action) on manage_event, non-admin, single scope. The action key is matched by exact name, so an alternate spelling reads as a missing action and must fail closed (rule 3), not slip through. Policy should deny with the missing-action reason."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: workspace-mcp-manage_event
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: workspace-mcp-manage_event
+      args:
+        Action: delete
+        eventId: abc123
+        modificationScope: single
+  output:
+    expectedResult: deny
+    expectedReason: This manage_event call did not include a usable action argument, so it cannot be distinguished from a delete and was denied. Retry with an explicit action such as create or update, or contact your IT team if you believe this is a false positive.

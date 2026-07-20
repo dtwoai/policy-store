@@ -1,0 +1,513 @@
+# Tests for dropbox.ingress.guard_share_links_external
+# Branches covered:
+#   allow  - non-sharing tool passes through (read + non-sharing write)
+#   allow  - external-sharing tool + caller in dropbox-sharing group
+#   deny   - each external-sharing suffix without the group
+#   deny   - group present but missing dropbox-sharing
+#   deny   - subject/claims entirely absent (fail closed)
+#   deny   - groups claim non-array (fail closed)
+#   allow  - group name matched case-insensitively
+#   deny   - gateway server-name prefix still matched by substring (red team)
+#   deny   - trailing-token variants (...WithSettings / _with_settings / ...V2) caught by contains (red team)
+#   allow  - read/revoke tools (ListSharedLinks, revoke, ListFileRequests, download_file) NOT caught by contains (regression)
+#   allow  - sharing-group member may still create a trailing-token variant
+
+- description: Read tool (GetFileContent) is not a sharing surface. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-GetFileContent
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: dropbox-GetFileContent
+      args:
+        path: /Projects/roadmap.pdf
+  output:
+    expectedResult: allow
+
+- description: Non-sharing write (CreateFolder) passes through untouched. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-CreateFolder
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: dropbox-CreateFolder
+      args:
+        path: /Projects/new
+  output:
+    expectedResult: allow
+
+- description: Sharing-group member creates a share link. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-CreateSharedLink
+      uri: null
+    subject:
+      sub: google-apps|ops@example.com
+      claims:
+        groups:
+          - dropbox-sharing
+    payload:
+      name: dropbox-CreateSharedLink
+      args:
+        path: /Projects/roadmap.pdf
+  output:
+    expectedResult: allow
+
+- description: Group name matched case-insensitively (DROPBOX-SHARING). Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-CreateSharedLink
+      uri: null
+    subject:
+      sub: google-apps|ops@example.com
+      claims:
+        groups:
+          - DROPBOX-SHARING
+    payload:
+      name: dropbox-CreateSharedLink
+      args:
+        path: /Projects/roadmap.pdf
+  output:
+    expectedResult: allow
+
+- description: Official CreateSharedLink, caller lacks the sharing group. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-CreateSharedLink
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: dropbox-CreateSharedLink
+      args:
+        path: /Finance/2026/payroll.xlsx
+  output:
+    expectedResult: deny
+    expectedReason: "Creating a public Dropbox share link, download link, or file request turns an internal file into an internet-visible resource in one step and is effectively irreversible once the URL is fetched, so it is blocked on the agent path by default. Route the file through an internal Dropbox channel (a shared team folder or existing workspace) instead, or ask a member of the 'dropbox-sharing' group to create the link. Contact your InfoSec team if this was a false positive."
+
+- description: Community get_sharing_link (dbx-mcp-server), no sharing group. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-get_sharing_link
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: dropbox-get_sharing_link
+      args:
+        path: /Finance/2026/payroll.xlsx
+  output:
+    expectedResult: deny
+
+- description: Community ngs dropbox_create_shared_link, no sharing group. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-dropbox_create_shared_link
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: dropbox-dropbox_create_shared_link
+      args:
+        path: /Finance/2026/payroll.xlsx
+  output:
+    expectedResult: deny
+
+- description: Official DownloadLink (single-use public download URL), no sharing group. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-DownloadLink
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: dropbox-DownloadLink
+      args:
+        path: /Finance/2026/payroll.xlsx
+  output:
+    expectedResult: deny
+
+- description: Official CreateFileRequest (external upload endpoint), no sharing group. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-CreateFileRequest
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: dropbox-CreateFileRequest
+      args:
+        title: Send me your files
+        destination: /Intake
+  output:
+    expectedResult: deny
+
+- description: No subject/claims at all — the grant fails closed. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-CreateSharedLink
+      uri: null
+    payload:
+      name: dropbox-CreateSharedLink
+      args:
+        path: /Finance/2026/payroll.xlsx
+  output:
+    expectedResult: deny
+
+- description: Groups claim is a non-array string (malformed) — iteration fails, so grant fails closed. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-CreateSharedLink
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups: dropbox-sharing
+    payload:
+      name: dropbox-CreateSharedLink
+      args:
+        path: /Finance/2026/payroll.xlsx
+  output:
+    expectedResult: deny
+
+- description: Red team — full gateway server-name prefix still matched by suffix. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-mcp-server-CreateSharedLink
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: dropbox-mcp-server-CreateSharedLink
+      args:
+        path: /Finance/2026/payroll.xlsx
+  output:
+    expectedResult: deny
+
+- description: Red team — trailing-token variant CreateSharedLinkWithSettings (the real Dropbox v2 endpoint shape) escapes a pure suffix match. contains() must still deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-CreateSharedLinkWithSettings
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: dropbox-CreateSharedLinkWithSettings
+      args:
+        path: /Finance/2026/payroll.xlsx
+  output:
+    expectedResult: deny
+
+- description: Red team — snake_case trailing-token variant create_shared_link_with_settings. contains() must still deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-create_shared_link_with_settings
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: dropbox-create_shared_link_with_settings
+      args:
+        path: /Finance/2026/payroll.xlsx
+  output:
+    expectedResult: deny
+
+- description: Red team — versioned variant CreateSharedLinkV2. contains() must still deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-CreateSharedLinkV2
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: dropbox-CreateSharedLinkV2
+      args:
+        path: /Finance/2026/payroll.xlsx
+  output:
+    expectedResult: deny
+
+- description: Regression — ListSharedLinks (read) must NOT be caught by contains(). Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-ListSharedLinks
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: dropbox-ListSharedLinks
+      args:
+        path: /Projects
+  output:
+    expectedResult: allow
+
+- description: Regression — ngs dropbox_revoke_shared_link (revocation) must NOT be caught by contains(). Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-dropbox_revoke_shared_link
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: dropbox-dropbox_revoke_shared_link
+      args:
+        link: https://www.dropbox.com/s/abc
+  output:
+    expectedResult: allow
+
+- description: Regression — ListFileRequests (read) must NOT be caught by the createfilerequest stem. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-ListFileRequests
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: dropbox-ListFileRequests
+      args: {}
+  output:
+    expectedResult: allow
+
+- description: Regression — community download_file (content read) must NOT be caught by the downloadlink stem. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-download_file
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: dropbox-download_file
+      args:
+        path: /Projects/roadmap.pdf
+  output:
+    expectedResult: allow
+
+- description: Sharing-group member may still create the trailing-token variant. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-CreateSharedLinkWithSettings
+      uri: null
+    subject:
+      sub: google-apps|ops@example.com
+      claims:
+        groups:
+          - dropbox-sharing
+    payload:
+      name: dropbox-CreateSharedLinkWithSettings
+      args:
+        path: /Projects/roadmap.pdf
+  output:
+    expectedResult: allow
+
+- description: Red team — empty groups array (not just missing) on a sharing tool. Grant must fail closed. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-CreateSharedLink
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups: []
+    payload:
+      name: dropbox-CreateSharedLink
+      args:
+        path: /Finance/2026/payroll.xlsx
+  output:
+    expectedResult: deny
+
+- description: Red team — claim-spoofing via a look-alike group name (dropbox-sharing-admins). Group check is exact equality, not substring, so this must NOT grant. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-CreateSharedLink
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - dropbox-sharing-admins
+          - sharing
+    payload:
+      name: dropbox-CreateSharedLink
+      args:
+        path: /Finance/2026/payroll.xlsx
+  output:
+    expectedResult: deny
+
+- description: Red team — a malformed groups array mixing a non-string element with the valid sharing group. The valid string still grants (iteration skips the bad element). Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-CreateSharedLink
+      uri: null
+    subject:
+      sub: google-apps|ops@example.com
+      claims:
+        groups:
+          - 123
+          - dropbox-sharing
+    payload:
+      name: dropbox-CreateSharedLink
+      args:
+        path: /Projects/roadmap.pdf
+  output:
+    expectedResult: allow
+
+- description: Red team / documented gap — a "shared"-not-"sharing" creation verb (get_shared_link) matches none of the narrow stems and passes through. Locks the Known-limitation boundary. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-get_shared_link
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: dropbox-get_shared_link
+      args:
+        path: /Finance/2026/payroll.xlsx
+  output:
+    expectedResult: allow

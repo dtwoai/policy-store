@@ -5,7 +5,10 @@ tags:
   - access-control
   - governance
   - ingress
-publishedAt: 2026-06-16
+  - soc2
+  - iso27001-nist
+  - finserv-comms
+publishedAt: 2026-07-12
 description: |
   # slack / deny-direct-messages
 
@@ -20,6 +23,18 @@ description: |
   as a DM), or a multi-party/group DM. Posts to regular channels, and every
   non-write Slack tool, pass through untouched. A blocked call returns a clear
   denial reason instead of delivering the DM.
+
+  ## Compliance alignment
+
+  - **SOC 2 CC6.7** — supports the restriction on transmission/movement of information
+    by keeping agent output out of 1:1 and group-DM destinations on the MCP path.
+  - **ISO 27001 A.5.14 / NIST 800-53 AC-4** — information transfer / flow enforcement:
+    agent messages stay in channels where they are visible and reviewable.
+  - **GDPR Art. 5(1)(f) / Art. 32** — supports security of processing: the agent cannot
+    open unsupervised person-to-person disclosure paths for personal data it has read.
+  - **FINRA 3110(b)(4) / SEC 17a-4(b)(4)** — supports supervision and preservation of
+    business communications (channel discipline): agent-generated messages cannot land
+    in DM surfaces that evade supervisory review flows.
 
   ## Why ingress
 
@@ -111,12 +126,15 @@ description: |
   - **No identity-based exemptions.** All callers are treated the same. To allow a
     specific break-glass user, gate a separate `allow if` branch on
     `input.subject.claims`.
+
+  > **Compliance note.** This policy supports alignment with the cited framework controls **on the MCP path only**. No policy or bundle makes an organization compliant with any framework; web-UI, native-API, and in-app access are outside the gateway's reach by design. Validate against your own compliance program before relying on it.
 direction: ingress
 apps:
   - slack
 industries: []
 bundles:
   - slack
+  - soc2
 schemaVersion: 1.0.0
 minimumGatewayVersion: 1.0.0b24
 ---

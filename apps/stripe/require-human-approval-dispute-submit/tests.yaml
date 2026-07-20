@@ -1,0 +1,337 @@
+# Branch coverage:
+#   no-transform branches: non-matching tool, matching tool without a submit key,
+#     missing args, missing tool name, wrong hook (tool_post_invoke), and the
+#     documented residuals (stripe_api_write escape hatch, noun_verb rename,
+#     plural trailing token, zero-width suffix evasion).
+#   transform branch (is_update_dispute_tool + has_submit_key): boolean true,
+#     boolean false (presence-based strip), string "true" encoding red-team,
+#     mixed casing, bare name, trailing whitespace, and suffix-breadth variants.
+# This policy is transform-only (default allow := true) — every case expects allow.
+
+- description: Drafting dispute evidence without a submit key passes through untouched (no transform).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: stripe-mcp-update_dispute
+      uri: null
+    payload:
+      name: stripe-mcp-update_dispute
+      args:
+        dispute: dp_1OABCD2eZvKYlo2C
+        evidence:
+          duplicate_charge_explanation: Two distinct orders; receipts attached.
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: submit true is stripped — evidence draft and dispute ID survive, the one-shot filing does not.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: stripe-mcp-update_dispute
+      uri: null
+    payload:
+      name: stripe-mcp-update_dispute
+      args:
+        dispute: dp_1OABCD2eZvKYlo2C
+        evidence:
+          uncategorized_text: Customer signed the cancellation policy on 2026-05-02.
+        submit: true
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transform:
+    transformed_payload:
+      dispute: dp_1OABCD2eZvKYlo2C
+      evidence:
+        uncategorized_text: Customer signed the cancellation policy on 2026-05-02.
+
+- description: An explicit submit false is also stripped (presence-based match; semantic no-op for Stripe).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: stripe-mcp-update_dispute
+      uri: null
+    payload:
+      name: stripe-mcp-update_dispute
+      args:
+        dispute: dp_1OABCD2eZvKYlo2C
+        evidence:
+          cancellation_policy_disclosure: Policy shown at checkout and in the confirmation email.
+        submit: false
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    dispute: dp_1OABCD2eZvKYlo2C
+
+- description: Red-team truthy string encoding — submit "true" (string) is stripped too, closing the form-encoding bypass.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: stripe-mcp-update_dispute
+      uri: null
+    payload:
+      name: stripe-mcp-update_dispute
+      args:
+        dispute: dp_1OABCD2eZvKYlo2C
+        evidence:
+          uncategorized_text: Signed delivery confirmation attached.
+        submit: "true"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transform:
+    transformed_payload:
+      dispute: dp_1OABCD2eZvKYlo2C
+      evidence:
+        uncategorized_text: Signed delivery confirmation attached.
+
+- description: An unrelated tool carrying a submit key is untouched — this policy only watches *update_dispute.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: stripe-mcp-create_refund
+      uri: null
+    payload:
+      name: stripe-mcp-create_refund
+      args:
+        payment_intent: pi_3OXYZ1
+        submit: true
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Missing args entirely — nothing to strip, call passes through with no transform.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: stripe-mcp-update_dispute
+      uri: null
+    payload:
+      name: stripe-mcp-update_dispute
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Missing tool name resolves to "" and matches nothing — allow, no transform.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      uri: null
+    payload:
+      args:
+        submit: true
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Wrong hook — a tool_post_invoke with a matching name never triggers this ingress transform.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: stripe-mcp-update_dispute
+      uri: null
+    payload:
+      name: stripe-mcp-update_dispute
+      args:
+        dispute: dp_1OABCD2eZvKYlo2C
+        submit: true
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Red-team casing — mixed-case Update_Dispute is still matched (lower() normalization) and stripped.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: Stripe-MCP-Update_Dispute
+      uri: null
+    payload:
+      name: Stripe-MCP-Update_Dispute
+      args:
+        dispute: dp_1OABCD2eZvKYlo2C
+        submit: true
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    dispute: dp_1OABCD2eZvKYlo2C
+
+- description: Red-team bare name (no gateway prefix) — update_dispute still matched by suffix and stripped.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: update_dispute
+      uri: null
+    payload:
+      name: update_dispute
+      args:
+        dispute: dp_1OABCD2eZvKYlo2C
+        submit: true
+  output:
+    expectedResult: allow
+  transformApplied: true
+
+- description: Red-team trailing newline — a name ending in "update_dispute\n" is trimmed and still stripped (fix for endswith fail-open).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "stripe-mcp-update_dispute\n"
+      uri: null
+    payload:
+      name: "stripe-mcp-update_dispute\n"
+      args:
+        dispute: dp_1OABCD2eZvKYlo2C
+        submit: true
+  output:
+    expectedResult: allow
+  transformApplied: true
+
+- description: Red-team suffix breadth — a bulk_update_dispute variant is intentionally also stripped (fail-safe for the approval gate).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: stripe-mcp-bulk_update_dispute
+      uri: null
+    payload:
+      name: stripe-mcp-bulk_update_dispute
+      args:
+        dispute: dp_1OABCD2eZvKYlo2C
+        submit: true
+  output:
+    expectedResult: allow
+  transformApplied: true
+
+- description: Red-team escape-hatch residual — stripe_api_write can submit a dispute via POST /v1/disputes/{id} but never matches *update_dispute, so it passes through untouched (documented; pair with an api-write allowlist/deny).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: stripe-mcp-stripe_api_write
+      uri: null
+    payload:
+      name: stripe-mcp-stripe_api_write
+      args:
+        endpoint: POST /v1/disputes/dp_1OABCD2eZvKYlo2C
+        params:
+          submit: true
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Red-team noun_verb rename residual — "dispute_update" does not match by suffix and passes through with its submit flag (documented; PF-28 allowlist must catch it).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: stripe-mcp-dispute_update
+      uri: null
+    payload:
+      name: stripe-mcp-dispute_update
+      args:
+        dispute: dp_1OABCD2eZvKYlo2C
+        submit: true
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Red-team plural/trailing-token residual — "update_disputes" does not end with the exact suffix and passes through (documented; PF-28 must catch it).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: stripe-mcp-update_disputes
+      uri: null
+    payload:
+      name: stripe-mcp-update_disputes
+      args:
+        dispute: dp_1OABCD2eZvKYlo2C
+        submit: true
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Red-team fail-open fix — only the legacy `kind` carries tool_pre_invoke (PARC `action` absent); the is_pre_invoke helper accepts either, so submit:true is still stripped.
+  input:
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: stripe-mcp-update_dispute
+      uri: null
+    payload:
+      name: stripe-mcp-update_dispute
+      args:
+        dispute: dp_1OABCD2eZvKYlo2C
+        evidence:
+          uncategorized_text: Signed delivery confirmation attached.
+        submit: true
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transform:
+    transformed_payload:
+      dispute: dp_1OABCD2eZvKYlo2C
+      evidence:
+        uncategorized_text: Signed delivery confirmation attached.
+
+- description: Red-team zero-width suffix evasion — a name ending in a zero-width space (U+200B) after update_dispute is not trimmed by trim_space and passes through (documented; PF-28 must catch it).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "stripe-mcp-update_dispute​"
+      uri: null
+    payload:
+      name: "stripe-mcp-update_dispute​"
+      args:
+        dispute: dp_1OABCD2eZvKYlo2C
+        submit: true
+  output:
+    expectedResult: allow
+  transformApplied: false

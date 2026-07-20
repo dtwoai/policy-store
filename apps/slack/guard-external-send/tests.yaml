@@ -1,0 +1,405 @@
+- description: Non-send tool (channel history read) referencing a listed external
+    channel. Policy only gates sends, so this should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-slack_read_channel
+      uri: null
+    payload:
+      name: slack-mcp-slack_read_channel
+      args:
+        channel_id: C0EXTPARTNER1
+        limit: 50
+  output:
+    expectedResult: allow
+- description: Official send tool to an internal channel not in the external list.
+    Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-slack_send_message
+      uri: null
+    payload:
+      name: slack-mcp-slack_send_message
+      args:
+        channel_id: C0123456789
+        message: lunch in 5
+  output:
+    expectedResult: allow
+- description: Official send tool to a listed Slack Connect channel, no identity.
+    Policy should deny with the external-channel reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-slack_send_message
+      uri: null
+    payload:
+      name: slack-mcp-slack_send_message
+      args:
+        channel_id: C0EXTPARTNER1
+        message: Q3 roadmap attached
+  output:
+    expectedResult: deny
+    expectedReason: This channel is shared externally via Slack Connect — a message posted here is visible to another organization the moment it lands and cannot be recalled. Posting to externally shared channels requires a human send from the Slack client. If your role requires agent posts to external channels, ask your InfoSec team for the slack-external-comms group; if this channel is no longer externally shared, ask your Slack workspace admin to remove it from the external channel list.
+- description: Scheduled message (post_at time-shifts delivery past live review)
+    to a listed external channel. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-slack_schedule_message
+      uri: null
+    payload:
+      name: slack-mcp-slack_schedule_message
+      args:
+        channel_id: C0EXTPARTNER1
+        message: sending this later so nobody is watching
+        post_at: 1784000000
+  output:
+    expectedResult: deny
+    expectedReason: This channel is shared externally via Slack Connect — a message posted here is visible to another organization the moment it lands and cannot be recalled. Posting to externally shared channels requires a human send from the Slack client. If your role requires agent posts to external channels, ask your InfoSec team for the slack-external-comms group; if this channel is no longer externally shared, ask your Slack workspace admin to remove it from the external channel list.
+- description: Archived reference server post tool to a listed external channel.
+    Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-legacy-slack_post_message
+      uri: null
+    payload:
+      name: slack-legacy-slack_post_message
+      args:
+        channel_id: C0EXTPARTNER2
+        text: hello partner org
+  output:
+    expectedResult: deny
+    expectedReason: This channel is shared externally via Slack Connect — a message posted here is visible to another organization the moment it lands and cannot be recalled. Posting to externally shared channels requires a human send from the Slack client. If your role requires agent posts to external channels, ask your InfoSec team for the slack-external-comms group; if this channel is no longer externally shared, ask your Slack workspace admin to remove it from the external channel list.
+- description: Archived reference server thread reply into a listed external channel.
+    Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-legacy-slack_reply_to_thread
+      uri: null
+    payload:
+      name: slack-legacy-slack_reply_to_thread
+      args:
+        channel_id: C0EXTPARTNER1
+        thread_ts: "1784000000.000100"
+        text: replying in the shared thread
+  output:
+    expectedResult: deny
+    expectedReason: This channel is shared externally via Slack Connect — a message posted here is visible to another organization the moment it lands and cannot be recalled. Posting to externally shared channels requires a human send from the Slack client. If your role requires agent posts to external channels, ask your InfoSec team for the slack-external-comms group; if this channel is no longer externally shared, ask your Slack workspace admin to remove it from the external channel list.
+- description: korotovsky community server add-message to a listed external channel.
+    Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-community-conversations_add_message
+      uri: null
+    payload:
+      name: slack-community-conversations_add_message
+      args:
+        channel_id: C0EXTPARTNER1
+        payload: hi from the agent
+        content_type: text/markdown
+  output:
+    expectedResult: deny
+    expectedReason: This channel is shared externally via Slack Connect — a message posted here is visible to another organization the moment it lands and cannot be recalled. Posting to externally shared channels requires a human send from the Slack client. If your role requires agent posts to external channels, ask your InfoSec team for the slack-external-comms group; if this channel is no longer externally shared, ask your Slack workspace admin to remove it from the external channel list.
+- description: korotovsky '#name' alias form that is itself listed in the external
+    set. Policy should deny (aliases must be listed to be caught).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-community-conversations_add_message
+      uri: null
+    payload:
+      name: slack-community-conversations_add_message
+      args:
+        channel_id: "#acme-partnership"
+        payload: hi partners
+        content_type: text/plain
+  output:
+    expectedResult: deny
+    expectedReason: This channel is shared externally via Slack Connect — a message posted here is visible to another organization the moment it lands and cannot be recalled. Posting to externally shared channels requires a human send from the Slack client. If your role requires agent posts to external channels, ask your InfoSec team for the slack-external-comms group; if this channel is no longer externally shared, ask your Slack workspace admin to remove it from the external channel list.
+- description: Hyphenated gateway naming plus 'channel' argument key fallback,
+    targeting a listed external channel. Policy should deny (name normalization
+    and key fallback both engage).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-slack-post-message
+      uri: null
+    payload:
+      name: slack-mcp-slack-post-message
+      args:
+        channel: C0EXTPARTNER2
+        text: hi
+  output:
+    expectedResult: deny
+    expectedReason: This channel is shared externally via Slack Connect — a message posted here is visible to another organization the moment it lands and cannot be recalled. Posting to externally shared channels requires a human send from the Slack client. If your role requires agent posts to external channels, ask your InfoSec team for the slack-external-comms group; if this channel is no longer externally shared, ask your Slack workspace admin to remove it from the external channel list.
+- description: Mixed-case tool name to a listed external channel. Matching is
+    case-insensitive, so policy should still deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: Slack-MCP-Slack_Send_Message
+      uri: null
+    payload:
+      name: Slack-MCP-Slack_Send_Message
+      args:
+        channel_id: C0EXTPARTNER1
+        message: casing tricks
+  output:
+    expectedResult: deny
+    expectedReason: This channel is shared externally via Slack Connect — a message posted here is visible to another organization the moment it lands and cannot be recalled. Posting to externally shared channels requires a human send from the Slack client. If your role requires agent posts to external channels, ask your InfoSec team for the slack-external-comms group; if this channel is no longer externally shared, ask your Slack workspace admin to remove it from the external channel list.
+- description: Caller in the slack-external-comms IdP group sending to a listed
+    external channel. Policy should allow (exemption).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    user: google-apps|comms@example.com
+    subject:
+      sub: google-apps|comms@example.com
+      claims:
+        groups:
+          - slack-external-comms
+    resource:
+      type: tool
+      name: slack-mcp-slack_send_message
+      uri: null
+    payload:
+      name: slack-mcp-slack_send_message
+      args:
+        channel_id: C0EXTPARTNER1
+        message: approved partner update
+  output:
+    expectedResult: allow
+- description: Caller with groups that do not include slack-external-comms sending
+    to a listed external channel. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    user: google-apps|dev@example.com
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    resource:
+      type: tool
+      name: slack-mcp-slack_send_message
+      uri: null
+    payload:
+      name: slack-mcp-slack_send_message
+      args:
+        channel_id: C0EXTPARTNER1
+        message: build is green
+  output:
+    expectedResult: deny
+    expectedReason: This channel is shared externally via Slack Connect — a message posted here is visible to another organization the moment it lands and cannot be recalled. Posting to externally shared channels requires a human send from the Slack client. If your role requires agent posts to external channels, ask your InfoSec team for the slack-external-comms group; if this channel is no longer externally shared, ask your Slack workspace admin to remove it from the external channel list.
+- description: Subject present but claims empty (audience mismatch / no groups
+    claim), sending to a listed external channel. Exemption must fail closed —
+    policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    user: google-apps|unknown@example.com
+    subject:
+      sub: google-apps|unknown@example.com
+      claims: {}
+    resource:
+      type: tool
+      name: slack-mcp-slack_send_message
+      uri: null
+    payload:
+      name: slack-mcp-slack_send_message
+      args:
+        channel_id: C0EXTPARTNER1
+        message: hello
+  output:
+    expectedResult: deny
+    expectedReason: This channel is shared externally via Slack Connect — a message posted here is visible to another organization the moment it lands and cannot be recalled. Posting to externally shared channels requires a human send from the Slack client. If your role requires agent posts to external channels, ask your InfoSec team for the slack-external-comms group; if this channel is no longer externally shared, ask your Slack workspace admin to remove it from the external channel list.
+- description: Send tool with no channel argument at all. Destination blocklist
+    cannot match, so policy allows (documented fail-open — the Slack server will
+    reject the malformed call).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-slack_send_message
+      uri: null
+    payload:
+      name: slack-mcp-slack_send_message
+      args:
+        message: where is this going
+  output:
+    expectedResult: allow
+- description: Draft creation tool (slack_send_message_draft) referencing a listed
+    external channel. Drafts are unsent and not matched by the send suffixes, so
+    policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-slack_send_message_draft
+      uri: null
+    payload:
+      name: slack-mcp-slack_send_message_draft
+      args:
+        channel_id: C0EXTPARTNER1
+        message: draft for human review
+  output:
+    expectedResult: allow
+- description: 'Red-team: unlisted korotovsky #alias that resolves server-side to a
+    listed external channel. The C-ID never appears in the request, so ID matching
+    cannot catch it — documented residual bypass, policy allows.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-community-conversations_add_message
+      uri: null
+    payload:
+      name: slack-community-conversations_add_message
+      args:
+        channel_id: "#unlisted-partner-alias"
+        payload: exfil via unlisted alias
+        content_type: text/plain
+  output:
+    expectedResult: allow
+- description: 'Red-team: canvas write to an external surface. slack_update_canvas
+    carries no channel destination, so this destination blocklist cannot match it —
+    documented residual (gate canvas with a body-DLP policy). Policy allows.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-slack_update_canvas
+      uri: null
+    payload:
+      name: slack-mcp-slack_update_canvas
+      args:
+        canvas_id: F0123456789
+        action: append
+        content: exfil into a linkable canvas
+  output:
+    expectedResult: allow
+- description: 'Red-team: external channel smuggled in the ''channel'' fallback key
+    while ''channel_id'' points at a safe internal channel. Both keys are inspected,
+    so the external destination is still caught — policy should deny.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-slack_send_message
+      uri: null
+    payload:
+      name: slack-mcp-slack_send_message
+      args:
+        channel_id: C0SAFEINTERNAL
+        channel: C0EXTPARTNER1
+        message: routing the real target through the fallback key
+  output:
+    expectedResult: deny
+    expectedReason: This channel is shared externally via Slack Connect — a message posted here is visible to another organization the moment it lands and cannot be recalled. Posting to externally shared channels requires a human send from the Slack client. If your role requires agent posts to external channels, ask your InfoSec team for the slack-external-comms group; if this channel is no longer externally shared, ask your Slack workspace admin to remove it from the external channel list.
+- description: 'Red-team: trailing-whitespace padding on a listed C-ID
+    ("C0EXTPARTNER1 "). trim_space strips it before the exact-match set test, so
+    the padded external destination is still caught — policy should deny.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-slack_send_message
+      uri: null
+    payload:
+      name: slack-mcp-slack_send_message
+      args:
+        channel_id: 'C0EXTPARTNER1 '
+        message: padded id to slip past the blocklist
+  output:
+    expectedResult: deny
+    expectedReason: This channel is shared externally via Slack Connect — a message posted here is visible to another organization the moment it lands and cannot be recalled. Posting to externally shared channels requires a human send from the Slack client. If your role requires agent posts to external channels, ask your InfoSec team for the slack-external-comms group; if this channel is no longer externally shared, ask your Slack workspace admin to remove it from the external channel list.
+- description: 'Red-team: leading-whitespace padding on a listed #alias
+    (" #acme-partnership"). trim_space normalizes it, so the alias is still
+    matched — policy should deny.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-community-conversations_add_message
+      uri: null
+    payload:
+      name: slack-community-conversations_add_message
+      args:
+        channel_id: ' #acme-partnership'
+        payload: padded alias
+        content_type: text/plain
+  output:
+    expectedResult: deny
+    expectedReason: This channel is shared externally via Slack Connect — a message posted here is visible to another organization the moment it lands and cannot be recalled. Posting to externally shared channels requires a human send from the Slack client. If your role requires agent posts to external channels, ask your InfoSec team for the slack-external-comms group; if this channel is no longer externally shared, ask your Slack workspace admin to remove it from the external channel list.
+- description: 'Red-team: channel_id passed as a non-string (array) rather than a
+    string. The extraction skips non-strings (is_string guard) instead of erroring,
+    so the call does not match the blocklist — policy allows (Slack rejects the
+    malformed type upstream).'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-slack_send_message
+      uri: null
+    payload:
+      name: slack-mcp-slack_send_message
+      args:
+        channel_id:
+          - C0EXTPARTNER1
+        message: array-typed destination
+  output:
+    expectedResult: allow

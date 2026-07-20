@@ -1,0 +1,699 @@
+# Transform-only egress policy: every case expects allow. The assertions that
+# matter are transformApplied / transformedArgsContain. Redaction is UNIFORM
+# (no group exemption). Cardholder PAN is intentionally NOT handled here
+# (companion mask-pan-egress / PF-01).
+
+# --- Typed conversation/contact read tools (always in scope) ---
+
+- description: get_conversation response with an SSN in a conversation-part
+    body. The SSN is redacted; the surrounding thread structure is preserved.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: intercom-get_conversation
+      uri: null
+    payload:
+      name: intercom-get_conversation
+      text:
+        - '{"type":"conversation","conversation_parts":[{"body":"<p>my ssn is 123-45-6789</p>"}]}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - '{"type":"conversation","conversation_parts":[{"body":"<p>my ssn is [REDACTED-SSN]</p>"}]}'
+
+- description: search_contacts response with a contact email and phone. Both
+    identifiers are masked.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: intercom-search_contacts
+      uri: null
+    payload:
+      name: intercom-search_contacts
+      text:
+        - '[{"email":"jane@acme.com","phone":"206-555-0100"}]'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - '[{"email":"[REDACTED-EMAIL]","phone":"[REDACTED-PHONE]"}]'
+
+- description: get_contact response carrying a credential in a custom attribute
+    note. The key:value secret is redacted to the credential token.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: intercom-get_contact
+      uri: null
+    payload:
+      name: intercom-get_contact
+      text:
+        - '{"custom_attributes":{"note":"api_key: AKIA1234567890ABCDEF rotate soon"}}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - '{"custom_attributes":{"note":"[REDACTED-CREDENTIAL] rotate soon"}}'
+
+- description: Community fabian1710 server uses kebab-case search-conversations.
+    A label-anchored national ID in the body is redacted (portability across
+    the snake/kebab separator).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: intercom-search-conversations
+      uri: null
+    payload:
+      name: intercom-search-conversations
+      text:
+        - '[{"body":"customer national id: AB123456C please verify"}]'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - '[{"body":"customer [REDACTED-ID] please verify"}]'
+
+# --- Generic connector aliases (search / fetch) ---
+
+- description: Generic search whose request args scope it to conversations
+    (object_type == "conversations"). An SSN in the result is redacted
+    (request-arg gating branch).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: intercom-search
+      uri: null
+    payload:
+      name: intercom-search
+      args:
+        object_type: conversations
+      text:
+        - 'agent notes: ssn 123-45-6789'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - 'agent notes: ssn [REDACTED-SSN]'
+
+- description: Generic search scoped to contacts (object_type == "contacts")
+    with no conversation marker in the response. By design the generic-alias
+    gating covers CONVERSATIONS only, so this passes through unredacted
+    (documented gap — the typed search_contacts is always in scope).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: intercom-search
+      uri: null
+    payload:
+      name: intercom-search
+      args:
+        object_type: contacts
+      text:
+        - '[{"type":"contact","email":"jane@acme.com"}]'
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Generic fetch of a conversation (request id starts with
+    conversation_). An email in the fetched thread is redacted (fetch
+    request-arg gating branch).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: intercom-fetch
+      uri: null
+    payload:
+      name: intercom-fetch
+      args:
+        id: conversation_abc123
+      text:
+        - 'thread: reach me at ops@acme.io'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - 'thread: reach me at [REDACTED-EMAIL]'
+
+- description: Generic fetch of a contact (request id starts with contact_) with
+    no conversation marker. Out of the conversation-only generic scope, so it
+    passes through unredacted (documented gap).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: intercom-fetch
+      uri: null
+    payload:
+      name: intercom-fetch
+      args:
+        id: contact_xyz789
+      text:
+        - 'profile email support@acme.com'
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Generic search on a gateway that did NOT mirror request args onto
+    the egress hook. The response-content fallback fires because the payload
+    carries a conversation_parts marker, so the phone number is still redacted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: intercom-search
+      uri: null
+    payload:
+      name: intercom-search
+      text:
+        - 'thread {"conversation_parts": true} call me 206-555-0100'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - 'thread {"conversation_parts": true} call me [REDACTED-PHONE]'
+
+# --- Name-surface, structural, and passthrough branches ---
+
+- description: Tool name available only via tool_metadata.name (resource name
+    empty, no payload.name). The candidate-name fallback matches and the SSN is
+    redacted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: ""
+      uri: null
+    tool_metadata:
+      name: intercom-get_conversation
+    payload:
+      text:
+        - 'SSN 078-05-1120 noted'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - 'SSN [REDACTED-SSN] noted'
+
+- description: Mixed content blocks — a string with an SSN, a non-string
+    structured block, and a clean string. Only the matching string is rewritten;
+    the other blocks are preserved as-is.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: intercom-get_conversation
+      uri: null
+    payload:
+      name: intercom-get_conversation
+      text:
+        - 'Contact SSN: 078-05-1120'
+        - type: resource
+          uri: intercom://conversation/1
+        - no pii here
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - 'Contact SSN: [REDACTED-SSN]'
+      - type: resource
+        uri: intercom://conversation/1
+      - no pii here
+
+- description: Clean response from an in-scope tool — no PII patterns match, so
+    no transform is emitted and the response passes through unchanged.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: intercom-get_conversation
+      uri: null
+    payload:
+      name: intercom-get_conversation
+      text:
+        - 'Thanks, that is resolved. No personal data here.'
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Ingress-mode call to a matching tool name. The policy only fires
+    on the output path, so no transform is applied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: intercom-get_conversation
+      uri: null
+    payload:
+      name: intercom-get_conversation
+      args:
+        id: conversation_abc123
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Out-of-scope tool (get_article — public Help Center content) with
+    an email-shaped string. Not a conversation/contact read, so no transform.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: intercom-get_article
+      uri: null
+    payload:
+      name: intercom-get_article
+      text:
+        - 'Contact support at help@acme.com'
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Tool name in mixed case. Matching is case-insensitive, so
+    redaction still applies.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: Intercom-Get_Conversation
+      uri: null
+    payload:
+      name: Intercom-Get_Conversation
+      text:
+        - 'SSN 123-45-6789'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - 'SSN [REDACTED-SSN]'
+
+- description: In-scope tool whose payload.text is a bare string rather than the
+    MCP content-block array. The is_array guard keeps the transform undefined
+    rather than emitting a malformed payload.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: intercom-get_conversation
+      uri: null
+    payload:
+      name: intercom-get_conversation
+      text: 'SSN 123-45-6789'
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: In-scope tool whose payload has no text array at all. Nothing to
+    rewrite — no transform, no error (fail-open for observability).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: intercom-get_conversation
+      uri: null
+    payload:
+      name: intercom-get_conversation
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+# --- Red-team: community raoulbia-ai server coverage (was a full bypass) ---
+
+- description: Red-team — community raoulbia list_conversations returns a
+    conversation body with an SSN. Its name (`list_conversations`) matches
+    neither the `search_conversations` suffix nor the generic search/fetch
+    branch, so it was previously an unredacted bypass. Now matched explicitly.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: intercom-list_conversations
+      uri: null
+    payload:
+      name: intercom-list_conversations
+      text:
+        - '[{"body":"customer says my ssn is 123-45-6789"}]'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - '[{"body":"customer says my ssn is [REDACTED-SSN]"}]'
+
+- description: Red-team — community raoulbia search_conversations_by_customer
+    returns a thread with a contact email. Name ends in `_by_customer`, so it
+    dodged the `search_conversations` suffix; now matched explicitly and
+    redacted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: intercom-search_conversations_by_customer
+      uri: null
+    payload:
+      name: intercom-search_conversations_by_customer
+      text:
+        - 'reach me at jane@acme.com'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - 'reach me at [REDACTED-EMAIL]'
+
+- description: Red-team — community raoulbia search_tickets_by_status returns a
+    ticket body with a labelled national ID. Ticket reads are raw customer
+    free-text too; now in scope and redacted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: intercom-search_tickets_by_status
+      uri: null
+    payload:
+      name: intercom-search_tickets_by_status
+      text:
+        - 'passport number: X1234567 attached'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - '[REDACTED-ID] attached'
+
+- description: Red-team — community raoulbia search_tickets_by_customer returns a
+    ticket with a US phone number. Now matched and redacted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: intercom-search_tickets_by_customer
+      uri: null
+    payload:
+      name: intercom-search_tickets_by_customer
+      text:
+        - 'call the customer at 206-555-0100'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - 'call the customer at [REDACTED-PHONE]'
+
+# --- Red-team: documented out-of-scope surface ---
+
+- description: Red-team — get_company response with an identifier in a company
+    custom field. Company reads are intentionally out of scope (documented
+    residual — the policy targets conversation/contact surfaces), so it passes
+    through unredacted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: intercom-get_company
+      uri: null
+    payload:
+      name: intercom-get_company
+      text:
+        - '{"name":"Acme","custom_attributes":{"billing_contact":"ap@acme.com"}}'
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+# --- Red-team residuals ---
+
+- description: Red-team — a Luhn-valid 16-digit PAN in a conversation body. PAN
+    is intentionally out of scope (companion mask-pan-egress / PF-01), so this
+    policy leaves it untouched — no transform.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: intercom-get_conversation
+      uri: null
+    payload:
+      name: intercom-get_conversation
+      text:
+        - 'card 4111 1111 1111 1111 on file'
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Red-team — an AWS access key ID pasted into a conversation. The
+    credential prefix pattern matches and it is masked.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: intercom-get_conversation
+      uri: null
+    payload:
+      name: intercom-get_conversation
+      text:
+        - 'deploy key AKIA1234567890ABCDEF leaked'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - 'deploy key [REDACTED-CREDENTIAL] leaked'
+
+- description: Red-team — a PEM private-key header in a thread. The credential
+    set includes PEM headers, so it is masked.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: intercom-get_conversation
+      uri: null
+    payload:
+      name: intercom-get_conversation
+      text:
+        - '-----BEGIN RSA PRIVATE KEY-----'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - '[REDACTED-CREDENTIAL]'
+
+- description: Red-team — a bare, unlabeled 9-digit run. The SSN pattern requires
+    hyphens and the national-ID pattern requires a label, so it passes through
+    unredacted (documented residual — avoids colliding with ticket/row IDs).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: intercom-get_conversation
+      uri: null
+    payload:
+      name: intercom-get_conversation
+      text:
+        - 'ref 123456789 here'
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Red-team — community evolsb/fast-intercom-mcp sync_conversations
+    returns a thread body with an SSN. Its name ends in neither
+    `search_conversations` nor `get_conversation`, so it was previously an
+    unredacted bypass; now named explicitly and redacted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: intercom-sync_conversations
+      uri: null
+    payload:
+      name: intercom-sync_conversations
+      text:
+        - 'customer says my ssn is 123-45-6789'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - 'customer says my ssn is [REDACTED-SSN]'
+
+- description: Red-team — a non-string (structured) content block whose nested
+    text field carries an SSN. Redaction runs only over string blocks, so the
+    object passes through unredacted (documented residual — verify the block
+    shape your gateway emits with the dump-input technique). The sibling string
+    block is still redacted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: intercom-get_conversation
+      uri: null
+    payload:
+      name: intercom-get_conversation
+      text:
+        - text: 'ssn 111-22-3333'
+          type: text
+        - 'ssn 123-45-6789'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - text: 'ssn 111-22-3333'
+        type: text
+      - 'ssn [REDACTED-SSN]'
+
+- description: >-
+    Red-team — a JWT pasted into a conversation as an HTTP auth header
+    (`Authorization: Bearer eyJ…`). The `bearer` keyword branch requires a `:`/`=`
+    delimiter and would miss the space-delimited scheme, but the JWT three-segment
+    shape matches the token itself, so it is masked (was a credential-leak
+    residual; now fixed).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: intercom-get_conversation
+      uri: null
+    payload:
+      name: intercom-get_conversation
+      text:
+        - 'Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.abc123signature'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - 'Authorization: Bearer [REDACTED-CREDENTIAL]'
+
+- description: Red-team — a bare raw JWT (no label in front). Matched by the
+    `eyJ…`-header shape regardless of any preceding keyword, so it is masked.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: intercom-get_conversation
+      uri: null
+    payload:
+      name: intercom-get_conversation
+      text:
+        - 'token is eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.sigsigsig ok'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - 'token is [REDACTED-CREDENTIAL] ok'
+
+- description: Red-team — an OPAQUE bearer token (not a JWT, not a recognised
+    provider prefix). No high-signal shape to anchor on, so it passes through
+    unredacted (documented residual — a `Bearer\s+\S+` catch-all would over-redact
+    ordinary prose).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: intercom-get_conversation
+      uri: null
+    payload:
+      name: intercom-get_conversation
+      text:
+        - 'Bearer a1b2c3d4e5f6g7h8i9j0'
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Red-team — an SSN written with full-width (unicode) digits. The
+    patterns match only ASCII digits, so it passes through unredacted
+    (documented residual — obfuscated/unicode-digit identifiers are not caught).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: intercom-get_conversation
+      uri: null
+    payload:
+      name: intercom-get_conversation
+      text:
+        - 'my ssn is １２３-４５-６７８９'
+  output:
+    expectedResult: allow
+  transformApplied: false

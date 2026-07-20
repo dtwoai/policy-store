@@ -1,0 +1,504 @@
+# Transform-only egress policy: every case expects allow. The behaviour under
+# test is whether `transform` is emitted (transformApplied) and, where the
+# rewrite is stable, its exact transformed_payload.text (transformedArgsContain).
+# There is no identity exemption — redaction is unconditional on matched tools.
+
+- description: >-
+    getCustomers record for a non-privileged read. Revenue (number), tier
+    (string), and contact email are masked; customer and contact NAMES and the
+    IDs survive, and the JSON stays valid.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: linear-mcp-linear_getCustomers
+      uri: null
+    payload:
+      name: linear-mcp-linear_getCustomers
+      text:
+        - '{"id":"cus_1","name":"Acme Corp","revenue":1500000,"tier":"Enterprise","contacts":[{"name":"Jane Roe","email":"jane@acme.com"}]}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    name: linear-mcp-linear_getCustomers
+    text:
+      - '{"id":"cus_1","name":"Acme Corp","revenue":"[REDACTED-REVENUE]","tier":"[REDACTED-TIER]","contacts":[{"name":"Jane Roe","email":"[REDACTED-EMAIL]"}]}'
+
+- description: >-
+    Revenue expressed as a quoted string value ("$1.5M") rather than a number.
+    The string branch of redact_revenue masks it.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: linear-mcp-linear_getCustomers
+      uri: null
+    payload:
+      name: linear-mcp-linear_getCustomers
+      text:
+        - '{"id":"cus_2","revenue":"$1.5M"}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - '{"id":"cus_2","revenue":"[REDACTED-REVENUE]"}'
+
+- description: >-
+    getCustomerTiers response where tier is a flat OBJECT value. The
+    flat-object branch replaces the whole object with the token.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: linear-mcp-linear_getCustomerTiers
+      uri: null
+    payload:
+      name: linear-mcp-linear_getCustomerTiers
+      text:
+        - '{"tier":{"name":"Enterprise","level":3}}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - '{"tier":"[REDACTED-TIER]"}'
+
+- description: >-
+    Tier expressed as a bare NUMBER (tier level). The numeric branch of
+    redact_tier masks it.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: linear-mcp-linear_getCustomerTiers
+      uri: null
+    payload:
+      name: linear-mcp-linear_getCustomerTiers
+      text:
+        - '{"id":"t1","tier":2}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - '{"id":"t1","tier":"[REDACTED-TIER]"}'
+
+- description: >-
+    getCustomerNeeds response with a contact email embedded in the need PROSE
+    (not under an email key). The generic email sweep catches it.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: linear-mcp-linear_getCustomerNeeds
+      uri: null
+    payload:
+      name: linear-mcp-linear_getCustomerNeeds
+      text:
+        - '{"need":"Follow up with buyer@bigco.com about the renewal"}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - '{"need":"Follow up with [REDACTED-EMAIL] about the renewal"}'
+
+- description: >-
+    Red-team: compound field keys (annualRevenue, customerTier, contactEmail).
+    The key-contains matching masks all three; a bare customer name survives.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: linear-mcp-linear_getCustomers
+      uri: null
+    payload:
+      name: linear-mcp-linear_getCustomers
+      text:
+        - '{"name":"Beta LLC","annualRevenue":2000000,"customerTier":"SMB","contactEmail":"ops@beta.io"}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - '{"name":"Beta LLC","annualRevenue":"[REDACTED-REVENUE]","customerTier":"[REDACTED-TIER]","contactEmail":"[REDACTED-EMAIL]"}'
+
+- description: >-
+    Egress scope satisfied by ACTION alone (mode absent). The is_egress
+    action-branch keeps redaction from failing open when mode is unset.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    resource:
+      type: tool
+      name: linear-mcp-linear_getCustomers
+      uri: null
+    payload:
+      name: linear-mcp-linear_getCustomers
+      text:
+        - '{"revenue":900000}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - '{"revenue":"[REDACTED-REVENUE]"}'
+
+- description: >-
+    Tool name present only on tool_metadata.name (resource.name is a
+    non-customer value). All-surface matching puts the call in scope.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: unknown-passthrough
+      uri: null
+    tool_metadata:
+      name: linear-mcp-linear_getCustomerNeeds
+    payload:
+      name: unknown-passthrough
+      text:
+        - '{"contactEmail":"lead@corp.com"}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - '{"contactEmail":"[REDACTED-EMAIL]"}'
+
+- description: >-
+    Tool name only on payload.name (resource.name empty). The payload-surface
+    branch matches and redaction applies.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: ""
+      uri: null
+    payload:
+      name: linear-mcp-linear_getCustomers
+      text:
+        - '{"tier":"Growth"}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - '{"tier":"[REDACTED-TIER]"}'
+
+- description: >-
+    Uppercase tool name still matches — matching is case-insensitive via
+    lower(). Red-team: casing bypass on the tool name is closed.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: LINEAR-MCP-LINEAR_GETCUSTOMERS
+      uri: null
+    payload:
+      name: LINEAR-MCP-LINEAR_GETCUSTOMERS
+      text:
+        - '{"revenue":123}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - '{"revenue":"[REDACTED-REVENUE]"}'
+
+- description: >-
+    Result with mixed content blocks — a plain string, a non-string structured
+    block, and a serialized-JSON string with an email. Only the matching string
+    is rewritten; the other blocks are preserved as-is.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: linear-mcp-linear_getCustomers
+      uri: null
+    payload:
+      name: linear-mcp-linear_getCustomers
+      text:
+        - Customer records follow.
+        - type: resource
+          uri: linear://customers/cus_1
+        - '{"email":"a@b.co"}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - Customer records follow.
+      - type: resource
+        uri: linear://customers/cus_1
+      - '{"email":"[REDACTED-EMAIL]"}'
+
+- description: >-
+    Clean response from an in-scope tool — no revenue/tier/email fields, no
+    email shapes. No transform is emitted and the response passes through
+    unchanged.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: linear-mcp-linear_getCustomers
+      uri: null
+    payload:
+      name: linear-mcp-linear_getCustomers
+      text:
+        - '{"nodes":[],"pageInfo":{"hasNextPage":false}}'
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: >-
+    Null identity fields (revenue, tier, email all null). The key-anchored
+    patterns only match quoted string / object / numeric values, so nulls carry
+    no data and no transform is emitted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: linear-mcp-linear_getCustomers
+      uri: null
+    payload:
+      name: linear-mcp-linear_getCustomers
+      text:
+        - '{"id":"cus_9","revenue":null,"tier":null,"email":null}'
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: >-
+    Out-of-scope Linear tool (getIssues) whose response happens to carry an
+    email. Not a Customers-read suffix, so no transform — the response passes
+    through unchanged.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: linear-mcp-linear_getIssues
+      uri: null
+    payload:
+      name: linear-mcp-linear_getIssues
+      text:
+        - '{"id":"iss_1","assigneeEmail":"dev@corp.com"}'
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: >-
+    Ingress on a customer read (tool_pre_invoke / mode input) is out of scope —
+    is_egress fails both branches, so no transform. Prevents scrubbing arguments
+    on the request path.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: linear-mcp-linear_getCustomers
+      uri: null
+    payload:
+      name: linear-mcp-linear_getCustomers
+      args:
+        customerId: cus_1
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: >-
+    In-scope tool whose payload.text is a bare string rather than the MCP
+    content-block array. The is_array guard keeps the transform undefined rather
+    than emitting a malformed payload.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: linear-mcp-linear_getCustomers
+      uri: null
+    payload:
+      name: linear-mcp-linear_getCustomers
+      text: '{"revenue":1000}'
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: >-
+    In-scope tool whose payload has no text array at all. Nothing to rewrite —
+    no transform, no error.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: linear-mcp-linear_getCustomers
+      uri: null
+    payload:
+      name: linear-mcp-linear_getCustomers
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: >-
+    Red-team documented residual — the official Linear server's customer read
+    (unverified name, e.g. list_customers) is NOT in customer_read_suffixes, so
+    a revenue/email payload passes through unredacted. Pin the official name
+    into customer_read_suffixes once confirmed via a live tools/list.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: linear-mcp-list_customers
+      uri: null
+    payload:
+      name: linear-mcp-list_customers
+      text:
+        - '{"revenue":5000000,"email":"cfo@target.com"}'
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: >-
+    Red-team fix — revenue as a NESTED money object
+    ({"amount":{"value":…}}). The object branch now tolerates one level of
+    nested braces, so the whole money object is masked instead of leaking the
+    inner amount. Customer name survives.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: linear-mcp-linear_getCustomers
+      uri: null
+    payload:
+      name: linear-mcp-linear_getCustomers
+      text:
+        - '{"revenue":{"amount":{"value":1500000,"currency":"USD"}},"name":"Acme"}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - '{"revenue":"[REDACTED-REVENUE]","name":"Acme"}'
+
+- description: >-
+    Red-team fix — tier as a NESTED object ({"meta":{…}}). The one-level nesting
+    tolerance masks the whole tier object; only two-plus levels deep remain a
+    documented residual.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: linear-mcp-linear_getCustomerTiers
+      uri: null
+    payload:
+      name: linear-mcp-linear_getCustomerTiers
+      text:
+        - '{"tier":{"meta":{"level":3}},"id":"t1"}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - '{"tier":"[REDACTED-TIER]","id":"t1"}'
+
+- description: >-
+    Red-team fix — kebab-case keys (customer-tier, contact-email). The tier and
+    email key char classes now allow `-` (matching revenue), so hyphenated keys
+    the description promises to cover are actually masked.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: linear-mcp-linear_getCustomers
+      uri: null
+    payload:
+      name: linear-mcp-linear_getCustomers
+      text:
+        - '{"customer-tier":"Enterprise","contact-email":"ops@beta.io"}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - '{"customer-tier":"[REDACTED-TIER]","contact-email":"[REDACTED-EMAIL]"}'
+
+- description: >-
+    Red-team documented residual — revenue/tier expressed as JSON ARRAYS. The
+    object branch matches braces, not brackets, so array-valued fields pass
+    through unredacted. Unusual shape for a money/tier field; documented in Known
+    limitations.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: linear-mcp-linear_getCustomerTiers
+      uri: null
+    payload:
+      name: linear-mcp-linear_getCustomerTiers
+      text:
+        - '{"tier":["Enterprise","Gold"],"revenue":[1500000]}'
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: >-
+    Red-team documented residual — revenue object nested TWO levels deep. The
+    one-level nesting tolerance cannot cross the second inner brace, so this
+    passes through unredacted. Documented in Known limitations.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: linear-mcp-linear_getCustomers
+      uri: null
+    payload:
+      name: linear-mcp-linear_getCustomers
+      text:
+        - '{"revenue":{"amount":{"detail":{"value":1500000}}}}'
+  output:
+    expectedResult: allow
+  transformApplied: false

@@ -1,0 +1,633 @@
+# Tests for box/guard-share-links-external. Every rule branch is covered:
+# pass-through, both collaboration dialects (login allowed / login external /
+# login missing), both shared-link dialects (open / company / collaborators /
+# missing access), the infosec exemption (present / absent / other groups),
+# and red-team cases (crafted double-@ login, case variance).
+- description: Non-sharing Box tool (upload_file) passes through untouched.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-remote-upload_file
+      uri: null
+    payload:
+      name: box-remote-upload_file
+      args:
+        parent_folder_id: "0"
+        name: notes.txt
+  output:
+    expectedResult: allow
+
+- description: Official create_collaboration with an internal login (allowed
+    corporate domain) is allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-remote-create_collaboration
+      uri: null
+    payload:
+      name: box-remote-create_collaboration
+      args:
+        item:
+          type: folder
+          id: "9821"
+        accessible_by:
+          type: user
+          login: bob@example.com
+        role: viewer
+  output:
+    expectedResult: allow
+
+- description: Official create_collaboration with an external login domain is
+    denied with the external-domain reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-remote-create_collaboration
+      uri: null
+    payload:
+      name: box-remote-create_collaboration
+      args:
+        item:
+          type: file
+          id: "1234"
+        accessible_by:
+          type: user
+          login: mallory@evil.example.net
+        role: editor
+  output:
+    expectedResult: deny
+    expectedReason: "Box collaboration with 'mallory@evil.example.net' is blocked: the invitee's email domain is not on the approved corporate domain list. Invite a corporate account instead, or ask your InfoSec team to approve the domain."
+
+- description: Official create_collaboration by user id (no login field) fails
+    closed for a non-exempt caller.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-remote-create_collaboration
+      uri: null
+    payload:
+      name: box-remote-create_collaboration
+      args:
+        item:
+          type: folder
+          id: "9821"
+        accessible_by:
+          type: user
+          id: "5551212"
+        role: editor
+  output:
+    expectedResult: deny
+    expectedReason: This Box collaboration grant carries no invitee email login (id-based, group, or role-only grant), so the external-domain check cannot run and the request fails closed. Re-issue the grant with the invitee's email login, or ask your InfoSec team to run it.
+
+- description: Official update_collaboration (role-only change, carries no
+    login) fails closed for a non-exempt caller.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-remote-update_collaboration
+      uri: null
+    payload:
+      name: box-remote-update_collaboration
+      args:
+        collaboration_id: "778899"
+        role: co-owner
+  output:
+    expectedResult: deny
+    expectedReason: This Box collaboration grant carries no invitee email login (id-based, group, or role-only grant), so the external-domain check cannot run and the request fails closed. Re-issue the grant with the invitee's email login, or ask your InfoSec team to run it.
+
+- description: Community file collaboration by user_login with an external
+    domain is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-mcp-box_collaboration_file_user_by_user_login_tool
+      uri: null
+    payload:
+      name: box-mcp-box_collaboration_file_user_by_user_login_tool
+      args:
+        file_id: "1234"
+        user_login: eve@outsider.io
+        role: viewer
+  output:
+    expectedResult: deny
+    expectedReason: "Box collaboration with 'eve@outsider.io' is blocked: the invitee's email domain is not on the approved corporate domain list. Invite a corporate account instead, or ask your InfoSec team to approve the domain."
+
+- description: Community folder collaboration by user_login with a corporate
+    domain is allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-mcp-box_collaboration_folder_user_by_user_login_tool
+      uri: null
+    payload:
+      name: box-mcp-box_collaboration_folder_user_by_user_login_tool
+      args:
+        folder_id: "9821"
+        user_login: alice@example.com
+        role: editor
+  output:
+    expectedResult: allow
+
+- description: Community box_collaboration_update_tool (role/status update, no
+    login) fails closed for a non-exempt caller.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-mcp-box_collaboration_update_tool
+      uri: null
+    payload:
+      name: box-mcp-box_collaboration_update_tool
+      args:
+        collaboration_id: "778899"
+        role: editor
+  output:
+    expectedResult: deny
+    expectedReason: This Box collaboration grant carries no invitee email login (id-based, group, or role-only grant), so the external-domain check cannot run and the request fails closed. Re-issue the grant with the invitee's email login, or ask your InfoSec team to run it.
+
+- description: Community group grant (by_group_id, no login) fails closed for a
+    non-exempt caller.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-mcp-box_collaboration_folder_group_by_group_id_tool
+      uri: null
+    payload:
+      name: box-mcp-box_collaboration_folder_group_by_group_id_tool
+      args:
+        folder_id: "9821"
+        group_id: "313131"
+        role: viewer
+  output:
+    expectedResult: deny
+    expectedReason: This Box collaboration grant carries no invitee email login (id-based, group, or role-only grant), so the external-domain check cannot run and the request fails closed. Re-issue the grant with the invitee's email login, or ask your InfoSec team to run it.
+
+- description: Community folder collaboration setter with an external
+    user_login is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-mcp-box_folder_set_collaboration_tool
+      uri: null
+    payload:
+      name: box-mcp-box_folder_set_collaboration_tool
+      args:
+        folder_id: "9821"
+        user_login: eve@outsider.io
+        role: editor
+  output:
+    expectedResult: deny
+    expectedReason: "Box collaboration with 'eve@outsider.io' is blocked: the invitee's email domain is not on the approved corporate domain list. Invite a corporate account instead, or ask your InfoSec team to approve the domain."
+
+- description: Official add_file_shared_link with access=open (anonymous public
+    URL) is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-remote-add_file_shared_link
+      uri: null
+    payload:
+      name: box-remote-add_file_shared_link
+      args:
+        file_id: "1234"
+        access: open
+  output:
+    expectedResult: deny
+    expectedReason: Public 'open' Box shared links are blocked because they mint an anonymous URL visible outside the organization. Use 'company' or 'collaborators' access instead. Contact your InfoSec team if you need a public link.
+
+- description: Official add_folder_shared_link with access=company is allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-remote-add_folder_shared_link
+      uri: null
+    payload:
+      name: box-remote-add_folder_shared_link
+      args:
+        folder_id: "9821"
+        access: company
+  output:
+    expectedResult: allow
+
+- description: Community shared-link file create-or-update with access=open is
+    denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-mcp-box_shared_link_file_create_or_update_tool
+      uri: null
+    payload:
+      name: box-mcp-box_shared_link_file_create_or_update_tool
+      args:
+        file_id: "1234"
+        access: open
+        can_download: true
+  output:
+    expectedResult: deny
+    expectedReason: Public 'open' Box shared links are blocked because they mint an anonymous URL visible outside the organization. Use 'company' or 'collaborators' access instead. Contact your InfoSec team if you need a public link.
+
+- description: Community web-link mirror with access=open is denied (suffix +
+    shared_link substring match).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-mcp-box_shared_link_web_link_create_or_update_tool
+      uri: null
+    payload:
+      name: box-mcp-box_shared_link_web_link_create_or_update_tool
+      args:
+        web_link_id: "4321"
+        access: open
+  output:
+    expectedResult: deny
+    expectedReason: Public 'open' Box shared links are blocked because they mint an anonymous URL visible outside the organization. Use 'company' or 'collaborators' access instead. Contact your InfoSec team if you need a public link.
+
+- description: Community shared-link folder create-or-update with
+    access=collaborators is allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-mcp-box_shared_link_folder_create_or_update_tool
+      uri: null
+    payload:
+      name: box-mcp-box_shared_link_folder_create_or_update_tool
+      args:
+        folder_id: "9821"
+        access: collaborators
+  output:
+    expectedResult: allow
+
+- description: Shared-link call with no access field passes through (falls back
+    to the Box enterprise default — documented limitation).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-remote-add_file_shared_link
+      uri: null
+    payload:
+      name: box-remote-add_file_shared_link
+      args:
+        file_id: "1234"
+  output:
+    expectedResult: allow
+
+- description: Infosec-group caller may create an external collaboration
+    (break-glass exemption).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-remote-create_collaboration
+      uri: null
+    subject:
+      sub: auth0|infosec-admin@example.com
+      claims:
+        groups:
+          - infosec
+    payload:
+      name: box-remote-create_collaboration
+      args:
+        item:
+          type: folder
+          id: "9821"
+        accessible_by:
+          type: user
+          login: auditor@external-firm.example.org
+        role: viewer
+  output:
+    expectedResult: allow
+
+- description: Infosec-group caller may create an open shared link
+    (break-glass exemption).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-remote-add_file_shared_link
+      uri: null
+    subject:
+      sub: auth0|infosec-admin@example.com
+      claims:
+        groups:
+          - Infosec
+    payload:
+      name: box-remote-add_file_shared_link
+      args:
+        file_id: "1234"
+        access: open
+  output:
+    expectedResult: allow
+
+- description: Caller in a different group (finance) is not exempt — open
+    shared link still denied (exemption fails closed).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-remote-add_file_shared_link
+      uri: null
+    subject:
+      sub: auth0|carol@example.com
+      claims:
+        groups:
+          - finance
+    payload:
+      name: box-remote-add_file_shared_link
+      args:
+        file_id: "1234"
+        access: open
+  output:
+    expectedResult: deny
+    expectedReason: Public 'open' Box shared links are blocked because they mint an anonymous URL visible outside the organization. Use 'company' or 'collaborators' access instead. Contact your InfoSec team if you need a public link.
+
+- description: Red-team — crafted double-@ login cannot smuggle an approved
+    suffix; denied as external.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-remote-create_collaboration
+      uri: null
+    payload:
+      name: box-remote-create_collaboration
+      args:
+        item:
+          type: file
+          id: "1234"
+        accessible_by:
+          type: user
+          login: mallory@evil.com@example.com
+        role: editor
+  output:
+    expectedResult: deny
+    expectedReason: "Box collaboration with 'mallory@evil.com@example.com' is blocked: the invitee's email domain is not on the approved corporate domain list. Invite a corporate account instead, or ask your InfoSec team to approve the domain."
+
+- description: Red-team — case variance in tool name and access value is still
+    caught (Open on a mixed-case tool name).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: Box-Remote-Add_File_Shared_Link
+      uri: null
+    payload:
+      name: Box-Remote-Add_File_Shared_Link
+      args:
+        file_id: "1234"
+        access: "Open"
+  output:
+    expectedResult: deny
+    expectedReason: Public 'open' Box shared links are blocked because they mint an anonymous URL visible outside the organization. Use 'company' or 'collaborators' access instead. Contact your InfoSec team if you need a public link.
+
+- description: Red-team — uppercase-domain login still matches the allowlist
+    (case-insensitive domain check).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-remote-create_collaboration
+      uri: null
+    payload:
+      name: box-remote-create_collaboration
+      args:
+        item:
+          type: folder
+          id: "9821"
+        accessible_by:
+          type: user
+          login: Bob@EXAMPLE.COM
+        role: viewer
+  output:
+    expectedResult: allow
+
+- description: Red-team — non-string access (array [open]) on a shared-link tool
+    fails closed instead of passing through.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-remote-add_file_shared_link
+      uri: null
+    payload:
+      name: box-remote-add_file_shared_link
+      args:
+        file_id: "1234"
+        access:
+          - open
+  output:
+    expectedResult: deny
+    expectedReason: This Box shared-link call has a malformed 'access' value (not a string), so the public-link check cannot run and the request fails closed. Re-issue with access set to 'company' or 'collaborators'.
+
+- description: Red-team — non-string access (object {value:open}) on a
+    community shared-link tool fails closed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-mcp-box_shared_link_file_create_or_update_tool
+      uri: null
+    payload:
+      name: box-mcp-box_shared_link_file_create_or_update_tool
+      args:
+        file_id: "1234"
+        access:
+          value: open
+  output:
+    expectedResult: deny
+    expectedReason: This Box shared-link call has a malformed 'access' value (not a string), so the public-link check cannot run and the request fails closed. Re-issue with access set to 'company' or 'collaborators'.
+
+- description: Infosec-group caller may still send a malformed-access shared-link
+    call (break-glass exemption wins over the malformed fail-closed).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-remote-add_file_shared_link
+      uri: null
+    subject:
+      sub: auth0|infosec-admin@example.com
+      claims:
+        groups:
+          - infosec
+    payload:
+      name: box-remote-add_file_shared_link
+      args:
+        file_id: "1234"
+        access:
+          - open
+  output:
+    expectedResult: allow
+
+- description: Documented residual — update_file_properties carrying a nested
+    shared_link.access=open is NOT a matched sharing tool and passes through
+    (alternate create path; see Known limitations).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-remote-update_file_properties
+      uri: null
+    payload:
+      name: box-remote-update_file_properties
+      args:
+        file_id: "1234"
+        shared_link:
+          access: open
+  output:
+    expectedResult: allow
+
+- description: Documented residual — group-claim sent as a bare string (not a
+    list) does not satisfy the infosec exemption; open link still denied
+    (exemption fails closed).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-remote-add_file_shared_link
+      uri: null
+    subject:
+      sub: auth0|impostor@example.com
+      claims:
+        groups: infosec
+    payload:
+      name: box-remote-add_file_shared_link
+      args:
+        file_id: "1234"
+        access: open
+  output:
+    expectedResult: deny
+    expectedReason: Public 'open' Box shared links are blocked because they mint an anonymous URL visible outside the organization. Use 'company' or 'collaborators' access instead. Contact your InfoSec team if you need a public link.
+
+- description: Red-team — non-string collaboration login (nested object, an
+    evasion of the domain string check) fails closed with the external-domain
+    reason; trim_space cannot run on a non-string, so login_domain_allowed is
+    undefined and the allow rule cannot fire.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-remote-create_collaboration
+      uri: null
+    payload:
+      name: box-remote-create_collaboration
+      args:
+        item:
+          type: folder
+          id: "9821"
+        accessible_by:
+          type: user
+          login:
+            n: x@example.com
+        role: editor
+  output:
+    expectedResult: deny
+    expectedReason: "Box collaboration with '{\"n\": \"x@example.com\"}' is blocked: the invitee's email domain is not on the approved corporate domain list. Invite a corporate account instead, or ask your InfoSec team to approve the domain."
+
+- description: Documented residual — box_folder_set_upload_email_tool (community)
+    sets a public inbound-upload email address (widens external exposure) but is
+    not a share-link/collaboration grant, so it is NOT matched and passes through
+    (see Known limitations; gate with a companion policy if needed).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-mcp-box_folder_set_upload_email_tool
+      uri: null
+    payload:
+      name: box-mcp-box_folder_set_upload_email_tool
+      args:
+        folder_id: "9821"
+        access: open
+  output:
+    expectedResult: allow
+
+- description: Documented residual — box_file_set_download_open_tool (community)
+    widens download scope on an existing shared link but is not a grant tool, so
+    it is NOT matched and passes through (see Known limitations).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-mcp-box_file_set_download_open_tool
+      uri: null
+    payload:
+      name: box-mcp-box_file_set_download_open_tool
+      args:
+        file_id: "1234"
+  output:
+    expectedResult: allow

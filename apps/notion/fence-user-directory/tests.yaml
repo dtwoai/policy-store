@@ -1,0 +1,287 @@
+# Placeholder note: the cleared group names (admin, it) are placeholders —
+# remap them to your tenant's real IdP group names at import time.
+- description: Non-directory read (notion-search) passes through untouched with no identity at all.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: notion-notion-search
+      uri: null
+    payload:
+      name: notion-notion-search
+      args:
+        query: onboarding checklist
+  output:
+    expectedResult: allow
+- description: Non-directory read (notion-fetch) passes through untouched.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: notion-notion-fetch
+      uri: null
+    subject:
+      sub: auth0|dev
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: notion-notion-fetch
+      args:
+        id: 1a2b3c4d-0000-0000-0000-000000000000
+  output:
+    expectedResult: allow
+- description: Directory read is allowed for a caller whose IdP groups include admin.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: notion-notion-get-users
+      uri: null
+    subject:
+      sub: auth0|ws-admin
+      claims:
+        groups:
+          - admin
+          - everyone
+    payload:
+      name: notion-notion-get-users
+      args:
+        query: alice
+  output:
+    expectedResult: allow
+- description: Directory read is allowed for an IT group member — group match is case-insensitive (IT matches it).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: notion-notion-get-users
+      uri: null
+    subject:
+      sub: auth0|itops
+      claims:
+        groups:
+          - IT
+    payload:
+      name: notion-notion-get-users
+      args: {}
+  output:
+    expectedResult: allow
+- description: Directory read is denied for a caller whose groups contain neither admin nor it.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: notion-notion-get-users
+      uri: null
+    subject:
+      sub: auth0|dev
+      claims:
+        groups:
+          - engineering
+          - everyone
+    payload:
+      name: notion-notion-get-users
+      args:
+        query: ""
+  output:
+    expectedResult: deny
+    expectedReason: Reading the Notion member directory (workspace member and guest names, emails, and IDs) is limited to admin and IT roles. Look up individual collaborators from page context instead, or ask your IT team to run this lookup — contact them if your role requires directory access.
+- description: Red-team — request with no subject at all (claims omitted entirely) fails closed and cannot harvest the directory.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: notion-notion-get-users
+      uri: null
+    payload:
+      name: notion-notion-get-users
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: Reading the Notion member directory (workspace member and guest names, emails, and IDs) is limited to admin and IT roles. Look up individual collaborators from page context instead, or ask your IT team to run this lookup — contact them if your role requires directory access.
+- description: Directory read is denied when claims are present but carry no groups claim.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: notion-notion-get-users
+      uri: null
+    subject:
+      sub: auth0|dev
+      claims:
+        org_id: org_123
+        scope: openid profile email
+    payload:
+      name: notion-notion-get-users
+      args:
+        user_id: 9f8e7d6c-0000-0000-0000-000000000000
+  output:
+    expectedResult: deny
+    expectedReason: Reading the Notion member directory (workspace member and guest names, emails, and IDs) is limited to admin and IT roles. Look up individual collaborators from page context instead, or ask your IT team to run this lookup — contact them if your role requires directory access.
+- description: Red-team — malformed groups claim (string "admin" instead of an array) never grants access (fails closed).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: notion-notion-get-users
+      uri: null
+    subject:
+      sub: auth0|spoof
+      claims:
+        groups: admin
+    payload:
+      name: notion-notion-get-users
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: Reading the Notion member directory (workspace member and guest names, emails, and IDs) is limited to admin and IT roles. Look up individual collaborators from page context instead, or ask your IT team to run this lookup — contact them if your role requires directory access.
+- description: Red-team — a near-miss group name (admins) does not match the exact placeholder (admin).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: notion-notion-get-users
+      uri: null
+    subject:
+      sub: auth0|spoof
+      claims:
+        groups:
+          - admins
+          - itsm
+    payload:
+      name: notion-notion-get-users
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: Reading the Notion member directory (workspace member and guest names, emails, and IDs) is limited to admin and IT roles. Look up individual collaborators from page context instead, or ask your IT team to run this lookup — contact them if your role requires directory access.
+- description: Red-team — mixed-case tool name (Notion-Get-Users) still hits the fence for a non-cleared caller.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: Notion-Notion-Get-Users
+      uri: null
+    subject:
+      sub: auth0|dev
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: Notion-Notion-Get-Users
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: Reading the Notion member directory (workspace member and guest names, emails, and IDs) is limited to admin and IT roles. Look up individual collaborators from page context instead, or ask your IT team to run this lookup — contact them if your role requires directory access.
+- description: The self bot-info form arrives on the same tool name and is also denied for a non-cleared caller.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: notion-notion-get-users
+      uri: null
+    subject:
+      sub: auth0|dev
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: notion-notion-get-users
+      args:
+        user_id: self
+  output:
+    expectedResult: deny
+    expectedReason: Reading the Notion member directory (workspace member and guest names, emails, and IDs) is limited to admin and IT roles. Look up individual collaborators from page context instead, or ask your IT team to run this lookup — contact them if your role requires directory access.
+- description: The self form is allowed for an admin group member (whole tool is cleared for admins).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: notion-notion-get-users
+      uri: null
+    subject:
+      sub: auth0|ws-admin
+      claims:
+        groups:
+          - admin
+    payload:
+      name: notion-notion-get-users
+      args:
+        user_id: self
+  output:
+    expectedResult: allow
+- description: >-
+    Red-team (documented limitation) — the suekou community server uses an
+    underscore prefix (notion_), so a raw user-list tool named
+    notion_get_users does NOT match the hyphenated -get-users suffix and passes
+    through. This asserts the documented bypass: on that server you must extend
+    the suffix match (see Known limitations).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: notion_get_users
+      uri: null
+    subject:
+      sub: auth0|dev
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: notion_get_users
+      args: {}
+  output:
+    expectedResult: allow
+- description: >-
+    Red-team (documented limitation) — the awkoy community server funnels every
+    operation, including user reads, through a single notion_execute meta-tool.
+    Tool-name matching cannot fence it: notion_execute does not end in
+    -get-users, so a user-directory read smuggled via {operation, payload}
+    passes through. Mitigation is to block that server in gateway config (see
+    Known limitations), not this policy.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: notion-notion_execute
+      uri: null
+    subject:
+      sub: auth0|dev
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: notion-notion_execute
+      args:
+        operation: users.list
+        payload: {}
+  output:
+    expectedResult: allow

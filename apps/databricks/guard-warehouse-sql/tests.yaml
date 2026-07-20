@@ -1,0 +1,747 @@
+# Branch coverage:
+#   allow: non-SQL tool (Genie) · read-only SELECT · SHOW/DESCRIBE/EXPLAIN · exempt admin
+#   deny:  each mutating verb (INSERT/UPDATE/DELETE/MERGE/DROP/TRUNCATE/ALTER/
+#          CREATE/GRANT/REVOKE/VACUUM/RESTORE) + COPY INTO export + missing-SQL
+#          fail-closed
+#   red-team: alt arg key · lowercase · community collision · string-groups spoof ·
+#             no-claims · non-string SQL · Genie passthrough · VACUUM/RESTORE
+#             Delta purge/revert · comment-column false-positive guard · absent args ·
+#             EXECUTE IMMEDIATE fragment-reassembly bypass (fixed) + its exempt path ·
+#             DENY permission statement (fixed) · LOAD DATA ingest (fixed) ·
+#             COPY-INTO comment-injection residual (documented) · deny-column FP ·
+#             REORG APPLY PURGE destructive purge (fixed) + reorg-column FP ·
+#             EXECUTE-IMMEDIATE comment-injection residual (documented)
+- description: Read-only SELECT on the managed execute_sql tool. No mutating
+    keyword — allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-sql-execute_sql
+      uri: null
+    payload:
+      name: databricks-sql-execute_sql
+      args:
+        statement: SELECT id, total FROM main.sales.orders LIMIT 10
+  output:
+    expectedResult: allow
+- description: SELECT with created_at/updated_at columns. Word-boundary anchoring
+    means these do not trip CREATE/UPDATE — allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-sql-execute_sql
+      uri: null
+    payload:
+      name: databricks-sql-execute_sql
+      args:
+        statement: SELECT id, created_at, updated_at FROM merge_log
+  output:
+    expectedResult: allow
+- description: SHOW/DESCRIBE/EXPLAIN read-only statement on the read-only tool.
+    Pass through — allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-sql-execute_sql_read_only
+      uri: null
+    payload:
+      name: databricks-sql-execute_sql_read_only
+      args:
+        statement: DESCRIBE TABLE main.sales.orders
+  output:
+    expectedResult: allow
+- description: Genie natural-language tool. Not a SQL tool; the word "delete" in
+    prose is irrelevant — allow (pass-through, out of scope).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-genie-genie_ask
+      uri: null
+    payload:
+      name: databricks-genie-genie_ask
+      args:
+        question: delete nothing, just tell me this quarter's revenue
+  output:
+    expectedResult: allow
+- description: poll_sql_result egress-style helper (carries the handle, not SQL).
+    Not a matched SQL tool — allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-sql-poll_sql_result
+      uri: null
+    payload:
+      name: databricks-sql-poll_sql_result
+      args:
+        statement_handle: 01ef-abc
+  output:
+    expectedResult: allow
+- description: DROP TABLE via managed execute_sql, non-exempt caller. Destructive —
+    deny with the write/DDL reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-sql-execute_sql
+      uri: null
+    payload:
+      name: databricks-sql-execute_sql
+      args:
+        statement: DROP TABLE main.sales.customers
+    subject:
+      sub: google-apps|analyst@dtwo.ai
+      claims:
+        groups:
+          - analysts
+  output:
+    expectedResult: deny
+    expectedReason: This Databricks SQL statement performs a write, DDL, permission, or export operation (INSERT, UPDATE, DELETE, MERGE, DROP, TRUNCATE, ALTER, CREATE, GRANT, REVOKE, or COPY INTO) and is blocked on the agent MCP path, which is read-only. Re-issue it as a read-only statement (SELECT, SHOW, DESCRIBE, or EXPLAIN) through the execute_sql_read_only tool, or have a member of the data-engineering group run the change. If this was a false positive, contact your data platform team.
+- description: INSERT via managed execute_sql. Mutating write — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-sql-execute_sql
+      uri: null
+    payload:
+      name: databricks-sql-execute_sql
+      args:
+        statement: INSERT INTO audit (event) VALUES ('x')
+  output:
+    expectedResult: deny
+- description: UPDATE via managed execute_sql. Mutating write — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-sql-execute_sql
+      uri: null
+    payload:
+      name: databricks-sql-execute_sql
+      args:
+        statement: UPDATE accounts SET balance = 0 WHERE id = 1
+  output:
+    expectedResult: deny
+- description: MERGE via managed execute_sql. Mutating write — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-sql-execute_sql
+      uri: null
+    payload:
+      name: databricks-sql-execute_sql
+      args:
+        statement: MERGE INTO target USING source ON target.id = source.id WHEN MATCHED THEN UPDATE SET target.v = source.v
+  output:
+    expectedResult: deny
+- description: Lowercase "delete" via managed execute_sql. Case-insensitive match —
+    deny (proves (?i)).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-sql-execute_sql
+      uri: null
+    payload:
+      name: databricks-sql-execute_sql
+      args:
+        statement: delete from ledger where id = 5
+  output:
+    expectedResult: deny
+- description: GRANT statement (privilege change). Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-sql-execute_sql
+      uri: null
+    payload:
+      name: databricks-sql-execute_sql
+      args:
+        statement: GRANT SELECT ON TABLE main.sales.orders TO `bob@dtwo.ai`
+  output:
+    expectedResult: deny
+- description: REVOKE statement (privilege change). Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-sql-execute_sql
+      uri: null
+    payload:
+      name: databricks-sql-execute_sql
+      args:
+        statement: REVOKE ALL PRIVILEGES ON SCHEMA main.sales FROM `bob@dtwo.ai`
+  output:
+    expectedResult: deny
+- description: ALTER TABLE DDL, multi-line with a leading comment. Word boundaries
+    work across newlines — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-sql-execute_sql
+      uri: null
+    payload:
+      name: databricks-sql-execute_sql
+      args:
+        statement: |
+          -- housekeeping
+          ALTER TABLE main.sales.orders
+            ADD COLUMN note STRING
+  output:
+    expectedResult: deny
+- description: CREATE TABLE DDL. Deny (CREATE class).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-sql-execute_sql
+      uri: null
+    payload:
+      name: databricks-sql-execute_sql
+      args:
+        statement: CREATE TABLE main.tmp.scratch (id INT)
+  output:
+    expectedResult: deny
+- description: TRUNCATE governance/destructive statement. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-sql-execute_sql
+      uri: null
+    payload:
+      name: databricks-sql-execute_sql
+      args:
+        statement: TRUNCATE TABLE main.staging.events
+  output:
+    expectedResult: deny
+- description: COPY INTO export/ingest construct (any whitespace between the two
+    words). Deny (export class).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-sql-execute_sql
+      uri: null
+    payload:
+      name: databricks-sql-execute_sql
+      args:
+        statement: COPY  INTO main.bronze.raw FROM 's3://bucket/dump/' FILEFORMAT = CSV
+  output:
+    expectedResult: deny
+- description: Red-team — write verb on the read-only tool. Guarded too (defense in
+    depth), so a DELETE routed through execute_sql_read_only is still denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-sql-execute_sql_read_only
+      uri: null
+    payload:
+      name: databricks-sql-execute_sql_read_only
+      args:
+        statement: DELETE FROM main.sales.invoices WHERE paid = false
+  output:
+    expectedResult: deny
+- description: Red-team — RafaelCartenet community execute_sql_query (no server-side
+    read-only guard) running a DROP. Matched by the execute_sql_query suffix — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-community-execute_sql_query
+      uri: null
+    payload:
+      name: databricks-community-execute_sql_query
+      args:
+        sql: DROP DATABASE prod
+  output:
+    expectedResult: deny
+- description: Red-team — JustTryAI community execute_sql (PAT-scoped, name collides
+    with the managed tool). Shared execute_sql suffix catches it — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: justtryai-databricks-execute_sql
+      uri: null
+    payload:
+      name: justtryai-databricks-execute_sql
+      args:
+        statement: UPDATE payroll SET salary = 0
+  output:
+    expectedResult: deny
+- description: Read-only SELECT via community execute_sql_query. No mutating keyword
+    — allow (proves the community read path passes).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-community-execute_sql_query
+      uri: null
+    payload:
+      name: databricks-community-execute_sql_query
+      args:
+        sql: SELECT * FROM main.sales.orders WHERE region = 'EU'
+  output:
+    expectedResult: allow
+- description: Red-team — mutating SQL delivered under an alternate `sql` key on the
+    managed tool instead of `statement`. Defensive fallback still inspects it — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-sql-execute_sql
+      uri: null
+    payload:
+      name: databricks-sql-execute_sql
+      args:
+        sql: UPDATE accounts SET balance = 0
+  output:
+    expectedResult: deny
+- description: Fail-closed — guarded SQL tool called with NO statement argument. The
+    guard cannot confirm read-only, so it denies with the missing-SQL reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-sql-execute_sql
+      uri: null
+    payload:
+      name: databricks-sql-execute_sql
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: This Databricks SQL tool was called with no readable SQL statement, so the guard cannot confirm the call is read-only and blocks it fail-closed. Supply the statement as a string argument and re-issue read-only queries through the execute_sql_read_only tool, or route writes through the data-engineering group. If this was a false positive, contact your data platform team.
+- description: Red-team — SQL supplied as a non-string (list) is not inspected;
+    yields no readable SQL and is denied fail-closed rather than erroring open.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-sql-execute_sql
+      uri: null
+    payload:
+      name: databricks-sql-execute_sql
+      args:
+        statement:
+          - DROP TABLE x
+  output:
+    expectedResult: deny
+- description: Break-glass — caller in data-engineering runs DROP. Exempt — allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-sql-execute_sql
+      uri: null
+    payload:
+      name: databricks-sql-execute_sql
+      args:
+        statement: DROP TABLE main.tmp.stale_events
+    subject:
+      sub: google-apps|de@dtwo.ai
+      claims:
+        groups:
+          - engineering
+          - data-engineering
+  output:
+    expectedResult: allow
+- description: Non-exempt group running DELETE. Groups present but not the exempt
+    one — deny (exemption not satisfied).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-sql-execute_sql
+      uri: null
+    payload:
+      name: databricks-sql-execute_sql
+      args:
+        statement: DELETE FROM main.sales.invoices WHERE paid = false
+    subject:
+      sub: google-apps|analyst@dtwo.ai
+      claims:
+        groups:
+          - analysts
+          - viewers
+  output:
+    expectedResult: deny
+- description: Red-team — no subject/claims at all, mutating TRUNCATE. object.get
+    chain yields empty groups so the exemption fails closed — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-sql-execute_sql
+      uri: null
+    payload:
+      name: databricks-sql-execute_sql
+      args:
+        statement: TRUNCATE TABLE main.finance.transactions
+  output:
+    expectedResult: deny
+- description: Red-team — Delta VACUUM permanently purges data files (defeats
+    time-travel recovery). No DML/DDL verb, but matched explicitly — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-sql-execute_sql
+      uri: null
+    payload:
+      name: databricks-sql-execute_sql
+      args:
+        statement: VACUUM main.sales.orders RETAIN 0 HOURS
+  output:
+    expectedResult: deny
+- description: Red-team — Delta RESTORE reverts a table to a prior version (alters
+    current data). Matched explicitly — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-sql-execute_sql
+      uri: null
+    payload:
+      name: databricks-sql-execute_sql
+      args:
+        statement: RESTORE TABLE main.sales.orders TO VERSION AS OF 3
+  output:
+    expectedResult: deny
+- description: Red-team — VACUUM delivered under the alternate `sql` key. Defensive
+    fallback still inspects it — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-sql-execute_sql
+      uri: null
+    payload:
+      name: databricks-sql-execute_sql
+      args:
+        sql: vacuum t retain 0 hours
+  output:
+    expectedResult: deny
+- description: False-positive guard — a `comment` column in a read-only SELECT must
+    still pass (COMMENT is intentionally not a blocked keyword).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-sql-execute_sql
+      uri: null
+    payload:
+      name: databricks-sql-execute_sql
+      args:
+        statement: SELECT id, comment FROM main.support.tickets LIMIT 5
+  output:
+    expectedResult: allow
+- description: Red-team — guarded SQL tool with NO args key at all (not even empty).
+    object.get chain yields no readable SQL, denied fail-closed without erroring.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-sql-execute_sql
+      uri: null
+    payload:
+      name: databricks-sql-execute_sql
+  output:
+    expectedResult: deny
+    expectedReason: This Databricks SQL tool was called with no readable SQL statement, so the guard cannot confirm the call is read-only and blocks it fail-closed. Supply the statement as a string argument and re-issue read-only queries through the execute_sql_read_only tool, or route writes through the data-engineering group. If this was a false positive, contact your data platform team.
+- description: Red-team — `data-engineering` spoofed as a bare string instead of a
+    list member. `some g in caller_groups` over a string iterates characters, none
+    equal the group name, so the exemption does not fire — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-sql-execute_sql
+      uri: null
+    payload:
+      name: databricks-sql-execute_sql
+      args:
+        statement: DROP DATABASE prod
+    subject:
+      sub: google-apps|analyst@dtwo.ai
+      claims:
+        groups: data-engineering
+  output:
+    expectedResult: deny
+- description: Red-team — EXECUTE IMMEDIATE with a fragment-reassembled DROP
+    ('DR'||'OP TABLE x'). The keyword scan can't see DROP in the pieces, but the
+    literal EXECUTE IMMEDIATE phrase is matched as mutating and denied fail-closed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-sql-execute_sql
+      uri: null
+    payload:
+      name: databricks-sql-execute_sql
+      args:
+        statement: EXECUTE IMMEDIATE 'DR'||'OP TABLE main.sales.customers'
+  output:
+    expectedResult: deny
+- description: EXECUTE IMMEDIATE wrapping a read-only SELECT. Dynamic SQL can't be
+    proven read-only from the argument, so it is denied conservatively (documented
+    false positive — route through data-engineering).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-sql-execute_sql
+      uri: null
+    payload:
+      name: databricks-sql-execute_sql
+      args:
+        statement: EXECUTE IMMEDIATE 'SELECT count(*) FROM main.sales.orders'
+  output:
+    expectedResult: deny
+- description: Break-glass — data-engineering caller runs EXECUTE IMMEDIATE. Exempt,
+    so the dynamic-SQL construct is allowed for the privileged path.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-sql-execute_sql
+      uri: null
+    payload:
+      name: databricks-sql-execute_sql
+      args:
+        statement: EXECUTE IMMEDIATE 'DROP TABLE main.tmp.stale'
+    subject:
+      sub: google-apps|de@dtwo.ai
+      claims:
+        groups:
+          - data-engineering
+  output:
+    expectedResult: allow
+- description: False-positive guard — a column literally named execute_time and a
+    bare `execute` keyword must not trip the EXECUTE IMMEDIATE match (needs the two
+    words in sequence) — allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-sql-execute_sql
+      uri: null
+    payload:
+      name: databricks-sql-execute_sql
+      args:
+        statement: SELECT execute_time, execute FROM main.ops.audit_log LIMIT 5
+  output:
+    expectedResult: allow
+- description: Red-team — DENY legacy table-ACL permission statement. GRANT/REVOKE
+    were covered but DENY (a permission-plane change) was not; now matched — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-sql-execute_sql
+      uri: null
+    payload:
+      name: databricks-sql-execute_sql
+      args:
+        statement: DENY SELECT ON TABLE main.sales.orders TO `bob@dtwo.ai`
+  output:
+    expectedResult: deny
+- description: Red-team — LOAD DATA ingest (parallel to COPY INTO, loads files into a
+    table). Carries no INSERT/COPY verb but is a write; now matched explicitly — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-sql-execute_sql
+      uri: null
+    payload:
+      name: databricks-sql-execute_sql
+      args:
+        statement: LOAD DATA INPATH 's3://bucket/dump/' INTO TABLE main.bronze.raw
+  output:
+    expectedResult: deny
+- description: Known limitation — a block comment wedged between COPY and INTO is not
+    whitespace, so the two-word match misses it and the ingest passes. Documents the
+    comment-injection residual (pin with PF-28 for parser-grade coverage) — allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-sql-execute_sql
+      uri: null
+    payload:
+      name: databricks-sql-execute_sql
+      args:
+        statement: COPY /* c */ INTO main.bronze.raw FROM 's3://bucket/dump/'
+  output:
+    expectedResult: allow
+- description: Known false positive — `deny` used as a bare column name in a read-only
+    SELECT trips the DENY keyword (same conservative trade-off as GRANT/REVOKE). Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-sql-execute_sql
+      uri: null
+    payload:
+      name: databricks-sql-execute_sql
+      args:
+        statement: SELECT id, deny FROM main.governance.policy_flags LIMIT 5
+  output:
+    expectedResult: deny
+- description: Red-team (fixed) — Delta REORG ... APPLY (PURGE) permanently purges
+    underlying data files, defeating time-travel recovery exactly as VACUUM does, yet
+    carries no DML/DDL verb. Previously allowed; now matched as a bare REORG verb — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-sql-execute_sql
+      uri: null
+    payload:
+      name: databricks-sql-execute_sql
+      args:
+        statement: REORG TABLE main.sales.orders APPLY (PURGE)
+  output:
+    expectedResult: deny
+- description: Red-team (fixed) — lowercase REORG delivered under the alternate `sql`
+    key. Case-insensitive bare-verb match on the defensive key path — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-sql-execute_sql
+      uri: null
+    payload:
+      name: databricks-sql-execute_sql
+      args:
+        sql: reorg table t apply (purge)
+  output:
+    expectedResult: deny
+- description: Known false positive — `reorg` used as a bare column name in a read-only
+    SELECT trips the REORG keyword (accepted trade-off, same as deny/load-data). Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-sql-execute_sql
+      uri: null
+    payload:
+      name: databricks-sql-execute_sql
+      args:
+        statement: SELECT id, reorg FROM main.ops.maintenance LIMIT 5
+  output:
+    expectedResult: deny
+- description: Known limitation (documented) — a block comment wedged between EXECUTE
+    and IMMEDIATE splits the two-word construct (a comment is not whitespace), so a
+    dynamic-SQL call with a benign inner statement passes. Same comment-injection
+    residual as COPY INTO; pin with PF-28 for parser-grade coverage — allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-sql-execute_sql
+      uri: null
+    payload:
+      name: databricks-sql-execute_sql
+      args:
+        statement: EXECUTE /* c */ IMMEDIATE 'SELECT count(*) FROM main.sales.orders'
+  output:
+    expectedResult: allow

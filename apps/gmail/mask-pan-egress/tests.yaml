@@ -1,0 +1,527 @@
+- description: Official-connector get_thread FULL_CONTENT response containing a
+    grouped PAN, caller not in the exempt group. Transform applies with the
+    masked-marker replacement.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: gmail-mcp-get_thread
+      uri: null
+    subject:
+      sub: google-apps|casey@acme.com
+      claims:
+        groups:
+          - support
+    payload:
+      name: gmail-mcp-get_thread
+      text:
+        - '{"messages":[{"plaintextBody":"Customer card: 4111 1111 1111 1111, exp 12/27"}]}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transform:
+    replacement: "[PAN REDACTED]"
+- description: GongRzhe read_email response with an unseparated 16-digit PAN.
+    Suffix matching covers the message-centric vocabulary; transform applies.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: gmail-autoauth-read_email
+      uri: null
+    subject:
+      sub: google-apps|casey@acme.com
+      claims:
+        groups:
+          - support
+    payload:
+      name: gmail-autoauth-read_email
+      text:
+        - "Please charge 4111111111111111 for the renewal."
+  output:
+    expectedResult: allow
+  transformApplied: true
+- description: taylorwilsdon batch thread read (high-volume egress surface).
+    Batch variants are matched by their full suffix; transform applies.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: workspace-mcp-get_gmail_threads_content_batch
+      uri: null
+    subject:
+      sub: google-apps|casey@acme.com
+      claims:
+        groups:
+          - support
+    payload:
+      name: workspace-mcp-get_gmail_threads_content_batch
+      text:
+        - '{"threads":[{"messages":[{"body":"Amex on file: 3782 822463 10005"}]}]}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+- description: GongRzhe search_emails results include body snippets, so the
+    search surface is masked too.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: gmail-autoauth-search_emails
+      uri: null
+    subject:
+      sub: google-apps|casey@acme.com
+      claims:
+        groups:
+          - support
+    payload:
+      name: gmail-autoauth-search_emails
+      text:
+        - '{"results":[{"snippet":"...card ending 4242-4242-4242-4242 was declined..."}]}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+- description: Non-mailbox-read tool (list_labels) is out of scope — no
+    transform, response passes through untouched.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: gmail-mcp-list_labels
+      uri: null
+    subject:
+      sub: google-apps|casey@acme.com
+      claims:
+        groups:
+          - support
+    payload:
+      name: gmail-mcp-list_labels
+      text:
+        - '{"labels":[{"id":"Label_4111111111111111","name":"receipts"}]}'
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Attachment-content tool is deliberately not matched — base64
+    output is not regex-maskable (documented limitation; gate at ingress).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: workspace-mcp-get_gmail_attachment_content
+      uri: null
+    subject:
+      sub: google-apps|casey@acme.com
+      claims:
+        groups:
+          - support
+    payload:
+      name: workspace-mcp-get_gmail_attachment_content
+      text:
+        - "JVBERi0xLjQKJcTl8uXrp/Og0MTGCjQgMCBvYmoK"
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Caller in the placeholder pci-full-pan group skips the transform
+    and sees unmasked content.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: gmail-mcp-get_thread
+      uri: null
+    subject:
+      sub: google-apps|pci-analyst@acme.com
+      claims:
+        groups:
+          - pci-full-pan
+    payload:
+      name: gmail-mcp-get_thread
+      text:
+        - '{"messages":[{"plaintextBody":"Card: 4111 1111 1111 1111"}]}'
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Caller in an unrelated group is not exempt — transform applies.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: gmail-mcp-get_thread
+      uri: null
+    subject:
+      sub: google-apps|casey@acme.com
+      claims:
+        groups:
+          - finance
+          - support
+    payload:
+      name: gmail-mcp-get_thread
+      text:
+        - '{"messages":[{"plaintextBody":"Card: 5500-0000-0000-0004"}]}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+- description: No subject/claims at all (IdP not configured or audience
+    mismatch). The exemption fails closed and the transform still applies.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: gmail-mcp-get_thread
+      uri: null
+    payload:
+      name: gmail-mcp-get_thread
+      text:
+        - '{"messages":[{"plaintextBody":"Card: 4111 1111 1111 1111"}]}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+- description: Malformed groups claim (string instead of array, spoof-shaped
+    value). Iteration over a non-array fails closed — transform still applies.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: gmail-mcp-get_thread
+      uri: null
+    subject:
+      sub: google-apps|casey@acme.com
+      claims:
+        groups: pci-full-pan
+    payload:
+      name: gmail-mcp-get_thread
+      text:
+        - '{"messages":[{"plaintextBody":"Card: 4111 1111 1111 1111"}]}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+- description: Official-connector search_threads response — results carry body
+    snippets, so this search surface is masked too.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: gmail-mcp-search_threads
+      uri: null
+    subject:
+      sub: google-apps|casey@acme.com
+      claims:
+        groups:
+          - support
+    payload:
+      name: gmail-mcp-search_threads
+      text:
+        - '{"threads":[{"snippet":"invoice paid with 4111 1111 1111 1111"}]}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+- description: taylorwilsdon get_gmail_message_content (single-message read).
+    Suffix matching covers the *_gmail_* infix vocabulary; transform applies.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: workspace-mcp-get_gmail_message_content
+      uri: null
+    subject:
+      sub: google-apps|casey@acme.com
+      claims:
+        groups:
+          - support
+    payload:
+      name: workspace-mcp-get_gmail_message_content
+      text:
+        - '{"body":"card 4111111111111111"}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+- description: Uppercase tool-name delivery (casing bypass attempt). Matching is
+    case-insensitive via lower(), so the transform still applies.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: GMAIL-MCP-GET_THREAD
+      uri: null
+    subject:
+      sub: google-apps|casey@acme.com
+      claims:
+        groups:
+          - support
+    payload:
+      name: GMAIL-MCP-GET_THREAD
+      text:
+        - '{"messages":[{"plaintextBody":"Card: 4111 1111 1111 1111"}]}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+- description: Exempt caller whose pci-full-pan group sits among several groups.
+    Set membership still matches, so no transform is emitted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: gmail-mcp-get_thread
+      uri: null
+    subject:
+      sub: google-apps|pci-analyst@acme.com
+      claims:
+        groups:
+          - support
+          - pci-full-pan
+          - finance
+    payload:
+      name: gmail-mcp-get_thread
+      text:
+        - '{"messages":[{"plaintextBody":"Card: 4111 1111 1111 1111"}]}'
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Ingress-mode call on a matched tool name (tool_pre_invoke). The
+    mode guard keeps this egress transform from firing on the request path.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gmail-mcp-get_thread
+      uri: null
+    subject:
+      sub: google-apps|casey@acme.com
+      claims:
+        groups:
+          - support
+    payload:
+      name: gmail-mcp-get_thread
+      args:
+        threadId: "18c2f0a9b3d4e5f6"
+        messageFormat: FULL_CONTENT
+  output:
+    expectedResult: allow
+  transformApplied: false
+# --- Red-team regression cases (standards §10) ---
+- description: "RED-TEAM (claim-spoof): groups claim shaped as an OBJECT carrying
+    the exempt value (groups={\"role\":\"pci-full-pan\"}). The is_array guard is
+    load-bearing here — without it, iterating the object's *values* would match
+    \"pci-full-pan\" and wrongly grant the exemption. Guard holds: not exempt, so
+    the transform still applies (fail-closed)."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: gmail-mcp-get_thread
+      uri: null
+    subject:
+      sub: google-apps|attacker@acme.com
+      claims:
+        groups:
+          role: pci-full-pan
+    payload:
+      name: gmail-mcp-get_thread
+      text:
+        - '{"messages":[{"plaintextBody":"Card: 4111 1111 1111 1111"}]}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+- description: "RED-TEAM (claim-spoof): subject and claims present but no groups
+    claim at all. object.get defaults to [], is_array is satisfied but no member
+    equals the exempt group, so the exemption fails closed and the transform
+    applies."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: gmail-mcp-get_thread
+      uri: null
+    subject:
+      sub: google-apps|casey@acme.com
+      claims:
+        scope: openid profile email
+    payload:
+      name: gmail-mcp-get_thread
+      text:
+        - '{"messages":[{"plaintextBody":"Card: 4111 1111 1111 1111"}]}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+- description: "RED-TEAM (tool-scoping residual): Google/Claude connector
+    list_drafts is NOT in mailbox_read_suffixes, so a card number a human typed
+    into a draft body is returned to the agent UNMASKED. Documented scoping gap
+    (Known limitations) — pinned here so the exclusion is intentional, not an
+    accidental miss. Add list_drafts to the suffix list to close it."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: gmail-mcp-list_drafts
+      uri: null
+    subject:
+      sub: google-apps|casey@acme.com
+      claims:
+        groups:
+          - support
+    payload:
+      name: gmail-mcp-list_drafts
+      text:
+        - '{"drafts":[{"plaintextBody":"draft to customer: 4111 1111 1111 1111"}]}'
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: "Pattern-set pin: assert the exact redact_patterns array and
+    replacement the transform emits, so a silent edit that drops or alters any of
+    the three PAN patterns (the mechanism behind every documented regex-edge
+    residual) is caught as a regression."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: gmail-mcp-get_thread
+      uri: null
+    subject:
+      sub: google-apps|casey@acme.com
+      claims:
+        groups:
+          - support
+    payload:
+      name: gmail-mcp-get_thread
+      text:
+        - '{"messages":[{"plaintextBody":"Card: 4111 1111 1111 1111"}]}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transform:
+    redact_patterns:
+      - '\b\d{4}[ -]\d{4}[ -]\d{4}[ -]\d{4}\b'
+      - '\b3[47]\d{2}[ -]\d{6}[ -]\d{5}\b'
+      - '\b\d{13,19}\b'
+    replacement: "[PAN REDACTED]"
+- description: "RED-TEAM (regex-edge, documented): a 4+12 space split
+    (\"4111 111111111111\") matches neither grouped pattern nor the unseparated
+    run (the single space breaks the run into sub-13-digit pieces), so this PAN
+    shape is NOT masked. NOTE: the isolated runner asserts that the transform
+    fires (pattern emission), not the masked bytes; the evasion itself is verified
+    out-of-band via OPA regex.match and recorded under Known limitations."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: gmail-mcp-get_thread
+      uri: null
+    subject:
+      sub: google-apps|casey@acme.com
+      claims:
+        groups:
+          - support
+    payload:
+      name: gmail-mcp-get_thread
+      text:
+        - '{"messages":[{"plaintextBody":"pay with 4111 111111111111 today"}]}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+- description: taylorwilsdon search_gmail_messages (search surface, *_gmail_*
+    infix vocabulary) is a matched suffix; transform applies.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: workspace-mcp-search_gmail_messages
+      uri: null
+    subject:
+      sub: google-apps|casey@acme.com
+      claims:
+        groups:
+          - support
+    payload:
+      name: workspace-mcp-search_gmail_messages
+      text:
+        - '{"messages":[{"snippet":"receipt 4111 1111 1111 1111"}]}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+- description: taylorwilsdon get_gmail_thread_content (single-thread, non-batch)
+    is a matched suffix distinct from the batch variant; transform applies.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: workspace-mcp-get_gmail_thread_content
+      uri: null
+    subject:
+      sub: google-apps|casey@acme.com
+      claims:
+        groups:
+          - support
+    payload:
+      name: workspace-mcp-get_gmail_thread_content
+      text:
+        - '{"messages":[{"body":"card 4111111111111111"}]}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+- description: taylorwilsdon get_gmail_messages_content_batch (message batch, the
+    other high-volume egress surface) is matched by its full suffix; transform
+    applies.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: workspace-mcp-get_gmail_messages_content_batch
+      uri: null
+    subject:
+      sub: google-apps|casey@acme.com
+      claims:
+        groups:
+          - support
+    payload:
+      name: workspace-mcp-get_gmail_messages_content_batch
+      text:
+        - '{"messages":[{"body":"Amex 3782 822463 10005"},{"body":"4242 4242 4242 4242"}]}'
+  output:
+    expectedResult: allow
+  transformApplied: true

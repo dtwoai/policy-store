@@ -1,0 +1,333 @@
+- description: Non-RLS modeling tool passes through — this policy governs only the RLS-role surface.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: powerbi-modeling-measure_operations
+      uri: null
+    subject:
+      sub: auth0|analyst
+      claims:
+        groups:
+          - analysts
+    payload:
+      name: powerbi-modeling-measure_operations
+      args:
+        operation: list
+  output:
+    expectedResult: allow
+
+- description: RLS-role edit (security_role_operations) by a non-governance caller — deny with reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: powerbi-modeling-security_role_operations
+      uri: null
+    subject:
+      sub: auth0|analyst
+      claims:
+        groups:
+          - analysts
+    payload:
+      name: powerbi-modeling-security_role_operations
+      args:
+        operation: update
+        role: RegionFilter
+        filter: TRUE()
+  output:
+    expectedResult: deny
+    expectedReason: "Power BI row-level-security (RLS) role definitions are frozen on the agent path — an RLS filter expression controls who sees which rows, so changing it is a governance action, not a data change. This tool is blocked for every operation (including read-only role listings) because its operation argument cannot be trusted to distinguish a read from a filter rewrite. Request RLS role changes through your data-governance workflow. If your role requires editing RLS through the gateway, ask your data-governance team to add you to the 'bi-governance' IdP group, or contact your InfoSec team if this looks like a false positive."
+
+- description: Same RLS-role edit by a bi-governance member — allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: powerbi-modeling-security_role_operations
+      uri: null
+    subject:
+      sub: auth0|steward
+      claims:
+        groups:
+          - bi-governance
+    payload:
+      name: powerbi-modeling-security_role_operations
+      args:
+        operation: update
+        role: RegionFilter
+        filter: TRUE()
+  output:
+    expectedResult: allow
+
+- description: Read-only role listing through the multiplexer is still blocked for a non-governance caller (whole-tool deny).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: powerbi-modeling-security_role_operations
+      uri: null
+    subject:
+      sub: auth0|analyst
+      claims:
+        groups:
+          - analysts
+    payload:
+      name: powerbi-modeling-security_role_operations
+      args:
+        operation: list
+  output:
+    expectedResult: deny
+
+- description: Community RLS-role-management tool (placeholder suffix) by a non-governance caller — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: powerbi-community-update_rls_role
+      uri: null
+    subject:
+      sub: auth0|analyst
+      claims:
+        groups:
+          - analysts
+    payload:
+      name: powerbi-community-update_rls_role
+      args:
+        role: RegionFilter
+  output:
+    expectedResult: deny
+
+- description: Fail closed — RLS-role tool with no subject/claims at all is denied (no group means no exemption).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: powerbi-modeling-security_role_operations
+      uri: null
+    payload:
+      name: powerbi-modeling-security_role_operations
+      args:
+        operation: update
+  output:
+    expectedResult: deny
+
+- description: Red-team — object-shaped groups claim {"role":"bi-governance"} must not spoof the exemption (is_array guard fails closed).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: powerbi-modeling-security_role_operations
+      uri: null
+    subject:
+      sub: auth0|attacker
+      claims:
+        groups:
+          role: bi-governance
+    payload:
+      name: powerbi-modeling-security_role_operations
+      args:
+        operation: update
+  output:
+    expectedResult: deny
+
+- description: Red-team — uppercase / mixed-case prefixed tool name still matches (case-insensitive suffix match).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: POWERBI-MODELING-SECURITY_ROLE_OPERATIONS
+      uri: null
+    subject:
+      sub: auth0|analyst
+      claims:
+        groups:
+          - analysts
+    payload:
+      name: POWERBI-MODELING-SECURITY_ROLE_OPERATIONS
+      args: {}
+  output:
+    expectedResult: deny
+
+- description: Red-team — trailing whitespace/newline in the tool name cannot defeat the suffix match (trim_space).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "powerbi-modeling-security_role_operations\n"
+      uri: null
+    subject:
+      sub: auth0|analyst
+      claims:
+        groups:
+          - analysts
+    payload:
+      name: "powerbi-modeling-security_role_operations\n"
+      args: {}
+  output:
+    expectedResult: deny
+
+- description: Red-team (documented residual) — a versioned/renamed base tool `security_role_operations_v2` is NOT caught by the exact-suffix match and passes through this policy alone; the companion default-deny-unknown-modeling-ops (PF-28) allowlist is the backstop. Documented under Known limitations.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: powerbi-modeling-security_role_operations_v2
+      uri: null
+    subject:
+      sub: auth0|analyst
+      claims:
+        groups:
+          - analysts
+    payload:
+      name: powerbi-modeling-security_role_operations_v2
+      args:
+        operation: update
+        role: RegionFilter
+        filter: TRUE()
+  output:
+    expectedResult: allow
+
+- description: Red-team (documented residual) — a real community RLS tool whose name is not one of the unverified `*_rls_role` placeholders (here `manage_rls_role`) passes through this policy alone; PF-28 default-deny is the backstop. Documented under Known limitations.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: powerbi-community-manage_rls_role
+      uri: null
+    subject:
+      sub: auth0|analyst
+      claims:
+        groups:
+          - analysts
+    payload:
+      name: powerbi-community-manage_rls_role
+      args:
+        role: RegionFilter
+  output:
+    expectedResult: allow
+
+- description: Red-team fail-closed — a single-string `groups` claim equal to the governance group does NOT satisfy the array-guarded exemption (is_array fails closed), so the RLS-role tool is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: powerbi-modeling-security_role_operations
+      uri: null
+    subject:
+      sub: auth0|attacker
+      claims:
+        groups: bi-governance
+    payload:
+      name: powerbi-modeling-security_role_operations
+      args:
+        operation: update
+  output:
+    expectedResult: deny
+
+- description: Red-team (documented residual) — a full-model write via model_operations that carries a Roles/RLS definition is NOT caught by the named-RLS-suffix match and passes through this policy alone; PF-28 does not backstop it (model_operations is an audited tool). Mitigate by gating model_operations behind bi-governance. Documented under Known limitations.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: powerbi-modeling-model_operations
+      uri: null
+    subject:
+      sub: auth0|analyst
+      claims:
+        groups:
+          - analysts
+    payload:
+      name: powerbi-modeling-model_operations
+      args:
+        operation: createOrReplace
+        roles:
+          - name: RegionFilter
+            filter: TRUE()
+  output:
+    expectedResult: allow
+
+- description: Red-team fail-closed — an explicit-null `groups` claim (present-but-null, a distinct object.get path from a missing key) does NOT satisfy the array-guarded exemption, so the RLS-role tool is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: powerbi-modeling-security_role_operations
+      uri: null
+    subject:
+      sub: auth0|attacker
+      claims:
+        groups: null
+    payload:
+      name: powerbi-modeling-security_role_operations
+      args:
+        operation: update
+  output:
+    expectedResult: deny
+
+- description: Red-team fail-closed — an explicit-null `claims` object (present-but-null) does not crash evaluation and denies the RLS-role tool (no group means no exemption).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: powerbi-modeling-security_role_operations
+      uri: null
+    subject:
+      sub: auth0|attacker
+      claims: null
+    payload:
+      name: powerbi-modeling-security_role_operations
+      args:
+        operation: update
+  output:
+    expectedResult: deny
+
+- description: Community RLS read/test tool (rls_test_harness) is not an RLS-role-management tool and must pass through.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: powerbi-community-rls_test_harness
+      uri: null
+    subject:
+      sub: auth0|analyst
+      claims:
+        groups:
+          - analysts
+    payload:
+      name: powerbi-community-rls_test_harness
+      args: {}
+  output:
+    expectedResult: allow

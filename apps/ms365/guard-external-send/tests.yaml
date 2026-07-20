@@ -1,0 +1,456 @@
+- description: Non-send tool (reading mail) is untouched by this policy. Allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-list-mail-messages
+      uri: null
+    payload:
+      name: ms365-list-mail-messages
+      args:
+        folderId: inbox
+  output:
+    expectedResult: allow
+- description: send-mail with to+cc recipients all on corporate domains
+    (mixed-case addresses are normalized). Allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-send-mail
+      uri: null
+    payload:
+      name: ms365-send-mail
+      args:
+        body:
+          Message:
+            subject: Q3 numbers
+            toRecipients:
+              - emailAddress:
+                  address: CFO@Example.com
+            ccRecipients:
+              - emailAddress:
+                  address: controller@example.org
+  output:
+    expectedResult: allow
+- description: send-mail with an external address hidden in bccRecipients, and a
+    caller whose groups claim does not include the exempt group. Deny with the
+    external-recipients reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    subject:
+      sub: google-apps|agent@example.com
+      claims:
+        groups:
+          - staff
+    resource:
+      type: tool
+      name: ms365-send-mail
+      uri: null
+    payload:
+      name: ms365-send-mail
+      args:
+        body:
+          Message:
+            subject: forecast attached
+            toRecipients:
+              - emailAddress:
+                  address: cfo@example.com
+            bccRecipients:
+              - emailAddress:
+                  address: partner@outside.io
+  output:
+    expectedResult: deny
+    expectedReason: "This message addresses recipients outside the approved corporate domains: partner@outside.io. Remove the external addresses or save a draft for a human to review and send. Contact your InfoSec team if an external domain should be approved."
+- description: forward-mail-message uses the top-level capitalized ToRecipients
+    shape; external recipient there is caught. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-forward-mail-message
+      uri: null
+    payload:
+      name: ms365-forward-mail-message
+      args:
+        messageId: AAMkAGI2
+        body:
+          Comment: FYI
+          ToRecipients:
+            - emailAddress:
+                address: rival@competitor.com
+  output:
+    expectedResult: deny
+    expectedReason: "This message addresses recipients outside the approved corporate domains: rival@competitor.com. Remove the external addresses or save a draft for a human to review and send. Contact your InfoSec team if an external domain should be approved."
+- description: forward-mail-message to a corporate-domain recipient via the
+    top-level ToRecipients shape. Allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-forward-mail-message
+      uri: null
+    payload:
+      name: ms365-forward-mail-message
+      args:
+        messageId: AAMkAGI2
+        body:
+          Comment: routing internally
+          ToRecipients:
+            - emailAddress:
+                address: legal@example.com
+  output:
+    expectedResult: allow
+- description: reply-mail-message with a comment only — recipients live
+    server-side on the thread and are invisible to the gateway. Fail closed with
+    the no-visible-recipients reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-reply-mail-message
+      uri: null
+    payload:
+      name: ms365-reply-mail-message
+      args:
+        messageId: AAMkAGI2
+        body:
+          comment: sounds good, approved
+  output:
+    expectedResult: deny
+    expectedReason: No recipient addresses are visible in this request, so the corporate-domain check cannot run and the send is blocked. Include explicit recipients in the call, or create a draft and let a human send it from Outlook. Contact your InfoSec team if this blocks a legitimate workflow.
+- description: send-draft-message carries only a messageId — the draft's
+    recipients are server-side. Fail closed with the no-visible-recipients
+    reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-send-draft-message
+      uri: null
+    payload:
+      name: ms365-send-draft-message
+      args:
+        messageId: AAMkAGI2draft
+  output:
+    expectedResult: deny
+    expectedReason: No recipient addresses are visible in this request, so the corporate-domain check cannot run and the send is blocked. Include explicit recipients in the call, or create a draft and let a human send it from Outlook. Contact your InfoSec team if this blocks a legitimate workflow.
+- description: Caller in the external-comms exemption group may email external
+    recipients. Allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    subject:
+      sub: google-apps|pr@example.com
+      claims:
+        groups:
+          - external-comms
+    resource:
+      type: tool
+      name: ms365-send-mail
+      uri: null
+    payload:
+      name: ms365-send-mail
+      args:
+        body:
+          Message:
+            toRecipients:
+              - emailAddress:
+                  address: press@newswire.com
+  output:
+    expectedResult: allow
+- description: A recipient entry with no readable emailAddress.address (only a
+    display name) cannot be verified, even though the other recipient is
+    internal. Fail closed with the unreadable-recipient reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-send-mail
+      uri: null
+    payload:
+      name: ms365-send-mail
+      args:
+        body:
+          Message:
+            toRecipients:
+              - emailAddress:
+                  address: cfo@example.com
+              - emailAddress:
+                  name: Mystery Recipient
+  output:
+    expectedResult: deny
+    expectedReason: A recipient in this request is missing a readable email address, so the corporate-domain check cannot run and the send is blocked. Provide every recipient as emailAddress.address, or create a draft for human review. Contact your InfoSec team if this was a false positive.
+- description: send-shared-mailbox-mail with an external toRecipient in the
+    nested Message shape. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-send-shared-mailbox-mail
+      uri: null
+    payload:
+      name: ms365-send-shared-mailbox-mail
+      args:
+        sharedMailbox: support@example.com
+        body:
+          Message:
+            toRecipients:
+              - emailAddress:
+                  address: customer@gmail.com
+  output:
+    expectedResult: deny
+    expectedReason: "This message addresses recipients outside the approved corporate domains: customer@gmail.com. Remove the external addresses or save a draft for a human to review and send. Contact your InfoSec team if an external domain should be approved."
+- description: reply-all-mail-message that supplies explicit corporate-domain
+    recipients in the nested Message shape. Allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-reply-all-mail-message
+      uri: null
+    payload:
+      name: ms365-reply-all-mail-message
+      args:
+        messageId: AAMkAGI2
+        body:
+          comment: looping the team
+          Message:
+            toRecipients:
+              - emailAddress:
+                  address: team@example.com
+  output:
+    expectedResult: allow
+- description: Subdomain not on the allowlist — domain matching is exact, so
+    user@mail.example.com counts as external. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-send-mail
+      uri: null
+    payload:
+      name: ms365-send-mail
+      args:
+        body:
+          Message:
+            toRecipients:
+              - emailAddress:
+                  address: sam@mail.example.com
+  output:
+    expectedResult: deny
+    expectedReason: "This message addresses recipients outside the approved corporate domains: sam@mail.example.com. Remove the external addresses or save a draft for a human to review and send. Contact your InfoSec team if an external domain should be approved."
+- description: Red team — address with two @ signs crafted to end in an
+    allowlisted domain lookalike position ("alice@example.com@evil.io") is
+    malformed and treated as external. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-send-mail
+      uri: null
+    payload:
+      name: ms365-send-mail
+      args:
+        body:
+          Message:
+            toRecipients:
+              - emailAddress:
+                  address: alice@example.com@evil.io
+  output:
+    expectedResult: deny
+    expectedReason: "This message addresses recipients outside the approved corporate domains: alice@example.com@evil.io. Remove the external addresses or save a draft for a human to review and send. Contact your InfoSec team if an external domain should be approved."
+- description: Red team — casing bypass. A visible internal toRecipient rides
+    alongside an external address hidden under a CAPITAL-cased BccRecipients key
+    inside Message. Graph binds property names case-insensitively, so this BCC
+    would still be delivered; the policy must lowercase the key and catch it. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-send-mail
+      uri: null
+    payload:
+      name: ms365-send-mail
+      args:
+        body:
+          Message:
+            toRecipients:
+              - emailAddress:
+                  address: cfo@example.com
+            BccRecipients:
+              - emailAddress:
+                  address: partner@outside.io
+  output:
+    expectedResult: deny
+    expectedReason: "This message addresses recipients outside the approved corporate domains: partner@outside.io. Remove the external addresses or save a draft for a human to review and send. Contact your InfoSec team if an external domain should be approved."
+- description: Red team — casing bypass on the wrapper. External recipient hidden
+    under a lowercase `message` wrapper (Graph accepts it) instead of the documented
+    capital `Message`. Must still be extracted and denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-send-mail
+      uri: null
+    payload:
+      name: ms365-send-mail
+      args:
+        body:
+          message:
+            toRecipients:
+              - emailAddress:
+                  address: leak@competitor.com
+  output:
+    expectedResult: deny
+    expectedReason: "This message addresses recipients outside the approved corporate domains: leak@competitor.com. Remove the external addresses or save a draft for a human to review and send. Contact your InfoSec team if an external domain should be approved."
+- description: Red team — top-level lowercase toRecipients (not inside a Message
+    wrapper, not the capital forward ToRecipients). External recipient there must
+    still be caught. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-send-mail
+      uri: null
+    payload:
+      name: ms365-send-mail
+      args:
+        body:
+          toRecipients:
+            - emailAddress:
+                address: outsider@evil.io
+  output:
+    expectedResult: deny
+    expectedReason: "This message addresses recipients outside the approved corporate domains: outsider@evil.io. Remove the external addresses or save a draft for a human to review and send. Contact your InfoSec team if an external domain should be approved."
+- description: Red team — reply-all decoy internal recipient. A non-exempt caller
+    supplies ONE internal recipient in the Message wrapper of a reply-all. Graph's
+    replyAll action ADDS this recipient to the thread's existing (possibly external)
+    audience rather than replacing it, so the message can still egress to thread
+    externals the gateway never sees. This is the documented "reply/reply-all can
+    still leak to thread externals" residual — the check sees one visible internal
+    recipient and none external, so it currently ALLOWS. Pinning the residual.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    subject:
+      sub: google-apps|agent@example.com
+      claims:
+        groups:
+          - staff
+    resource:
+      type: tool
+      name: ms365-reply-all-mail-message
+      uri: null
+    payload:
+      name: ms365-reply-all-mail-message
+      args:
+        messageId: AAMkAGI2
+        body:
+          comment: looping you in
+          Message:
+            toRecipients:
+              - emailAddress:
+                  address: teammate@example.com
+  output:
+    expectedResult: allow
+- description: Red team — external recipient hidden in ccRecipients (not to/bcc)
+    alongside an internal toRecipient. The cc list is checked too, so the external
+    address is caught. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-send-mail
+      uri: null
+    payload:
+      name: ms365-send-mail
+      args:
+        body:
+          Message:
+            toRecipients:
+              - emailAddress:
+                  address: cfo@example.com
+            ccRecipients:
+              - emailAddress:
+                  address: leak@evil.io
+  output:
+    expectedResult: deny
+    expectedReason: "This message addresses recipients outside the approved corporate domains: leak@evil.io. Remove the external addresses or save a draft for a human to review and send. Contact your InfoSec team if an external domain should be approved."
+- description: Red team — body supplied as a non-object (string) to dodge recipient
+    extraction. request_body collapses to {} so no recipients are visible; the send
+    fails closed with the no-visible-recipients reason rather than passing open. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-send-mail
+      uri: null
+    payload:
+      name: ms365-send-mail
+      args:
+        body: partner@outside.io
+  output:
+    expectedResult: deny
+    expectedReason: No recipient addresses are visible in this request, so the corporate-domain check cannot run and the send is blocked. Include explicit recipients in the call, or create a draft and let a human send it from Outlook. Contact your InfoSec team if this blocks a legitimate workflow.
+- description: Red team — graph-batch escape hatch. This documented residual is NOT
+    a send-class tool name, so it passes through this single-purpose policy
+    unchanged (pair with a graph-batch deny policy — see Composition). Allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-graph-batch
+      uri: null
+    payload:
+      name: ms365-graph-batch
+      args:
+        requests:
+          - id: "1"
+            method: POST
+            url: /me/sendMail
+            body:
+              message:
+                toRecipients:
+                  - emailAddress:
+                      address: exfil@outside.io
+  output:
+    expectedResult: allow

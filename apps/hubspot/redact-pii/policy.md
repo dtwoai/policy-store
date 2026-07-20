@@ -6,6 +6,9 @@ tags:
   - dlp
   - redaction
   - egress
+  - soc2
+  - hipaa
+  - gdpr-ccpa
 publishedAt: 2026-06-16
 description: |
   # hubspot / redact-pii
@@ -20,6 +23,21 @@ description: |
   reach the caller. It is transform-only — it never denies a call, it only
   rewrites matching content to `[REDACTED]`. Any non-HubSpot tool, and any
   request that isn't on the output path, passes through untouched.
+
+  ## Compliance alignment
+
+  - **SOC 2 CC6.7** — restricts transmission and movement of information:
+    contact PII is masked before responses leave the gateway.
+  - **HIPAA §164.502(b) / §164.514(d)** — minimum necessary: callers see CRM
+    records without direct identifiers they don't need; **§164.514(a)–(b)** —
+    supports de-identification by masking Safe-Harbor identifier classes
+    (phone numbers, email addresses, SSNs) in responses.
+  - **GDPR Art. 5(1)(c)** — data minimisation on the agent channel; **CPRA
+    §1798.121** — supports limiting use of sensitive personal information
+    (SSNs are masked); **§1798.150** — reduces nonredacted-PI exposure if agent
+    context is later compromised.
+  - **ISO 27001 A.8.11; A.8.12** — data masking and data-leakage prevention
+    applied at the egress control point.
 
   ## Why egress
 
@@ -84,12 +102,17 @@ description: |
     adjusted.
   - **No identity-based exemptions.** All callers get the same redaction. Add an
     `input.subject.claims`-gated branch if a break-glass role needs raw values.
+
+  > **Compliance note.** This policy supports alignment with the cited framework controls **on the MCP path only**. No policy or bundle makes an organization compliant with any framework; web-UI, native-API, and in-app access are outside the gateway's reach by design. Validate against your own compliance program before relying on it.
 direction: egress
 apps:
   - hubspot
 industries: []
 bundles:
   - crm
+  - soc2
+  - hipaa
+  - gdpr-ccpa
 schemaVersion: 1.0.0
 minimumGatewayVersion: 1.0.0b24
 ---

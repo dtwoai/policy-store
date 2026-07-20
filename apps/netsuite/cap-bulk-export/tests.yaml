@@ -1,0 +1,381 @@
+- description: ns_runCustomSuiteQL with pageSize 5000 — above the ceiling is
+    rewritten to 100; sqlQuery and description preserved.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_runCustomSuiteQL
+      uri: null
+    payload:
+      name: netsuite-mcp-ns_runCustomSuiteQL
+      args:
+        sqlQuery: SELECT * FROM customer
+        description: pull all customers
+        pageSize: 5000
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    pageSize: 100
+    sqlQuery: SELECT * FROM customer
+    description: pull all customers
+- description: ns_runCustomSuiteQL with no pageSize argument — pageSize 100 is
+    injected (the server would otherwise apply its own large default page).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_runCustomSuiteQL
+      uri: null
+    payload:
+      name: netsuite-mcp-ns_runCustomSuiteQL
+      args:
+        sqlQuery: SELECT id, companyName FROM customer
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    pageSize: 100
+    sqlQuery: SELECT id, companyName FROM customer
+- description: ns_runCustomSuiteQL with pageSize 50 — already within the ceiling,
+    passes through with no transform.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_runCustomSuiteQL
+      uri: null
+    payload:
+      name: netsuite-mcp-ns_runCustomSuiteQL
+      args:
+        sqlQuery: SELECT id, companyName FROM customer WHERE id = 42
+        pageSize: 50
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: ns_runCustomSuiteQL with pageSize exactly 100 — boundary value is
+    allowed unchanged (clamp only fires above the ceiling).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_runCustomSuiteQL
+      uri: null
+    payload:
+      name: netsuite-mcp-ns_runCustomSuiteQL
+      args:
+        sqlQuery: SELECT id FROM vendor
+        pageSize: 100
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: "Red-team: pageSize 0 — a non-positive value some SQL layers read as
+    unbounded is clamped to 100, not passed through."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_runCustomSuiteQL
+      uri: null
+    payload:
+      name: netsuite-mcp-ns_runCustomSuiteQL
+      args:
+        sqlQuery: SELECT * FROM vendor
+        pageSize: 0
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    pageSize: 100
+    sqlQuery: SELECT * FROM vendor
+- description: "Red-team: negative pageSize (-1) — also outside the 1-100 range,
+    clamped to 100."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_runCustomSuiteQL
+      uri: null
+    payload:
+      name: netsuite-mcp-ns_runCustomSuiteQL
+      args:
+        sqlQuery: SELECT * FROM employee
+        pageSize: -1
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    pageSize: 100
+    sqlQuery: SELECT * FROM employee
+- description: 'Red-team: non-numeric pageSize ("5000" as a string) — fail-safe,
+    replaced with 100 rather than letting the server parse it.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_runCustomSuiteQL
+      uri: null
+    payload:
+      name: netsuite-mcp-ns_runCustomSuiteQL
+      args:
+        sqlQuery: SELECT * FROM customer
+        pageSize: "5000"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    pageSize: 100
+    sqlQuery: SELECT * FROM customer
+- description: Uppercase tool name NS_RUNCUSTOMSUITEQL with pageSize 999 — tool
+    matching is case-insensitive.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: NETSUITE-MCP-NS_RUNCUSTOMSUITEQL
+      uri: null
+    payload:
+      name: NETSUITE-MCP-NS_RUNCUSTOMSUITEQL
+      args:
+        sqlQuery: SELECT * FROM transaction
+        pageSize: 999
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    pageSize: 100
+    sqlQuery: SELECT * FROM transaction
+- description: Bare tool name ns_runCustomSuiteQL (no gateway prefix) with pageSize
+    300 — suffix match still fires.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ns_runCustomSuiteQL
+      uri: null
+    payload:
+      name: ns_runCustomSuiteQL
+      args:
+        sqlQuery: SELECT * FROM subsidiary
+        pageSize: 300
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    pageSize: 100
+    sqlQuery: SELECT * FROM subsidiary
+- description: args object missing entirely (payload has name only) — pageSize
+    defaults to 0, transform still fires and injects pageSize 100.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_runCustomSuiteQL
+      uri: null
+    payload:
+      name: netsuite-mcp-ns_runCustomSuiteQL
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    pageSize: 100
+- description: "Red-team (alternate arg key): SuiteQL call whose arguments are under
+    the `arguments` envelope key (NetSuite landscape-note convention) with
+    pageSize 400 — the fallback read still clamps to 100."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_runCustomSuiteQL
+      uri: null
+    payload:
+      name: netsuite-mcp-ns_runCustomSuiteQL
+      arguments:
+        sqlQuery: SELECT * FROM vendor
+        pageSize: 400
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    pageSize: 100
+    sqlQuery: SELECT * FROM vendor
+- description: Non-SuiteQL tool ns_getRecord with a stray pageSize 500 — name does
+    not match the SuiteQL suffix, passes through untouched.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_getRecord
+      uri: null
+    payload:
+      name: netsuite-mcp-ns_getRecord
+      args:
+        recordType: customer
+        pageSize: 500
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: "Red-team (fixed fail-open): args envelope is JSON null — coerced to
+    {} so the clamp still fires and injects pageSize 100 instead of passing the
+    call through unclamped."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_runCustomSuiteQL
+      uri: null
+    payload:
+      name: netsuite-mcp-ns_runCustomSuiteQL
+      args: null
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    pageSize: 100
+- description: "Red-team (documented gap): page size supplied under an alternate-case
+    key (PageSize) — pageSize 100 is injected but the PageSize alias is left
+    intact; a case-insensitive server could still honour it. See Known
+    limitations."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_runCustomSuiteQL
+      uri: null
+    payload:
+      name: netsuite-mcp-ns_runCustomSuiteQL
+      args:
+        sqlQuery: SELECT * FROM customer
+        PageSize: 5000
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    pageSize: 100
+    PageSize: 5000
+- description: "Red-team (documented gap): a benign in-range pageSize 50 coexisting
+    with a large PageSize alias 5000 — the clamp condition is NOT met (pageSize is
+    valid), so no transform fires at all and PageSize 5000 passes through
+    completely unclamped. Pairing a small canonical pageSize with a large alias is
+    a deliberate way to slip past the clamp on a case-insensitive server. See Known
+    limitations (alias keys are never removed)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_runCustomSuiteQL
+      uri: null
+    payload:
+      name: netsuite-mcp-ns_runCustomSuiteQL
+      args:
+        sqlQuery: SELECT * FROM customer
+        pageSize: 50
+        PageSize: 5000
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: "Red-team (documented gap): glints-dev netsuite_run_suiteql with a
+    large Limit — different tool suffix and argument key, so the call passes
+    through unclamped. See Known limitations."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: glints-netsuite_run_suiteql
+      uri: null
+    payload:
+      name: glints-netsuite_run_suiteql
+      args:
+        query: SELECT * FROM customer
+        Limit: 5000
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: "Red-team (documented gap): sibling bulk-read tool ns_runSavedSearch
+    with a large pageSize — does not match the ns_runCustomSuiteQL suffix, so it
+    reaches the same data uncapped. See Known limitations."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_runSavedSearch
+      uri: null
+    payload:
+      name: netsuite-mcp-ns_runSavedSearch
+      args:
+        savedSearchId: customsearch_all_customers
+        pageSize: 9999
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: "Red-team (documented gap): arbitrarily-named custom SuiteScript tool
+    on the /v1/all endpoint that runs SuiteQL — no ns_ prefix, does not match the
+    suffix, passes through unclamped. Needs a PF-28 default-deny companion. See
+    Known limitations."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-acme_exportAllCustomers
+      uri: null
+    payload:
+      name: netsuite-mcp-acme_exportAllCustomers
+      args:
+        sqlQuery: SELECT * FROM customer
+        pageSize: 9999
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Egress hook (tool_post_invoke) on a matching tool name — the action
+    guard keeps the ingress transform from firing on the output path.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_runCustomSuiteQL
+      uri: null
+    payload:
+      name: netsuite-mcp-ns_runCustomSuiteQL
+      text:
+        - '{"rows": []}'
+  output:
+    expectedResult: allow
+  transformApplied: false

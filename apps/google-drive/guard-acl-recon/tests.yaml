@@ -1,0 +1,342 @@
+- description: Unrelated Drive tool (search_files) — not an ACL read. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-drive-mcp-search_files
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: google-drive-mcp-search_files
+      args:
+        query: "fullText contains 'roadmap'"
+  output:
+    expectedResult: allow
+- description: get_file_permissions by an infosec-group member. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-drive-mcp-get_file_permissions
+      uri: null
+    subject:
+      sub: google-apps|sec@example.com
+      claims:
+        groups:
+          - engineering
+          - infosec
+    payload:
+      name: google-drive-mcp-get_file_permissions
+      args:
+        fileId: 1AbCdEfGhIjKlMnOp
+  output:
+    expectedResult: allow
+- description: get_file_permissions with a mixed-case group value (InfoSec) — group
+    matching is case-insensitive. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-drive-mcp-get_file_permissions
+      uri: null
+    subject:
+      sub: google-apps|sec@example.com
+      claims:
+        groups:
+          - InfoSec
+    payload:
+      name: google-drive-mcp-get_file_permissions
+      args:
+        fileId: 1AbCdEfGhIjKlMnOp
+  output:
+    expectedResult: allow
+- description: get_file_permissions by a caller outside the infosec group. Policy
+    should deny with the escalation reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-drive-mcp-get_file_permissions
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: google-drive-mcp-get_file_permissions
+      args:
+        fileId: 1AbCdEfGhIjKlMnOp
+  output:
+    expectedResult: deny
+    expectedReason: "Reading Drive file permissions is restricted: the response enumerates collaborator email addresses and which files are shared externally. Sharing-state review is an admin task — ask your Drive administrator to review the file's sharing settings, or ask your InfoSec team to add you to the infosec group if your role requires ACL access."
+- description: get_file_permissions with no subject at all (no IdP configured).
+    Grant fails closed — policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-drive-mcp-get_file_permissions
+      uri: null
+    payload:
+      name: google-drive-mcp-get_file_permissions
+      args:
+        fileId: 1AbCdEfGhIjKlMnOp
+  output:
+    expectedResult: deny
+    expectedReason: "Reading Drive file permissions is restricted: the response enumerates collaborator email addresses and which files are shared externally. Sharing-state review is an admin task — ask your Drive administrator to review the file's sharing settings, or ask your InfoSec team to add you to the infosec group if your role requires ACL access."
+- description: get_file_permissions with claims present but no groups claim. Grant
+    fails closed — policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-drive-mcp-get_file_permissions
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        org_id: org_g6zdgXkQGLlQPa37
+    payload:
+      name: google-drive-mcp-get_file_permissions
+      args:
+        fileId: 1AbCdEfGhIjKlMnOp
+  output:
+    expectedResult: deny
+- description: get_file_permissions where the IdP emitted groups as a single string
+    instead of an array. Grant fails closed — policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-drive-mcp-get_file_permissions
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups: infosec
+    payload:
+      name: google-drive-mcp-get_file_permissions
+      args:
+        fileId: 1AbCdEfGhIjKlMnOp
+  output:
+    expectedResult: deny
+- description: Mixed-case tool name from a differently-configured gateway prefix.
+    Tool matching is case-insensitive — policy should still deny non-members.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: Google-Drive-MCP-Get_File_Permissions
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: Google-Drive-MCP-Get_File_Permissions
+      args:
+        fileId: 1AbCdEfGhIjKlMnOp
+  output:
+    expectedResult: deny
+- description: Claude connector-style tool name (claude_ai_google_drive__get_file_permissions)
+    matches by suffix — policy should deny non-members.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: claude_ai_google_drive__get_file_permissions
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups: []
+    payload:
+      name: claude_ai_google_drive__get_file_permissions
+      args:
+        fileId: 1AbCdEfGhIjKlMnOp
+  output:
+    expectedResult: deny
+- description: Connector-variant ACL tool (get_permissions, shorter suffix) by a
+    non-member. Red-team — the exact get_file_permissions suffix would miss this;
+    the get_permissions suffix must still deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: mcp__claude_ai_Google_Drive__get_permissions
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: mcp__claude_ai_Google_Drive__get_permissions
+      args:
+        fileId: 1AbCdEfGhIjKlMnOp
+  output:
+    expectedResult: deny
+    expectedReason: "Reading Drive file permissions is restricted: the response enumerates collaborator email addresses and which files are shared externally. Sharing-state review is an admin task — ask your Drive administrator to review the file's sharing settings, or ask your InfoSec team to add you to the infosec group if your role requires ACL access."
+- description: Connector-variant ACL tool (get_permissions) by an infosec member —
+    the new suffix must still honor the group exemption. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: mcp__claude_ai_Google_Drive__get_permissions
+      uri: null
+    subject:
+      sub: google-apps|sec@example.com
+      claims:
+        groups:
+          - infosec
+    payload:
+      name: mcp__claude_ai_Google_Drive__get_permissions
+      args:
+        fileId: 1AbCdEfGhIjKlMnOp
+  output:
+    expectedResult: allow
+- description: get_file_metadata is a different read tool (not the ACL surface) and
+    must not be caught by the suffix match. Policy should allow. Red-team note —
+    this pass-through is the documented metadata-recon residual (owners/sharingUser/
+    permissions fields can leak equivalent ACL data); close it with an egress
+    companion, not this ingress policy.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-drive-mcp-get_file_metadata
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: google-drive-mcp-get_file_metadata
+      args:
+        fileId: 1AbCdEfGhIjKlMnOp
+  output:
+    expectedResult: allow
+- description: Red-team (F2, fixed) — alternate ACL-read verb list_permissions
+    (the Drive REST verb is permissions.list). The old get_*-prefixed suffixes
+    would have missed this; the bare `permissions` suffix must deny a non-member.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-drive-mcp-list_permissions
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: google-drive-mcp-list_permissions
+      args:
+        fileId: 1AbCdEfGhIjKlMnOp
+  output:
+    expectedResult: deny
+    expectedReason: "Reading Drive file permissions is restricted: the response enumerates collaborator email addresses and which files are shared externally. Sharing-state review is an admin task — ask your Drive administrator to review the file's sharing settings, or ask your InfoSec team to add you to the infosec group if your role requires ACL access."
+- description: Red-team (F2, fixed) — camelCase list variant listPermissions from a
+    community server. Case-insensitive bare `permissions` suffix must deny a
+    non-member here too.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gdrive-listPermissions
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: gdrive-listPermissions
+      args:
+        fileId: 1AbCdEfGhIjKlMnOp
+  output:
+    expectedResult: deny
+    expectedReason: "Reading Drive file permissions is restricted: the response enumerates collaborator email addresses and which files are shared externally. Sharing-state review is an admin task — ask your Drive administrator to review the file's sharing settings, or ask your InfoSec team to add you to the infosec group if your role requires ACL access."
+- description: Red-team (F2, fixed) — list_permissions by an infosec member. The
+    broadened suffix must still honor the group exemption. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-drive-mcp-list_permissions
+      uri: null
+    subject:
+      sub: google-apps|sec@example.com
+      claims:
+        groups:
+          - infosec
+    payload:
+      name: google-drive-mcp-list_permissions
+      args:
+        fileId: 1AbCdEfGhIjKlMnOp
+  output:
+    expectedResult: allow
+- description: Red-team (F1, documented residual) — list_recent_files does not end
+    in `permissions`, so it is allowed. Like search_files/get_file_metadata it
+    backs onto Drive files.list and can project owners/sharingUser/shared/
+    permissions fields, so it carries the same ACL-recon residual. Documented,
+    not fixed — close it with an egress field-stripping companion, not this
+    ingress policy.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-drive-mcp-list_recent_files
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: google-drive-mcp-list_recent_files
+      args:
+        fields: "files(owners,sharingUser,shared,permissions)"
+  output:
+    expectedResult: allow

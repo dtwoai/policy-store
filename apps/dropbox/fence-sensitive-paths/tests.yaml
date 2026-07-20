@@ -1,0 +1,612 @@
+# Tests for dropbox/fence-sensitive-paths. Every rule branch is covered:
+# pass-through of non-protected tools; protected tools allowed off-fence;
+# protected tools denied on-fence without the mapped group; allowed on-fence
+# WITH the group; reads/listings/writes(CreateFile)/deletes/moves/copies/search;
+# move/copy checking both source and destination; scoped search allowed/denied;
+# fail-closed on a protected tool with no readable path (unscoped search, missing
+# path); fail-closed on a non-string path; community-dialect tool names (dbx +
+# ngs) including the CreateFile/Delete synonyms; and red-team cases
+# (case-insensitive path, missing leading slash, prefix-boundary sibling, missing
+# groups claim, bare-string groups claim, uppercase tool name, and the documented
+# id:-handle residual).
+#
+# fenced_prefixes under test: /hr->hr, /finance->finance, /legal->legal,
+# /customers->customers.
+
+# --- Pass-through -------------------------------------------------------------
+- description: Non-protected Dropbox tool (CreateSharedLink) passes through even with a fenced path.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-CreateSharedLink
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: dropbox-CreateSharedLink
+      args:
+        path: /Finance/2026/payroll.xlsx
+  output:
+    expectedResult: allow
+
+# --- Reads: off-fence / on-fence / on-fence-with-group ------------------------
+- description: GetFileContent on an unfenced path is allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-GetFileContent
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: dropbox-GetFileContent
+      args:
+        path: /Projects/roadmap.pdf
+  output:
+    expectedResult: allow
+
+- description: GetFileContent on a fenced /Finance path without the finance group is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-GetFileContent
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: dropbox-GetFileContent
+      args:
+        path: /Finance/2026/payroll.xlsx
+  output:
+    expectedResult: deny
+    expectedReason: "Dropbox path '/Finance/2026/payroll.xlsx' is inside the protected '/finance/' folder, which is restricted to the 'finance' group. Ask your Dropbox administrator to grant you the 'finance' group, or contact InfoSec if this fence looks wrong."
+
+- description: GetFileContent on a fenced /Finance path WITH the finance group is allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-GetFileContent
+      uri: null
+    subject:
+      sub: google-apps|cfo@example.com
+      claims:
+        groups:
+          - finance
+    payload:
+      name: dropbox-GetFileContent
+      args:
+        path: /Finance/2026/payroll.xlsx
+  output:
+    expectedResult: allow
+
+- description: ListFolder of a fenced /HR folder without the hr group is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-ListFolder
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - finance
+    payload:
+      name: dropbox-ListFolder
+      args:
+        path: /HR/reviews
+  output:
+    expectedResult: deny
+    expectedReason: "Dropbox path '/HR/reviews' is inside the protected '/hr/' folder, which is restricted to the 'hr' group. Ask your Dropbox administrator to grant you the 'hr' group, or contact InfoSec if this fence looks wrong."
+
+# --- Writes (CreateFile) and deletes ------------------------------------------
+- description: CreateFile writing into a fenced /Finance path without the finance group is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-CreateFile
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: dropbox-CreateFile
+      args:
+        path: /Finance/newbudget.xlsx
+        content: draft
+  output:
+    expectedResult: deny
+    expectedReason: "Dropbox path '/Finance/newbudget.xlsx' is inside the protected '/finance/' folder, which is restricted to the 'finance' group. Ask your Dropbox administrator to grant you the 'finance' group, or contact InfoSec if this fence looks wrong."
+
+- description: Delete of a fenced /Legal file without the legal group is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-Delete
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: dropbox-Delete
+      args:
+        path: /Legal/nda.pdf
+  output:
+    expectedResult: deny
+    expectedReason: "Dropbox path '/Legal/nda.pdf' is inside the protected '/legal/' folder, which is restricted to the 'legal' group. Ask your Dropbox administrator to grant you the 'legal' group, or contact InfoSec if this fence looks wrong."
+
+- description: Community dbx upload_file writing into a fenced /HR path without the hr group is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-upload_file
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: dropbox-upload_file
+      args:
+        path: /HR/onboarding/offer.pdf
+        content: aGVsbG8=
+  output:
+    expectedResult: deny
+    expectedReason: "Dropbox path '/HR/onboarding/offer.pdf' is inside the protected '/hr/' folder, which is restricted to the 'hr' group. Ask your Dropbox administrator to grant you the 'hr' group, or contact InfoSec if this fence looks wrong."
+
+- description: Community ngs dropbox_delete of a fenced /Customers file without the group is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-dropbox_delete
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: dropbox-dropbox_delete
+      args:
+        path: /Customers/acme/contract.pdf
+  output:
+    expectedResult: deny
+    expectedReason: "Dropbox path '/Customers/acme/contract.pdf' is inside the protected '/customers/' folder, which is restricted to the 'customers' group. Ask your Dropbox administrator to grant you the 'customers' group, or contact InfoSec if this fence looks wrong."
+
+# --- Move / copy check both source and destination ----------------------------
+- description: Move whose destination (to_path) lands in a fenced /Legal tree is denied for a non-legal caller.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-Move
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: dropbox-Move
+      args:
+        from_path: /Projects/contract-draft.docx
+        to_path: /Legal/contracts/contract-draft.docx
+  output:
+    expectedResult: deny
+    expectedReason: "Dropbox path '/Legal/contracts/contract-draft.docx' is inside the protected '/legal/' folder, which is restricted to the 'legal' group. Ask your Dropbox administrator to grant you the 'legal' group, or contact InfoSec if this fence looks wrong."
+
+- description: Copy of an unfenced file to an unfenced destination is allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-Copy
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: dropbox-Copy
+      args:
+        src: /Projects/a.txt
+        dest: /Projects/b.txt
+  output:
+    expectedResult: allow
+
+# --- Search -------------------------------------------------------------------
+- description: Search scoped (options.path) to a fenced /HR path without the hr group is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-Search
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: dropbox-Search
+      args:
+        query: salary
+        options:
+          path: /HR
+  output:
+    expectedResult: deny
+    expectedReason: "Dropbox path '/HR' is inside the protected '/hr/' folder, which is restricted to the 'hr' group. Ask your Dropbox administrator to grant you the 'hr' group, or contact InfoSec if this fence looks wrong."
+
+- description: Search scoped to a fenced /Finance path WITH the finance group is allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-Search
+      uri: null
+    subject:
+      sub: google-apps|cfo@example.com
+      claims:
+        groups:
+          - finance
+    payload:
+      name: dropbox-Search
+      args:
+        query: invoice
+        options:
+          path: /Finance
+  output:
+    expectedResult: allow
+
+# --- Fail-closed: protected tool with no readable path ------------------------
+- description: Unscoped Search (no path filter) is denied for everyone — even a caller holding every fenced group — because it can enumerate fenced filenames.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-Search
+      uri: null
+    subject:
+      sub: google-apps|dpo@example.com
+      claims:
+        groups:
+          - finance
+          - hr
+          - legal
+          - customers
+    payload:
+      name: dropbox-Search
+      args:
+        query: salary
+  output:
+    expectedResult: deny
+    expectedReason: "This Dropbox call is a protected file operation but supplied no readable path, so the sensitive-path fence cannot verify it and the request fails closed. Re-issue with an explicit string path (for example the `path` argument scoped to a folder you may access)."
+
+- description: ListFolder with no path argument fails closed (cannot verify the target).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-ListFolder
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: dropbox-ListFolder
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "This Dropbox call is a protected file operation but supplied no readable path, so the sensitive-path fence cannot verify it and the request fails closed. Re-issue with an explicit string path (for example the `path` argument scoped to a folder you may access)."
+
+# --- Community dialects (read side) -------------------------------------------
+- description: Community dbx get_file_content on a fenced /customers path without the group is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-get_file_content
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: dropbox-get_file_content
+      args:
+        path: /Customers/acme/contract.pdf
+  output:
+    expectedResult: deny
+    expectedReason: "Dropbox path '/Customers/acme/contract.pdf' is inside the protected '/customers/' folder, which is restricted to the 'customers' group. Ask your Dropbox administrator to grant you the 'customers' group, or contact InfoSec if this fence looks wrong."
+
+- description: Community ngs dropbox_download on an unfenced path is allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-dropbox_download
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: dropbox-dropbox_download
+      args:
+        path: /Projects/readme.md
+  output:
+    expectedResult: allow
+
+# --- Red-team -----------------------------------------------------------------
+- description: Red-team - case-insensitive path matching means /FINANCE (uppercase) is still fenced.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-GetFileContent
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: dropbox-GetFileContent
+      args:
+        path: /FINANCE/2026/q1.xlsx
+  output:
+    expectedResult: deny
+    expectedReason: "Dropbox path '/FINANCE/2026/q1.xlsx' is inside the protected '/finance/' folder, which is restricted to the 'finance' group. Ask your Dropbox administrator to grant you the 'finance' group, or contact InfoSec if this fence looks wrong."
+
+- description: Red-team - path supplied without a leading slash is normalized and still fenced.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-GetFileContent
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: dropbox-GetFileContent
+      args:
+        path: finance/secret.xlsx
+  output:
+    expectedResult: deny
+    expectedReason: "Dropbox path 'finance/secret.xlsx' is inside the protected '/finance/' folder, which is restricted to the 'finance' group. Ask your Dropbox administrator to grant you the 'finance' group, or contact InfoSec if this fence looks wrong."
+
+- description: Red-team - prefix boundary; sibling /finance-public is NOT fenced by the /finance prefix.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-GetFileContent
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: dropbox-GetFileContent
+      args:
+        path: /finance-public/press-release.pdf
+  output:
+    expectedResult: allow
+
+- description: Red-team - non-string path argument fails closed (fence cannot evaluate).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-GetFileContent
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: dropbox-GetFileContent
+      args:
+        path:
+          nested: /finance/x
+  output:
+    expectedResult: deny
+    expectedReason: "This Dropbox call carries a malformed path argument (not a string), so the sensitive-path fence cannot evaluate it and the request fails closed. Re-issue with a string path."
+
+- description: Red-team - missing subject/claims entirely fails closed on a fenced path.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-GetFileContent
+      uri: null
+    payload:
+      name: dropbox-GetFileContent
+      args:
+        path: /hr/salaries.csv
+  output:
+    expectedResult: deny
+    expectedReason: "Dropbox path '/hr/salaries.csv' is inside the protected '/hr/' folder, which is restricted to the 'hr' group. Ask your Dropbox administrator to grant you the 'hr' group, or contact InfoSec if this fence looks wrong."
+
+- description: Red-team - groups claim sent as a bare string (not an array) does not grant access; fenced path denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-GetFileContent
+      uri: null
+    subject:
+      sub: google-apps|impostor@example.com
+      claims:
+        groups: finance
+    payload:
+      name: dropbox-GetFileContent
+      args:
+        path: /finance/ledger.xlsx
+  output:
+    expectedResult: deny
+    expectedReason: "Dropbox path '/finance/ledger.xlsx' is inside the protected '/finance/' folder, which is restricted to the 'finance' group. Ask your Dropbox administrator to grant you the 'finance' group, or contact InfoSec if this fence looks wrong."
+
+- description: Red-team - uppercase gateway prefix + mixed-case tool name is still matched by suffix and fenced.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: DropBox-GetFileMetadata
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: DropBox-GetFileMetadata
+      args:
+        path: /Legal/policy.pdf
+  output:
+    expectedResult: deny
+    expectedReason: "Dropbox path '/Legal/policy.pdf' is inside the protected '/legal/' folder, which is restricted to the 'legal' group. Ask your Dropbox administrator to grant you the 'legal' group, or contact InfoSec if this fence looks wrong."
+
+- description: Red-team - duplicate-slash path //Finance is collapsed on normalization and still fenced (no double-slash dodge).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-GetFileContent
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: dropbox-GetFileContent
+      args:
+        path: //Finance/2026/payroll.xlsx
+  output:
+    expectedResult: deny
+    expectedReason: "Dropbox path '//Finance/2026/payroll.xlsx' is inside the protected '/finance/' folder, which is restricted to the 'finance' group. Ask your Dropbox administrator to grant you the 'finance' group, or contact InfoSec if this fence looks wrong."
+
+- description: "Red-team (documented residual) - a fenced file reached by its Dropbox ns: namespace-relative path is NOT path-fenced and passes; pair with egress redaction."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-GetFileContent
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: dropbox-GetFileContent
+      args:
+        path: "ns:123456/Finance/2026/payroll.xlsx"
+  output:
+    expectedResult: allow
+
+- description: "Red-team (documented residual) - a fenced file reached by its Dropbox id: handle is NOT path-fenced and passes; pair with egress redaction."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-GetFileContent
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: dropbox-GetFileContent
+      args:
+        path: "id:aQ7fkj2xYz0AAAAAAAAAAA"
+  output:
+    expectedResult: allow

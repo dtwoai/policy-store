@@ -1,0 +1,627 @@
+# Transform-only egress policy: every case expects allow. The gate-only
+# transformApplied / transformedArgsContain keys assert the redaction itself.
+- description: Google official read_file_content — SSN and email in file content
+    are redacted for a non-exempt caller.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: gdrive-read_file_content
+      uri: null
+    subject:
+      sub: auth0|u1
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: gdrive-read_file_content
+      text:
+        - "Payroll: SSN 123-45-6789, contact jane.doe@example.com"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Payroll: SSN [REDACTED-SSN], contact [REDACTED-EMAIL]"
+- description: Google official download_file_content — parenthesized US phone
+    number is redacted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: gdrive-download_file_content
+      uri: null
+    subject:
+      sub: auth0|u1
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: gdrive-download_file_content
+      text:
+        - "Reach the patient at (206) 555-0100 for scheduling"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Reach the patient at [REDACTED-PHONE] for scheduling"
+- description: isaacphi gdrive_read_file — UK National Insurance number
+    (national-ID class) is redacted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: drive-mcp-gdrive_read_file
+      uri: null
+    subject:
+      sub: auth0|u1
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: drive-mcp-gdrive_read_file
+      text:
+        - "NI number AB123456C on record"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "NI number [REDACTED-NATIONAL-ID] on record"
+- description: isaacphi gsheets_read matched via the tool_metadata.name fallback
+    when resource.name is empty — SSN in sheet rows is redacted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: ""
+      uri: null
+    tool_metadata:
+      name: drive-mcp-gsheets_read
+    subject:
+      sub: auth0|u1
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: drive-mcp-gsheets_read
+      text:
+        - "Employee,SSN\nAlice,123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Employee,SSN\nAlice,[REDACTED-SSN]"
+- description: piotr-agier downloadFile (lowercased by the gateway match) —
+    email address is redacted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: google-drive-downloadfile
+      uri: null
+    subject:
+      sub: auth0|u1
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: google-drive-downloadfile
+      text:
+        - "Owner: bob.smith@corp.example.org"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Owner: [REDACTED-EMAIL]"
+- description: piotr-agier readGoogleDoc — hyphen-separated US phone number is
+    redacted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: google-drive-readgoogledoc
+      uri: null
+    subject:
+      sub: auth0|u1
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: google-drive-readgoogledoc
+      text:
+        - "Call HR at 206-555-0100"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Call HR at [REDACTED-PHONE]"
+- description: piotr-agier readGoogleDocPaginated with mixed-case tool name —
+    matching is case-insensitive and the SSN is redacted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: Drive-ReadGoogleDocPaginated
+      uri: null
+    subject:
+      sub: auth0|u1
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: Drive-ReadGoogleDocPaginated
+      text:
+        - "Applicant SSN: 123-45-6789 (page 2)"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Applicant SSN: [REDACTED-SSN] (page 2)"
+- description: piotr-agier getGoogleSheetContent — non-string content block
+    passes through unmodified while the string block is redacted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: google-drive-getgooglesheetcontent
+      uri: null
+    subject:
+      sub: auth0|u1
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: google-drive-getgooglesheetcontent
+      text:
+        - mimeType: text/csv
+        - "row: 987-65-4321"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - mimeType: text/csv
+      - "row: [REDACTED-SSN]"
+- description: piotr-agier getGoogleSlidesContent — email in slide text is
+    redacted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: google-drive-getgoogleslidescontent
+      uri: null
+    subject:
+      sub: auth0|u1
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: google-drive-getgoogleslidescontent
+      text:
+        - "Slide 3: contact carol@example.com"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Slide 3: contact [REDACTED-EMAIL]"
+- description: Exempt caller — groups array contains privacy-reviewers
+    (case-insensitive) — receives unredacted content, no transform.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: gdrive-read_file_content
+      uri: null
+    subject:
+      sub: auth0|u2
+      claims:
+        groups:
+          - Privacy-Reviewers
+    payload:
+      name: gdrive-read_file_content
+      text:
+        - "Payroll: SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Exempt caller — IdP emits the groups claim as a bare string —
+    receives unredacted content, no transform.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: gdrive-read_file_content
+      uri: null
+    subject:
+      sub: auth0|u3
+      claims:
+        groups: privacy-reviewers
+    payload:
+      name: gdrive-read_file_content
+      text:
+        - "Payroll: SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Missing subject/claims entirely — the exemption fails closed and
+    redaction still applies.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: gdrive-read_file_content
+      uri: null
+    payload:
+      name: gdrive-read_file_content
+      text:
+        - "SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "SSN [REDACTED-SSN]"
+- description: Out-of-scope tool (search_files) — PII in search snippets is not
+    this policy's surface; no transform.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: gdrive-search_files
+      uri: null
+    subject:
+      sub: auth0|u1
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: gdrive-search_files
+      text:
+        - "match: SSN 123-45-6789 in payroll.xlsx"
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: In-scope tool with clean content — nothing changes, so no
+    transform is emitted and the response passes through byte-identical.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: gdrive-read_file_content
+      uri: null
+    subject:
+      sub: auth0|u1
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: gdrive-read_file_content
+      text:
+        - "Quarterly roadmap draft, no personal data."
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: In-scope tool with a payload missing the text array — the policy
+    never errors, no transform.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: gdrive-read_file_content
+      uri: null
+    subject:
+      sub: auth0|u1
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: gdrive-read_file_content
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Red-team — payload.text is a bare string (not an array). Fix
+    verification, standards section 10 fail-open probe. The bare-string shape is
+    redacted in place rather than passing through unredacted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: gdrive-read_file_content
+      uri: null
+    subject:
+      sub: auth0|u1
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: gdrive-read_file_content
+      text: "SSN 123-45-6789 email x@y.com"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text: "SSN [REDACTED-SSN] email [REDACTED-EMAIL]"
+- description: Red-team — bare-string payload.text for an exempt caller is left
+    unredacted (exemption still honored on the bare-string branch).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: gdrive-read_file_content
+      uri: null
+    subject:
+      sub: auth0|u2
+      claims:
+        groups:
+          - privacy-reviewers
+    payload:
+      name: gdrive-read_file_content
+      text: "SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Red-team — documented residual (standards section 10). PII inside
+    an MCP TextContent object block {type,text} is NOT scanned; the object is a
+    non-string block and passes through untouched, so no transform is emitted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: gdrive-read_file_content
+      uri: null
+    subject:
+      sub: auth0|u1
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: gdrive-read_file_content
+      text:
+        - type: text
+          text: "Payroll SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Red-team — documented residual (standards section 10, "split
+    strings"). An SSN split across two adjacent content blocks matches in
+    neither block on its own, so no per-block regex fires and the value leaks
+    through unredacted (no transform). Locks the documented split-across-blocks
+    residual.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: gdrive-read_file_content
+      uri: null
+    subject:
+      sub: auth0|u1
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: gdrive-read_file_content
+      text:
+        - "SSN 123-45-"
+        - "6789 (continued)"
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Red-team — documented residual (standards section 10,
+    "encoding/obfuscation"). Fullwidth-digit SSN (Unicode U+FF10..U+FF19) is not
+    matched by the ASCII \d SSN pattern, so it passes through unredacted (no
+    transform). Locks the documented obfuscation residual.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: gdrive-read_file_content
+      uri: null
+    subject:
+      sub: auth0|u1
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: gdrive-read_file_content
+      text:
+        - "SSN １２３-４５-６７８９ on file"
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Red-team — documented residual (standards section 10, regex
+    edges). A non-hyphenated (space-separated) SSN is deliberately not matched —
+    the SSN pattern is the canonical hyphenated form only — so it passes through
+    unredacted (no transform). Locks the "hyphenated form only" claim.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: gdrive-read_file_content
+      uri: null
+    subject:
+      sub: auth0|u1
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: gdrive-read_file_content
+      text:
+        - "SSN 123 45 6789 on file"
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Red-team — regex edge (standards section 10, "newlines"). Two
+    hyphenated SSNs on separate lines within a single content block are both
+    redacted — newlines do not break matching (the patterns use \b, not .),
+    confirming multi-line blocks are fully scanned.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: gdrive-read_file_content
+      uri: null
+    subject:
+      sub: auth0|u1
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: gdrive-read_file_content
+      text:
+        - "Line1 123-45-6789\nLine2 987-65-4321"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Line1 [REDACTED-SSN]\nLine2 [REDACTED-SSN]"
+- description: Red-team fix — parenthesized area code with no separator after the
+    ")" ((206)555-0100) is a common US phone format the description claims to
+    cover; it is now redacted. Locks the phone-regex fix for the paren-no-space
+    shape.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: gdrive-read_file_content
+      uri: null
+    subject:
+      sub: auth0|u1
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: gdrive-read_file_content
+      text:
+        - "Call the office at (206)555-0100 today"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Call the office at [REDACTED-PHONE] today"
+- description: Red-team — documented residual (standards section 10, regex edges).
+    A bare 10-digit run (2065550100) is deliberately NOT matched by the phone
+    pattern — it collides with file IDs and other identifiers — so it passes
+    through unredacted (no transform). Locks the "bare 10-digit runs are not
+    matched" invariant after the paren-no-space fix.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: gdrive-read_file_content
+      uri: null
+    subject:
+      sub: auth0|u1
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: gdrive-read_file_content
+      text:
+        - "ref 2065550100 on file"
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Red-team — documented residual (standards section 10, alternate
+    tool names). A bare, unprefixed tool name with no leading-hyphen server
+    prefix (read_file_content) does NOT match the hyphen-anchored suffix set, so
+    the response passes through unredacted (no transform). Locks the documented
+    "suffix matching assumes the hyphen server-name prefix" residual.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: read_file_content
+      uri: null
+    subject:
+      sub: auth0|u1
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: read_file_content
+      text:
+        - "Payroll SSN 123-45-6789 leaks if this matched"
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Ingress hook for the same tool name (mode input) — this egress
+    policy does not fire; no transform.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gdrive-read_file_content
+      uri: null
+    subject:
+      sub: auth0|u1
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: gdrive-read_file_content
+      args:
+        file_id: 1AbCdEf
+  output:
+    expectedResult: allow
+  transformApplied: false

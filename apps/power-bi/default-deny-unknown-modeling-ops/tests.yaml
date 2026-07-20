@@ -1,0 +1,344 @@
+# Tests for power-bi/default-deny-unknown-modeling-ops.
+# Covers every branch of the allowlist gate:
+#   - allow: bare modeling multiplexer, gateway-prefixed multiplexer,
+#     governance-sensitive multiplexer, remote read tool (PascalCase lowercased),
+#     case-insensitive match;
+#   - deny (fail closed): brand-new object multiplexer (drift), excluded Copilot
+#     generator, unverified discovery helper, community-server tool, empty name,
+#     non-string name, non-ASCII homoglyph, embedded newline, whitespace padding,
+#     unknown batch/passthrough tool;
+#   - documented residual: object-token suffix glued into a longer future name;
+#     M/Power-Query-injection multiplexer allowed by name (no listed companion).
+
+- description: Bare modeling multiplexer on the allowlist (model_operations) is allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: model_operations
+      uri: null
+    payload:
+      name: model_operations
+      args:
+        operation: list
+  output:
+    expectedResult: allow
+
+- description: Gateway-prefixed modeling multiplexer (powerbi-modeling-mcp-table_operations) ends with an allowlisted suffix and is allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: powerbi-modeling-mcp-table_operations
+      uri: null
+    payload:
+      name: powerbi-modeling-mcp-table_operations
+      args:
+        operation: list
+  output:
+    expectedResult: allow
+
+- description: Governance-sensitive multiplexer security_role_operations is on the allowlist (name-gated only) and is allowed here — the operation enum is constrained by the freeze-rls-role-edits companion, not this policy.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: powerbi-modeling-mcp-security_role_operations
+      uri: null
+    payload:
+      name: powerbi-modeling-mcp-security_role_operations
+      args:
+        operation: list
+  output:
+    expectedResult: allow
+
+- description: >-
+    Red-team residual (documented) — partition_operations is a verified modeling
+    tool and is therefore allowlisted BY NAME, so it is allowed here even though it
+    edits Power Query (M) expressions that can call Web.Contents(...) and exfiltrate
+    at refresh time, outside the gateway's view. None of the listed Composition
+    companions constrains this M-injection channel. Locks the residual visible;
+    drop partition_operations/named_expression_operations from the pin, or add an
+    M-source guard, if agents must not edit partitions.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: powerbi-modeling-mcp-partition_operations
+      uri: null
+    payload:
+      name: powerbi-modeling-mcp-partition_operations
+      args:
+        operation: update
+  output:
+    expectedResult: allow
+
+- description: >-
+    Red-team batching/escape-hatch probe (§10) — an unknown batch/passthrough tool
+    that does not end with any allowlisted suffix (powerbi-batch-graph-batch) is
+    denied by default. A composite/batch tool cannot become a bypass route because
+    it is default-denied like any other un-audited name; there is no batch tool in
+    the verified Power BI inventory. Locks the outer-boundary fail-closed contract.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: powerbi-batch-graph-batch
+      uri: null
+    payload:
+      name: powerbi-batch-graph-batch
+      args:
+        requests:
+          - tool: model_operations
+            operation: delete
+  output:
+    expectedResult: deny
+
+- description: Remote read tool ExecuteQuery (PascalCase) lowercases to end with the allowlisted suffix executequery and is allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: powerbi-mcp-ExecuteQuery
+      uri: null
+    payload:
+      name: powerbi-mcp-ExecuteQuery
+      args:
+        query: "EVALUATE TOPN(10, 'Sales')"
+  output:
+    expectedResult: allow
+
+- description: Remote metadata read GetSemanticModelSchema is allowlisted and allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: powerbi-mcp-GetSemanticModelSchema
+      uri: null
+    payload:
+      name: powerbi-mcp-GetSemanticModelSchema
+      args:
+        modelId: 00000000-0000-0000-0000-000000000000
+  output:
+    expectedResult: allow
+
+- description: Matching is case-insensitive — a bare uppercase multiplexer (DAX_QUERY_OPERATIONS) is allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: DAX_QUERY_OPERATIONS
+      uri: null
+    payload:
+      name: DAX_QUERY_OPERATIONS
+      args:
+        operation: execute
+  output:
+    expectedResult: allow
+
+- description: Brand-new object multiplexer (dataflow_operations) does NOT end with any allowlisted suffix and is denied with the drift reason — the core default-deny-on-drift branch.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: powerbi-modeling-mcp-dataflow_operations
+      uri: null
+    payload:
+      name: powerbi-modeling-mcp-dataflow_operations
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "This Power BI tool is not on the audited allowlist, so the gateway denies it by default and surfaces the call as tool drift. The Power BI Modeling MCP server is preview and can add or rename tools between upgrades, and this gate is the only enforcement point that cannot be bypassed with the server's --skipconfirmation flag or unimplemented client elicitation. Re-run the dump-input technique after the upgrade, audit the tool, and if it is safe for agents add its verified suffix to the allowlist. Contact your data-governance team if this is a false positive."
+
+- description: Excluded remote Copilot generator (GenerateQuery) is a real tool but not on the allowlist and is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: powerbi-mcp-GenerateQuery
+      uri: null
+    payload:
+      name: powerbi-mcp-GenerateQuery
+      args:
+        prompt: show me top customers
+  output:
+    expectedResult: deny
+
+- description: Unverified discovery helper (DiscoverArtifacts, landscape-noted as unverified on /mcp/powerbi) is not allowlisted and is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: powerbi-mcp-DiscoverArtifacts
+      uri: null
+    payload:
+      name: powerbi-mcp-DiscoverArtifacts
+      args: {}
+  output:
+    expectedResult: deny
+
+- description: Community-server DAX tool (desktop_execute_dax) is intentionally excluded from the modeling/remote starter list and is denied until audited.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: powerbi-community-desktop_execute_dax
+      uri: null
+    payload:
+      name: powerbi-community-desktop_execute_dax
+      args:
+        dax_query: "EVALUATE 'Sales'"
+  output:
+    expectedResult: deny
+
+- description: Empty tool name matches nothing and is denied (fail closed).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ""
+      uri: null
+    payload:
+      name: ""
+      args: {}
+  output:
+    expectedResult: deny
+
+- description: Non-string tool name (number) is coerced to "" instead of raising a lower() type error — clean, reasoned deny (fail closed).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: 12345
+      uri: null
+    payload:
+      name: 12345
+      args: {}
+  output:
+    expectedResult: deny
+
+- description: Homoglyph of an allowlisted suffix (Cyrillic "mоdel_operations", with a Cyrillic o) fails the raw ASCII guard before lower() runs and is denied — closes the Unicode case-fold / spoof evasion.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "mоdel_operations"
+      uri: null
+    payload:
+      name: "mоdel_operations"
+      args: {}
+  output:
+    expectedResult: deny
+
+- description: >-
+    Red-team regression — an embedded newline splicing a denied tool onto an
+    allowlisted suffix ("delete_model\nmodel_operations") is denied. The raw
+    ASCII guard regex (^[A-Za-z0-9._-]+$) is NOT multiline in OPA/Go, so $
+    anchors to end-of-text and the newline breaks the whole-string match before
+    endswith ever sees "model_operations". Locks the non-multiline assumption.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "delete_model\nmodel_operations"
+      uri: null
+    payload:
+      name: "delete_model\nmodel_operations"
+      args: {}
+  output:
+    expectedResult: deny
+
+- description: >-
+    Red-team regression — leading/trailing whitespace padding around an
+    allowlisted suffix ("  model_operations ") fails the raw ASCII
+    character-class guard (space is outside [A-Za-z0-9._-]) and is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "  model_operations "
+      uri: null
+    payload:
+      name: "  model_operations "
+      args: {}
+  output:
+    expectedResult: deny
+
+- description: >-
+    Documented endswith residual on a remote READ verb (not just *_operations) —
+    a hypothetical unaudited tool ending in "executequery"
+    (powerbi-mcp-ExportExecuteQuery) is auto-allowed by endswith. Red-team probe:
+    the short PascalCase read verbs (executequery/valuesearch/...) share the
+    suffix-glue blind spot with the multiplexers and are the likelier future
+    collision. Recorded under Known limitations; pin full gateway names if drift
+    alerting on such renames is required. Locks the residual for the verb class.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: powerbi-mcp-ExportExecuteQuery
+      uri: null
+    payload:
+      name: powerbi-mcp-ExportExecuteQuery
+      args:
+        query: "EVALUATE 'Sales'"
+  output:
+    expectedResult: allow
+
+- description: >-
+    Documented endswith residual (drift blind spot) — a hypothetical future tool
+    ending in the object token "table_operations" (snapshot_table_operations) is
+    auto-allowed by endswith, NOT surfaced as drift. Suffix matching cannot
+    distinguish it from a legitimate gateway-prefixed table_operations, so the
+    residual is recorded under Known limitations; pin the full gateway name if
+    drift alerting on renamed multiplexers is required. Locks the blind spot so
+    it stays visible.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: snapshot_table_operations
+      uri: null
+    payload:
+      name: snapshot_table_operations
+      args: {}
+  output:
+    expectedResult: allow

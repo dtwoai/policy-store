@@ -1,0 +1,557 @@
+# Branch coverage for glean.ingress.fence_datasource_scope.
+# Rule branches: non-fenced tool pass-through; _search sibling pass-through;
+# search scoped to non-restricted app; restricted app cleared / not cleared /
+# no identity; unscoped search cleared-for-all / not; array-valued app;
+# malformed groups claim; empty app string; tool-name casing/prefix.
+
+- description: Non-search tool (chat) passes through untouched — chat has no app filter and is covered by egress.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: glean-chat
+      uri: null
+    payload:
+      name: glean-chat
+      args:
+        message: what is our renewal process
+  output:
+    expectedResult: allow
+
+- description: Sibling *_search tool (gmail_search) is not fenced by this datasource policy — excluded by the -search-only match.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: glean-gmail_search
+      uri: null
+    payload:
+      name: glean-gmail_search
+      args:
+        query: "from:ceo subject:board"
+  output:
+    expectedResult: allow
+
+- description: Search scoped to a non-restricted datasource (confluence). Allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: glean-search
+      uri: null
+    payload:
+      name: glean-search
+      args:
+        query: deploy runbook
+        app: confluence
+  output:
+    expectedResult: allow
+
+- description: Search of restricted datasource gong by a caller in the cleared group (sales). Allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: glean-search
+      uri: null
+    subject:
+      sub: auth0|rep
+      claims:
+        groups:
+          - sales
+    payload:
+      name: glean-search
+      args:
+        query: acme renewal call
+        app: gong
+  output:
+    expectedResult: allow
+
+- description: Search of restricted datasource salescloud by a caller not in the cleared group. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: glean-search
+      uri: null
+    subject:
+      sub: auth0|eng
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: glean-search
+      args:
+        query: pipeline
+        app: salescloud
+  output:
+    expectedResult: deny
+    expectedReason: "This Glean search targets restricted datasource(s) (salescloud) your account is not cleared for. Search a datasource you have access to, or contact your InfoSec team if your role requires that source."
+
+- description: Restricted datasource with no subject/claims at all — fails closed. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: glean-search
+      uri: null
+    payload:
+      name: glean-search
+      args:
+        query: exec comp
+        app: gong
+  output:
+    expectedResult: deny
+    expectedReason: "This Glean search targets restricted datasource(s) (gong) your account is not cleared for. Search a datasource you have access to, or contact your InfoSec team if your role requires that source."
+
+- description: Restricted HR datasource (workday) by a caller cleared for hr. Allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: glean-search
+      uri: null
+    subject:
+      sub: auth0|hr
+      claims:
+        groups:
+          - hr
+    payload:
+      name: glean-search
+      args:
+        query: headcount plan
+        app: workday
+  output:
+    expectedResult: allow
+
+- description: Restricted HR datasource (bamboohr) by a caller not cleared for hr. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: glean-search
+      uri: null
+    subject:
+      sub: auth0|sales
+      claims:
+        groups:
+          - sales
+    payload:
+      name: glean-search
+      args:
+        query: salaries
+        app: bamboohr
+  output:
+    expectedResult: deny
+    expectedReason: "This Glean search targets restricted datasource(s) (bamboohr) your account is not cleared for. Search a datasource you have access to, or contact your InfoSec team if your role requires that source."
+
+- description: Unscoped search (no app) by a caller cleared for ALL restricted datasources. Allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: glean-search
+      uri: null
+    subject:
+      sub: auth0|super
+      claims:
+        groups:
+          - sales
+          - revops
+          - hr
+    payload:
+      name: glean-search
+      args:
+        query: quarterly summary
+  output:
+    expectedResult: allow
+
+- description: Unscoped search (no app) by a caller cleared for only some restricted datasources. Deny, directing to pass an explicit app.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: glean-search
+      uri: null
+    subject:
+      sub: auth0|rep
+      claims:
+        groups:
+          - sales
+          - revops
+    payload:
+      name: glean-search
+      args:
+        query: compensation
+  output:
+    expectedResult: deny
+    expectedReason: "This Glean search has no `app` datasource filter, so it fans out across every indexed system, including restricted ones (Gong call recordings, Salesforce CRM, HR). Pass an explicit `app` naming the datasource you need, or contact your InfoSec team if you need broader search access."
+
+- description: Unscoped search by a caller with no identity at all — fails closed. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: glean-search
+      uri: null
+    payload:
+      name: glean-search
+      args:
+        query: anything
+  output:
+    expectedResult: deny
+    expectedReason: "This Glean search has no `app` datasource filter, so it fans out across every indexed system, including restricted ones (Gong call recordings, Salesforce CRM, HR). Pass an explicit `app` naming the datasource you need, or contact your InfoSec team if you need broader search access."
+
+- description: Red team — app passed as an array mixing a benign and a restricted source; caller not cleared for the restricted one. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: glean-search
+      uri: null
+    subject:
+      sub: auth0|eng
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: glean-search
+      args:
+        query: leak attempt
+        app:
+          - gdrive
+          - gong
+  output:
+    expectedResult: deny
+    expectedReason: "This Glean search targets restricted datasource(s) (gong) your account is not cleared for. Search a datasource you have access to, or contact your InfoSec team if your role requires that source."
+
+- description: app as an array of only non-restricted sources. Allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: glean-search
+      uri: null
+    payload:
+      name: glean-search
+      args:
+        query: docs
+        app:
+          - gdrive
+          - slack
+  output:
+    expectedResult: allow
+
+- description: Red team — groups claim is a string, not an array (malformed). member_of fails closed, restricted source denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: glean-search
+      uri: null
+    subject:
+      sub: auth0|rep
+      claims:
+        groups: sales
+    payload:
+      name: glean-search
+      args:
+        query: call notes
+        app: gong
+  output:
+    expectedResult: deny
+    expectedReason: "This Glean search targets restricted datasource(s) (gong) your account is not cleared for. Search a datasource you have access to, or contact your InfoSec team if your role requires that source."
+
+- description: Red team — empty app string is treated as unscoped (fail-closed), not as a benign scoped call. Deny for non-privileged caller.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: glean-search
+      uri: null
+    subject:
+      sub: auth0|rep
+      claims:
+        groups:
+          - sales
+    payload:
+      name: glean-search
+      args:
+        query: everything
+        app: ""
+  output:
+    expectedResult: deny
+    expectedReason: "This Glean search has no `app` datasource filter, so it fans out across every indexed system, including restricted ones (Gong call recordings, Salesforce CRM, HR). Pass an explicit `app` naming the datasource you need, or contact your InfoSec team if you need broader search access."
+
+- description: Red team — restricted app with mixed-case value and uppercase tool name still matches and is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: Glean-Search
+      uri: null
+    subject:
+      sub: auth0|eng
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: Glean-Search
+      args:
+        query: crm data
+        app: SalesCloud
+  output:
+    expectedResult: deny
+    expectedReason: "This Glean search targets restricted datasource(s) (salescloud) your account is not cleared for. Search a datasource you have access to, or contact your InfoSec team if your role requires that source."
+
+- description: Bare tool name `search` (no server prefix) scoped to a restricted source, caller cleared. Allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: search
+      uri: null
+    subject:
+      sub: auth0|revops
+      claims:
+        groups:
+          - revops
+    payload:
+      name: search
+      args:
+        query: forecast
+        app: salescloud
+  output:
+    expectedResult: allow
+
+# --- Red-team residuals (documented under Known limitations) ---
+# These cases pin the CURRENT (bypass) behavior so the documented residuals are
+# captured in the suite. Each corresponds to a Known-limitations bullet.
+
+- description: Red team (residual) — unrecognized `app` value ("everything") is not in restricted_sources, so a non-privileged caller is allowed. Denylist gap; documented (Glean fan-out behavior on unknown enum is unverified). Pin current behavior.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: glean-search
+      uri: null
+    subject:
+      sub: auth0|eng
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: glean-search
+      args:
+        query: leak attempt
+        app: everything
+  output:
+    expectedResult: allow
+
+- description: Red team (residual) — benign `app` (confluence) but dynamic_search_result_filters steers toward gong. Policy does not parse that arg, so it passes. Documented residual; pin current behavior.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: glean-search
+      uri: null
+    subject:
+      sub: auth0|eng
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: glean-search
+      args:
+        query: leak attempt
+        app: confluence
+        dynamic_search_result_filters:
+          - fieldName: app
+            values:
+              - gong
+  output:
+    expectedResult: allow
+
+- description: Red team (residual) — underscore-joined tool name `glean_search` ends in `_search` and is excluded by design (skips code_search/gmail_search siblings), so the fence passes it through even for a restricted `app`. Documented tool-name-portability residual; pin current behavior.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: glean_search
+      uri: null
+    subject:
+      sub: auth0|eng
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: glean_search
+      args:
+        query: crm data
+        app: gong
+  output:
+    expectedResult: allow
+
+- description: Red team — search tool with payload/args entirely absent fails closed (treated as unscoped) for a non-privileged caller. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: glean-search
+      uri: null
+  output:
+    expectedResult: deny
+    expectedReason: "This Glean search has no `app` datasource filter, so it fans out across every indexed system, including restricted ones (Gong call recordings, Salesforce CRM, HR). Pass an explicit `app` naming the datasource you need, or contact your InfoSec team if you need broader search access."
+
+- description: Red team — array of only empty strings is treated as unscoped (fail-closed), not a benign scoped call. Deny for a non-privileged caller.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: glean-search
+      uri: null
+    subject:
+      sub: auth0|rep
+      claims:
+        groups:
+          - sales
+    payload:
+      name: glean-search
+      args:
+        query: everything
+        app:
+          - ""
+          - ""
+  output:
+    expectedResult: deny
+    expectedReason: "This Glean search has no `app` datasource filter, so it fans out across every indexed system, including restricted ones (Gong call recordings, Salesforce CRM, HR). Pass an explicit `app` naming the datasource you need, or contact your InfoSec team if you need broader search access."
+
+- description: Red team — app as a non-string/non-array (object) contributes nothing and is treated as unscoped; fails closed for a non-privileged caller. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: glean-search
+      uri: null
+    subject:
+      sub: auth0|eng
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: glean-search
+      args:
+        query: sneaky
+        app:
+          nested: gong
+  output:
+    expectedResult: deny
+    expectedReason: "This Glean search has no `app` datasource filter, so it fans out across every indexed system, including restricted ones (Gong call recordings, Salesforce CRM, HR). Pass an explicit `app` naming the datasource you need, or contact your InfoSec team if you need broader search access."
+
+- description: Red team (residual, encoding) — restricted app name written with a Unicode homoglyph ("gοng", Greek omicron) is a distinct unrecognized string; lower/trim_space do not fold it to "gong", so app_present is true and it is allowed as a benign scoped query. Denylist-gap residual under obfuscation; documented. Glean's enum will not resolve it either, so no exposure beyond the unknown-value case. Pin current behavior.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: glean-search
+      uri: null
+    subject:
+      sub: auth0|eng
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: glean-search
+      args:
+        query: leak attempt
+        app: "gοng"
+  output:
+    expectedResult: allow
+
+- description: Red team (over-match) — a NON-Glean server tool ending in "-search" (github-mcp-search) is fenced by this policy too; an unscoped call from an uncleared caller is denied. Pins the documented tool-portability limitation — attach this policy to the Glean pipeline only.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-search
+      uri: null
+    payload:
+      name: github-mcp-search
+      args:
+        query: quarterly numbers
+  output:
+    expectedResult: deny
+    expectedReason: "This Glean search has no `app` datasource filter, so it fans out across every indexed system, including restricted ones (Gong call recordings, Salesforce CRM, HR). Pass an explicit `app` naming the datasource you need, or contact your InfoSec team if you need broader search access."
+
+- description: Red team (claim shape) — groups claim is an array mixing a non-string (42) with the valid cleared group ("sales"); member_of skips the non-string and still matches "sales", so a restricted gong search is allowed. Confirms mixed-type claims neither crash nor fail open incorrectly.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: glean-search
+      uri: null
+    subject:
+      sub: auth0|rep
+      claims:
+        groups:
+          - 42
+          - sales
+    payload:
+      name: glean-search
+      args:
+        query: acme renewal
+        app: gong
+  output:
+    expectedResult: allow

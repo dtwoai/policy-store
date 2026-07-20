@@ -1,0 +1,608 @@
+# Rule branches covered:
+#   is_typed_pii_tool: get_contact / search_contacts / get_company / list_companies
+#   is_generic_search_contacts: search + object_type=contacts (and the conversations pass-through)
+#   is_fetch_pii_id: fetch of contact_/company_ id (and conversation_ pass-through)
+#   caller_authorized: support group, crm group, non-allowed group, no groups, no subject
+#   allow via not-PII-surface: get_conversation
+
+- description: get_contact by a support-group caller — authorized, allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: intercom-get_contact
+      uri: null
+    subject:
+      sub: auth0|alice
+      claims:
+        groups: [support]
+    payload:
+      name: intercom-get_contact
+      args:
+        id: contact_123
+  output:
+    expectedResult: allow
+
+- description: get_contact by a crm-group caller — authorized via the second allowed group, allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: intercom-get_contact
+      uri: null
+    subject:
+      sub: auth0|carol
+      claims:
+        groups: [engineering, crm]
+    payload:
+      name: intercom-get_contact
+      args:
+        id: contact_123
+  output:
+    expectedResult: allow
+
+- description: get_contact by a caller with a non-allowed group — denied with the role-gate reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: intercom-get_contact
+      uri: null
+    subject:
+      sub: auth0|bob
+      claims:
+        groups: [analytics]
+    payload:
+      name: intercom-get_contact
+      args:
+        id: contact_123
+  output:
+    expectedResult: deny
+    expectedReason: Intercom contact and company profiles are limited to support and CRM roles. Other roles keep conversation access. Ask your admin to add you to the support or CRM IdP group if you need customer-profile access, or contact your security team if this is a false positive.
+
+- description: get_contact by a caller with no groups claim — fail closed, denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: intercom-get_contact
+      uri: null
+    subject:
+      sub: auth0|dave
+      claims:
+        scope: openid profile email
+    payload:
+      name: intercom-get_contact
+      args:
+        id: contact_123
+  output:
+    expectedResult: deny
+
+- description: get_contact by a caller with no subject at all — fail closed, denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: intercom-get_contact
+      uri: null
+    payload:
+      name: intercom-get_contact
+      args:
+        id: contact_123
+  output:
+    expectedResult: deny
+
+- description: search_contacts (email-domain enumeration) by a non-support caller — denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: intercom-search_contacts
+      uri: null
+    subject:
+      sub: auth0|bob
+      claims:
+        groups: [analytics]
+    payload:
+      name: intercom-search_contacts
+      args:
+        email: "@acme.com"
+  output:
+    expectedResult: deny
+
+- description: get_company by a non-support caller — denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: intercom-get_company
+      uri: null
+    subject:
+      sub: auth0|bob
+      claims:
+        groups: [analytics]
+    payload:
+      name: intercom-get_company
+      args:
+        id: "5f2b"
+  output:
+    expectedResult: deny
+
+- description: list_companies by a non-support caller — denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: intercom-list_companies
+      uri: null
+    subject:
+      sub: auth0|bob
+      claims:
+        groups: [analytics]
+    payload:
+      name: intercom-list_companies
+      args:
+        per_page: 50
+  output:
+    expectedResult: deny
+
+- description: list_companies by a support-group caller — authorized, allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: intercom-list_companies
+      uri: null
+    subject:
+      sub: auth0|alice
+      claims:
+        groups: [support]
+    payload:
+      name: intercom-list_companies
+      args:
+        per_page: 50
+  output:
+    expectedResult: allow
+
+- description: Bypass path — generic search with object_type=contacts by a non-support caller — denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: intercom-search
+      uri: null
+    subject:
+      sub: auth0|bob
+      claims:
+        groups: [analytics]
+    payload:
+      name: intercom-search
+      args:
+        object_type: contacts
+        query: "email~@acme.com"
+  output:
+    expectedResult: deny
+
+- description: Bypass path with mixed-case object_type "Contacts" — still denied (case-insensitive).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: intercom-search
+      uri: null
+    subject:
+      sub: auth0|bob
+      claims:
+        groups: [analytics]
+    payload:
+      name: intercom-search
+      args:
+        object_type: Contacts
+        query: "name~a"
+  output:
+    expectedResult: deny
+
+- description: Generic search over conversations by a non-support caller — allowed (analytics keeps conversation access).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: intercom-search
+      uri: null
+    subject:
+      sub: auth0|bob
+      claims:
+        groups: [analytics]
+    payload:
+      name: intercom-search
+      args:
+        object_type: conversations
+        query: "state=open"
+  output:
+    expectedResult: allow
+
+- description: Bypass path — generic fetch of a contact_-prefixed id by a non-support caller — denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: intercom-fetch
+      uri: null
+    subject:
+      sub: auth0|bob
+      claims:
+        groups: [analytics]
+    payload:
+      name: intercom-fetch
+      args:
+        id: contact_98765
+  output:
+    expectedResult: deny
+
+- description: Bypass path — generic fetch of a company_-prefixed id by a non-support caller — denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: intercom-fetch
+      uri: null
+    subject:
+      sub: auth0|bob
+      claims:
+        groups: [analytics]
+    payload:
+      name: intercom-fetch
+      args:
+        id: company_555
+  output:
+    expectedResult: deny
+
+- description: Generic fetch of a conversation_-prefixed id by a non-support caller — allowed (not the PII surface).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: intercom-fetch
+      uri: null
+    subject:
+      sub: auth0|bob
+      claims:
+        groups: [analytics]
+    payload:
+      name: intercom-fetch
+      args:
+        id: conversation_42
+  output:
+    expectedResult: allow
+
+- description: Generic fetch of a contact_-prefixed id by a support caller — authorized, allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: intercom-fetch
+      uri: null
+    subject:
+      sub: auth0|alice
+      claims:
+        groups: [support]
+    payload:
+      name: intercom-fetch
+      args:
+        id: contact_98765
+  output:
+    expectedResult: allow
+
+- description: get_conversation by a non-support caller — allowed (conversation surface is not fenced).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: intercom-get_conversation
+      uri: null
+    subject:
+      sub: auth0|bob
+      claims:
+        groups: [analytics]
+    payload:
+      name: intercom-get_conversation
+      args:
+        id: conversation_42
+  output:
+    expectedResult: allow
+
+- description: search_contacts by a support-group caller — authorized, allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: intercom-search_contacts
+      uri: null
+    subject:
+      sub: auth0|alice
+      claims:
+        groups: [support]
+    payload:
+      name: intercom-search_contacts
+      args:
+        email: "jane@acme.com"
+  output:
+    expectedResult: allow
+
+# --- Red-team gate cases (reviewer, standards §10) ---
+
+- description: Red-team — fetch a contact by a workspace URL that embeds the contact_ token, non-support — denied (contains-match closes the startswith bypass).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: intercom-fetch
+      uri: null
+    subject:
+      sub: auth0|bob
+      claims:
+        groups: [analytics]
+    payload:
+      name: intercom-fetch
+      args:
+        id: "https://app.intercom.com/a/apps/xyz/users/contact_123"
+  output:
+    expectedResult: deny
+
+- description: Red-team — fetch a company by a workspace URL that embeds the company_ token, non-support — denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: intercom-fetch
+      uri: null
+    subject:
+      sub: auth0|bob
+      claims:
+        groups: [analytics]
+    payload:
+      name: intercom-fetch
+      args:
+        id: "https://app.intercom.com/companies/company_9"
+  output:
+    expectedResult: deny
+
+- description: Red-team — fetch a contact-embedding URL by a support caller — authorized, allowed (contains-match still permits the authorized path).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: intercom-fetch
+      uri: null
+    subject:
+      sub: auth0|alice
+      claims:
+        groups: [support]
+    payload:
+      name: intercom-fetch
+      args:
+        id: "https://app.intercom.com/a/apps/xyz/users/contact_123"
+  output:
+    expectedResult: allow
+
+- description: Red-team residual (documented) — fetch a contact by a bare-numeric URL with no contact_/company_ token, non-support — passes through (known bypass, unverified URL shape).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: intercom-fetch
+      uri: null
+    subject:
+      sub: auth0|bob
+      claims:
+        groups: [analytics]
+    payload:
+      name: intercom-fetch
+      args:
+        id: "https://app.intercom.com/a/apps/xyz/users/5f2b9c"
+  output:
+    expectedResult: allow
+
+- description: Red-team — generic search with whitespace-padded object_type "contacts " by a non-support caller — denied (trim_space closes the padding bypass).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: intercom-search
+      uri: null
+    subject:
+      sub: auth0|bob
+      claims:
+        groups: [analytics]
+    payload:
+      name: intercom-search
+      args:
+        object_type: "contacts "
+        query: "email~@acme.com"
+  output:
+    expectedResult: deny
+
+- description: Red-team — generic search with the singular alias object_type "contact" by a non-support caller — denied (startswith("contact") closes the singular-alias bypass).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: intercom-search
+      uri: null
+    subject:
+      sub: auth0|bob
+      claims:
+        groups: [analytics]
+    payload:
+      name: intercom-search
+      args:
+        object_type: "contact"
+        query: "name~a"
+  output:
+    expectedResult: deny
+
+- description: Red-team (documented) — generic search omitting object_type entirely by a non-support caller — allowed (assumed conversation search).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: intercom-search
+      uri: null
+    subject:
+      sub: auth0|bob
+      claims:
+        groups: [analytics]
+    payload:
+      name: intercom-search
+      args:
+        query: "state=open"
+  output:
+    expectedResult: allow
+
+- description: Red-team — get_contact with no payload/args at all, non-support — denied (typed rule matches on name; identity gate fails closed).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: intercom-get_contact
+      uri: null
+    subject:
+      sub: auth0|bob
+      claims:
+        groups: [analytics]
+  output:
+    expectedResult: deny
+
+- description: Red-team (fixed) — generic search with object_type as an array ["contacts"] by a non-support caller — denied (non-string object_type fails closed, closing the type-confusion bypass).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: intercom-search
+      uri: null
+    subject:
+      sub: auth0|bob
+      claims:
+        groups: [analytics]
+    payload:
+      name: intercom-search
+      args:
+        object_type: [contacts]
+        query: "email~@acme.com"
+  output:
+    expectedResult: deny
+
+- description: Red-team (fixed) — generic fetch with id as an array ["contact_123"] by a non-support caller — denied (non-string id fails closed).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: intercom-fetch
+      uri: null
+    subject:
+      sub: auth0|bob
+      claims:
+        groups: [analytics]
+    payload:
+      name: intercom-fetch
+      args:
+        id: [contact_123]
+  output:
+    expectedResult: deny
+
+- description: Red-team (fixed) — generic search with object_type as an array ["contacts"] by a support caller — authorized, allowed (fail-closed fence still permits the authorized path).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: intercom-search
+      uri: null
+    subject:
+      sub: auth0|alice
+      claims:
+        groups: [support]
+    payload:
+      name: intercom-search
+      args:
+        object_type: [contacts]
+        query: "email~@acme.com"
+  output:
+    expectedResult: allow
+
+- description: Red-team (documented) — groups emitted as a scalar string "support" instead of an array — fails closed, denied (must normalize claim to an array).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: intercom-get_contact
+      uri: null
+    subject:
+      sub: auth0|eve
+      claims:
+        groups: support
+    payload:
+      name: intercom-get_contact
+      args:
+        id: contact_123
+  output:
+    expectedResult: deny

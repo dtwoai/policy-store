@@ -1,0 +1,617 @@
+# Tests for quickbooks/cap-bulk-export.
+# Branches covered: search_* tool matching (plain, prefixed, boundary non-match),
+# advanced-object clamp (fetchAll strip + limit pin, oversized-limit lower,
+# small-limit passthrough), array/LibreChat criteria[].limit clamp (+ per-clause
+# fetchAll, + non-object element passthrough), bare-field-map passthrough,
+# missing/reshaped/non-numeric criteria passthrough, fetchAll:false left in place,
+# top-level limit clamp, top-level fetchAll strip (red-team fix) + top-level
+# fetchAll:false passthrough, and non-search / report tools passing through
+# untouched.
+# NOTE: transformedArgsContain values use alphabetically-ordered object keys to
+# match OPA's sorted JSON output.
+
+- description: >-
+    Advanced object with fetchAll:true only — fetchAll is stripped and limit is
+    pinned to the cap (50).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: quickbooks-search_invoices
+      uri: null
+    payload:
+      name: quickbooks-search_invoices
+      args:
+        criteria:
+          fetchAll: true
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    criteria:
+      limit: 50
+
+- description: >-
+    Advanced object with filters + oversized limit + fetchAll:true — fetchAll
+    removed, limit pinned to the cap, filters preserved untouched.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: quickbooks-search_customers
+      uri: null
+    payload:
+      name: quickbooks-search_customers
+      args:
+        criteria:
+          filters:
+            - field: DisplayName
+              operator: LIKE
+              value: "A%"
+          limit: 500
+          fetchAll: true
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    criteria:
+      filters:
+        - field: DisplayName
+          operator: LIKE
+          value: "A%"
+      limit: 50
+
+- description: >-
+    Advanced object with an oversized limit and no fetchAll — the limit is lowered
+    to the cap.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: quickbooks-search_bills
+      uri: null
+    payload:
+      name: quickbooks-search_bills
+      args:
+        criteria:
+          limit: 200
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    criteria:
+      limit: 50
+
+- description: >-
+    Advanced object with a small explicit limit is left untouched — no transform
+    applied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: quickbooks-search_accounts
+      uri: null
+    payload:
+      name: quickbooks-search_accounts
+      args:
+        criteria:
+          limit: 25
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: >-
+    LibreChat array shape (criteria[].limit) — an oversized per-clause limit is
+    lowered to the cap element-by-element.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: quickbooks-search_employees
+      uri: null
+    payload:
+      name: quickbooks-search_employees
+      args:
+        criteria:
+          - field: Active
+            operator: "="
+            value: "true"
+            limit: 999
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    criteria:
+      - field: Active
+        limit: 50
+        operator: "="
+        value: "true"
+
+- description: >-
+    Defensive: a per-clause fetchAll:true inside the array shape is stripped and
+    the clause limit pinned to the cap.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: quickbooks-search_invoices
+      uri: null
+    payload:
+      name: quickbooks-search_invoices
+      args:
+        criteria:
+          - field: TxnDate
+            operator: ">"
+            value: "2026-01-01"
+            fetchAll: true
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    criteria:
+      - field: TxnDate
+        limit: 50
+        operator: ">"
+        value: "2026-01-01"
+
+- description: >-
+    Defensive: a non-object entry mixed into the criteria array is left as-is
+    (array length is never changed) while the clause object is clamped.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: quickbooks-search_bills
+      uri: null
+    payload:
+      name: quickbooks-search_bills
+      args:
+        criteria:
+          - field: Balance
+            operator: ">"
+            value: "0"
+            limit: 999
+          - "raw"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    criteria:
+      - field: Balance
+        limit: 50
+        operator: ">"
+        value: "0"
+      - "raw"
+
+- description: >-
+    Bare field map criteria ({field: value}) carries no limit/fetchAll — passes
+    through with no transform.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: quickbooks-search_customers
+      uri: null
+    payload:
+      name: quickbooks-search_customers
+      args:
+        criteria:
+          DisplayName: Acme
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: >-
+    A search_* call with no criteria at all passes through untouched.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: quickbooks-search_accounts
+      uri: null
+    payload:
+      name: quickbooks-search_accounts
+      args: {}
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: >-
+    Prefixed tool name (server prefix with hyphens) still matches search_ on the
+    non-letter boundary; oversized limit is lowered.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: quickbooks-online-mcp-search_bills
+      uri: null
+    payload:
+      name: quickbooks-online-mcp-search_bills
+      args:
+        criteria:
+          limit: 1000
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    criteria:
+      limit: 50
+
+- description: >-
+    Red-team fix: a top-level limit (sibling of criteria, no criteria object — the
+    LibreChat search shape) is lowered to the cap. Previously a full bypass.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: quickbooks-search_invoices
+      uri: null
+    payload:
+      name: quickbooks-search_invoices
+      args:
+        limit: 999
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    limit: 50
+
+- description: >-
+    Red-team fix: LibreChat shape — array criteria (clauses without limit) plus a
+    top-level oversized limit. The top-level limit is lowered to the cap and the
+    criteria array is preserved untouched.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: quickbooks-search_customers
+      uri: null
+    payload:
+      name: quickbooks-search_customers
+      args:
+        criteria:
+          - field: Active
+            operator: "="
+            value: "true"
+        limit: 999
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    limit: 50
+    criteria:
+      - field: Active
+        operator: "="
+        value: "true"
+
+- description: >-
+    A small top-level limit (below the cap) alongside a bare-field-map criteria is
+    left untouched — no transform.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: quickbooks-search_bills
+      uri: null
+    payload:
+      name: quickbooks-search_bills
+      args:
+        criteria:
+          DisplayName: Acme
+        limit: 25
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: >-
+    fetchAll:false with a small limit is already bounded — left in place, no
+    transform.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: quickbooks-search_invoices
+      uri: null
+    payload:
+      name: quickbooks-search_invoices
+      args:
+        criteria:
+          fetchAll: false
+          limit: 10
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: >-
+    Known limitation: a non-boolean truthy fetchAll (string "true") is NOT treated
+    as set — the Zod-typed servers reject it upstream, so it passes through here.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: quickbooks-search_invoices
+      uri: null
+    payload:
+      name: quickbooks-search_invoices
+      args:
+        criteria:
+          fetchAll: "true"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: >-
+    Known limitation: a numeric truthy fetchAll (1) is NOT treated as set and
+    passes through unchanged (documented: harden has_fetch_all if your server
+    coerces truthy non-booleans).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: quickbooks-search_invoices
+      uri: null
+    payload:
+      name: quickbooks-search_invoices
+      args:
+        criteria:
+          fetchAll: 1
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: >-
+    Non-numeric limit (a string) is not clamped — QBO would reject it upstream, so
+    the call passes through.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: quickbooks-search_invoices
+      uri: null
+    payload:
+      name: quickbooks-search_invoices
+      args:
+        criteria:
+          limit: "999"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: >-
+    Regex boundary: a name containing "search" without the underscore verb is not
+    a search_* tool — passes through untouched.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: quickbooks-search
+      uri: null
+    payload:
+      name: quickbooks-search
+      args:
+        criteria:
+          fetchAll: true
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: >-
+    Regex boundary: a tool that merely embeds "search_" mid-token (research_) is
+    NOT matched even with a fetchAll:true bulk knob — passes through untouched.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: quickbooks-research_customers
+      uri: null
+    payload:
+      name: quickbooks-research_customers
+      args:
+        criteria:
+          fetchAll: true
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: >-
+    Non-search tool (single-record get_invoice) is never inspected and passes
+    through untouched.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: quickbooks-get_invoice
+      uri: null
+    payload:
+      name: quickbooks-get_invoice
+      args:
+        id: "1042"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: >-
+    Write tool (create_invoice) passes through untouched — not in scope for the
+    bulk-read clamp.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: quickbooks-create_invoice
+      uri: null
+    payload:
+      name: quickbooks-create_invoice
+      args:
+        customer_ref: "58"
+        line_items:
+          - item_ref: "1"
+            qty: 2
+            unit_price: 100
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: >-
+    Red-team fix: a top-level fetchAll:true (sibling of an array criteria, the
+    LibreChat paging-param position) is stripped and the top-level limit pinned to
+    the cap. Previously the whole-ledger lever passed through unclamped. The full
+    transformed_payload is asserted so fetchAll must be absent.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: quickbooks-search_invoices
+      uri: null
+    payload:
+      name: quickbooks-search_invoices
+      args:
+        criteria:
+          - field: Active
+            operator: "="
+            value: "true"
+        fetchAll: true
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transform:
+    transformed_payload:
+      criteria:
+        - field: Active
+          operator: "="
+          value: "true"
+      limit: 50
+
+- description: >-
+    Red-team fix: a top-level fetchAll:true with no criteria at all is stripped and
+    a bounded top-level limit is pinned to the cap. The full transformed_payload is
+    asserted so fetchAll must be absent.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: quickbooks-search_customers
+      uri: null
+    payload:
+      name: quickbooks-search_customers
+      args:
+        fetchAll: true
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transform:
+    transformed_payload:
+      limit: 50
+
+- description: >-
+    Red-team fix: a top-level fetchAll:true alongside an already-oversized top-level
+    limit — fetchAll stripped and the limit pinned down to the cap.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: quickbooks-search_bills
+      uri: null
+    payload:
+      name: quickbooks-search_bills
+      args:
+        criteria:
+          DisplayName: Acme
+        fetchAll: true
+        limit: 999
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transform:
+    transformed_payload:
+      criteria:
+        DisplayName: Acme
+      limit: 50
+
+- description: >-
+    A top-level fetchAll:false (sibling of criteria) is already bounded and is left
+    in place — no transform.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: quickbooks-search_invoices
+      uri: null
+    payload:
+      name: quickbooks-search_invoices
+      args:
+        criteria:
+          DisplayName: Acme
+        fetchAll: false
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: >-
+    Whole-company report tool (out of scope by design) is not a search_* tool —
+    passes through untouched even if it carried a bulk knob.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: quickbooks-profit_and_loss
+      uri: null
+    payload:
+      name: quickbooks-profit_and_loss
+      args:
+        criteria:
+          fetchAll: true
+  output:
+    expectedResult: allow
+  transformApplied: false

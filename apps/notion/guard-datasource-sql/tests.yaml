@@ -1,0 +1,382 @@
+# Branch coverage:
+#   allow: non-matching tool · near-name query tool (no suffix collision) ·
+#          read-only SELECT · word-boundary identifiers · view-ID-only call ·
+#          no args at all
+#   deny:  DML/DDL/GRANT keywords (hosted + local suffixes, all three arg keys,
+#          case-insensitivity) · each export idiom · REPLACE INTO upsert
+#          (red-team: no INSERT/UPDATE/DELETE keyword) · non-string SQL (fail
+#          closed) · non-object args (fail closed) · SQL split across keys
+- description: Unrelated Notion tool (notion-search) whose query mentions "drop"
+    in prose. Not a data-source query tool — allow (pass-through).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: notion-mcp-notion-search
+      uri: null
+    payload:
+      name: notion-mcp-notion-search
+      args:
+        query: which pages mention drop tables
+  output:
+    expectedResult: allow
+- description: Hosted notion-query-database-view — name is close but does not end
+    with either matched suffix. Allow (no suffix collision).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: notion-mcp-notion-query-database-view
+      uri: null
+    payload:
+      name: notion-mcp-notion-query-database-view
+      args:
+        view_id: 1f3a-view-90d2
+        query: delete old rows
+  output:
+    expectedResult: allow
+- description: Read-only SELECT on the hosted notion-query-data-sources tool. No
+    blocked construct — allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: notion-mcp-notion-query-data-sources
+      uri: null
+    payload:
+      name: notion-mcp-notion-query-data-sources
+      args:
+        sql: SELECT name, stage, close_date FROM crm_pipeline WHERE stage = 'won'
+  output:
+    expectedResult: allow
+- description: SELECT with created_at/updated_at identifiers. Word-boundary
+    anchoring means these do not trip CREATE/UPDATE — allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: notion-mcp-notion-query-data-sources
+      uri: null
+    payload:
+      name: notion-mcp-notion-query-data-sources
+      args:
+        sql: SELECT id, created_at, updated_at FROM hr_tracker ORDER BY updated_at DESC
+  output:
+    expectedResult: allow
+- description: View-ID-only call with no free SQL argument. Nothing to inspect —
+    allow (passes untouched).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: notion-mcp-notion-query-data-sources
+      uri: null
+    payload:
+      name: notion-mcp-notion-query-data-sources
+      args:
+        view_id: 1f3a-collection-view-90d2
+  output:
+    expectedResult: allow
+- description: Data-source query tool called with an empty args object. No SQL
+    present — allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: notion-mcp-notion-query-data-sources
+      uri: null
+    payload:
+      name: notion-mcp-notion-query-data-sources
+      args: {}
+  output:
+    expectedResult: allow
+- description: INSERT into an HR tracker via the hosted tool. DML keyword — deny
+    with the blocked-construct reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: notion-mcp-notion-query-data-sources
+      uri: null
+    payload:
+      name: notion-mcp-notion-query-data-sources
+      args:
+        sql: INSERT INTO hr_tracker (name) VALUES ('Ada')
+  output:
+    expectedResult: deny
+    expectedReason: "This Notion data-source query contains a blocked SQL construct — data-manipulation, schema, or privilege keyword (INSERT, UPDATE, DELETE, DROP, ALTER, CREATE, GRANT, or TRUNCATE). The agent path to Notion databases is read-only: rewrite the query as a plain SELECT or use a saved view. If this was a false positive, contact your data platform team."
+- description: Lowercase "drop table" — case-insensitive match — deny (proves
+    (?i)).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: notion-mcp-notion-query-data-sources
+      uri: null
+    payload:
+      name: notion-mcp-notion-query-data-sources
+      args:
+        sql: drop table hr_tracker
+  output:
+    expectedResult: deny
+- description: UPDATE via the official-local query-data-source tool (second
+    matched suffix). Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: notion-local-query-data-source
+      uri: null
+    payload:
+      name: notion-local-query-data-source
+      args:
+        sql: UPDATE crm_pipeline SET owner = 'me'
+  output:
+    expectedResult: deny
+- description: TRUNCATE delivered under the alternate `query` argument key.
+    Defensive key extraction still inspects it — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: notion-mcp-notion-query-data-sources
+      uri: null
+    payload:
+      name: notion-mcp-notion-query-data-sources
+      args:
+        query: TRUNCATE TABLE incident_log
+  output:
+    expectedResult: deny
+- description: GRANT delivered under the alternate `statement` argument key.
+    Privilege change — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: notion-mcp-notion-query-data-sources
+      uri: null
+    payload:
+      name: notion-mcp-notion-query-data-sources
+      args:
+        statement: GRANT ALL ON crm_pipeline TO PUBLIC
+  output:
+    expectedResult: deny
+- description: MySQL-style INTO OUTFILE bulk export. Deny (also trips the
+    SELECT ... INTO pattern, so no exact-reason assertion).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: notion-mcp-notion-query-data-sources
+      uri: null
+    payload:
+      name: notion-mcp-notion-query-data-sources
+      args:
+        sql: SELECT * FROM crm_pipeline INTO OUTFILE '/tmp/crm.csv'
+  output:
+    expectedResult: deny
+- description: Snowflake-style COPY INTO bulk unload. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: notion-mcp-notion-query-data-sources
+      uri: null
+    payload:
+      name: notion-mcp-notion-query-data-sources
+      args:
+        sql: COPY INTO @export_stage FROM hr_tracker
+  output:
+    expectedResult: deny
+- description: Postgres-style COPY ... TO STDOUT bulk copy. Deny with the exact
+    export reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: notion-mcp-notion-query-data-sources
+      uri: null
+    payload:
+      name: notion-mcp-notion-query-data-sources
+      args:
+        sql: COPY (SELECT * FROM finance_pipeline) TO STDOUT
+  output:
+    expectedResult: deny
+    expectedReason: "This Notion data-source query contains a blocked SQL construct — COPY ... TO (bulk copy to a file or stdout). The agent path to Notion databases is read-only: rewrite the query as a plain SELECT or use a saved view. If this was a false positive, contact your data platform team."
+- description: BigQuery-style EXPORT DATA bulk export. Deny with the exact export
+    reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: notion-mcp-notion-query-data-sources
+      uri: null
+    payload:
+      name: notion-mcp-notion-query-data-sources
+      args:
+        sql: EXPORT DATA OPTIONS (uri = 'gs://bucket/f_*.csv', format = 'CSV') AS SELECT * FROM finance_pipeline
+  output:
+    expectedResult: deny
+    expectedReason: "This Notion data-source query contains a blocked SQL construct — EXPORT DATA (bulk export). The agent path to Notion databases is read-only: rewrite the query as a plain SELECT or use a saved view. If this was a false positive, contact your data platform team."
+- description: Redshift/Athena-style UNLOAD bulk export. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: notion-mcp-notion-query-data-sources
+      uri: null
+    payload:
+      name: notion-mcp-notion-query-data-sources
+      args:
+        sql: UNLOAD ('SELECT * FROM incident_log') TO 's3://bucket/incidents_'
+  output:
+    expectedResult: deny
+- description: SQLite-style ATTACH DATABASE escape hatch. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: notion-mcp-notion-query-data-sources
+      uri: null
+    payload:
+      name: notion-mcp-notion-query-data-sources
+      args:
+        sql: ATTACH DATABASE '/tmp/exfil.db' AS exfil
+  output:
+    expectedResult: deny
+- description: SELECT ... INTO copies results into another table. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: notion-mcp-notion-query-data-sources
+      uri: null
+    payload:
+      name: notion-mcp-notion-query-data-sources
+      args:
+        sql: SELECT * FROM incident_log INTO incident_log_copy
+  output:
+    expectedResult: deny
+- description: Red-team — MySQL REPLACE INTO upsert carries no
+    INSERT/UPDATE/DELETE keyword, so the DML pattern alone would miss it. The
+    dedicated REPLACE INTO pattern catches this insert-or-replace mutation — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: notion-mcp-notion-query-data-sources
+      uri: null
+    payload:
+      name: notion-mcp-notion-query-data-sources
+      args:
+        sql: REPLACE INTO hr_tracker (id, name) VALUES (1, 'Ada')
+  output:
+    expectedResult: deny
+    expectedReason: "This Notion data-source query contains a blocked SQL construct — REPLACE INTO (MySQL insert-or-replace mutation). The agent path to Notion databases is read-only: rewrite the query as a plain SELECT or use a saved view. If this was a false positive, contact your data platform team."
+- description: Read-only SELECT using the scalar REPLACE(str, from, to) function.
+    The REPLACE INTO pattern requires a following INTO, so this common
+    string-cleanup SELECT is not a false positive — allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: notion-mcp-notion-query-data-sources
+      uri: null
+    payload:
+      name: notion-mcp-notion-query-data-sources
+      args:
+        sql: SELECT REPLACE(name, 'old', 'new') AS clean_name FROM crm_pipeline
+  output:
+    expectedResult: allow
+- description: Red-team — SQL argument is a nested object instead of a string.
+    Uninspectable — fail closed with the malformed-argument reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: notion-mcp-notion-query-data-sources
+      uri: null
+    payload:
+      name: notion-mcp-notion-query-data-sources
+      args:
+        sql:
+          statement: DROP TABLE hr_tracker
+  output:
+    expectedResult: deny
+    expectedReason: The SQL argument on this Notion data-source query is not a plain string, so it cannot be inspected. Pass the query as a single SQL string or reference a saved view ID instead. If this looks wrong, contact your data platform team.
+- description: Red-team — args payload is an array, not an object. Unexpected
+    shape — fail closed with the shape reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: notion-mcp-notion-query-data-sources
+      uri: null
+    payload:
+      name: notion-mcp-notion-query-data-sources
+      args:
+        - DROP TABLE hr_tracker
+  output:
+    expectedResult: deny
+    expectedReason: This Notion data-source query call has an unexpected argument shape that cannot be inspected, so it is blocked. Retry with a standard arguments object, or contact your data platform team.
+- description: Red-team — benign SQL under `sql` plus a DELETE smuggled under
+    `query`. The concatenation of all candidate keys is matched — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: notion-mcp-notion-query-data-sources
+      uri: null
+    payload:
+      name: notion-mcp-notion-query-data-sources
+      args:
+        sql: SELECT id FROM crm_pipeline
+        query: DELETE FROM crm_pipeline
+  output:
+    expectedResult: deny

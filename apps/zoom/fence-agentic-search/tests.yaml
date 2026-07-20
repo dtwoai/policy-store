@@ -1,0 +1,346 @@
+# Branches covered:
+#  - non-search_zoom tool -> passthrough (allow, no transform)
+#  - array with native + external -> transform strips external
+#  - single string (native) -> transform normalizes to array
+#  - array all-external -> deny (fail closed) + exact reason
+#  - missing search_entities -> deny (fail closed) + exact reason
+#  - non-string/array shape (number) -> deny (fail closed)
+#  - uppercase tool suffix + mixed casing entities -> matched, stripped
+#  - unrecognized (non-external) corpus value -> stripped
+
+- description: Non-search_zoom tool passes through untouched — no transform, allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-workspace-get_meeting_assets
+      uri: null
+    payload:
+      name: zoom-workspace-get_meeting_assets
+      args:
+        meetingId: "abc123"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: search_zoom with native + external corpora — external stripped, other args preserved.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-workspace-search_zoom
+      uri: null
+    payload:
+      name: zoom-workspace-search_zoom
+      args:
+        query: Q3 renewal risks
+        search_entities:
+          - meetings
+          - salesforce
+          - workday
+        page_size: 20
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    search_entities:
+      - meetings
+    query: Q3 renewal risks
+    page_size: 20
+
+- description: search_zoom with a single native string — normalized to an allowlisted array.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-workspace-search_zoom
+      uri: null
+    payload:
+      name: zoom-workspace-search_zoom
+      args:
+        query: standup notes
+        search_entities: chat
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    search_entities:
+      - chat
+    query: standup notes
+
+- description: search_zoom asking for multiple native corpora — de-duplicated and sorted.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-workspace-search_zoom
+      uri: null
+    payload:
+      name: zoom-workspace-search_zoom
+      args:
+        search_entities:
+          - team_chat
+          - docs
+          - team_chat
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    search_entities:
+      - docs
+      - team_chat
+
+- description: Red-team — uppercase tool suffix and mixed-case entities still matched and stripped.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ZOOM-WORKSPACE-SEARCH_ZOOM
+      uri: null
+    payload:
+      name: ZOOM-WORKSPACE-SEARCH_ZOOM
+      args:
+        search_entities:
+          - Meetings
+          - Salesforce
+          - ServiceNow
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    search_entities:
+      - meetings
+
+- description: Red-team — unrecognized (non-external) corpus value is stripped like any non-allowlisted value.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-workspace-search_zoom
+      uri: null
+    payload:
+      name: zoom-workspace-search_zoom
+      args:
+        search_entities:
+          - meetings
+          - notion
+          - dropbox
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    search_entities:
+      - meetings
+
+- description: search_zoom targeting only external corpora — denied, no Zoom-native corpus remains.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-workspace-search_zoom
+      uri: null
+    payload:
+      name: zoom-workspace-search_zoom
+      args:
+        query: open tickets
+        search_entities:
+          - servicenow
+          - workday
+  output:
+    expectedResult: deny
+    expectedReason: "Zoom agentic search is fenced to Zoom-native corpora, and this request named only external or unrecognized corpora (servicenow, workday). None can be reached through Zoom's search fan-out. Query those systems through their own governed connector, or re-run search_zoom with a Zoom-native corpus. Contact your InfoSec team if a Zoom-native corpus was wrongly rejected."
+  transformApplied: false
+
+- description: search_zoom missing the required search_entities argument — denied (fail closed).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-workspace-search_zoom
+      uri: null
+    payload:
+      name: zoom-workspace-search_zoom
+      args:
+        query: anything
+  output:
+    expectedResult: deny
+    expectedReason: "Zoom agentic search is fenced to Zoom-native corpora, and this request named only external or unrecognized corpora (none specified). None can be reached through Zoom's search fan-out. Query those systems through their own governed connector, or re-run search_zoom with a Zoom-native corpus. Contact your InfoSec team if a Zoom-native corpus was wrongly rejected."
+  transformApplied: false
+
+- description: Red-team — search_entities sent as an unexpected type (number) normalizes to empty and denies (fail closed).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-workspace-search_zoom
+      uri: null
+    payload:
+      name: zoom-workspace-search_zoom
+      args:
+        search_entities: 5
+  output:
+    expectedResult: deny
+    expectedReason: "Zoom agentic search is fenced to Zoom-native corpora, and this request named only external or unrecognized corpora (none specified). None can be reached through Zoom's search fan-out. Query those systems through their own governed connector, or re-run search_zoom with a Zoom-native corpus. Contact your InfoSec team if a Zoom-native corpus was wrongly rejected."
+  transformApplied: false
+
+- description: Red-team — search_zoom with no args object at all denies (fail closed, no passthrough).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-workspace-search_zoom
+      uri: null
+    payload:
+      name: zoom-workspace-search_zoom
+  output:
+    expectedResult: deny
+  transformApplied: false
+
+# Documents the sibling-argument residual (Known limitations): the transform
+# filters search_entities but copies any OTHER argument through verbatim. If the
+# upstream tool honored an undocumented second corpus selector (`sources` here),
+# external data would still be reachable. This case locks in the pass-through
+# behavior so the residual is visible and regression-tested.
+- description: Red-team — undocumented sibling corpus key (sources) passes through unchanged while search_entities is filtered (documented residual).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-workspace-search_zoom
+      uri: null
+    payload:
+      name: zoom-workspace-search_zoom
+      args:
+        query: renewal risks
+        search_entities:
+          - meetings
+          - salesforce
+        sources:
+          - salesforce
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    search_entities:
+      - meetings
+    sources:
+      - salesforce
+    query: renewal risks
+
+- description: Red-team — wildcard/meta corpus value ("all") is not in the allowlist, stripped, and the call denies (fail closed).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-workspace-search_zoom
+      uri: null
+    payload:
+      name: zoom-workspace-search_zoom
+      args:
+        search_entities:
+          - all
+  output:
+    expectedResult: deny
+    expectedReason: "Zoom agentic search is fenced to Zoom-native corpora, and this request named only external or unrecognized corpora (all). None can be reached through Zoom's search fan-out. Query those systems through their own governed connector, or re-run search_zoom with a Zoom-native corpus. Contact your InfoSec team if a Zoom-native corpus was wrongly rejected."
+  transformApplied: false
+
+- description: Red-team — nested non-string element (an array inside search_entities) is dropped harmlessly; native sibling still survives, no crash.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-workspace-search_zoom
+      uri: null
+    payload:
+      name: zoom-workspace-search_zoom
+      args:
+        search_entities:
+          - meetings
+          - - salesforce
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    search_entities:
+      - meetings
+
+# Documents the case-variant sibling-key residual (Known limitations): the lookup
+# and rewrite key are the exact lowercase string "search_entities". A sibling key
+# differing only in case (SEARCH_ENTITIES) is an unrelated argument and passes
+# through verbatim while the lowercase search_entities is filtered to native. On a
+# standard case-sensitive JSON-RPC server this is harmless (only the lowercase key
+# is read); this case locks in the pass-through so the residual is visible and
+# regression-tested for servers that fold argument-key case.
+- description: Red-team — case-variant sibling key (SEARCH_ENTITIES) passes through unchanged while lowercase search_entities is filtered (documented residual).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-workspace-search_zoom
+      uri: null
+    payload:
+      name: zoom-workspace-search_zoom
+      args:
+        query: renewal risks
+        search_entities:
+          - meetings
+          - salesforce
+        SEARCH_ENTITIES:
+          - salesforce
+          - workday
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    search_entities:
+      - meetings
+    SEARCH_ENTITIES:
+      - salesforce
+      - workday
+    query: renewal risks
+
+- description: Red-team — whitespace-padded native token (" meetings") is not normalized, stripped, and the call denies (fail-safe direction, no bypass).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-workspace-search_zoom
+      uri: null
+    payload:
+      name: zoom-workspace-search_zoom
+      args:
+        search_entities:
+          - " meetings"
+  output:
+    expectedResult: deny
+  transformApplied: false

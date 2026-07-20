@@ -1,0 +1,617 @@
+# Reason strings (exact) reused across deny cases:
+#  T = 'Meeting transcripts, summaries, and next-steps are restricted. Retrieving
+#      them requires membership in the transcript-reader group (placeholder
+#      "zoom-transcript-readers"). ...'
+#  P = 'Retrieving a recording passcode (raw_passcode/encode_passcode) requires
+#      membership in the recording-admin group (placeholder "zoom-admins"), ...'
+
+- description: Non-guarded tool (meeting search) is unaffected — allowed even with no groups.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-workspace-search_meetings
+      uri: null
+    payload:
+      name: zoom-workspace-search_meetings
+      args:
+        q: quarterly review
+    subject:
+      claims:
+        groups: []
+  output:
+    expectedResult: allow
+
+- description: Transcript requested by a caller in the transcript-reader group — allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-workspace-get_recording_resource
+      uri: null
+    payload:
+      name: zoom-workspace-get_recording_resource
+      args:
+        meetingId: "8891234567"
+        types:
+          - transcript
+    subject:
+      claims:
+        groups:
+          - zoom-transcript-readers
+  output:
+    expectedResult: allow
+
+- description: Transcript requested without the transcript-reader group — denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-workspace-get_recording_resource
+      uri: null
+    payload:
+      name: zoom-workspace-get_recording_resource
+      args:
+        meetingId: "8891234567"
+        types:
+          - transcript
+    subject:
+      claims:
+        groups:
+          - marketing
+  output:
+    expectedResult: deny
+    expectedReason: 'Meeting transcripts, summaries, and next-steps are restricted. Retrieving them requires membership in the transcript-reader group (placeholder "zoom-transcript-readers"). Ask your workspace administrator to grant you that group, or request a non-transcript asset instead. If you believe you already have this access, ask your admin to verify your IdP group mapping.'
+
+- description: Summary (AI Companion) requested without the group — denied (sensitive type).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-workspace-get_recording_resource
+      uri: null
+    payload:
+      name: zoom-workspace-get_recording_resource
+      args:
+        meetingId: "8891234567"
+        types:
+          - summary
+    subject:
+      claims:
+        groups:
+          - sales
+  output:
+    expectedResult: deny
+    expectedReason: 'Meeting transcripts, summaries, and next-steps are restricted. Retrieving them requires membership in the transcript-reader group (placeholder "zoom-transcript-readers"). Ask your workspace administrator to grant you that group, or request a non-transcript asset instead. If you believe you already have this access, ask your admin to verify your IdP group mapping.'
+
+- description: next_steps requested without the group — denied (sensitive type).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-workspace-get_recording_resource
+      uri: null
+    payload:
+      name: zoom-workspace-get_recording_resource
+      args:
+        meetingId: "8891234567"
+        types:
+          - next_steps
+    subject:
+      claims:
+        groups: []
+  output:
+    expectedResult: deny
+    expectedReason: 'Meeting transcripts, summaries, and next-steps are restricted. Retrieving them requires membership in the transcript-reader group (placeholder "zoom-transcript-readers"). Ask your workspace administrator to grant you that group, or request a non-transcript asset instead. If you believe you already have this access, ask your admin to verify your IdP group mapping.'
+
+- description: get_meeting_assets with no types (missing) — fail closed, treated as full-asset request, denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-workspace-get_meeting_assets
+      uri: null
+    payload:
+      name: zoom-workspace-get_meeting_assets
+      args:
+        meetingId: "8891234567"
+    subject:
+      claims:
+        groups:
+          - marketing
+  output:
+    expectedResult: deny
+    expectedReason: 'Meeting transcripts, summaries, and next-steps are restricted. Retrieving them requires membership in the transcript-reader group (placeholder "zoom-transcript-readers"). Ask your workspace administrator to grant you that group, or request a non-transcript asset instead. If you believe you already have this access, ask your admin to verify your IdP group mapping.'
+
+- description: get_recording_transcript with empty types [] — fail closed, denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-mcp-get_recording_transcript
+      uri: null
+    payload:
+      name: zoom-mcp-get_recording_transcript
+      args:
+        recording_url: https://zoom.us/rec/abc
+        types: []
+    subject:
+      claims:
+        groups: []
+  output:
+    expectedResult: deny
+    expectedReason: 'Meeting transcripts, summaries, and next-steps are restricted. Retrieving them requires membership in the transcript-reader group (placeholder "zoom-transcript-readers"). Ask your workspace administrator to grant you that group, or request a non-transcript asset instead. If you believe you already have this access, ask your admin to verify your IdP group mapping.'
+
+- description: Non-sensitive asset (playback) with no passcode and no group — allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-workspace-get_recording_resource
+      uri: null
+    payload:
+      name: zoom-workspace-get_recording_resource
+      args:
+        meetingId: "8891234567"
+        types:
+          - playback
+    subject:
+      claims:
+        groups:
+          - marketing
+  output:
+    expectedResult: allow
+
+- description: raw_passcode set by a non-admin (non-sensitive types) — denied (passcode gate).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-workspace-get_recording_resource
+      uri: null
+    payload:
+      name: zoom-workspace-get_recording_resource
+      args:
+        meetingId: "8891234567"
+        types:
+          - playback
+        raw_passcode: Z00m!pass
+    subject:
+      claims:
+        groups:
+          - zoom-transcript-readers
+  output:
+    expectedResult: deny
+    expectedReason: 'Retrieving a recording passcode (raw_passcode/encode_passcode) requires membership in the recording-admin group (placeholder "zoom-admins"), because recording passcodes are shareable credentials. Ask an administrator to retrieve the passcode-protected recording for you.'
+
+- description: raw_passcode set by a recording-admin (non-sensitive types) — allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-workspace-get_recording_resource
+      uri: null
+    payload:
+      name: zoom-workspace-get_recording_resource
+      args:
+        meetingId: "8891234567"
+        types:
+          - playback
+        raw_passcode: Z00m!pass
+    subject:
+      claims:
+        groups:
+          - zoom-admins
+  output:
+    expectedResult: allow
+
+- description: encode_passcode=true by a non-admin (non-sensitive types) — denied (passcode gate).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-workspace-get_recording_resource
+      uri: null
+    payload:
+      name: zoom-workspace-get_recording_resource
+      args:
+        meetingId: "8891234567"
+        types:
+          - playback
+        encode_passcode: true
+    subject:
+      claims:
+        groups:
+          - marketing
+  output:
+    expectedResult: deny
+    expectedReason: 'Retrieving a recording passcode (raw_passcode/encode_passcode) requires membership in the recording-admin group (placeholder "zoom-admins"), because recording passcodes are shareable credentials. Ask an administrator to retrieve the passcode-protected recording for you.'
+
+- description: encode_passcode=false is not a passcode request — non-sensitive playback with no group allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-workspace-get_recording_resource
+      uri: null
+    payload:
+      name: zoom-workspace-get_recording_resource
+      args:
+        meetingId: "8891234567"
+        types:
+          - playback
+        encode_passcode: false
+    subject:
+      claims:
+        groups: []
+  output:
+    expectedResult: allow
+
+- description: Transcript reader who is not an admin sets a passcode — passcode gate still denies.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-workspace-get_recording_resource
+      uri: null
+    payload:
+      name: zoom-workspace-get_recording_resource
+      args:
+        meetingId: "8891234567"
+        types:
+          - transcript
+        raw_passcode: Z00m!pass
+    subject:
+      claims:
+        groups:
+          - zoom-transcript-readers
+  output:
+    expectedResult: deny
+    expectedReason: 'Retrieving a recording passcode (raw_passcode/encode_passcode) requires membership in the recording-admin group (placeholder "zoom-admins"), because recording passcodes are shareable credentials. Ask an administrator to retrieve the passcode-protected recording for you.'
+
+- description: Both gates fire — transcript requested AND passcode set by a caller in neither group; reasons are joined (sorted).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-workspace-get_recording_resource
+      uri: null
+    payload:
+      name: zoom-workspace-get_recording_resource
+      args:
+        meetingId: "8891234567"
+        types:
+          - transcript
+        raw_passcode: Z00m!pass
+    subject:
+      claims:
+        groups:
+          - marketing
+  output:
+    expectedResult: deny
+    expectedReason: 'Meeting transcripts, summaries, and next-steps are restricted. Retrieving them requires membership in the transcript-reader group (placeholder "zoom-transcript-readers"). Ask your workspace administrator to grant you that group, or request a non-transcript asset instead. If you believe you already have this access, ask your admin to verify your IdP group mapping.; Retrieving a recording passcode (raw_passcode/encode_passcode) requires membership in the recording-admin group (placeholder "zoom-admins"), because recording passcodes are shareable credentials. Ask an administrator to retrieve the passcode-protected recording for you.'
+
+- description: Red-team — uppercased tool name suffix still matches; transcript without group denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ZOOM-WORKSPACE-GET_RECORDING_RESOURCE
+      uri: null
+    payload:
+      name: ZOOM-WORKSPACE-GET_RECORDING_RESOURCE
+      args:
+        meetingId: "8891234567"
+        types:
+          - Transcript
+    subject:
+      claims:
+        groups: []
+  output:
+    expectedResult: deny
+    expectedReason: 'Meeting transcripts, summaries, and next-steps are restricted. Retrieving them requires membership in the transcript-reader group (placeholder "zoom-transcript-readers"). Ask your workspace administrator to grant you that group, or request a non-transcript asset instead. If you believe you already have this access, ask your admin to verify your IdP group mapping.'
+
+- description: Red-team — types sent as a bare string rather than an array; still gated, denied without group.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-workspace-get_recording_resource
+      uri: null
+    payload:
+      name: zoom-workspace-get_recording_resource
+      args:
+        meetingId: "8891234567"
+        types: transcript
+    subject:
+      claims:
+        groups: []
+  output:
+    expectedResult: deny
+    expectedReason: 'Meeting transcripts, summaries, and next-steps are restricted. Retrieving them requires membership in the transcript-reader group (placeholder "zoom-transcript-readers"). Ask your workspace administrator to grant you that group, or request a non-transcript asset instead. If you believe you already have this access, ask your admin to verify your IdP group mapping.'
+
+- description: Red-team — subject/claims entirely absent; sensitive request fails closed (denied).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-workspace-get_meeting_assets
+      uri: null
+    payload:
+      name: zoom-workspace-get_meeting_assets
+      args:
+        meetingId: "8891234567"
+  output:
+    expectedResult: deny
+    expectedReason: 'Meeting transcripts, summaries, and next-steps are restricted. Retrieving them requires membership in the transcript-reader group (placeholder "zoom-transcript-readers"). Ask your workspace administrator to grant you that group, or request a non-transcript asset instead. If you believe you already have this access, ask your admin to verify your IdP group mapping.'
+
+- description: Red-team — colliding generic tool name from a different (calendar) server is not guarded; allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-calendar-get_meetings
+      uri: null
+    payload:
+      name: google-calendar-get_meetings
+      args: {}
+    subject:
+      claims:
+        groups: []
+  output:
+    expectedResult: allow
+
+- description: Red-team bypass — comma-joined single-string types "transcript,summary" is tokenized and gated; denied without group.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-workspace-get_recording_resource
+      uri: null
+    payload:
+      name: zoom-workspace-get_recording_resource
+      args:
+        meetingId: "8891234567"
+        types: transcript,summary
+    subject:
+      claims:
+        groups:
+          - marketing
+  output:
+    expectedResult: deny
+    expectedReason: 'Meeting transcripts, summaries, and next-steps are restricted. Retrieving them requires membership in the transcript-reader group (placeholder "zoom-transcript-readers"). Ask your workspace administrator to grant you that group, or request a non-transcript asset instead. If you believe you already have this access, ask your admin to verify your IdP group mapping.'
+
+- description: Red-team bypass — space-joined single-string types "playback transcript" still gated (transcript token present); denied without group.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-workspace-get_recording_resource
+      uri: null
+    payload:
+      name: zoom-workspace-get_recording_resource
+      args:
+        meetingId: "8891234567"
+        types: playback transcript
+    subject:
+      claims:
+        groups: []
+  output:
+    expectedResult: deny
+    expectedReason: 'Meeting transcripts, summaries, and next-steps are restricted. Retrieving them requires membership in the transcript-reader group (placeholder "zoom-transcript-readers"). Ask your workspace administrator to grant you that group, or request a non-transcript asset instead. If you believe you already have this access, ask your admin to verify your IdP group mapping.'
+
+- description: Red-team bypass — whitespace-padded array element " transcript" is trimmed and gated; denied without group.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-workspace-get_recording_resource
+      uri: null
+    payload:
+      name: zoom-workspace-get_recording_resource
+      args:
+        meetingId: "8891234567"
+        types:
+          - " transcript"
+    subject:
+      claims:
+        groups: []
+  output:
+    expectedResult: deny
+    expectedReason: 'Meeting transcripts, summaries, and next-steps are restricted. Retrieving them requires membership in the transcript-reader group (placeholder "zoom-transcript-readers"). Ask your workspace administrator to grant you that group, or request a non-transcript asset instead. If you believe you already have this access, ask your admin to verify your IdP group mapping.'
+
+- description: Regression — next_steps stays intact under tokenization (underscore not split); denied without group.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-workspace-get_recording_resource
+      uri: null
+    payload:
+      name: zoom-workspace-get_recording_resource
+      args:
+        meetingId: "8891234567"
+        types: next_steps
+    subject:
+      claims:
+        groups:
+          - marketing
+  output:
+    expectedResult: deny
+    expectedReason: 'Meeting transcripts, summaries, and next-steps are restricted. Retrieving them requires membership in the transcript-reader group (placeholder "zoom-transcript-readers"). Ask your workspace administrator to grant you that group, or request a non-transcript asset instead. If you believe you already have this access, ask your admin to verify your IdP group mapping.'
+
+- description: Red-team bypass (FIXED) — decoy types:[playback] on get_meeting_assets does NOT downgrade; tool ignores the selector, so always gated; denied without group.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-workspace-get_meeting_assets
+      uri: null
+    payload:
+      name: zoom-workspace-get_meeting_assets
+      args:
+        meetingId: "8891234567"
+        types:
+          - playback
+    subject:
+      claims:
+        groups:
+          - marketing
+  output:
+    expectedResult: deny
+    expectedReason: 'Meeting transcripts, summaries, and next-steps are restricted. Retrieving them requires membership in the transcript-reader group (placeholder "zoom-transcript-readers"). Ask your workspace administrator to grant you that group, or request a non-transcript asset instead. If you believe you already have this access, ask your admin to verify your IdP group mapping.'
+
+- description: Red-team bypass (FIXED) — decoy types:[playback] on get_recording_transcript (community) does NOT downgrade; always gated; denied without group.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-mcp-get_recording_transcript
+      uri: null
+    payload:
+      name: zoom-mcp-get_recording_transcript
+      args:
+        recording_url: https://zoom.us/rec/abc
+        types:
+          - playback
+    subject:
+      claims:
+        groups: []
+  output:
+    expectedResult: deny
+    expectedReason: 'Meeting transcripts, summaries, and next-steps are restricted. Retrieving them requires membership in the transcript-reader group (placeholder "zoom-transcript-readers"). Ask your workspace administrator to grant you that group, or request a non-transcript asset instead. If you believe you already have this access, ask your admin to verify your IdP group mapping.'
+
+- description: get_meeting_assets with decoy types:[playback] BY a transcript-reader — allowed (legit access still works after the fix).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-workspace-get_meeting_assets
+      uri: null
+    payload:
+      name: zoom-workspace-get_meeting_assets
+      args:
+        meetingId: "8891234567"
+        types:
+          - playback
+    subject:
+      claims:
+        groups:
+          - zoom-transcript-readers
+  output:
+    expectedResult: allow
+
+- description: Red-team bypass (FIXED) — semicolon-delimited string "transcript;summary" the tokenizer does not split; substring match still gates it; denied without group.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-workspace-get_recording_resource
+      uri: null
+    payload:
+      name: zoom-workspace-get_recording_resource
+      args:
+        meetingId: "8891234567"
+        types: transcript;summary
+    subject:
+      claims:
+        groups: []
+  output:
+    expectedResult: deny
+    expectedReason: 'Meeting transcripts, summaries, and next-steps are restricted. Retrieving them requires membership in the transcript-reader group (placeholder "zoom-transcript-readers"). Ask your workspace administrator to grant you that group, or request a non-transcript asset instead. If you believe you already have this access, ask your admin to verify your IdP group mapping.'
+
+- description: Red-team bypass (FIXED) — pipe-delimited array element "playback|transcript" the tokenizer does not split; substring match gates it; denied with a non-reader group.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-workspace-get_recording_resource
+      uri: null
+    payload:
+      name: zoom-workspace-get_recording_resource
+      args:
+        meetingId: "8891234567"
+        types:
+          - playback|transcript
+    subject:
+      claims:
+        groups:
+          - marketing
+  output:
+    expectedResult: deny
+    expectedReason: 'Meeting transcripts, summaries, and next-steps are restricted. Retrieving them requires membership in the transcript-reader group (placeholder "zoom-transcript-readers"). Ask your workspace administrator to grant you that group, or request a non-transcript asset instead. If you believe you already have this access, ask your admin to verify your IdP group mapping.'
+
+- description: Non-sensitive delimited types "playback,playback_url" tokenized, no sensitive token, no group — allowed (guards against over-blocking).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-workspace-get_recording_resource
+      uri: null
+    payload:
+      name: zoom-workspace-get_recording_resource
+      args:
+        meetingId: "8891234567"
+        types: playback,playback_url
+    subject:
+      claims:
+        groups:
+          - marketing
+  output:
+    expectedResult: allow

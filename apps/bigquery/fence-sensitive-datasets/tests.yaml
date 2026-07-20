@@ -1,0 +1,580 @@
+- description: Uninspected tool (list_dataset_ids has no target arg) passes through.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-list_dataset_ids
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: bigquery-mcp-list_dataset_ids
+      args: {}
+  output:
+    expectedResult: allow
+
+- description: SQL against a non-regulated dataset passes for any caller.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: bigquery-mcp-execute_sql
+      args:
+        sql: SELECT id, created_at FROM analytics.events LIMIT 10
+  output:
+    expectedResult: allow
+
+- description: Cleared caller queries a phi_ dataset — allowed (has clinical-data group).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql
+      uri: null
+    subject:
+      sub: google-apps|nurse@example.com
+      claims:
+        groups:
+          - clinical-data
+    payload:
+      name: bigquery-mcp-execute_sql
+      args:
+        sql: SELECT patient_id, visit_date FROM phi_records.encounters WHERE patient_id = 42
+  output:
+    expectedResult: allow
+
+- description: Uncleared caller references a phi_ dataset in SQL — denied, PHI reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: bigquery-mcp-execute_sql
+      args:
+        sql: SELECT patient_id FROM phi_records.encounters
+  output:
+    expectedResult: deny
+    expectedReason: "Access to the protected health information (PHI) data domain (BigQuery dataset prefix 'phi_') requires membership in the 'clinical-data' IdP group, which your identity does not carry. Request the 'clinical-data' group from your data-governance owner and retry; if you believe this dataset is misclassified, contact your data platform team."
+
+- description: Uncleared caller references a finance_ dataset in the query arg — denied, financial reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-community-query
+      uri: null
+    subject:
+      sub: google-apps|analyst@example.com
+      claims:
+        groups:
+          - data-privacy
+    payload:
+      name: bigquery-community-query
+      args:
+        query: SELECT amount FROM finance_ledger.gl WHERE period = '2026Q1'
+  output:
+    expectedResult: deny
+    expectedReason: "Access to the financial data domain (BigQuery dataset prefix 'finance_') requires membership in the 'finance' IdP group, which your identity does not carry. Request the 'finance' group from your data-governance owner and retry; if you believe this dataset is misclassified, contact your data platform team."
+
+- description: Project-qualified pii_ dataset reference in SQL, uncleared caller — denied (\b matches after the dot).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute-query
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: bigquery-mcp-execute-query
+      args:
+        sql: SELECT email FROM myproj.pii_customers.profiles WHERE id = 5
+  output:
+    expectedResult: deny
+    expectedReason: "Access to the personal data (PII) data domain (BigQuery dataset prefix 'pii_') requires membership in the 'data-privacy' IdP group, which your identity does not carry. Request the 'data-privacy' group from your data-governance owner and retry; if you believe this dataset is misclassified, contact your data platform team."
+
+- description: Metadata recon (get_dataset_info) on a pii_ dataset, uncleared caller — denied before any SELECT.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-get_dataset_info
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: bigquery-mcp-get_dataset_info
+      args:
+        dataset_id: pii_customers
+  output:
+    expectedResult: deny
+    expectedReason: "Access to the personal data (PII) data domain (BigQuery dataset prefix 'pii_') requires membership in the 'data-privacy' IdP group, which your identity does not carry. Request the 'data-privacy' group from your data-governance owner and retry; if you believe this dataset is misclassified, contact your data platform team."
+
+- description: Metadata get_table_info on a qualified phi_ table_id, cleared caller — allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-get_table_info
+      uri: null
+    subject:
+      sub: google-apps|nurse@example.com
+      claims:
+        groups:
+          - clinical-data
+    payload:
+      name: bigquery-mcp-get_table_info
+      args:
+        dataset_id: phi_records
+        table_id: phi_records.labs
+  output:
+    expectedResult: allow
+
+- description: describe-table on a qualified finance_ table_id, uncleared caller — denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-lucas-describe-table
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: bigquery-lucas-describe-table
+      args:
+        table_id: finance_gl.journal
+  output:
+    expectedResult: deny
+    expectedReason: "Access to the financial data domain (BigQuery dataset prefix 'finance_') requires membership in the 'finance' IdP group, which your identity does not carry. Request the 'finance' group from your data-governance owner and retry; if you believe this dataset is misclassified, contact your data platform team."
+
+- description: list-tables on a pii_ dataset with the matching data-privacy group — allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-lucas-list-tables
+      uri: null
+    subject:
+      sub: google-apps|privacy@example.com
+      claims:
+        groups:
+          - data-privacy
+    payload:
+      name: bigquery-lucas-list-tables
+      args:
+        dataset_id: pii_events
+  output:
+    expectedResult: allow
+
+- description: Fail closed — caller has no subject/claims at all, phi_ SQL is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql
+      uri: null
+    payload:
+      name: bigquery-mcp-execute_sql
+      args:
+        sql: SELECT patient_id FROM phi_records.encounters
+  output:
+    expectedResult: deny
+    expectedReason: "Access to the protected health information (PHI) data domain (BigQuery dataset prefix 'phi_') requires membership in the 'clinical-data' IdP group, which your identity does not carry. Request the 'clinical-data' group from your data-governance owner and retry; if you believe this dataset is misclassified, contact your data platform team."
+
+- description: Wrong-domain group — caller holds finance but queries a phi_ dataset — denied (needs clinical-data).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql
+      uri: null
+    subject:
+      sub: google-apps|acct@example.com
+      claims:
+        groups:
+          - finance
+    payload:
+      name: bigquery-mcp-execute_sql
+      args:
+        sql: SELECT patient_id FROM phi_records.encounters
+  output:
+    expectedResult: deny
+    expectedReason: "Access to the protected health information (PHI) data domain (BigQuery dataset prefix 'phi_') requires membership in the 'clinical-data' IdP group, which your identity does not carry. Request the 'clinical-data' group from your data-governance owner and retry; if you believe this dataset is misclassified, contact your data platform team."
+
+- description: Case-insensitive — uppercase PHI_ dataset reference is still fenced for an uncleared caller.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: bigquery-mcp-execute_sql
+      args:
+        sql: SELECT * FROM PHI_Patients.records
+  output:
+    expectedResult: deny
+    expectedReason: "Access to the protected health information (PHI) data domain (BigQuery dataset prefix 'phi_') requires membership in the 'clinical-data' IdP group, which your identity does not carry. Request the 'clinical-data' group from your data-governance owner and retry; if you believe this dataset is misclassified, contact your data platform team."
+
+- description: Malformed groups claim (a string, not an array) fails closed on a fenced domain.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-get_dataset_info
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups: data-privacy
+    payload:
+      name: bigquery-mcp-get_dataset_info
+      args:
+        dataset_id: pii_customers
+  output:
+    expectedResult: deny
+    expectedReason: "Access to the personal data (PII) data domain (BigQuery dataset prefix 'pii_') requires membership in the 'data-privacy' IdP group, which your identity does not carry. Request the 'data-privacy' group from your data-governance owner and retry; if you believe this dataset is misclassified, contact your data platform team."
+
+- description: Multiple fenced domains in one query, no clearing groups — denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: bigquery-mcp-execute_sql
+      args:
+        sql: SELECT a.patient_id, b.amount FROM phi_records.encounters a JOIN finance_ledger.gl b USING (id)
+  output:
+    expectedResult: deny
+
+- description: Inspected SQL tool called with no target text — nothing fenced is referenced, so it passes.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: bigquery-mcp-execute_sql
+      args:
+        sql: SELECT 1
+  output:
+    expectedResult: allow
+
+# --- Red-team cases (reviewer) ---
+
+- description: "Red-team (documented gap): ask_data_insights references a phi_ table but is not an inspected suffix, so it passes through — AI-analytics path is out of scope (see Known limitations; use gate-ai-analytics)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-toolbox-ask_data_insights
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: bigquery-toolbox-ask_data_insights
+      args:
+        table_references:
+          - phi_records.encounters
+        question: summarize recent encounters
+  output:
+    expectedResult: allow
+
+- description: "Red-team (fixed): describe-table using the community alias key 'table' (not table_id) on a finance_ dataset is now fenced for an uncleared caller."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-lucas-describe-table
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: bigquery-lucas-describe-table
+      args:
+        table: finance_gl.journal
+  output:
+    expectedResult: deny
+    expectedReason: "Access to the financial data domain (BigQuery dataset prefix 'finance_') requires membership in the 'finance' IdP group, which your identity does not carry. Request the 'finance' group from your data-governance owner and retry; if you believe this dataset is misclassified, contact your data platform team."
+
+- description: "Red-team (regex edge): backtick-quoted phi_ dataset reference is still fenced (\\b matches after a backtick) for an uncleared caller."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: bigquery-mcp-execute_sql
+      args:
+        sql: "SELECT patient_id FROM `phi_records`.encounters"
+  output:
+    expectedResult: deny
+    expectedReason: "Access to the protected health information (PHI) data domain (BigQuery dataset prefix 'phi_') requires membership in the 'clinical-data' IdP group, which your identity does not carry. Request the 'clinical-data' group from your data-governance owner and retry; if you believe this dataset is misclassified, contact your data platform team."
+
+- description: "Red-team (regex edge): a newline between project and a finance_ dataset still matches the boundary anchor — denied for an uncleared caller."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: bigquery-mcp-execute_sql
+      args:
+        sql: "SELECT amount FROM myproj.\nfinance_ledger.gl"
+  output:
+    expectedResult: deny
+    expectedReason: "Access to the financial data domain (BigQuery dataset prefix 'finance_') requires membership in the 'finance' IdP group, which your identity does not carry. Request the 'finance' group from your data-governance owner and retry; if you believe this dataset is misclassified, contact your data platform team."
+
+- description: "Red-team (documented over-block): a benign column literally starting with a fenced prefix (phi_flag) produces a conservative fail-safe denial for an uncleared caller — accepted behavior, enforce the naming convention."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: bigquery-mcp-execute_sql
+      args:
+        sql: SELECT phi_flag FROM public.summary
+  output:
+    expectedResult: deny
+    expectedReason: "Access to the protected health information (PHI) data domain (BigQuery dataset prefix 'phi_') requires membership in the 'clinical-data' IdP group, which your identity does not carry. Request the 'clinical-data' group from your data-governance owner and retry; if you believe this dataset is misclassified, contact your data platform team."
+
+- description: "Red-team (fixed): read-only SELECT of a phi_ dataset via execute_sql_readonly, uncleared caller — now fenced (readonly bulk-reads regulated data just like execute_sql)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql_readonly
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: bigquery-mcp-execute_sql_readonly
+      args:
+        sql: SELECT patient_id FROM phi_records.encounters
+  output:
+    expectedResult: deny
+    expectedReason: "Access to the protected health information (PHI) data domain (BigQuery dataset prefix 'phi_') requires membership in the 'clinical-data' IdP group, which your identity does not carry. Request the 'clinical-data' group from your data-governance owner and retry; if you believe this dataset is misclassified, contact your data platform team."
+
+- description: "Read-only fence does not over-block a cleared caller: execute_sql_readonly on a phi_ dataset with clinical-data group is allowed."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql_readonly
+      uri: null
+    subject:
+      sub: google-apps|nurse@example.com
+      claims:
+        groups:
+          - clinical-data
+    payload:
+      name: bigquery-mcp-execute_sql_readonly
+      args:
+        sql: SELECT patient_id FROM phi_records.encounters
+  output:
+    expectedResult: allow
+
+- description: "Red-team (fixed): SQL query tool carrying the query under a divergent key ('statement', not sql/query) on a phi_ dataset — now fenced because all string args are scanned, no longer fail-open."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: bigquery-mcp-execute_sql
+      args:
+        statement: SELECT patient_id FROM phi_records.encounters
+  output:
+    expectedResult: deny
+    expectedReason: "Access to the protected health information (PHI) data domain (BigQuery dataset prefix 'phi_') requires membership in the 'clinical-data' IdP group, which your identity does not carry. Request the 'clinical-data' group from your data-governance owner and retry; if you believe this dataset is misclassified, contact your data platform team."
+
+- description: "Red-team (documented gap): search_catalog (MCP Toolbox Dataplex catalog search) referencing a phi_ dataset is not an inspected suffix, so it passes through — catalog-recon path is out of scope (see Known limitations; use block-schema-recon / gate-ai-analytics)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-toolbox-search_catalog
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: bigquery-toolbox-search_catalog
+      args:
+        query: phi_records
+  output:
+    expectedResult: allow
+
+- description: "Red-team (documented gap): a SQL tool carrying its query in a NESTED object (args.query.sql, non-string top-level value) references a phi_ dataset but contributes no scanned text, so the call passes fail-open — residual for an unverified nested-arg server (see Known limitations)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: bigquery-mcp-execute_sql
+      args:
+        query:
+          sql: SELECT patient_id FROM phi_records.encounters
+  output:
+    expectedResult: allow
+
+- description: "Red-team (documented gap): region-wide INFORMATION_SCHEMA enumeration lists dataset names without a literal fenced-prefix table reference, so the boundary-anchored detection does not fire and the call passes — recon residual for a block-schema-recon companion (see Known limitations)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: bigquery-mcp-execute_sql
+      args:
+        sql: "SELECT schema_name FROM `region-us`.INFORMATION_SCHEMA.SCHEMATA"
+  output:
+    expectedResult: allow
