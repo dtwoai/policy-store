@@ -42,7 +42,9 @@ schema.json                   # schema contract for policy markdown and manifest
 
 ### Where policy metadata lives
 
-**All policy metadata — name, description, direction, tags, apps/industries/bundles membership, schema version, and minimum gateway version — lives in each policy's `policy.md` frontmatter.** The generated `manifest.json` is the machine-readable index; do not edit it by hand except through the manifest generator.
+**All policy metadata — name, description, direction, tags, apps/industries/bundles membership, experimental status, schema version, and minimum gateway version — lives in each policy's `policy.md` frontmatter.** The generated `manifest.json` is the machine-readable index; do not edit it by hand except through the manifest generator.
+
+A policy may be marked **experimental** with `experimental: true` in its frontmatter. An experimental policy is a reviewed starting point that has not been manually validated against a test setup of the app — it compiles and passes its unit tests, but confirm it behaves as intended against your instance of the app before relying on it. The field is optional and defaults to `false`; the generated `manifest.json` always carries an explicit `experimental` boolean so downstream consumers can filter or badge on it.
 
 A policy declares its grouping by listing app/industry/bundle slugs in its frontmatter (e.g. `bundles: ["im-messaging"]`). The same policy can belong to multiple apps, industries, and bundles without being duplicated.
 
