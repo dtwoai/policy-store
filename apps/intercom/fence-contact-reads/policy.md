@@ -222,6 +222,7 @@ bundles:
   - hipaa
   - pci-dss
   - gdpr-ccpa
+experimental: true
 schemaVersion: 1.0.0
 minimumGatewayVersion: 1.0.0b24
 ---

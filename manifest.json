@@ -13,6 +13,7 @@
         "soc2",
         "gdpr-ccpa"
       ],
+      "experimental": true,
       "tags": [
         "airtable",
         "cap-bulk-export",
@@ -36,6 +37,7 @@
       "bundles": [
         "soc2"
       ],
+      "experimental": true,
       "tags": [
         "airtable",
         "default-deny-unknown-tools",
@@ -60,6 +62,7 @@
         "soc2",
         "gdpr-ccpa"
       ],
+      "experimental": true,
       "tags": [
         "airtable",
         "fence-sensitive-scopes",
@@ -83,6 +86,7 @@
       "bundles": [
         "soc2"
       ],
+      "experimental": true,
       "tags": [
         "airtable",
         "freeze-destructive-ops",
@@ -107,6 +111,7 @@
         "soc2",
         "gdpr-ccpa"
       ],
+      "experimental": true,
       "tags": [
         "airtable",
         "redact-pii",
@@ -133,6 +138,7 @@
       "bundles": [
         "soc2"
       ],
+      "experimental": true,
       "tags": [
         "asana",
         "cap-bulk-export",
@@ -157,6 +163,7 @@
         "soc2",
         "gdpr-ccpa"
       ],
+      "experimental": true,
       "tags": [
         "asana",
         "fence-sensitive-scopes",
@@ -180,6 +187,7 @@
       "bundles": [
         "soc2"
       ],
+      "experimental": true,
       "tags": [
         "asana",
         "freeze-destructive-ops",
@@ -204,6 +212,7 @@
         "soc2",
         "gdpr-ccpa"
       ],
+      "experimental": true,
       "tags": [
         "asana",
         "redact-pii",
@@ -230,6 +239,7 @@
       "bundles": [
         "soc2"
       ],
+      "experimental": true,
       "tags": [
         "bigquery",
         "default-deny-unknown-tools",
@@ -257,6 +267,7 @@
         "pci-dss",
         "gdpr-ccpa"
       ],
+      "experimental": true,
       "tags": [
         "bigquery",
         "fence-sensitive-scopes",
@@ -285,6 +296,7 @@
         "pci-dss",
         "gdpr-ccpa"
       ],
+      "experimental": true,
       "tags": [
         "bigquery",
         "guard-warehouse-export",
@@ -313,6 +325,7 @@
         "pci-dss",
         "sox"
       ],
+      "experimental": true,
       "tags": [
         "bigquery",
         "guard-warehouse-sql",
@@ -341,6 +354,7 @@
         "hipaa",
         "gdpr-ccpa"
       ],
+      "experimental": true,
       "tags": [
         "bigquery",
         "redact-pii",
@@ -370,6 +384,7 @@
         "hipaa",
         "gdpr-ccpa"
       ],
+      "experimental": true,
       "tags": [
         "box",
         "fence-sensitive-scopes",
@@ -394,6 +409,7 @@
       "bundles": [
         "soc2"
       ],
+      "experimental": true,
       "tags": [
         "box",
         "freeze-destructive-ops",
@@ -418,6 +434,7 @@
         "hipaa",
         "gdpr-ccpa"
       ],
+      "experimental": true,
       "tags": [
         "box",
         "guard-share-links",
@@ -446,6 +463,7 @@
         "hipaa",
         "gdpr-ccpa"
       ],
+      "experimental": true,
       "tags": [
         "box",
         "redact-pii",
@@ -475,6 +493,7 @@
         "soc2",
         "gdpr-ccpa"
       ],
+      "experimental": true,
       "tags": [
         "box",
         "role-gate-writes",
@@ -501,6 +520,7 @@
         "atlassian",
         "soc2"
       ],
+      "experimental": true,
       "tags": [
         "confluence",
         "secrets",
@@ -527,6 +547,7 @@
         "soc2",
         "gdpr-ccpa"
       ],
+      "experimental": true,
       "tags": [
         "confluence",
         "atlassian",
@@ -558,6 +579,7 @@
         "hipaa",
         "gdpr-ccpa"
       ],
+      "experimental": true,
       "tags": [
         "confluence",
         "atlassian",
@@ -585,6 +607,7 @@
         "atlassian",
         "soc2"
       ],
+      "experimental": true,
       "tags": [
         "confluence",
         "atlassian",
@@ -612,6 +635,7 @@
         "gdpr-ccpa",
         "atlassian"
       ],
+      "experimental": true,
       "tags": [
         "confluence",
         "atlassian",
@@ -640,6 +664,7 @@
       "bundles": [
         "soc2"
       ],
+      "experimental": true,
       "tags": [
         "databricks",
         "default-deny-unknown-tools",
@@ -667,6 +692,7 @@
         "pci-dss",
         "gdpr-ccpa"
       ],
+      "experimental": true,
       "tags": [
         "databricks",
         "fence-sensitive-scopes",
@@ -694,6 +720,7 @@
         "pci-dss",
         "sox"
       ],
+      "experimental": true,
       "tags": [
         "databricks",
         "guard-warehouse-sql",
@@ -722,6 +749,7 @@
         "pci-dss",
         "gdpr-ccpa"
       ],
+      "experimental": true,
       "tags": [
         "databricks",
         "mask-pan-egress",
@@ -750,6 +778,7 @@
         "hipaa",
         "gdpr-ccpa"
       ],
+      "experimental": true,
       "tags": [
         "databricks",
         "redact-pii",
@@ -777,6 +806,7 @@
       "bundles": [
         "soc2"
       ],
+      "experimental": true,
       "tags": [
         "databricks",
         "role-gate-writes",
@@ -802,6 +832,7 @@
         "soc2",
         "gdpr-ccpa"
       ],
+      "experimental": true,
       "tags": [
         "docusign",
         "cap-bulk-export",
@@ -825,6 +856,7 @@
       ],
       "industries": [],
       "bundles": [],
+      "experimental": true,
       "tags": [
         "docusign",
         "force-draft-envelopes",
@@ -848,6 +880,7 @@
       "bundles": [
         "soc2"
       ],
+      "experimental": true,
       "tags": [
         "docusign",
         "freeze-destructive-ops",
@@ -871,6 +904,7 @@
         "soc2",
         "gdpr-ccpa"
       ],
+      "experimental": true,
       "tags": [
         "docusign",
         "guard-external-send",
@@ -895,6 +929,7 @@
         "soc2",
         "gdpr-ccpa"
       ],
+      "experimental": true,
       "tags": [
         "docusign",
         "redact-pii",
@@ -926,6 +961,7 @@
         "hipaa",
         "gdpr-ccpa"
       ],
+      "experimental": true,
       "tags": [
         "dropbox",
         "fence-sensitive-scopes",
@@ -950,6 +986,7 @@
       "bundles": [
         "soc2"
       ],
+      "experimental": true,
       "tags": [
         "dropbox",
         "freeze-destructive-ops",
@@ -974,6 +1011,7 @@
         "hipaa",
         "gdpr-ccpa"
       ],
+      "experimental": true,
       "tags": [
         "dropbox",
         "guard-share-links",
@@ -1002,6 +1040,7 @@
         "hipaa",
         "gdpr-ccpa"
       ],
+      "experimental": true,
       "tags": [
         "dropbox",
         "redact-content",
@@ -1032,6 +1071,7 @@
         "soc2",
         "gdpr-ccpa"
       ],
+      "experimental": true,
       "tags": [
         "dropbox",
         "role-gate-writes",
@@ -1057,6 +1097,7 @@
       "bundles": [
         "soc2"
       ],
+      "experimental": true,
       "tags": [
         "github",
         "secrets",
@@ -1080,6 +1121,7 @@
       "bundles": [
         "soc2"
       ],
+      "experimental": true,
       "tags": [
         "github",
         "deny-public-exposure",
@@ -1105,6 +1147,7 @@
       "bundles": [
         "soc2"
       ],
+      "experimental": true,
       "tags": [
         "github",
         "fence-sensitive-scopes",
@@ -1129,6 +1172,7 @@
       "bundles": [
         "soc2"
       ],
+      "experimental": true,
       "tags": [
         "github",
         "redact-secrets",
@@ -1155,6 +1199,7 @@
         "soc2",
         "sox"
       ],
+      "experimental": true,
       "tags": [
         "github",
         "require-human-approval",
@@ -1179,6 +1224,7 @@
         "soc2",
         "sox"
       ],
+      "experimental": true,
       "tags": [
         "github",
         "role-gate-writes",
@@ -1204,6 +1250,7 @@
         "hipaa",
         "gdpr-ccpa"
       ],
+      "experimental": true,
       "tags": [
         "glean",
         "cap-bulk-export",
@@ -1229,6 +1276,7 @@
       "bundles": [
         "soc2"
       ],
+      "experimental": true,
       "tags": [
         "glean",
         "default-deny-unknown-tools",
@@ -1255,6 +1303,7 @@
         "hipaa",
         "gdpr-ccpa"
       ],
+      "experimental": true,
       "tags": [
         "glean",
         "fence-sensitive-scopes",
@@ -1281,6 +1330,7 @@
       "bundles": [
         "soc2"
       ],
+      "experimental": true,
       "tags": [
         "glean",
         "gate-memory-writes",
@@ -1309,6 +1359,7 @@
         "hipaa",
         "gdpr-ccpa"
       ],
+      "experimental": true,
       "tags": [
         "glean",
         "redact-pii",
@@ -1338,6 +1389,7 @@
         "hipaa",
         "gdpr-ccpa"
       ],
+      "experimental": true,
       "tags": [
         "gmail",
         "cap-bulk-export",
@@ -1363,6 +1415,7 @@
       "bundles": [
         "soc2"
       ],
+      "experimental": true,
       "tags": [
         "gmail",
         "freeze-destructive-ops",
@@ -1388,6 +1441,7 @@
         "hipaa",
         "gdpr-ccpa"
       ],
+      "experimental": true,
       "tags": [
         "gmail",
         "guard-external-send",
@@ -1413,6 +1467,7 @@
       "bundles": [
         "soc2"
       ],
+      "experimental": true,
       "tags": [
         "gmail",
         "guard-mailbox-persistence",
@@ -1439,6 +1494,7 @@
         "pci-dss",
         "gdpr-ccpa"
       ],
+      "experimental": true,
       "tags": [
         "gmail",
         "mask-pan-egress",
@@ -1467,6 +1523,7 @@
         "soc2",
         "gdpr-ccpa"
       ],
+      "experimental": true,
       "tags": [
         "gmail",
         "role-gate-writes",
@@ -1492,6 +1549,7 @@
       "bundles": [
         "soc2"
       ],
+      "experimental": true,
       "tags": [
         "google-calendar",
         "freeze-destructive-ops",
@@ -1517,6 +1575,7 @@
         "hipaa",
         "gdpr-ccpa"
       ],
+      "experimental": true,
       "tags": [
         "google-calendar",
         "guard-external-send",
@@ -1543,6 +1602,7 @@
         "soc2",
         "gdpr-ccpa"
       ],
+      "experimental": true,
       "tags": [
         "google-calendar",
         "guard-public-exposure",
@@ -1568,6 +1628,7 @@
         "hipaa",
         "gdpr-ccpa"
       ],
+      "experimental": true,
       "tags": [
         "google-calendar",
         "redact-pii",
@@ -1598,6 +1659,7 @@
         "hipaa",
         "gdpr-ccpa"
       ],
+      "experimental": true,
       "tags": [
         "google-drive",
         "cap-bulk-export",
@@ -1625,6 +1687,7 @@
         "hipaa",
         "gdpr-ccpa"
       ],
+      "experimental": true,
       "tags": [
         "google-drive",
         "fence-restricted-folders",
@@ -1650,6 +1713,7 @@
       "bundles": [
         "soc2"
       ],
+      "experimental": true,
       "tags": [
         "google-drive",
         "freeze-destructive-ops",
@@ -1673,6 +1737,7 @@
       "bundles": [
         "soc2"
       ],
+      "experimental": true,
       "tags": [
         "google-drive",
         "guard-share-links",
@@ -1699,6 +1764,7 @@
         "hipaa",
         "gdpr-ccpa"
       ],
+      "experimental": true,
       "tags": [
         "google-drive",
         "redact-pii",
@@ -1727,6 +1793,7 @@
         "soc2",
         "gdpr-ccpa"
       ],
+      "experimental": true,
       "tags": [
         "google-drive",
         "role-gate-writes",
@@ -1752,6 +1819,7 @@
         "gdpr-ccpa",
         "soc2"
       ],
+      "experimental": true,
       "tags": [
         "gusto",
         "cap-bulk-export",
@@ -1777,6 +1845,7 @@
       "bundles": [
         "soc2"
       ],
+      "experimental": true,
       "tags": [
         "gusto",
         "default-deny-unknown-tools",
@@ -1801,6 +1870,7 @@
         "soc2",
         "gdpr-ccpa"
       ],
+      "experimental": true,
       "tags": [
         "gusto",
         "fence-hr-and-credit-scope",
@@ -1824,6 +1894,7 @@
       ],
       "industries": [],
       "bundles": [],
+      "experimental": true,
       "tags": [
         "gusto",
         "freeze-destructive-ops",
@@ -1846,6 +1917,7 @@
         "soc2",
         "gdpr-ccpa"
       ],
+      "experimental": true,
       "tags": [
         "gusto",
         "redact-pii-egress",
@@ -1902,6 +1974,7 @@
         "pci-dss",
         "gdpr-ccpa"
       ],
+      "experimental": true,
       "tags": [
         "hubspot",
         "cap-bulk-export",
@@ -1930,6 +2003,7 @@
         "crm",
         "soc2"
       ],
+      "experimental": true,
       "tags": [
         "hubspot",
         "freeze-destructive-ops",
@@ -2086,6 +2160,7 @@
         "crm",
         "soc2"
       ],
+      "experimental": true,
       "tags": [
         "hubspot",
         "role-gate-schema-consent",
@@ -2114,6 +2189,7 @@
         "soc2",
         "gdpr-ccpa"
       ],
+      "experimental": true,
       "tags": [
         "hubspot",
         "role-gate-writes",
@@ -2142,6 +2218,7 @@
         "pci-dss",
         "gdpr-ccpa"
       ],
+      "experimental": true,
       "tags": [
         "intercom",
         "cap-bulk-export",
@@ -2169,6 +2246,7 @@
       "bundles": [
         "soc2"
       ],
+      "experimental": true,
       "tags": [
         "intercom",
         "deny-public-exposure",
@@ -2198,6 +2276,7 @@
         "pci-dss",
         "gdpr-ccpa"
       ],
+      "experimental": true,
       "tags": [
         "intercom",
         "fence-sensitive-scopes",
@@ -2227,6 +2306,7 @@
         "pci-dss",
         "gdpr-ccpa"
       ],
+      "experimental": true,
       "tags": [
         "intercom",
         "mask-pan-egress",
@@ -2255,6 +2335,7 @@
         "hipaa",
         "gdpr-ccpa"
       ],
+      "experimental": true,
       "tags": [
         "intercom",
         "redact-pii",
@@ -2284,6 +2365,7 @@
         "gdpr-ccpa",
         "atlassian"
       ],
+      "experimental": true,
       "tags": [
         "jira",
         "atlassian",
@@ -2310,6 +2392,7 @@
         "atlassian",
         "soc2"
       ],
+      "experimental": true,
       "tags": [
         "jira",
         "atlassian",
@@ -2395,6 +2478,7 @@
         "soc2",
         "atlassian"
       ],
+      "experimental": true,
       "tags": [
         "jira",
         "force-internal-comments",
@@ -2422,6 +2506,7 @@
         "atlassian",
         "soc2"
       ],
+      "experimental": true,
       "tags": [
         "jira",
         "atlassian",
@@ -2480,6 +2565,7 @@
         "soc2",
         "gdpr-ccpa"
       ],
+      "experimental": true,
       "tags": [
         "jira",
         "atlassian",
@@ -2506,6 +2592,7 @@
       "bundles": [
         "soc2"
       ],
+      "experimental": true,
       "tags": [
         "linear",
         "default-deny-unknown-tools",
@@ -2529,6 +2616,7 @@
       "bundles": [
         "soc2"
       ],
+      "experimental": true,
       "tags": [
         "linear",
         "fence-sensitive-scopes",
@@ -2552,6 +2640,7 @@
       "bundles": [
         "soc2"
       ],
+      "experimental": true,
       "tags": [
         "linear",
         "freeze-destructive-ops",
@@ -2575,6 +2664,7 @@
       "bundles": [
         "soc2"
       ],
+      "experimental": true,
       "tags": [
         "linear",
         "guard-webhook-persistence",
@@ -2600,6 +2690,7 @@
         "gdpr-ccpa",
         "soc2"
       ],
+      "experimental": true,
       "tags": [
         "linear",
         "redact-pii",
@@ -2626,6 +2717,7 @@
       "bundles": [
         "soc2"
       ],
+      "experimental": true,
       "tags": [
         "monday",
         "default-deny-unknown-tools",
@@ -2650,6 +2742,7 @@
         "soc2",
         "gdpr-ccpa"
       ],
+      "experimental": true,
       "tags": [
         "monday",
         "fence-sensitive-scopes",
@@ -2673,6 +2766,7 @@
       "bundles": [
         "soc2"
       ],
+      "experimental": true,
       "tags": [
         "monday",
         "freeze-destructive-ops",
@@ -2696,6 +2790,7 @@
       "bundles": [
         "soc2"
       ],
+      "experimental": true,
       "tags": [
         "monday",
         "constrain-aggregator",
@@ -2719,6 +2814,7 @@
         "soc2",
         "gdpr-ccpa"
       ],
+      "experimental": true,
       "tags": [
         "monday",
         "redact-pii",
@@ -2745,6 +2841,7 @@
       "bundles": [
         "soc2"
       ],
+      "experimental": true,
       "tags": [
         "ms365",
         "deny-escape-hatches",
@@ -2769,6 +2866,7 @@
         "sox",
         "soc2"
       ],
+      "experimental": true,
       "tags": [
         "ms365",
         "freeze-destructive-ops",
@@ -2793,6 +2891,7 @@
       "bundles": [
         "soc2"
       ],
+      "experimental": true,
       "tags": [
         "ms365",
         "freeze-identity-plane",
@@ -2821,6 +2920,7 @@
         "hipaa",
         "gdpr-ccpa"
       ],
+      "experimental": true,
       "tags": [
         "ms365",
         "guard-external-send",
@@ -2847,6 +2947,7 @@
       "bundles": [
         "soc2"
       ],
+      "experimental": true,
       "tags": [
         "ms365",
         "guard-mailbox-persistence",
@@ -2874,6 +2975,7 @@
         "hipaa",
         "gdpr-ccpa"
       ],
+      "experimental": true,
       "tags": [
         "ms365",
         "share-links",
@@ -2902,6 +3004,7 @@
         "hipaa",
         "gdpr-ccpa"
       ],
+      "experimental": true,
       "tags": [
         "ms365",
         "redact-pii",
@@ -2931,6 +3034,7 @@
         "gdpr-ccpa",
         "sox"
       ],
+      "experimental": true,
       "tags": [
         "ms365",
         "role-gate-writes",
@@ -2958,6 +3062,7 @@
         "pci-dss",
         "gdpr-ccpa"
       ],
+      "experimental": true,
       "tags": [
         "netsuite",
         "cap-bulk-export",
@@ -2984,6 +3089,7 @@
       "bundles": [
         "soc2"
       ],
+      "experimental": true,
       "tags": [
         "netsuite",
         "default-deny-unknown-tools",
@@ -3009,6 +3115,7 @@
         "gdpr-ccpa",
         "soc2"
       ],
+      "experimental": true,
       "tags": [
         "netsuite",
         "fence-sensitive-scopes",
@@ -3032,6 +3139,7 @@
       "bundles": [
         "sox"
       ],
+      "experimental": true,
       "tags": [
         "netsuite",
         "guard-vendor-banking",
@@ -3054,6 +3162,7 @@
       "bundles": [
         "sox"
       ],
+      "experimental": true,
       "tags": [
         "netsuite",
         "protect-closed-periods",
@@ -3077,6 +3186,7 @@
         "gdpr-ccpa",
         "soc2"
       ],
+      "experimental": true,
       "tags": [
         "netsuite",
         "redact-pii",
@@ -3104,6 +3214,7 @@
       "bundles": [
         "soc2"
       ],
+      "experimental": true,
       "tags": [
         "notion",
         "constrain-aggregator",
@@ -3127,6 +3238,7 @@
         "soc2",
         "gdpr-ccpa"
       ],
+      "experimental": true,
       "tags": [
         "notion",
         "fence-sensitive-scopes",
@@ -3152,6 +3264,7 @@
       "bundles": [
         "soc2"
       ],
+      "experimental": true,
       "tags": [
         "notion",
         "freeze-destructive-ops",
@@ -3175,6 +3288,7 @@
       "bundles": [
         "soc2"
       ],
+      "experimental": true,
       "tags": [
         "notion",
         "guard-warehouse-sql",
@@ -3201,6 +3315,7 @@
         "hipaa",
         "gdpr-ccpa"
       ],
+      "experimental": true,
       "tags": [
         "notion",
         "redact-pii",
@@ -3228,6 +3343,7 @@
       "bundles": [
         "soc2"
       ],
+      "experimental": true,
       "tags": [
         "power-bi",
         "role-gate-writes",
@@ -3252,6 +3368,7 @@
       "bundles": [
         "soc2"
       ],
+      "experimental": true,
       "tags": [
         "power-bi",
         "default-deny-unknown-tools",
@@ -3276,6 +3393,7 @@
       "bundles": [
         "soc2"
       ],
+      "experimental": true,
       "tags": [
         "power-bi",
         "freeze-identity-plane",
@@ -3303,6 +3421,7 @@
         "soc2",
         "gdpr-ccpa"
       ],
+      "experimental": true,
       "tags": [
         "power-bi",
         "guard-warehouse-sql",
@@ -3329,6 +3448,7 @@
         "soc2",
         "gdpr-ccpa"
       ],
+      "experimental": true,
       "tags": [
         "power-bi",
         "redact-pii",
@@ -3358,6 +3478,7 @@
         "pci-dss",
         "soc2"
       ],
+      "experimental": true,
       "tags": [
         "quickbooks",
         "cap-bulk-export",
@@ -3385,6 +3506,7 @@
         "sox",
         "soc2"
       ],
+      "experimental": true,
       "tags": [
         "quickbooks",
         "freeze-destructive-ops",
@@ -3409,6 +3531,7 @@
         "sox",
         "pci-dss"
       ],
+      "experimental": true,
       "tags": [
         "quickbooks",
         "gate-money-movement",
@@ -3432,6 +3555,7 @@
       "bundles": [
         "sox"
       ],
+      "experimental": true,
       "tags": [
         "quickbooks",
         "vendor-banking",
@@ -3455,6 +3579,7 @@
       "bundles": [
         "sox"
       ],
+      "experimental": true,
       "tags": [
         "quickbooks",
         "protect-closed-periods",
@@ -3478,6 +3603,7 @@
         "gdpr-ccpa",
         "soc2"
       ],
+      "experimental": true,
       "tags": [
         "quickbooks",
         "redact-pii",
@@ -3508,6 +3634,7 @@
         "pci-dss",
         "gdpr-ccpa"
       ],
+      "experimental": true,
       "tags": [
         "salesforce",
         "cap-bulk-export",
@@ -3536,6 +3663,7 @@
         "crm",
         "soc2"
       ],
+      "experimental": true,
       "tags": [
         "salesforce",
         "deny-escape-hatches",
@@ -3561,6 +3689,7 @@
         "soc2",
         "crm"
       ],
+      "experimental": true,
       "tags": [
         "salesforce",
         "freeze-destructive-ops",
@@ -3584,7 +3713,7 @@
       "bundles": [
         "crm"
       ],
-      "experimental": false,
+      "experimental": true,
       "tags": [
         "salesforce",
         "opportunity",
@@ -3613,6 +3742,7 @@
         "soc2",
         "gdpr-ccpa"
       ],
+      "experimental": false,
       "tags": [
         "salesforce",
         "contacts",
@@ -3733,6 +3863,7 @@
         "soc2",
         "gdpr-ccpa"
       ],
+      "experimental": true,
       "tags": [
         "salesforce",
         "role-gate-writes",
@@ -3759,6 +3890,7 @@
       "bundles": [
         "soc2"
       ],
+      "experimental": true,
       "tags": [
         "servicenow",
         "default-deny-unknown-tools",
@@ -3785,6 +3917,7 @@
         "pci-dss",
         "gdpr-ccpa"
       ],
+      "experimental": true,
       "tags": [
         "servicenow",
         "fence-sensitive-tables",
@@ -3811,6 +3944,7 @@
       "bundles": [
         "soc2"
       ],
+      "experimental": true,
       "tags": [
         "servicenow",
         "force-internal-comments",
@@ -3836,6 +3970,7 @@
       "bundles": [
         "soc2"
       ],
+      "experimental": true,
       "tags": [
         "servicenow",
         "freeze-identity-plane",
@@ -3861,6 +3996,7 @@
       "bundles": [
         "soc2"
       ],
+      "experimental": true,
       "tags": [
         "servicenow",
         "require-human-approval",
@@ -3886,6 +4022,7 @@
         "soc2",
         "gdpr-ccpa"
       ],
+      "experimental": true,
       "tags": [
         "servicenow",
         "role-gate-writes",
@@ -4021,6 +4158,7 @@
         "soc2",
         "gdpr-ccpa"
       ],
+      "experimental": true,
       "tags": [
         "slack",
         "privacy",
@@ -4050,6 +4188,7 @@
         "gdpr-ccpa",
         "hipaa"
       ],
+      "experimental": true,
       "tags": [
         "slack",
         "guard-external-send",
@@ -4078,6 +4217,7 @@
         "soc2",
         "gdpr-ccpa"
       ],
+      "experimental": true,
       "tags": [
         "slack",
         "mask-pan-egress",
@@ -4106,6 +4246,7 @@
         "soc2",
         "gdpr-ccpa"
       ],
+      "experimental": true,
       "tags": [
         "slack",
         "pii",
@@ -4166,6 +4307,7 @@
         "soc2",
         "gdpr-ccpa"
       ],
+      "experimental": true,
       "tags": [
         "slack",
         "role-gate-writes",
@@ -4191,6 +4333,7 @@
       "bundles": [
         "soc2"
       ],
+      "experimental": true,
       "tags": [
         "snowflake",
         "default-deny-unknown-tools",
@@ -4215,6 +4358,7 @@
       "bundles": [
         "soc2"
       ],
+      "experimental": true,
       "tags": [
         "snowflake",
         "deny-escape-hatches",
@@ -4243,6 +4387,7 @@
         "pci-dss",
         "gdpr-ccpa"
       ],
+      "experimental": true,
       "tags": [
         "snowflake",
         "fence-sensitive-scopes",
@@ -4270,6 +4415,7 @@
         "pci-dss",
         "gdpr-ccpa"
       ],
+      "experimental": true,
       "tags": [
         "snowflake",
         "guard-warehouse-sql",
@@ -4298,6 +4444,7 @@
         "pci-dss",
         "sox"
       ],
+      "experimental": true,
       "tags": [
         "snowflake",
         "guard-warehouse-sql",
@@ -4326,6 +4473,7 @@
         "hipaa",
         "gdpr-ccpa"
       ],
+      "experimental": true,
       "tags": [
         "snowflake",
         "redact-pii",
@@ -4354,6 +4502,7 @@
         "sox",
         "soc2"
       ],
+      "experimental": true,
       "tags": [
         "stripe",
         "deny-escape-hatches",
@@ -4378,6 +4527,7 @@
         "pci-dss",
         "sox"
       ],
+      "experimental": true,
       "tags": [
         "stripe",
         "gate-money-movement",
@@ -4401,6 +4551,7 @@
       "bundles": [
         "soc2"
       ],
+      "experimental": true,
       "tags": [
         "stripe",
         "guard-share-links",
@@ -4427,6 +4578,7 @@
         "soc2",
         "gdpr-ccpa"
       ],
+      "experimental": true,
       "tags": [
         "stripe",
         "redact-pii",
@@ -4453,6 +4605,7 @@
       "bundles": [
         "sox"
       ],
+      "experimental": true,
       "tags": [
         "stripe",
         "require-human-approval",
@@ -4481,6 +4634,7 @@
         "sox",
         "gdpr-ccpa"
       ],
+      "experimental": true,
       "tags": [
         "stripe",
         "role-gate-writes",
@@ -4508,6 +4662,7 @@
       "bundles": [
         "soc2"
       ],
+      "experimental": true,
       "tags": [
         "tableau",
         "default-deny",
@@ -4533,6 +4688,7 @@
         "soc2",
         "gdpr-ccpa"
       ],
+      "experimental": true,
       "tags": [
         "tableau",
         "fence-sensitive-scopes",
@@ -4558,6 +4714,7 @@
       "bundles": [
         "soc2"
       ],
+      "experimental": true,
       "tags": [
         "tableau",
         "freeze-destructive-ops",
@@ -4581,6 +4738,7 @@
       "bundles": [
         "soc2"
       ],
+      "experimental": true,
       "tags": [
         "tableau",
         "guard-warehouse-sql",
@@ -4606,6 +4764,7 @@
         "soc2",
         "gdpr-ccpa"
       ],
+      "experimental": true,
       "tags": [
         "tableau",
         "redact-pii-egress",
@@ -4633,6 +4792,7 @@
       "bundles": [
         "soc2"
       ],
+      "experimental": true,
       "tags": [
         "zapier",
         "default-deny-unknown-tools",
@@ -4656,6 +4816,7 @@
       "bundles": [
         "soc2"
       ],
+      "experimental": true,
       "tags": [
         "zapier",
         "constrain-aggregator",
@@ -4679,6 +4840,7 @@
         "soc2",
         "gdpr-ccpa"
       ],
+      "experimental": true,
       "tags": [
         "zapier",
         "guard-external-send",
@@ -4705,6 +4867,7 @@
         "pci-dss",
         "gdpr-ccpa"
       ],
+      "experimental": true,
       "tags": [
         "zapier",
         "mask-pan-egress",
@@ -4732,6 +4895,7 @@
         "soc2",
         "gdpr-ccpa"
       ],
+      "experimental": true,
       "tags": [
         "zapier",
         "role-gate-writes",
@@ -4755,6 +4919,7 @@
       "bundles": [
         "soc2"
       ],
+      "experimental": true,
       "tags": [
         "zoom",
         "block-secrets",
@@ -4779,6 +4944,7 @@
         "soc2",
         "gdpr-ccpa"
       ],
+      "experimental": true,
       "tags": [
         "zoom",
         "agentic-search",
@@ -4805,6 +4971,7 @@
         "gdpr-ccpa",
         "hipaa"
       ],
+      "experimental": true,
       "tags": [
         "zoom",
         "guard-external-send",
@@ -4832,6 +4999,7 @@
         "gdpr-ccpa",
         "soc2"
       ],
+      "experimental": true,
       "tags": [
         "zoom",
         "guard-transcripts",
@@ -4858,6 +5026,7 @@
         "gdpr-ccpa",
         "soc2"
       ],
+      "experimental": true,
       "tags": [
         "zoom",
         "redact-pii",
