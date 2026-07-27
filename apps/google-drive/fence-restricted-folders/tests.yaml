@@ -1,0 +1,756 @@
+# Placeholder restricted IDs from policy.md's `restricted_ids`:
+#   REPLACE-WITH-HR-FOLDER-ID, REPLACE-WITH-MA-DEAL-ROOM-ID,
+#   REPLACE-WITH-BOARD-PACK-ID, REPLACE-WITH-PAYROLL-FOLDER-ID
+# Exempt group placeholder: "hr".
+
+- description: Unrelated tool (search) with no restricted arguments. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gdrive-mcp-search_files
+      uri: null
+    payload:
+      name: gdrive-mcp-search_files
+      args:
+        query: quarterly roadmap
+  output:
+    expectedResult: allow
+
+- description: Fenced read tool addressing a file that is not on the restricted list. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gdrive-mcp-read_file_content
+      uri: null
+    payload:
+      name: gdrive-mcp-read_file_content
+      args:
+        fileId: 1a2B3c4D5e6F7g8H9i0J
+  output:
+    expectedResult: allow
+
+- description: Content read of a restricted file via `fileId` (official-server suffix). Policy should deny with the read-fence reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gdrive-mcp-read_file_content
+      uri: null
+    payload:
+      name: gdrive-mcp-read_file_content
+      args:
+        fileId: REPLACE-WITH-HR-FOLDER-ID
+  output:
+    expectedResult: deny
+    expectedReason: "This file or folder is on the organization's restricted Google Drive list (HR, M&A, board, or payroll material). Agents may not read its content, metadata, or permissions. Work from an approved copy stored outside the restricted folders, or contact your InfoSec team if you believe this is a false positive."
+
+- description: Metadata read of a restricted file via `get_file_metadata`. Policy should deny — metadata leaks names, owners, and timestamps.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gdrive-mcp-get_file_metadata
+      uri: null
+    payload:
+      name: gdrive-mcp-get_file_metadata
+      args:
+        fileId: REPLACE-WITH-BOARD-PACK-ID
+  output:
+    expectedResult: deny
+    expectedReason: "This file or folder is on the organization's restricted Google Drive list (HR, M&A, board, or payroll material). Agents may not read its content, metadata, or permissions. Work from an approved copy stored outside the restricted folders, or contact your InfoSec team if you believe this is a false positive."
+
+- description: Mixed-case piotr-agier tool name (`readGoogleDocPaginated`) addressing a restricted `documentId`. Tool matching must be case-insensitive — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gdrive-mcp-readGoogleDocPaginated
+      uri: null
+    payload:
+      name: gdrive-mcp-readGoogleDocPaginated
+      args:
+        documentId: REPLACE-WITH-MA-DEAL-ROOM-ID
+        pageSize: 10
+  output:
+    expectedResult: deny
+    expectedReason: "This file or folder is on the organization's restricted Google Drive list (HR, M&A, board, or payroll material). Agents may not read its content, metadata, or permissions. Work from an approved copy stored outside the restricted folders, or contact your InfoSec team if you believe this is a false positive."
+
+- description: isaacphi `gsheets_read` addressing a restricted `spreadsheetId`. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gdrive-mcp-gsheets_read
+      uri: null
+    payload:
+      name: gdrive-mcp-gsheets_read
+      args:
+        spreadsheetId: REPLACE-WITH-PAYROLL-FOLDER-ID
+        ranges:
+          - Sheet1!A1:C10
+  output:
+    expectedResult: deny
+    expectedReason: "This file or folder is on the organization's restricted Google Drive list (HR, M&A, board, or payroll material). Agents may not read its content, metadata, or permissions. Work from an approved copy stored outside the restricted folders, or contact your InfoSec team if you believe this is a false positive."
+
+- description: piotr-agier `getGoogleSlidesContent` addressing a restricted `presentationId`. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gdrive-mcp-getGoogleSlidesContent
+      uri: null
+    payload:
+      name: gdrive-mcp-getGoogleSlidesContent
+      args:
+        presentationId: REPLACE-WITH-BOARD-PACK-ID
+  output:
+    expectedResult: deny
+    expectedReason: "This file or folder is on the organization's restricted Google Drive list (HR, M&A, board, or payroll material). Agents may not read its content, metadata, or permissions. Work from an approved copy stored outside the restricted folders, or contact your InfoSec team if you believe this is a false positive."
+
+- description: Upload staged into a restricted folder via `parentFolderId` (staging-for-exfil). Policy should deny with the write-fence reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gdrive-mcp-uploadFile
+      uri: null
+    payload:
+      name: gdrive-mcp-uploadFile
+      args:
+        name: notes.txt
+        parentFolderId: REPLACE-WITH-PAYROLL-FOLDER-ID
+  output:
+    expectedResult: deny
+    expectedReason: "The destination folder is on the organization's restricted Google Drive list. Agents may not create, upload, copy, or move files into it. Choose a destination outside the restricted folders, or contact your InfoSec team if you believe this is a false positive."
+
+- description: Write into an ordinary (non-restricted) folder. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gdrive-mcp-createTextFile
+      uri: null
+    payload:
+      name: gdrive-mcp-createTextFile
+      args:
+        name: notes.txt
+        content: meeting notes
+        parentFolderId: 0AbCdEfGhIjKlMnOpQ
+  output:
+    expectedResult: allow
+
+- description: Member of the exempt `hr` group reads a restricted file. Exemption applies — allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    subject:
+      sub: google-apps|hr-lead@example.com
+      claims:
+        groups:
+          - hr
+          - everyone
+    resource:
+      type: tool
+      name: gdrive-mcp-read_file_content
+      uri: null
+    payload:
+      name: gdrive-mcp-read_file_content
+      args:
+        fileId: REPLACE-WITH-HR-FOLDER-ID
+  output:
+    expectedResult: allow
+
+- description: Member of the exempt `hr` group uploads into a restricted folder. Exemption also covers the write fence — allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    subject:
+      sub: google-apps|hr-lead@example.com
+      claims:
+        groups:
+          - hr
+    resource:
+      type: tool
+      name: gdrive-mcp-uploadFile
+      uri: null
+    payload:
+      name: gdrive-mcp-uploadFile
+      args:
+        name: offer-letter.pdf
+        parentFolderId: REPLACE-WITH-HR-FOLDER-ID
+  output:
+    expectedResult: allow
+
+- description: Caller in a different group (`finance`) reads a restricted file. Not exempt — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    subject:
+      sub: google-apps|analyst@example.com
+      claims:
+        groups:
+          - finance
+          - everyone
+    resource:
+      type: tool
+      name: gdrive-mcp-download_file_content
+      uri: null
+    payload:
+      name: gdrive-mcp-download_file_content
+      args:
+        fileId: REPLACE-WITH-MA-DEAL-ROOM-ID
+  output:
+    expectedResult: deny
+    expectedReason: "This file or folder is on the organization's restricted Google Drive list (HR, M&A, board, or payroll material). Agents may not read its content, metadata, or permissions. Work from an approved copy stored outside the restricted folders, or contact your InfoSec team if you believe this is a false positive."
+
+- description: Caller with an empty claims object (audience mismatch or no IdP) reads a restricted file. Exemption must fail closed — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    subject:
+      sub: google-apps|someone@example.com
+      claims: {}
+    resource:
+      type: tool
+      name: gdrive-mcp-gdrive_read_file
+      uri: null
+    payload:
+      name: gdrive-mcp-gdrive_read_file
+      args:
+        fileId: REPLACE-WITH-HR-FOLDER-ID
+  output:
+    expectedResult: deny
+    expectedReason: "This file or folder is on the organization's restricted Google Drive list (HR, M&A, board, or payroll material). Agents may not read its content, metadata, or permissions. Work from an approved copy stored outside the restricted folders, or contact your InfoSec team if you believe this is a false positive."
+
+- description: No subject at all (no IdP configured) reading a restricted file. Exemption must fail closed — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gdrive-mcp-get_file_permissions
+      uri: null
+    payload:
+      name: gdrive-mcp-get_file_permissions
+      args:
+        fileId: REPLACE-WITH-HR-FOLDER-ID
+  output:
+    expectedResult: deny
+    expectedReason: "This file or folder is on the organization's restricted Google Drive list (HR, M&A, board, or payroll material). Agents may not read its content, metadata, or permissions. Work from an approved copy stored outside the restricted folders, or contact your InfoSec team if you believe this is a false positive."
+
+- description: IdP emits `groups` as a single delimited string containing "hr" instead of an array. Documented fail-closed shape — no exemption, deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    subject:
+      sub: google-apps|hr-lead@example.com
+      claims:
+        groups: hr,everyone
+    resource:
+      type: tool
+      name: gdrive-mcp-read_file_content
+      uri: null
+    payload:
+      name: gdrive-mcp-read_file_content
+      args:
+        fileId: REPLACE-WITH-HR-FOLDER-ID
+  output:
+    expectedResult: deny
+    expectedReason: "This file or folder is on the organization's restricted Google Drive list (HR, M&A, board, or payroll material). Agents may not read its content, metadata, or permissions. Work from an approved copy stored outside the restricted folders, or contact your InfoSec team if you believe this is a false positive."
+
+- description: "Red-team FIX (placeholder-claim spoof): `groups` shaped as an object/map {\"role\": \"hr\"} rather than an array. Without the is_array guard `some group in groups` would iterate the map values and grant the exemption; must fail closed — deny."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    subject:
+      sub: google-apps|attacker@example.com
+      claims:
+        groups:
+          role: hr
+    resource:
+      type: tool
+      name: gdrive-mcp-read_file_content
+      uri: null
+    payload:
+      name: gdrive-mcp-read_file_content
+      args:
+        fileId: REPLACE-WITH-HR-FOLDER-ID
+  output:
+    expectedResult: deny
+    expectedReason: "This file or folder is on the organization's restricted Google Drive list (HR, M&A, board, or payroll material). Agents may not read its content, metadata, or permissions. Work from an approved copy stored outside the restricted folders, or contact your InfoSec team if you believe this is a false positive."
+
+- description: Fenced read tool called with none of the candidate ID keys. There is no ID to check — allow (documented limitation).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gdrive-mcp-read_file_content
+      uri: null
+    payload:
+      name: gdrive-mcp-read_file_content
+      args:
+        file_id: REPLACE-WITH-HR-FOLDER-ID
+  output:
+    expectedResult: allow
+
+- description: Restricted ID with different letter case. Drive IDs are case-sensitive, so a case-mismatched ID is a different (non-restricted) object — allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gdrive-mcp-read_file_content
+      uri: null
+    payload:
+      name: gdrive-mcp-read_file_content
+      args:
+        fileId: replace-with-hr-folder-id
+  output:
+    expectedResult: allow
+
+- description: Synthetic case firing both fences at once (fenced read suffix with a restricted fileId AND a restricted parentFolderId). Reasons must be sorted and joined with "; ".
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gdrive-mcp-downloadFile
+      uri: null
+    payload:
+      name: gdrive-mcp-downloadFile
+      args:
+        fileId: REPLACE-WITH-HR-FOLDER-ID
+        parentFolderId: REPLACE-WITH-PAYROLL-FOLDER-ID
+  output:
+    expectedResult: deny
+    expectedReason: "The destination folder is on the organization's restricted Google Drive list. Agents may not create, upload, copy, or move files into it. Choose a destination outside the restricted folders, or contact your InfoSec team if you believe this is a false positive.; This file or folder is on the organization's restricted Google Drive list (HR, M&A, board, or payroll material). Agents may not read its content, metadata, or permissions. Work from an approved copy stored outside the restricted folders, or contact your InfoSec team if you believe this is a false positive."
+
+# --- Red-team review cases (standards §10) ---
+
+- description: "Red-team FIX: copy_file with a restricted SOURCE fileId into an unrestricted folder (copy-out exfil). Must deny with the copy-out reason."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gdrive-mcp-copy_file
+      uri: null
+    payload:
+      name: gdrive-mcp-copy_file
+      args:
+        fileId: REPLACE-WITH-HR-FOLDER-ID
+        parentFolderId: 0AbCdEfGhIjKlMnOpQ
+  output:
+    expectedResult: deny
+    expectedReason: "This file is on the organization's restricted Google Drive list (HR, M&A, board, or payroll material). Copying it out of the restricted folders is not allowed, because the copy would carry the same content into an unrestricted location. Work from an approved copy, or contact your InfoSec team if you believe this is a false positive."
+
+- description: "Red-team FIX: mixed-case piotr-agier copyFile with a restricted source. Copy suffix matching must be case-insensitive — deny."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gdrive-mcp-copyFile
+      uri: null
+    payload:
+      name: gdrive-mcp-copyFile
+      args:
+        fileId: REPLACE-WITH-PAYROLL-FOLDER-ID
+  output:
+    expectedResult: deny
+    expectedReason: "This file is on the organization's restricted Google Drive list (HR, M&A, board, or payroll material). Copying it out of the restricted folders is not allowed, because the copy would carry the same content into an unrestricted location. Work from an approved copy, or contact your InfoSec team if you believe this is a false positive."
+
+- description: "Red-team FIX regression: copy into a restricted DESTINATION (source unrestricted) still fires the write fence, not the copy-out fence."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gdrive-mcp-copy_file
+      uri: null
+    payload:
+      name: gdrive-mcp-copy_file
+      args:
+        fileId: 1UnrestrictedSourceId
+        parentFolderId: REPLACE-WITH-HR-FOLDER-ID
+  output:
+    expectedResult: deny
+    expectedReason: "The destination folder is on the organization's restricted Google Drive list. Agents may not create, upload, copy, or move files into it. Choose a destination outside the restricted folders, or contact your InfoSec team if you believe this is a false positive."
+
+- description: "Red-team FIX false-positive guard: ordinary copy with no restricted source or destination. Must allow."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gdrive-mcp-copy_file
+      uri: null
+    payload:
+      name: gdrive-mcp-copy_file
+      args:
+        fileId: 1UnrestrictedSourceId
+        parentFolderId: 0AbCdEfGhIjKlMnOpQ
+  output:
+    expectedResult: allow
+
+- description: "Red-team FIX: exempt hr member copies a restricted source. Exemption covers the copy-out fence too — allow."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    subject:
+      sub: google-apps|hr-lead@example.com
+      claims:
+        groups:
+          - hr
+    resource:
+      type: tool
+      name: gdrive-mcp-copy_file
+      uri: null
+    payload:
+      name: gdrive-mcp-copy_file
+      args:
+        fileId: REPLACE-WITH-HR-FOLDER-ID
+        parentFolderId: 0AbCdEfGhIjKlMnOpQ
+  output:
+    expectedResult: allow
+
+- description: "Red-team DOCUMENTED residual: moveItem of a restricted source out of a fenced folder. Move source-arg names are unverified, so this is NOT fenced — allow (see Known limitations; compose with role-gate-writes / freeze-destructive-ops)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gdrive-mcp-moveItem
+      uri: null
+    payload:
+      name: gdrive-mcp-moveItem
+      args:
+        fileId: REPLACE-WITH-MA-DEAL-ROOM-ID
+        parentFolderId: 0AbCdEfGhIjKlMnOpQ
+  output:
+    expectedResult: allow
+
+- description: "Red-team DOCUMENTED residual: Anthropic connector metadata variant `get_metadata` (diverges from `get_file_metadata`) on a restricted file. Unverified connector suffix is not in the read list — allow (see Known limitations)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: mcp__claude_ai_Google_Drive__get_metadata
+      uri: null
+    payload:
+      name: mcp__claude_ai_Google_Drive__get_metadata
+      args:
+        fileId: REPLACE-WITH-BOARD-PACK-ID
+  output:
+    expectedResult: allow
+
+- description: "Red-team DOCUMENTED residual: dead legacy claude.ai `google_drive_fetch` suffix on a restricted file. Unverified legacy suffix is not covered — allow (see Known limitations)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: mcp__claude_ai_Google_Drive__google_drive_fetch
+      uri: null
+    payload:
+      name: mcp__claude_ai_Google_Drive__google_drive_fetch
+      args:
+        fileId: REPLACE-WITH-HR-FOLDER-ID
+  output:
+    expectedResult: allow
+
+- description: "Red-team FIX: Google `create_file` staging into a restricted folder via the Drive API v3 `parents` ARRAY (not the scalar `parentFolderId`). Previously slipped the write fence; must now deny."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gdrive-mcp-create_file
+      uri: null
+    payload:
+      name: gdrive-mcp-create_file
+      args:
+        name: leak.txt
+        parents:
+          - REPLACE-WITH-PAYROLL-FOLDER-ID
+  output:
+    expectedResult: deny
+    expectedReason: "The destination folder is on the organization's restricted Google Drive list. Agents may not create, upload, copy, or move files into it. Choose a destination outside the restricted folders, or contact your InfoSec team if you believe this is a false positive."
+
+- description: "Red-team FIX: `copy_file` with an unrestricted source but a restricted DESTINATION expressed as a `parents` array. Write fence must fire on the array element — deny."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gdrive-mcp-copy_file
+      uri: null
+    payload:
+      name: gdrive-mcp-copy_file
+      args:
+        fileId: 1UnrestrictedSourceId
+        parents:
+          - REPLACE-WITH-BOARD-PACK-ID
+  output:
+    expectedResult: deny
+    expectedReason: "The destination folder is on the organization's restricted Google Drive list. Agents may not create, upload, copy, or move files into it. Choose a destination outside the restricted folders, or contact your InfoSec team if you believe this is a false positive."
+
+- description: "Red-team FIX false-positive guard: `create_file` with a `parents` array of only ordinary (non-restricted) folders. Must allow."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gdrive-mcp-create_file
+      uri: null
+    payload:
+      name: gdrive-mcp-create_file
+      args:
+        name: notes.txt
+        parents:
+          - 0AbCdEfGhIjKlMnOpQ
+          - 0ZyXwVuTsRqPoNmLkJ
+  output:
+    expectedResult: allow
+
+- description: "Red-team missing-args check (§10): fenced read tool invoked with NO args object at all. No ID to check, so nothing restricted fires — allow (documented harmless fail-open; the deny path itself fails closed)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gdrive-mcp-read_file_content
+      uri: null
+    payload:
+      name: gdrive-mcp-read_file_content
+  output:
+    expectedResult: allow
+
+# --- Second red-team pass (destination-shape drift on documented fields) ---
+
+- description: "Red-team FIX: `parents` sent as a bare STRING (not an array) targeting a restricted folder. Previously slipped the write fence (some ... in <string> iterates nothing); must now deny."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gdrive-mcp-create_file
+      uri: null
+    payload:
+      name: gdrive-mcp-create_file
+      args:
+        name: leak.txt
+        parents: REPLACE-WITH-PAYROLL-FOLDER-ID
+  output:
+    expectedResult: deny
+    expectedReason: "The destination folder is on the organization's restricted Google Drive list. Agents may not create, upload, copy, or move files into it. Choose a destination outside the restricted folders, or contact your InfoSec team if you believe this is a false positive."
+
+- description: "Red-team FIX: `parents` as an array of Drive API v2 parentReference OBJECTS ({id: restricted}) instead of v3 ID strings. Previously slipped (restricted_ids[<object>] never matches); must now deny."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gdrive-mcp-create_file
+      uri: null
+    payload:
+      name: gdrive-mcp-create_file
+      args:
+        name: leak.txt
+        parents:
+          - id: REPLACE-WITH-PAYROLL-FOLDER-ID
+  output:
+    expectedResult: deny
+    expectedReason: "The destination folder is on the organization's restricted Google Drive list. Agents may not create, upload, copy, or move files into it. Choose a destination outside the restricted folders, or contact your InfoSec team if you believe this is a false positive."
+
+- description: "Red-team FIX: `parentFolderId` sent as an ARRAY (not the piotr-agier scalar) targeting a restricted folder. Previously slipped (restricted_ids[<array>] never matches); must now deny."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gdrive-mcp-uploadFile
+      uri: null
+    payload:
+      name: gdrive-mcp-uploadFile
+      args:
+        name: leak.txt
+        parentFolderId:
+          - REPLACE-WITH-PAYROLL-FOLDER-ID
+  output:
+    expectedResult: deny
+    expectedReason: "The destination folder is on the organization's restricted Google Drive list. Agents may not create, upload, copy, or move files into it. Choose a destination outside the restricted folders, or contact your InfoSec team if you believe this is a false positive."
+
+- description: "Red-team FIX false-positive guard: `parents` bare string pointing at an ordinary (non-restricted) folder. Must allow."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gdrive-mcp-create_file
+      uri: null
+    payload:
+      name: gdrive-mcp-create_file
+      args:
+        name: notes.txt
+        parents: 0AbCdEfGhIjKlMnOpQ
+  output:
+    expectedResult: allow
+
+- description: "Red-team FIX false-positive guard: `parentFolderId` as an array of only ordinary (non-restricted) folders. Must allow."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gdrive-mcp-uploadFile
+      uri: null
+    payload:
+      name: gdrive-mcp-uploadFile
+      args:
+        name: notes.txt
+        parentFolderId:
+          - 0AbCdEfGhIjKlMnOpQ
+          - 0ZyXwVuTsRqPoNmLkJ
+  output:
+    expectedResult: allow
+
+# --- Third red-team pass (source-ID shape drift on the read + copy-out fences) ---
+
+- description: "Red-team FIX: fenced read `read_file_content` with the restricted ID wrapped in a one-element `fileId` ARRAY. The write fence was array-tolerant but requested_ids was scalar-only, so this previously slipped the read fence (fail OPEN); must now deny."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gdrive-mcp-read_file_content
+      uri: null
+    payload:
+      name: gdrive-mcp-read_file_content
+      args:
+        fileId:
+          - REPLACE-WITH-HR-FOLDER-ID
+  output:
+    expectedResult: deny
+    expectedReason: "This file or folder is on the organization's restricted Google Drive list (HR, M&A, board, or payroll material). Agents may not read its content, metadata, or permissions. Work from an approved copy stored outside the restricted folders, or contact your InfoSec team if you believe this is a false positive."
+
+- description: "Red-team FIX: piotr-agier `readGoogleDoc` with a restricted `documentId` sent as an ARRAY. Array-shaped ID must be fenced — deny."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gdrive-mcp-readGoogleDoc
+      uri: null
+    payload:
+      name: gdrive-mcp-readGoogleDoc
+      args:
+        documentId:
+          - REPLACE-WITH-MA-DEAL-ROOM-ID
+  output:
+    expectedResult: deny
+    expectedReason: "This file or folder is on the organization's restricted Google Drive list (HR, M&A, board, or payroll material). Agents may not read its content, metadata, or permissions. Work from an approved copy stored outside the restricted folders, or contact your InfoSec team if you believe this is a false positive."
+
+- description: "Red-team FIX: `copy_file` with the restricted SOURCE wrapped in a one-element `fileId` ARRAY (copy-out exfil via array shape). Copy-out fence shares requested_ids and must now fire — deny."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gdrive-mcp-copy_file
+      uri: null
+    payload:
+      name: gdrive-mcp-copy_file
+      args:
+        fileId:
+          - REPLACE-WITH-HR-FOLDER-ID
+        parentFolderId: 0AbCdEfGhIjKlMnOpQ
+  output:
+    expectedResult: deny
+    expectedReason: "This file is on the organization's restricted Google Drive list (HR, M&A, board, or payroll material). Copying it out of the restricted folders is not allowed, because the copy would carry the same content into an unrestricted location. Work from an approved copy, or contact your InfoSec team if you believe this is a false positive."
+
+- description: "Red-team FIX false-positive guard: read `fileId` as an array of only ordinary (non-restricted) IDs. Array tolerance must not over-block — allow."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gdrive-mcp-read_file_content
+      uri: null
+    payload:
+      name: gdrive-mcp-read_file_content
+      args:
+        fileId:
+          - 1OrdinaryFileId
+          - 1AnotherOrdinaryId
+  output:
+    expectedResult: allow
+
+- description: "Red-team DOCUMENTED residual: `list_recent_files` (verified Google tool) enumerates recent files and can reveal restricted-file titles/metadata. It carries no file ID, so the ID fence has nothing to match — allow (enumeration residual, see Known limitations; same class as search)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gdrive-mcp-list_recent_files
+      uri: null
+    payload:
+      name: gdrive-mcp-list_recent_files
+      args:
+        pageSize: 50
+  output:
+    expectedResult: allow

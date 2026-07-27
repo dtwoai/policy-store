@@ -1,0 +1,677 @@
+# Positive/negative coverage for every rule branch of
+# github.ingress.block_secrets_commits, plus red-team cases.
+
+# --- create_or_update_file (content) ---
+- description: create_or_update_file with clean file content. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-create_or_update_file
+      uri: null
+    payload:
+      name: github-mcp-create_or_update_file
+      args:
+        owner: acme
+        repo: app
+        path: README.md
+        branch: main
+        message: docs update
+        content: "# App\n\nRun `pnpm dev` to start the dev server."
+  output:
+    expectedResult: allow
+
+- description: create_or_update_file committing an AWS access key ID in content. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-create_or_update_file
+      uri: null
+    payload:
+      name: github-mcp-create_or_update_file
+      args:
+        owner: acme
+        repo: app
+        path: .env
+        branch: main
+        message: add config
+        content: "AWS_KEY=AKIAIOSFODNN7EXAMPLE"
+  output:
+    expectedResult: deny
+    expectedReason: This GitHub write looks like it contains a secret (API key, password, token, or private key). Route credentials through your secret manager instead of committing them. Contact your InfoSec team if this was a false positive.
+
+# --- push_files (files[].content iteration) ---
+- description: push_files where every file is clean. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-push_files
+      uri: null
+    payload:
+      name: github-mcp-push_files
+      args:
+        owner: acme
+        repo: app
+        branch: main
+        message: batch update
+        files:
+          - path: a.txt
+            content: hello world
+          - path: b.txt
+            content: nothing secret here
+  output:
+    expectedResult: allow
+
+- description: push_files where a non-first file carries a GitHub PAT. Multi-file array must be scanned in full. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-push_files
+      uri: null
+    payload:
+      name: github-mcp-push_files
+      args:
+        owner: acme
+        repo: app
+        branch: main
+        message: batch update
+        files:
+          - path: a.txt
+            content: harmless first file
+          - path: config/token.txt
+            content: "ghp_abcdefghijklmnopqrstuvwxyz0123456789"
+  output:
+    expectedResult: deny
+    expectedReason: This GitHub write looks like it contains a secret (API key, password, token, or private key). Route credentials through your secret manager instead of committing them. Contact your InfoSec team if this was a false positive.
+
+# --- create_gist (content / description / files branches) ---
+- description: create_gist with a clean snippet. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-create_gist
+      uri: null
+    payload:
+      name: github-mcp-create_gist
+      args:
+        description: a helper snippet
+        content: "console.log('hello');"
+  output:
+    expectedResult: allow
+
+- description: create_gist whose content contains a PEM private-key header. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-create_gist
+      uri: null
+    payload:
+      name: github-mcp-create_gist
+      args:
+        description: backup
+        content: "-----BEGIN RSA PRIVATE KEY-----\nMIIEpAIBAAKCAQEA..."
+  output:
+    expectedResult: deny
+
+- description: create_gist whose description (not content) contains a secret. Description branch must be scanned. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-create_gist
+      uri: null
+    payload:
+      name: github-mcp-create_gist
+      args:
+        description: "prod api_key: sk_live_0123456789abcdefghijklmn"
+        content: "harmless body"
+  output:
+    expectedResult: deny
+
+- description: create_gist whose files-collection entry carries a secret. Gist files iteration must be scanned. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-create_gist
+      uri: null
+    payload:
+      name: github-mcp-create_gist
+      args:
+        description: multi-file gist
+        files:
+          - filename: keys.txt
+            content: "password=SuperSecretValue123"
+  output:
+    expectedResult: deny
+
+# --- create_pull_request (body + title) ---
+- description: create_pull_request with a clean body. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-create_pull_request
+      uri: null
+    payload:
+      name: github-mcp-create_pull_request
+      args:
+        owner: acme
+        repo: app
+        title: Add feature flag
+        head: feature
+        base: main
+        body: "This PR adds a feature flag. See the design doc for details."
+  output:
+    expectedResult: allow
+
+- description: create_pull_request whose body contains a Google API key. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-create_pull_request
+      uri: null
+    payload:
+      name: github-mcp-create_pull_request
+      args:
+        owner: acme
+        repo: app
+        title: wip
+        head: feature
+        base: main
+        body: "temp key for testing: AIzaSyA1234567890abcdefghijklmnopqrstuvw"
+  output:
+    expectedResult: deny
+
+- description: create_pull_request whose title (not body) contains a secret. Title branch must be scanned. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-create_pull_request
+      uri: null
+    payload:
+      name: github-mcp-create_pull_request
+      args:
+        owner: acme
+        repo: app
+        title: "add token=ghp_abcdefghijklmnopqrstuvwxyz0123456789"
+        head: feature
+        base: main
+        body: routine change
+  output:
+    expectedResult: deny
+
+# --- Comment / issue surfaces (official + archived names) ---
+- description: add_issue_comment with a normal comment. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-add_issue_comment
+      uri: null
+    payload:
+      name: github-mcp-add_issue_comment
+      args:
+        owner: acme
+        repo: app
+        issue_number: 42
+        body: "Thanks, taking a look now."
+  output:
+    expectedResult: allow
+
+- description: add_issue_comment whose body contains a Slack token. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-add_issue_comment
+      uri: null
+    payload:
+      name: github-mcp-add_issue_comment
+      args:
+        owner: acme
+        repo: app
+        issue_number: 42
+        body: "here is the bot token xoxb-1234567890-abcdefghijklmnop"
+  output:
+    expectedResult: deny
+
+- description: issue_write (official consolidated) creating an issue whose body carries a generic secret. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-issue_write
+      uri: null
+    payload:
+      name: github-mcp-issue_write
+      args:
+        method: create
+        owner: acme
+        repo: app
+        title: bug report
+        body: "repro uses client_secret=abcdef123456ghijkl"
+  output:
+    expectedResult: deny
+
+- description: create_issue (archived granular name) whose body carries a github_pat token. Suffix match must cover the archived server. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-create_issue
+      uri: null
+    payload:
+      name: github-mcp-create_issue
+      args:
+        owner: acme
+        repo: app
+        title: bug
+        body: "github_pat_11ABCDEFG0abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+  output:
+    expectedResult: deny
+
+- description: create_pull_request_review (archived granular name) whose review body carries an OpenAI-shaped key. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-create_pull_request_review
+      uri: null
+    payload:
+      name: github-mcp-create_pull_request_review
+      args:
+        owner: acme
+        repo: app
+        pull_number: 7
+        event: COMMENT
+        body: "left the key inline: sk-abcdef0123456789abcdef0123456789"
+  output:
+    expectedResult: deny
+
+- description: discussion_comment_write whose body carries a key. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-discussion_comment_write
+      uri: null
+    payload:
+      name: github-mcp-discussion_comment_write
+      args:
+        owner: acme
+        repo: app
+        discussion_number: 3
+        body: "the api_key: verysecretvalue lives in the config"
+  output:
+    expectedResult: deny
+
+# --- Red-team: edit/update surfaces (two-step "create clean, edit secret in") ---
+- description: Red-team - update_pull_request editing a secret into the PR body after a clean create must deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-update_pull_request
+      uri: null
+    payload:
+      name: github-mcp-update_pull_request
+      args:
+        owner: acme
+        repo: app
+        pull_number: 7
+        body: "updated: token=ghp_abcdefghijklmnopqrstuvwxyz0123456789"
+  output:
+    expectedResult: deny
+    expectedReason: This GitHub write looks like it contains a secret (API key, password, token, or private key). Route credentials through your secret manager instead of committing them. Contact your InfoSec team if this was a false positive.
+
+- description: Red-team - update_gist editing a secret into an existing gist must deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-update_gist
+      uri: null
+    payload:
+      name: github-mcp-update_gist
+      args:
+        description: revise
+        content: "AKIAIOSFODNN7EXAMPLE"
+  output:
+    expectedResult: deny
+
+- description: Red-team - update_pull_request_branch (no body) must NOT be matched by the update_pull_request arm. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-update_pull_request_branch
+      uri: null
+    payload:
+      name: github-mcp-update_pull_request_branch
+      args:
+        owner: acme
+        repo: app
+        pull_number: 7
+  output:
+    expectedResult: allow
+
+# --- Red-team: PR-review / reply write surfaces ---
+- description: Red-team - pull_request_review_write (official consolidated) submitting a review body with a secret must deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-pull_request_review_write
+      uri: null
+    payload:
+      name: github-mcp-pull_request_review_write
+      args:
+        method: submit
+        owner: acme
+        repo: app
+        pull_number: 7
+        event: COMMENT
+        body: "inline key: sk_live_0123456789abcdefghijklmn"
+  output:
+    expectedResult: deny
+
+- description: Red-team - add_comment_to_pending_review with a secret in the comment body must deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-add_comment_to_pending_review
+      uri: null
+    payload:
+      name: github-mcp-add_comment_to_pending_review
+      args:
+        owner: acme
+        repo: app
+        pull_number: 7
+        path: src/a.ts
+        body: "use this token xoxb-1234567890-abcdefghijklmnop"
+  output:
+    expectedResult: deny
+
+- description: Red-team - add_reply_to_pull_request_comment with a secret in the reply body must deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-add_reply_to_pull_request_comment
+      uri: null
+    payload:
+      name: github-mcp-add_reply_to_pull_request_comment
+      args:
+        owner: acme
+        repo: app
+        pull_number: 7
+        body: "here: github_pat_11ABCDEFG0abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+  output:
+    expectedResult: deny
+
+- description: Red-team - pull_request_review_write with a clean body must allow (no over-block).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-pull_request_review_write
+      uri: null
+    payload:
+      name: github-mcp-pull_request_review_write
+      args:
+        method: submit
+        owner: acme
+        repo: app
+        pull_number: 7
+        event: APPROVE
+        body: "LGTM, thanks for the fix."
+  output:
+    expectedResult: allow
+
+# --- Pass-through: non-scanned tools ---
+- description: Read tool (get_file_contents) is never scanned. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-get_file_contents
+      uri: null
+    payload:
+      name: github-mcp-get_file_contents
+      args:
+        owner: acme
+        repo: app
+        path: .env
+  output:
+    expectedResult: allow
+
+- description: sub_issue_write is deliberately NOT matched by the issue_write arm (relationship management, no body). Policy should allow even though its name ends with "issue_write".
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-sub_issue_write
+      uri: null
+    payload:
+      name: github-mcp-sub_issue_write
+      args:
+        method: add
+        owner: acme
+        repo: app
+        issue_number: 10
+        sub_issue_id: 11
+  output:
+    expectedResult: allow
+
+- description: merge_pull_request is not a scanned write surface. Policy should allow (secret hygiene doesn't apply to a merge).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-merge_pull_request
+      uri: null
+    payload:
+      name: github-mcp-merge_pull_request
+      args:
+        owner: acme
+        repo: app
+        pull_number: 7
+        merge_method: squash
+  output:
+    expectedResult: allow
+
+# --- Fail-safe edge cases ---
+- description: create_or_update_file with no content argument at all. Nothing to scan → passes through.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-create_or_update_file
+      uri: null
+    payload:
+      name: github-mcp-create_or_update_file
+      args:
+        owner: acme
+        repo: app
+        path: empty.txt
+        branch: main
+        message: create empty
+  output:
+    expectedResult: allow
+
+- description: Case-insensitive tool matching — uppercase server/tool name with a secret in content must still deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: GitHub-MCP-CREATE_OR_UPDATE_FILE
+      uri: null
+    payload:
+      name: GitHub-MCP-CREATE_OR_UPDATE_FILE
+      args:
+        owner: acme
+        repo: app
+        path: .env
+        branch: main
+        message: config
+        content: "AWS_KEY=AKIAIOSFODNN7EXAMPLE"
+  output:
+    expectedResult: deny
+
+# --- Red-team: secret smuggled into the commit message (persists to git history) ---
+- description: Red-team - create_or_update_file with clean content but an AWS key in the commit message. The message lands in git history, so it must deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-create_or_update_file
+      uri: null
+    payload:
+      name: github-mcp-create_or_update_file
+      args:
+        owner: acme
+        repo: app
+        path: notes.txt
+        branch: main
+        message: "rotate AKIAIOSFODNN7EXAMPLE before Friday"
+        content: "harmless file body, nothing to see here"
+  output:
+    expectedResult: deny
+    expectedReason: This GitHub write looks like it contains a secret (API key, password, token, or private key). Route credentials through your secret manager instead of committing them. Contact your InfoSec team if this was a false positive.
+
+- description: Red-team - push_files with all-clean file contents but a GitHub PAT in the top-level commit message must deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-push_files
+      uri: null
+    payload:
+      name: github-mcp-push_files
+      args:
+        owner: acme
+        repo: app
+        branch: main
+        message: "add token ghp_abcdefghijklmnopqrstuvwxyz0123456789"
+        files:
+          - path: a.txt
+            content: harmless first file
+          - path: b.txt
+            content: also harmless
+  output:
+    expectedResult: deny
+    expectedReason: This GitHub write looks like it contains a secret (API key, password, token, or private key). Route credentials through your secret manager instead of committing them. Contact your InfoSec team if this was a false positive.
+
+- description: create_or_update_file with a normal, secret-free commit message must still allow (no false positive from message scanning).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-create_or_update_file
+      uri: null
+    payload:
+      name: github-mcp-create_or_update_file
+      args:
+        owner: acme
+        repo: app
+        path: README.md
+        branch: main
+        message: "docs: update setup instructions and fix typos"
+        content: "# App\n\nRun the dev server."
+  output:
+    expectedResult: allow
+
+# --- Documented residual: base64-encoded secret is not decoded (Known limitations) ---
+- description: Documented limitation - a base64-encoded AWS key in file content is not decoded, so it passes through. Pins the Known-limitations residual.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-create_or_update_file
+      uri: null
+    payload:
+      name: github-mcp-create_or_update_file
+      args:
+        owner: acme
+        repo: app
+        path: blob.b64
+        branch: main
+        message: add encoded blob
+        content: "QUtJQUlPU0ZPRE5ON0VYQU1QTEU="
+  output:
+    expectedResult: allow

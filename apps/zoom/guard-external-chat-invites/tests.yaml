@@ -1,0 +1,582 @@
+- description: Non-invite Team Chat tool (message send) — not a guarded tool,
+    passes through untouched.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-team-chat-zoom_chat_message_send
+      uri: null
+    payload:
+      name: zoom-team-chat-zoom_chat_message_send
+      args:
+        chat_session_id: sess-1
+        message_content: hello team
+  output:
+    expectedResult: allow
+- description: Non-chat Zoom tool (workspace search_meetings) — not guarded, passes
+    through.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-workspace-search_meetings
+      uri: null
+    payload:
+      name: zoom-workspace-search_meetings
+      args:
+        q: standup
+  output:
+    expectedResult: allow
+- description: zoom_chat_contact_add is denied outright — contact invitations can
+    target external email addresses.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-team-chat-zoom_chat_contact_add
+      uri: null
+    payload:
+      name: zoom-team-chat-zoom_chat_contact_add
+      args:
+        email: newperson@example.com
+  output:
+    expectedResult: deny
+    expectedReason: Team Chat contact invitations are blocked because they can be addressed to external email accounts. Do not use zoom_chat_contact_add; add people who already have accounts to a channel instead, or ask your InfoSec team to invite an external contact if this collaboration is sanctioned.
+- description: channel_members_add with an array of internal addresses — all on the
+    allowlist, allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-team-chat-zoom_chat_channel_members_add
+      uri: null
+    payload:
+      name: zoom-team-chat-zoom_chat_channel_members_add
+      args:
+        channelId: abc123
+        user_email_list:
+          - alice@example.com
+          - bob@example.org
+  output:
+    expectedResult: allow
+- description: channel_members_add with an external address in the list — denied
+    with the external-domain reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-team-chat-zoom_chat_channel_members_add
+      uri: null
+    payload:
+      name: zoom-team-chat-zoom_chat_channel_members_add
+      args:
+        channelId: abc123
+        user_email_list:
+          - alice@example.com
+          - partner@vendor-example.net
+  output:
+    expectedResult: deny
+    expectedReason: One or more addresses in user_email_list are outside the corporate domain allowlist, so this Team Chat channel member add is blocked. Remove the external addresses, or ask your InfoSec team to add the domain to the allowlist if this external collaboration is sanctioned.
+- description: channel_members_add with user_email_list as an object (not a list) —
+    unparseable, fail closed, deny with the unparseable reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-team-chat-zoom_chat_channel_members_add
+      uri: null
+    payload:
+      name: zoom-team-chat-zoom_chat_channel_members_add
+      args:
+        channelId: abc123
+        user_email_list:
+          email: alice@example.com
+  output:
+    expectedResult: deny
+    expectedReason: user_email_list is present but is not a readable list of email addresses, so this Team Chat channel member add is blocked (fail-closed). Pass user_email_list as an array of email address strings. Contact your InfoSec team if this is a false positive.
+- description: channel_members_add with no user_email_list at all — no external
+    address to block, passes through.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-team-chat-zoom_chat_channel_members_add
+      uri: null
+    payload:
+      name: zoom-team-chat-zoom_chat_channel_members_add
+      args:
+        channelId: abc123
+  output:
+    expectedResult: allow
+- description: channel_members_add with an empty user_email_list array — parseable
+    but empty, no external address, allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-team-chat-zoom_chat_channel_members_add
+      uri: null
+    payload:
+      name: zoom-team-chat-zoom_chat_channel_members_add
+      args:
+        channelId: abc123
+        user_email_list: []
+  output:
+    expectedResult: allow
+- description: channel_create with history exposure OFF but an external invitee —
+    history is not exposed, so the call passes through.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-team-chat-zoom_chat_channel_create
+      uri: null
+    payload:
+      name: zoom-team-chat-zoom_chat_channel_create
+      args:
+        channel_name: partner-sync
+        new_members_can_see_previous_messages_and_files: false
+        user_email_list:
+          - partner@vendor-example.net
+  output:
+    expectedResult: allow
+- description: channel_create with history exposure ON and only internal invitees —
+    allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-team-chat-zoom_chat_channel_create
+      uri: null
+    payload:
+      name: zoom-team-chat-zoom_chat_channel_create
+      args:
+        channel_name: team-room
+        new_members_can_see_previous_messages_and_files: true
+        user_email_list:
+          - alice@example.com
+          - bob@example.org
+  output:
+    expectedResult: allow
+- description: channel_create with history exposure ON and an external invitee —
+    denied, because prior messages/files would be exposed to an outsider.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-team-chat-zoom_chat_channel_create
+      uri: null
+    payload:
+      name: zoom-team-chat-zoom_chat_channel_create
+      args:
+        channel_name: deal-room
+        new_members_can_see_previous_messages_and_files: true
+        user_email_list:
+          - partner@vendor-example.net
+  output:
+    expectedResult: deny
+    expectedReason: This channel is being created with new_members_can_see_previous_messages_and_files enabled while one or more invited addresses are outside the corporate domain allowlist, which would expose prior messages and files to external people. Turn that setting off, remove the external invitees, or ask your InfoSec team to approve the external domain.
+- description: channel_create with history exposure ON but user_email_list is an
+    object — unparseable, fail closed, deny with the create unparseable reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-team-chat-zoom_chat_channel_create
+      uri: null
+    payload:
+      name: zoom-team-chat-zoom_chat_channel_create
+      args:
+        channel_name: deal-room
+        new_members_can_see_previous_messages_and_files: true
+        user_email_list: 42
+  output:
+    expectedResult: deny
+    expectedReason: This channel enables new_members_can_see_previous_messages_and_files but user_email_list is not a readable list of email addresses, so it is blocked (fail-closed) to avoid exposing channel history to unverifiable invitees. Pass user_email_list as an array of email address strings, or turn that setting off. Contact your InfoSec team if this is a false positive.
+- description: 'Red team: the history-exposure flag is passed as the string "true"
+    rather than a boolean. It is still treated as enabled, so an external invitee
+    is denied.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-team-chat-zoom_chat_channel_create
+      uri: null
+    payload:
+      name: zoom-team-chat-zoom_chat_channel_create
+      args:
+        channel_name: deal-room
+        new_members_can_see_previous_messages_and_files: "true"
+        user_email_list:
+          - partner@vendor-example.net
+  output:
+    expectedResult: deny
+    expectedReason: This channel is being created with new_members_can_see_previous_messages_and_files enabled while one or more invited addresses are outside the corporate domain allowlist, which would expose prior messages and files to external people. Turn that setting off, remove the external invitees, or ask your InfoSec team to approve the external domain.
+- description: 'Red team: look-alike domain evilexample.com must NOT match the
+    allowlisted example.com. Label-boundary matching treats it as external and
+    denies.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-team-chat-zoom_chat_channel_members_add
+      uri: null
+    payload:
+      name: zoom-team-chat-zoom_chat_channel_members_add
+      args:
+        channelId: abc123
+        user_email_list:
+          - attacker@evilexample.com
+  output:
+    expectedResult: deny
+    expectedReason: One or more addresses in user_email_list are outside the corporate domain allowlist, so this Team Chat channel member add is blocked. Remove the external addresses, or ask your InfoSec team to add the domain to the allowlist if this external collaboration is sanctioned.
+- description: Subdomain of an allowlisted domain (u@eu.example.com) is internal
+    under label-boundary suffix matching — allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-team-chat-zoom_chat_channel_members_add
+      uri: null
+    payload:
+      name: zoom-team-chat-zoom_chat_channel_members_add
+      args:
+        channelId: abc123
+        user_email_list:
+          - u@eu.example.com
+  output:
+    expectedResult: allow
+- description: Mixed-case tool name and uppercase address — matching and domain
+    parsing are case-insensitive, all internal, allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: Zoom-Team-Chat-ZOOM_CHAT_CHANNEL_MEMBERS_ADD
+      uri: null
+    payload:
+      name: Zoom-Team-Chat-ZOOM_CHAT_CHANNEL_MEMBERS_ADD
+      args:
+        channelId: abc123
+        user_email_list:
+          - Alice@EXAMPLE.COM
+  output:
+    expectedResult: allow
+- description: 'Red team: comma-separated string user_email_list smuggling an
+    external address alongside an internal one. The splitter parses both and denies
+    on the external entry.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-team-chat-zoom_chat_channel_members_add
+      uri: null
+    payload:
+      name: zoom-team-chat-zoom_chat_channel_members_add
+      args:
+        channelId: abc123
+        user_email_list: alice@example.com,attacker@vendor-example.net
+  output:
+    expectedResult: deny
+    expectedReason: One or more addresses in user_email_list are outside the corporate domain allowlist, so this Team Chat channel member add is blocked. Remove the external addresses, or ask your InfoSec team to add the domain to the allowlist if this external collaboration is sanctioned.
+- description: 'Red team: two addresses smuggled into a single array entry (two "@"
+    signs, no separator). Conservative parsing yields no domain, so the entry is
+    unverifiable and treated as external — deny.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-team-chat-zoom_chat_channel_members_add
+      uri: null
+    payload:
+      name: zoom-team-chat-zoom_chat_channel_members_add
+      args:
+        channelId: abc123
+        user_email_list:
+          - "alice@example.com attacker@vendor-example.net"
+  output:
+    expectedResult: deny
+    expectedReason: One or more addresses in user_email_list are outside the corporate domain allowlist, so this Team Chat channel member add is blocked. Remove the external addresses, or ask your InfoSec team to add the domain to the allowlist if this external collaboration is sanctioned.
+- description: 'Red team (fail-open fix): contact_add arrives with resource.name
+    absent — only the legacy payload.name identifies it. Reading both fields, the
+    tool is still denied outright instead of slipping through as a passthrough.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    payload:
+      name: zoom-team-chat-zoom_chat_contact_add
+      args:
+        email: exfil@vendor-example.net
+  output:
+    expectedResult: deny
+    expectedReason: Team Chat contact invitations are blocked because they can be addressed to external email accounts. Do not use zoom_chat_contact_add; add people who already have accounts to a channel instead, or ask your InfoSec team to invite an external contact if this collaboration is sanctioned.
+- description: channel_create with history exposure ON but no invitees at all — no
+    external address is being exposed to, so the call passes through.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-team-chat-zoom_chat_channel_create
+      uri: null
+    payload:
+      name: zoom-team-chat-zoom_chat_channel_create
+      args:
+        channel_name: solo-room
+        new_members_can_see_previous_messages_and_files: true
+  output:
+    expectedResult: allow
+- description: 'Red team (bypass fix): channel_update carries the same user_email_list
+    signature as channel_members_add, so an agent blocked from members_add tries to
+    add an external member via channel_update instead. Now guarded — denied.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-team-chat-zoom_chat_channel_update
+      uri: null
+    payload:
+      name: zoom-team-chat-zoom_chat_channel_update
+      args:
+        channelId: abc123
+        user_email_list:
+          - alice@example.com
+          - partner@vendor-example.net
+  output:
+    expectedResult: deny
+    expectedReason: One or more addresses in user_email_list are outside the corporate domain allowlist, so this Team Chat channel update is blocked (channel updates can add members the same way channel_members_add does). Remove the external addresses, or ask your InfoSec team to add the domain to the allowlist if this external collaboration is sanctioned.
+- description: channel_update that only adds internal members via user_email_list —
+    all on the allowlist, allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-team-chat-zoom_chat_channel_update
+      uri: null
+    payload:
+      name: zoom-team-chat-zoom_chat_channel_update
+      args:
+        channelId: abc123
+        user_email_list:
+          - alice@example.com
+  output:
+    expectedResult: allow
+- description: Metadata-only channel_update (rename, no user_email_list) — not a
+    membership change, passes through untouched.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-team-chat-zoom_chat_channel_update
+      uri: null
+    payload:
+      name: zoom-team-chat-zoom_chat_channel_update
+      args:
+        channelId: abc123
+        channel_name: renamed-room
+  output:
+    expectedResult: allow
+- description: 'Red team: channel_update with user_email_list as an object (not a
+    list) — unparseable, fail closed, deny with the update unparseable reason.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-team-chat-zoom_chat_channel_update
+      uri: null
+    payload:
+      name: zoom-team-chat-zoom_chat_channel_update
+      args:
+        channelId: abc123
+        user_email_list:
+          email: partner@vendor-example.net
+  output:
+    expectedResult: deny
+    expectedReason: user_email_list is present but is not a readable list of email addresses, so this Team Chat channel update is blocked (fail-closed). Pass user_email_list as an array of email address strings, or omit it for a metadata-only update. Contact your InfoSec team if this is a false positive.
+- description: 'Red team (documented residual): channel_create with history exposure
+    OFF and an external invitee is allowed by design (new channel has no prior
+    history to expose). Documented under Known limitations.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-team-chat-zoom_chat_channel_create
+      uri: null
+    payload:
+      name: zoom-team-chat-zoom_chat_channel_create
+      args:
+        channel_name: partner-room
+        new_members_can_see_previous_messages_and_files: false
+        user_email_list:
+          - partner@vendor-example.net
+  output:
+    expectedResult: allow
+- description: 'Red team (coercion fix): history-exposure flag passed as the INTEGER
+    1 (not boolean true) with an external invitee. Numeric-truthy coercion is now
+    treated as enabled, so the call is denied rather than slipping through.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-team-chat-zoom_chat_channel_create
+      uri: null
+    payload:
+      name: zoom-team-chat-zoom_chat_channel_create
+      args:
+        channel_name: deal-room
+        new_members_can_see_previous_messages_and_files: 1
+        user_email_list:
+          - partner@vendor-example.net
+  output:
+    expectedResult: deny
+    expectedReason: This channel is being created with new_members_can_see_previous_messages_and_files enabled while one or more invited addresses are outside the corporate domain allowlist, which would expose prior messages and files to external people. Turn that setting off, remove the external invitees, or ask your InfoSec team to approve the external domain.
+- description: 'Red team (coercion fix): history-exposure flag passed as the STRING
+    "1" with an external invitee — recognized as enabled, denied.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-team-chat-zoom_chat_channel_create
+      uri: null
+    payload:
+      name: zoom-team-chat-zoom_chat_channel_create
+      args:
+        channel_name: deal-room
+        new_members_can_see_previous_messages_and_files: "1"
+        user_email_list:
+          - partner@vendor-example.net
+  output:
+    expectedResult: deny
+    expectedReason: This channel is being created with new_members_can_see_previous_messages_and_files enabled while one or more invited addresses are outside the corporate domain allowlist, which would expose prior messages and files to external people. Turn that setting off, remove the external invitees, or ask your InfoSec team to approve the external domain.
+- description: 'Coercion fix (no over-block): history-exposure flag as integer 0 is
+    falsy, so a new channel with an external invitee still passes (flag-off residual).'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-team-chat-zoom_chat_channel_create
+      uri: null
+    payload:
+      name: zoom-team-chat-zoom_chat_channel_create
+      args:
+        channel_name: partner-room
+        new_members_can_see_previous_messages_and_files: 0
+        user_email_list:
+          - partner@vendor-example.net
+  output:
+    expectedResult: allow
+- description: 'Red team (fail-closed fix): history-exposure flag passed as the exotic
+    truthy string "on" (not in the old true/1/yes set) with an external invitee. Now
+    treated as enabled, so the call is denied rather than slipping through.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-team-chat-zoom_chat_channel_create
+      uri: null
+    payload:
+      name: zoom-team-chat-zoom_chat_channel_create
+      args:
+        channel_name: deal-room
+        new_members_can_see_previous_messages_and_files: "on"
+        user_email_list:
+          - partner@vendor-example.net
+  output:
+    expectedResult: deny
+    expectedReason: This channel is being created with new_members_can_see_previous_messages_and_files enabled while one or more invited addresses are outside the corporate domain allowlist, which would expose prior messages and files to external people. Turn that setting off, remove the external invitees, or ask your InfoSec team to approve the external domain.
+- description: 'Red team (fail-closed fix): history-exposure flag passed as the exotic
+    truthy string "enabled" with an external invitee — recognized as enabled, denied.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-team-chat-zoom_chat_channel_create
+      uri: null
+    payload:
+      name: zoom-team-chat-zoom_chat_channel_create
+      args:
+        channel_name: deal-room
+        new_members_can_see_previous_messages_and_files: "enabled"
+        user_email_list:
+          - partner@vendor-example.net
+  output:
+    expectedResult: deny
+    expectedReason: This channel is being created with new_members_can_see_previous_messages_and_files enabled while one or more invited addresses are outside the corporate domain allowlist, which would expose prior messages and files to external people. Turn that setting off, remove the external invitees, or ask your InfoSec team to approve the external domain.
+- description: 'Fail-closed fix (no over-block): history-exposure flag as the explicit
+    off-token string "false" is treated as disabled, so a new channel with an external
+    invitee still passes (flag-off residual, not a regression into over-blocking).'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zoom-team-chat-zoom_chat_channel_create
+      uri: null
+    payload:
+      name: zoom-team-chat-zoom_chat_channel_create
+      args:
+        channel_name: partner-room
+        new_members_can_see_previous_messages_and_files: "false"
+        user_email_list:
+          - partner@vendor-example.net
+  output:
+    expectedResult: allow

@@ -1,0 +1,870 @@
+- description: Non-support-agent, JSM project (SUP), no commentVisibility — rewritten to internal role; issueIdOrKey and commentBody preserved.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-addcommenttojiraissue
+      uri: null
+    subject:
+      sub: agent@example.com
+      claims:
+        groups:
+          - staff
+    payload:
+      name: atlassian-addcommenttojiraissue
+      args:
+        issueIdOrKey: SUP-123
+        commentBody: Escalating to tier 2 internally.
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    issueIdOrKey: SUP-123
+    commentBody: Escalating to tier 2 internally.
+    commentVisibility:
+      type: role
+      value: Service Desk Team
+
+- description: Non-support-agent, second JSM key (HELP) — transform still fires.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-addcommenttojiraissue
+      uri: null
+    subject:
+      sub: agent@example.com
+      claims:
+        groups:
+          - staff
+    payload:
+      name: atlassian-addcommenttojiraissue
+      args:
+        issueIdOrKey: HELP-9
+        commentBody: internal triage note
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    commentVisibility:
+      type: role
+      value: Service Desk Team
+
+- description: Non-support-agent, third JSM key (ITSM), editing an existing comment — transform fires and preserves commentId.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-addcommenttojiraissue
+      uri: null
+    subject:
+      sub: agent@example.com
+      claims:
+        groups:
+          - staff
+    payload:
+      name: atlassian-addcommenttojiraissue
+      args:
+        issueIdOrKey: ITSM-42
+        commentBody: revised internal note
+        commentId: "10501"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    issueIdOrKey: ITSM-42
+    commentId: "10501"
+    commentVisibility:
+      type: role
+      value: Service Desk Team
+
+- description: Lower-case project key in issueIdOrKey (sup-123) — the project prefix is upper-cased before the JSM lookup, so it still matches and is rewritten.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-addcommenttojiraissue
+      uri: null
+    subject:
+      sub: agent@example.com
+      claims:
+        groups:
+          - staff
+    payload:
+      name: atlassian-addcommenttojiraissue
+      args:
+        issueIdOrKey: sup-123
+        commentBody: lowercase key
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    commentVisibility:
+      type: role
+      value: Service Desk Team
+
+- description: Non-JSM project (ENG) — ordinary Jira comment, not a service-desk project, so it passes through untouched.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-addcommenttojiraissue
+      uri: null
+    subject:
+      sub: agent@example.com
+      claims:
+        groups:
+          - staff
+    payload:
+      name: atlassian-addcommenttojiraissue
+      args:
+        issueIdOrKey: ENG-45
+        commentBody: note on the dev ticket
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Support-agent caller on a JSM project — exempt, may post a portal-visible reply, passes through unmodified.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-addcommenttojiraissue
+      uri: null
+    subject:
+      sub: desk@example.com
+      claims:
+        groups:
+          - support-agents
+    payload:
+      name: atlassian-addcommenttojiraissue
+      args:
+        issueIdOrKey: SUP-123
+        commentBody: Your ticket is resolved.
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Support-agent membership among several groups — still exempt, passes through.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-addcommenttojiraissue
+      uri: null
+    subject:
+      sub: desk@example.com
+      claims:
+        groups:
+          - staff
+          - support-agents
+          - oncall
+    payload:
+      name: atlassian-addcommenttojiraissue
+      args:
+        issueIdOrKey: SUP-7
+        commentBody: Following up.
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Non-support-agent, JSM project, but caller already scoped the comment internal (group visibility with a value) — restriction preserved, no transform.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-addcommenttojiraissue
+      uri: null
+    subject:
+      sub: agent@example.com
+      claims:
+        groups:
+          - staff
+    payload:
+      name: atlassian-addcommenttojiraissue
+      args:
+        issueIdOrKey: SUP-123
+        commentBody: internal
+        commentVisibility:
+          type: group
+          value: jira-administrators
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Non-support-agent, JSM project, existing role visibility with a value — already restrictive, passes through.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-addcommenttojiraissue
+      uri: null
+    subject:
+      sub: agent@example.com
+      claims:
+        groups:
+          - staff
+    payload:
+      name: atlassian-addcommenttojiraissue
+      args:
+        issueIdOrKey: SUP-123
+        commentBody: already internal
+        commentVisibility:
+          type: role
+          value: Administrators
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Red-team: existing commentVisibility with an unrecognised type (public) is not restrictive — treated as portal-visible and overwritten with the internal default."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-addcommenttojiraissue
+      uri: null
+    subject:
+      sub: agent@example.com
+      claims:
+        groups:
+          - staff
+    payload:
+      name: atlassian-addcommenttojiraissue
+      args:
+        issueIdOrKey: SUP-123
+        commentBody: sneaky public visibility
+        commentVisibility:
+          type: public
+          value: everyone
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    commentVisibility:
+      type: role
+      value: Service Desk Team
+
+- description: "Red-team: existing commentVisibility with a valid type but empty value is not restrictive — overwritten with the internal default."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-addcommenttojiraissue
+      uri: null
+    subject:
+      sub: agent@example.com
+      claims:
+        groups:
+          - staff
+    payload:
+      name: atlassian-addcommenttojiraissue
+      args:
+        issueIdOrKey: SUP-123
+        commentBody: empty value
+        commentVisibility:
+          type: role
+          value: ""
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    commentVisibility:
+      type: role
+      value: Service Desk Team
+
+- description: Unrelated tool (createjiraissue) — not an add-comment call, passes through untouched.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-createjiraissue
+      uri: null
+    subject:
+      sub: agent@example.com
+      claims:
+        groups:
+          - staff
+    payload:
+      name: atlassian-createjiraissue
+      args:
+        projectKey: SUP
+        summary: new ticket
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Red-team (documented residual): community sooperset tool jira_add_comment does not end with addcommenttojiraissue, so it is not matched and passes through — add its suffix per-tenant after verifying its visibility field."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-jira_add_comment
+      uri: null
+    subject:
+      sub: agent@example.com
+      claims:
+        groups:
+          - staff
+    payload:
+      name: atlassian-jira_add_comment
+      args:
+        issueIdOrKey: SUP-123
+        commentBody: community server comment
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Red-team: mixed-case tool name (ADDCOMMENTTOJIRAISSUE) — matching is case-insensitive, transform still fires."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: Atlassian-Rovo-ADDCOMMENTTOJIRAISSUE
+      uri: null
+    subject:
+      sub: agent@example.com
+      claims:
+        groups:
+          - staff
+    payload:
+      name: Atlassian-Rovo-ADDCOMMENTTOJIRAISSUE
+      args:
+        issueIdOrKey: SUP-123
+        commentBody: casing bypass attempt
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    commentVisibility:
+      type: role
+      value: Service Desk Team
+
+- description: "Red-team: bare addcommenttojiraissue with no server prefix — suffix match still catches it."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: addcommenttojiraissue
+      uri: null
+    subject:
+      sub: agent@example.com
+      claims:
+        groups:
+          - staff
+    payload:
+      name: addcommenttojiraissue
+      args:
+        issueIdOrKey: SUP-123
+        commentBody: bare name
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    commentVisibility:
+      type: role
+      value: Service Desk Team
+
+- description: "Red-team (fix): resource.name absent, only the legacy payload.name carries the tool name — the payload.name branch still matches, so the comment cannot slip through portal-visible on a missing resource.name."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      uri: null
+    subject:
+      sub: agent@example.com
+      claims:
+        groups:
+          - staff
+    payload:
+      name: atlassian-addcommenttojiraissue
+      args:
+        issueIdOrKey: SUP-123
+        commentBody: resource.name is missing
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    commentVisibility:
+      type: role
+      value: Service Desk Team
+
+- description: "Red-team: no subject/claims at all — missing groups fail closed (not a support agent), so a JSM comment is rewritten to internal."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-addcommenttojiraissue
+      uri: null
+    payload:
+      name: atlassian-addcommenttojiraissue
+      args:
+        issueIdOrKey: SUP-123
+        commentBody: no identity present
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    commentVisibility:
+      type: role
+      value: Service Desk Team
+
+- description: "Red-team: groups claim emitted as a bare string (not an array) — Rego does not iterate a string as a member, so is_support_agent fails and the caller is treated as non-exempt; the JSM comment is rewritten (fails closed toward internal-only)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-addcommenttojiraissue
+      uri: null
+    subject:
+      sub: agent@example.com
+      claims:
+        groups: support-agents
+    payload:
+      name: atlassian-addcommenttojiraissue
+      args:
+        issueIdOrKey: SUP-123
+        commentBody: groups is a bare string
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    commentVisibility:
+      type: role
+      value: Service Desk Team
+
+- description: "Red-team: near-miss group name (support_agents with an underscore) is not an exact match, so the caller is not exempt and the comment is rewritten."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-addcommenttojiraissue
+      uri: null
+    subject:
+      sub: agent@example.com
+      claims:
+        groups:
+          - support_agents
+    payload:
+      name: atlassian-addcommenttojiraissue
+      args:
+        issueIdOrKey: SUP-123
+        commentBody: near-miss group name
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    commentVisibility:
+      type: role
+      value: Service Desk Team
+
+- description: "Red-team (documented residual): numeric issueIdOrKey (10023) instead of a project key — the project of a numeric ID cannot be resolved without an API call, so it matches no JSM key prefix and passes through untouched (pair with a KEY-nnn shape deny to close)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-addcommenttojiraissue
+      uri: null
+    subject:
+      sub: agent@example.com
+      claims:
+        groups:
+          - staff
+    payload:
+      name: atlassian-addcommenttojiraissue
+      args:
+        issueIdOrKey: "10023"
+        commentBody: numeric id bypass
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Red-team (documented residual): missing args entirely — issueIdOrKey defaults to empty, so no JSM key matches and the call passes through (no portal-visible comment can be posted without a body/issue)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-addcommenttojiraissue
+      uri: null
+    subject:
+      sub: agent@example.com
+      claims:
+        groups:
+          - staff
+    payload:
+      name: atlassian-addcommenttojiraissue
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Red-team (documented residual): malformed non-object args (a bare string) — the object.get chain is undefined on a non-object, so no transform fires; such a call cannot carry a valid commentBody/issueIdOrKey and fails at the server."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-addcommenttojiraissue
+      uri: null
+    subject:
+      sub: agent@example.com
+      claims:
+        groups:
+          - staff
+    payload:
+      name: atlassian-addcommenttojiraissue
+      args: "oops-not-an-object"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Red-team (fix): leading whitespace on a JSM key (' SUP-123') — issueIdOrKey is trim_space'd before the prefix is extracted, so the JSM match still fires and the comment is rewritten internal rather than slipping through portal-visible."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-addcommenttojiraissue
+      uri: null
+    subject:
+      sub: agent@example.com
+      claims:
+        groups:
+          - staff
+    payload:
+      name: atlassian-addcommenttojiraissue
+      args:
+        issueIdOrKey: " SUP-123"
+        commentBody: leading-space key bypass attempt
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    commentVisibility:
+      type: role
+      value: Service Desk Team
+
+- description: "Red-team (fix): trailing newline/tab around a JSM key ('\tHELP-9\n') — trimmed before matching, so the transform still fires."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-addcommenttojiraissue
+      uri: null
+    subject:
+      sub: agent@example.com
+      claims:
+        groups:
+          - staff
+    payload:
+      name: atlassian-addcommenttojiraissue
+      args:
+        issueIdOrKey: "\tHELP-9\n"
+        commentBody: surrounding-whitespace key bypass attempt
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    commentVisibility:
+      type: role
+      value: Service Desk Team
+
+- description: "Red-team (fix): existing commentVisibility with a valid type but a whitespace-only value ('  ') is not restrictive — trim_space collapses it to empty, so it is overwritten with the internal default rather than passing a bogus visibility through."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-addcommenttojiraissue
+      uri: null
+    subject:
+      sub: agent@example.com
+      claims:
+        groups:
+          - staff
+    payload:
+      name: atlassian-addcommenttojiraissue
+      args:
+        issueIdOrKey: SUP-123
+        commentBody: whitespace-only visibility value
+        commentVisibility:
+          type: role
+          value: "   "
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    commentVisibility:
+      type: role
+      value: Service Desk Team
+
+- description: "Red-team (documented residual): embedded zero-width space inside the key prefix ('SUP​-123') is not stripped by trim_space, so it misses the JSM match and passes through — but this is not a valid Jira issue key and fails at the server (pair with a KEY-nnn schema deny to close)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-addcommenttojiraissue
+      uri: null
+    subject:
+      sub: agent@example.com
+      claims:
+        groups:
+          - staff
+    payload:
+      name: atlassian-addcommenttojiraissue
+      args:
+        issueIdOrKey: "SUP​-123"
+        commentBody: zero-width-space embedded in key
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Red-team (fix): non-restrictive commentVisibility smuggling an extra identifier key ({type: public, identifier: ...}) — the object is replaced wholesale (removed before object.union), so the identifier cannot survive the recursive merge and re-address the audience."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-addcommenttojiraissue
+      uri: null
+    subject:
+      sub: agent@example.com
+      claims:
+        groups:
+          - staff
+    payload:
+      name: atlassian-addcommenttojiraissue
+      args:
+        issueIdOrKey: SUP-123
+        commentBody: identifier smuggling attempt
+        commentVisibility:
+          type: public
+          value: everyone
+          identifier: customer-role-uuid
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    issueIdOrKey: SUP-123
+    commentBody: identifier smuggling attempt
+    commentVisibility:
+      type: role
+      value: Service Desk Team
+
+- description: "Red-team (fix): restrictive-looking visibility with an extra identifier key ({type: group, value: jira-administrators, identifier: ...}) is NOT treated as restrictive — only the exact {type, value} shape counts, so the object is replaced wholesale rather than preserving an ID that could re-address the audience."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-addcommenttojiraissue
+      uri: null
+    subject:
+      sub: agent@example.com
+      claims:
+        groups:
+          - staff
+    payload:
+      name: atlassian-addcommenttojiraissue
+      args:
+        issueIdOrKey: SUP-123
+        commentBody: identifier alongside internal-looking value
+        commentVisibility:
+          type: group
+          value: jira-administrators
+          identifier: customer-group-uuid
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    commentVisibility:
+      type: role
+      value: Service Desk Team
+
+- description: "Red-team (fix): visibility 'restricted' to the default JSM customer role ({type: role, value: Service Desk Customers}) is customer-facing, not internal — treated as unrestricted and overwritten with the internal default."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-addcommenttojiraissue
+      uri: null
+    subject:
+      sub: agent@example.com
+      claims:
+        groups:
+          - staff
+    payload:
+      name: atlassian-addcommenttojiraissue
+      args:
+        issueIdOrKey: SUP-123
+        commentBody: scoped to the customers themselves
+        commentVisibility:
+          type: role
+          value: Service Desk Customers
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    commentVisibility:
+      type: role
+      value: Service Desk Team
+
+- description: "Red-team (fix): customer-facing value with casing/whitespace tricks ('  service desk CUSTOMERS ') — the deny-set comparison is lower-cased and trimmed, so it is still caught and overwritten."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-addcommenttojiraissue
+      uri: null
+    subject:
+      sub: agent@example.com
+      claims:
+        groups:
+          - staff
+    payload:
+      name: atlassian-addcommenttojiraissue
+      args:
+        issueIdOrKey: HELP-4
+        commentBody: cased customer role
+        commentVisibility:
+          type: group
+          value: "  service desk CUSTOMERS "
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    commentVisibility:
+      type: role
+      value: Service Desk Team
+
+- description: "Red-team: commentVisibility supplied as a bare string instead of an object — fails the is_object check, treated as unrestricted, and replaced with the internal default."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-addcommenttojiraissue
+      uri: null
+    subject:
+      sub: agent@example.com
+      claims:
+        groups:
+          - staff
+    payload:
+      name: atlassian-addcommenttojiraissue
+      args:
+        issueIdOrKey: SUP-123
+        commentBody: string visibility
+        commentVisibility: "role:Service Desk Team"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    commentVisibility:
+      type: role
+      value: Service Desk Team
+
+- description: "Red-team (documented residual): comment added during a transition — transitionJiraIssue's open update object (update.comment[].add) posts a comment without ever calling addCommentToJiraIssue, so this policy does not fire; pair with a policy that denies/strips update payloads on *transitionjiraissue to close."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-transitionjiraissue
+      uri: null
+    subject:
+      sub: agent@example.com
+      claims:
+        groups:
+          - staff
+    payload:
+      name: atlassian-transitionjiraissue
+      args:
+        issueIdOrKey: SUP-123
+        transition:
+          id: "31"
+        update:
+          comment:
+            - add:
+                body: portal-visible comment via transition
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Red-team (documented residual): issueIdOrKey sent as a JSON number (10023) — trim_space is undefined on a number, so the JSM match never fires and the call passes through untouched (same numeric-ID residual as the string form; pair with a KEY-nnn shape deny to close)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-addcommenttojiraissue
+      uri: null
+    subject:
+      sub: agent@example.com
+      claims:
+        groups:
+          - staff
+    payload:
+      name: atlassian-addcommenttojiraissue
+      args:
+        issueIdOrKey: 10023
+        commentBody: numeric-typed id bypass
+  output:
+    expectedResult: allow
+  transformApplied: false

@@ -1,0 +1,517 @@
+# Reason string used by every deny assertion below (single-reason policy).
+# "This Microsoft 365 tool call is a write, which requires membership in the
+#  m365-writers IdP group; ..."
+
+- description: Read tool (list- verb) with no identity claims at all. Reads pass
+    for everyone — allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-list-mail-messages
+      uri: null
+    payload:
+      name: ms365-list-mail-messages
+      args: {}
+  output:
+    expectedResult: allow
+- description: Read tool (get- verb) with mixed-case name. Tool matching is
+    case-insensitive — allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: MS365-Get-Drive-Item
+      uri: null
+    payload:
+      name: MS365-Get-Drive-Item
+      args:
+        driveId: d123
+        driveItemId: i456
+  output:
+    expectedResult: allow
+- description: Read tool (search- verb), no group claims — allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-search-query
+      uri: null
+    subject:
+      sub: google-apps|sam@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: ms365-search-query
+      args:
+        body:
+          requests: []
+  output:
+    expectedResult: allow
+- description: Read tool (download- verb) — allow without any group.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-download-bytes
+      uri: null
+    payload:
+      name: ms365-download-bytes
+      args:
+        target: /drives/d1/items/i1/content
+  output:
+    expectedResult: allow
+- description: Read tool (find- verb) — allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-find-meeting-times
+      uri: null
+    payload:
+      name: ms365-find-meeting-times
+      args: {}
+  output:
+    expectedResult: allow
+- description: Read tool (parse- verb) — allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-parse-teams-url
+      uri: null
+    payload:
+      name: ms365-parse-teams-url
+      args:
+        url: https://teams.microsoft.com/l/message/x
+  output:
+    expectedResult: allow
+- description: Read tool (extract- verb) — allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-extract-drive-item-sensitivity-labels
+      uri: null
+    payload:
+      name: ms365-extract-drive-item-sensitivity-labels
+      args:
+        driveId: d123
+        driveItemId: i456
+  output:
+    expectedResult: allow
+- description: Unprefixed deployment (no gateway server-name prefix). The read
+    verb at the start of the name still matches — allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: list-mail-messages
+      uri: null
+    payload:
+      name: list-mail-messages
+      args: {}
+  output:
+    expectedResult: allow
+- description: Read tool whose noun contains "pinned" — must not match the
+    "pin-" write verb (segment matching regression guard) — allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-list-pinned-chat-messages
+      uri: null
+    payload:
+      name: ms365-list-pinned-chat-messages
+      args:
+        chatId: c1
+  output:
+    expectedResult: allow
+- description: Read tool whose noun contains "settings" — must not match the
+    "set-" write verb — allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-get-mailbox-settings
+      uri: null
+    payload:
+      name: ms365-get-mailbox-settings
+      args: {}
+  output:
+    expectedResult: allow
+- description: Read tool whose noun contains "shared" and "sharepoint" — must
+    not match the "share-" write verb — allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-get-shared-mailbox-message
+      uri: null
+    payload:
+      name: ms365-get-shared-mailbox-message
+      args:
+        sharedMailbox: hr@example.com
+        messageId: m1
+  output:
+    expectedResult: allow
+- description: Write tool (send-mail) with no subject at all. Claims absent —
+    fail closed, deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-send-mail
+      uri: null
+    payload:
+      name: ms365-send-mail
+      args:
+        body:
+          Message:
+            subject: hi
+  output:
+    expectedResult: deny
+    expectedReason: This Microsoft 365 tool call is a write, which requires membership in the m365-writers IdP group; your identity token does not carry it. Read tools (list, get, search, download, extract, find, parse) remain available. Contact your InfoSec team for write access, or if this looks like a misclassified read.
+- description: Write tool with claims present but no groups key — fail closed,
+    deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-update-mail-message
+      uri: null
+    subject:
+      sub: google-apps|sam@example.com
+      claims:
+        email: sam@example.com
+    payload:
+      name: ms365-update-mail-message
+      args:
+        messageId: m1
+  output:
+    expectedResult: deny
+    expectedReason: This Microsoft 365 tool call is a write, which requires membership in the m365-writers IdP group; your identity token does not carry it. Read tools (list, get, search, download, extract, find, parse) remain available. Contact your InfoSec team for write access, or if this looks like a misclassified read.
+- description: Write tool with groups that do not include m365-writers — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-send-chat-message
+      uri: null
+    subject:
+      sub: google-apps|sam@example.com
+      claims:
+        groups:
+          - engineering
+          - m365-readers
+    payload:
+      name: ms365-send-chat-message
+      args:
+        chatId: c1
+  output:
+    expectedResult: deny
+    expectedReason: This Microsoft 365 tool call is a write, which requires membership in the m365-writers IdP group; your identity token does not carry it. Read tools (list, get, search, download, extract, find, parse) remain available. Contact your InfoSec team for write access, or if this looks like a misclassified read.
+- description: Write tool with the m365-writers group — allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-send-mail
+      uri: null
+    subject:
+      sub: google-apps|pat@example.com
+      claims:
+        groups:
+          - engineering
+          - m365-writers
+    payload:
+      name: ms365-send-mail
+      args:
+        body:
+          Message:
+            subject: hi
+  output:
+    expectedResult: allow
+- description: Ambiguous name — create-sharepoint-list-item contains "-list-"
+    as a noun fragment but starts with the create- write verb. Must resolve to
+    the write class — deny without the group.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-create-sharepoint-list-item
+      uri: null
+    subject:
+      sub: google-apps|sam@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: ms365-create-sharepoint-list-item
+      args:
+        siteId: s1
+        listId: l1
+  output:
+    expectedResult: deny
+    expectedReason: This Microsoft 365 tool call is a write, which requires membership in the m365-writers IdP group; your identity token does not carry it. Read tools (list, get, search, download, extract, find, parse) remain available. Contact your InfoSec team for write access, or if this looks like a misclassified read.
+- description: Same ambiguous write with the m365-writers group — allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-create-sharepoint-list-item
+      uri: null
+    subject:
+      sub: google-apps|pat@example.com
+      claims:
+        groups:
+          - m365-writers
+    payload:
+      name: ms365-create-sharepoint-list-item
+      args:
+        siteId: s1
+        listId: l1
+  output:
+    expectedResult: allow
+- description: Write whose name ends in "-list" (delete-todo-task-list). The
+    trailing "list" is not a verb segment ("-list-" / leading "list-") — still
+    a write, deny without the group.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-delete-todo-task-list
+      uri: null
+    payload:
+      name: ms365-delete-todo-task-list
+      args:
+        todoTaskListId: t1
+  output:
+    expectedResult: deny
+    expectedReason: This Microsoft 365 tool call is a write, which requires membership in the m365-writers IdP group; your identity token does not carry it. Read tools (list, get, search, download, extract, find, parse) remain available. Contact your InfoSec team for write access, or if this looks like a misclassified read.
+- description: Unknown verb (graph-batch escape hatch) — neither read nor write
+    list — treated as a write, deny without the group.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-graph-batch
+      uri: null
+    subject:
+      sub: google-apps|sam@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: ms365-graph-batch
+      args:
+        requests:
+          - method: POST
+            url: /me/sendMail
+  output:
+    expectedResult: deny
+    expectedReason: This Microsoft 365 tool call is a write, which requires membership in the m365-writers IdP group; your identity token does not carry it. Read tools (list, get, search, download, extract, find, parse) remain available. Contact your InfoSec team for write access, or if this looks like a misclassified read.
+- description: Groups claim emitted as a plain string instead of an array —
+    membership iteration fails, grant fails closed — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-send-mail
+      uri: null
+    subject:
+      sub: google-apps|sam@example.com
+      claims:
+        groups: m365-writers
+    payload:
+      name: ms365-send-mail
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: This Microsoft 365 tool call is a write, which requires membership in the m365-writers IdP group; your identity token does not carry it. Read tools (list, get, search, download, extract, find, parse) remain available. Contact your InfoSec team for write access, or if this looks like a misclassified read.
+- description: Missing resource name entirely — nothing classifies as a read,
+    fail closed — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      uri: null
+    payload:
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: This Microsoft 365 tool call is a write, which requires membership in the m365-writers IdP group; your identity token does not carry it. Read tools (list, get, search, download, extract, find, parse) remain available. Contact your InfoSec team for write access, or if this looks like a misclassified read.
+- description: "Red-team regression (hypothetical name): a leading read verb
+    with a write verb as the final segment (get-chat-message-unpin) must not
+    classify as a read — write verbs also match the trailing segment — deny."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-get-chat-message-unpin
+      uri: null
+    subject:
+      sub: google-apps|sam@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: ms365-get-chat-message-unpin
+      args:
+        chatId: c1
+  output:
+    expectedResult: deny
+    expectedReason: This Microsoft 365 tool call is a write, which requires membership in the m365-writers IdP group; your identity token does not carry it. Read tools (list, get, search, download, extract, find, parse) remain available. Contact your InfoSec team for write access, or if this looks like a misclassified read.
+- description: "Red-team regression: object-shaped groups claim whose values
+    contain m365-writers must not grant (is_array guard) — deny."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-send-mail
+      uri: null
+    subject:
+      sub: google-apps|sam@example.com
+      claims:
+        groups:
+          "0": m365-writers
+    payload:
+      name: ms365-send-mail
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: This Microsoft 365 tool call is a write, which requires membership in the m365-writers IdP group; your identity token does not carry it. Read tools (list, get, search, download, extract, find, parse) remain available. Contact your InfoSec team for write access, or if this looks like a misclassified read.
+- description: "Group membership is exact and case-sensitive: M365-Writers
+    (wrong case) does not grant — fail closed, deny."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-send-mail
+      uri: null
+    subject:
+      sub: google-apps|sam@example.com
+      claims:
+        groups:
+          - M365-Writers
+    payload:
+      name: ms365-send-mail
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: This Microsoft 365 tool call is a write, which requires membership in the m365-writers IdP group; your identity token does not carry it. Read tools (list, get, search, download, extract, find, parse) remain available. Contact your InfoSec team for write access, or if this looks like a misclassified read.
+- description: "Documented limitation: non-tool ingress hooks are gated too.
+    A resource_pre_fetch whose resource name is a URI matches no read verb and
+    fails closed for a non-writer — deny."
+  input:
+    action: resource_pre_fetch
+    kind: resource_pre_fetch
+    mode: input
+    resource:
+      type: resource
+      name: ms365://mail/inbox
+      uri: ms365://mail/inbox
+    subject:
+      sub: google-apps|sam@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      uri: ms365://mail/inbox
+  output:
+    expectedResult: deny
+    expectedReason: This Microsoft 365 tool call is a write, which requires membership in the m365-writers IdP group; your identity token does not carry it. Read tools (list, get, search, download, extract, find, parse) remain available. Contact your InfoSec team for write access, or if this looks like a misclassified read.
+- description: "Documented limitation (conservative false positive):
+    create-drive-item-preview is read-like in effect but a write by verb —
+    denies for non-writers."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-create-drive-item-preview
+      uri: null
+    subject:
+      sub: google-apps|sam@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: ms365-create-drive-item-preview
+      args:
+        driveId: d1
+        driveItemId: i1
+  output:
+    expectedResult: deny
+    expectedReason: This Microsoft 365 tool call is a write, which requires membership in the m365-writers IdP group; your identity token does not carry it. Read tools (list, get, search, download, extract, find, parse) remain available. Contact your InfoSec team for write access, or if this looks like a misclassified read.
+- description: "Writer with the group can still call the trailing-write-verb
+    name (hypothetical get-chat-message-unpin) — allow."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-get-chat-message-unpin
+      uri: null
+    subject:
+      sub: google-apps|pat@example.com
+      claims:
+        groups:
+          - m365-writers
+    payload:
+      name: ms365-get-chat-message-unpin
+      args:
+        chatId: c1
+  output:
+    expectedResult: allow

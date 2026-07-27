@@ -1,0 +1,463 @@
+- description: Non-destructive Confluence write (update page) — not a frozen tool, allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: mcp-atlassian-confluence_update_page
+      uri: null
+    payload:
+      name: mcp-atlassian-confluence_update_page
+      args:
+        page_id: "123456"
+        title: Runbook
+        body: "..."
+  output:
+    expectedResult: allow
+
+- description: Official Rovo read tool (get page) — not a frozen tool, allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-getconfluencepage
+      uri: null
+    payload:
+      name: atlassian-getconfluencepage
+      args:
+        pageId: "123456"
+  output:
+    expectedResult: allow
+
+- description: Agent tries to delete a page (no admin group) — frozen tool, denied with reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: mcp-atlassian-confluence_delete_page
+      uri: null
+    subject:
+      sub: google-apps|agent@acme.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: mcp-atlassian-confluence_delete_page
+      args:
+        page_id: "123456"
+  output:
+    expectedResult: deny
+    expectedReason: Deleting Confluence pages or attachments is frozen on the agent channel. Deletions are irreversible, so a human must perform them in the Confluence UI. Contact your Confluence admins if this deletion is required.
+
+- description: Agent tries to delete an attachment (no admin group) — frozen tool, denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: mcp-atlassian-confluence_delete_attachment
+      uri: null
+    subject:
+      sub: google-apps|agent@acme.com
+      claims:
+        groups:
+          - support
+    payload:
+      name: mcp-atlassian-confluence_delete_attachment
+      args:
+        attachment_id: "att-99"
+  output:
+    expectedResult: deny
+    expectedReason: Deleting Confluence pages or attachments is frozen on the agent channel. Deletions are irreversible, so a human must perform them in the Confluence UI. Contact your Confluence admins if this deletion is required.
+
+- description: Red-team — mixed-case tool name for delete page. Case-insensitive match still denies.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: MCP-Atlassian-Confluence_Delete_Page
+      uri: null
+    subject:
+      sub: google-apps|agent@acme.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: MCP-Atlassian-Confluence_Delete_Page
+      args: {}
+  output:
+    expectedResult: deny
+
+- description: Break-glass — admin-group member deletes a page during maintenance. Allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: mcp-atlassian-confluence_delete_page
+      uri: null
+    subject:
+      sub: google-apps|admin@acme.com
+      claims:
+        groups:
+          - confluence-admins
+    payload:
+      name: mcp-atlassian-confluence_delete_page
+      args:
+        page_id: "123456"
+  output:
+    expectedResult: allow
+
+- description: Red-team — fail closed when the caller has claims but no groups at all. Delete denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: mcp-atlassian-confluence_delete_page
+      uri: null
+    subject:
+      sub: google-apps|agent@acme.com
+      claims:
+        scope: openid profile email
+    payload:
+      name: mcp-atlassian-confluence_delete_page
+      args:
+        page_id: "123456"
+  output:
+    expectedResult: deny
+
+- description: Red-team — fail closed when there is no subject object at all (no IdP identity). Delete denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: mcp-atlassian-confluence_delete_attachment
+      uri: null
+    payload:
+      name: mcp-atlassian-confluence_delete_attachment
+      args:
+        attachment_id: "att-1"
+  output:
+    expectedResult: deny
+
+- description: Red-team — frozen delete call arrives with no args key at all. Name-based deny still fires.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: mcp-atlassian-confluence_delete_page
+      uri: null
+    subject:
+      sub: google-apps|agent@acme.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: mcp-atlassian-confluence_delete_page
+  output:
+    expectedResult: deny
+
+- description: Red-team — non-admin caller whose groups list contains a lookalike (not the exact admin group). Denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: mcp-atlassian-confluence_delete_page
+      uri: null
+    subject:
+      sub: google-apps|agent@acme.com
+      claims:
+        groups:
+          - confluence-admins-readonly
+          - confluence-viewers
+    payload:
+      name: mcp-atlassian-confluence_delete_page
+      args:
+        page_id: "123456"
+  output:
+    expectedResult: deny
+
+- description: Out of scope for this policy — a Jira delete tool passes through (fenced by a separate Jira policy).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: mcp-atlassian-jira_delete_issue
+      uri: null
+    payload:
+      name: mcp-atlassian-jira_delete_issue
+      args:
+        issue_key: DEV-1
+  output:
+    expectedResult: allow
+
+- description: Red-team — delete tool name present only in legacy payload.name (resource.name absent). Freeze must not fail open.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    payload:
+      name: mcp-atlassian-confluence_delete_page
+      args:
+        page_id: "123456"
+    subject:
+      sub: google-apps|agent@acme.com
+      claims:
+        groups:
+          - engineering
+  output:
+    expectedResult: deny
+
+- description: Red-team — resource.name empty string, delete tool carried in payload.name. Fallback still denies.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ""
+      uri: null
+    payload:
+      name: mcp-atlassian-confluence_delete_attachment
+      args:
+        attachment_id: att-1
+    subject:
+      sub: google-apps|agent@acme.com
+      claims:
+        groups:
+          - support
+  output:
+    expectedResult: deny
+
+- description: Red-team — string-valued groups claim equal to the admin name does not satisfy break-glass (fail closed).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: mcp-atlassian-confluence_delete_page
+      uri: null
+    subject:
+      sub: google-apps|agent@acme.com
+      claims:
+        groups: confluence-admins
+    payload:
+      name: mcp-atlassian-confluence_delete_page
+      args:
+        page_id: "123456"
+  output:
+    expectedResult: deny
+
+- description: Red-team — object-shaped groups claim whose value matches the admin group does not satisfy break-glass (is_array guard, fail closed).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: mcp-atlassian-confluence_delete_page
+      uri: null
+    subject:
+      sub: google-apps|agent@acme.com
+      claims:
+        groups:
+          role: confluence-admins
+    payload:
+      name: mcp-atlassian-confluence_delete_page
+      args:
+        page_id: "123456"
+  output:
+    expectedResult: deny
+
+- description: Red-team — non-string resource.name (number) with the delete tool carried in payload.name. Independent matching still denies.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: 42
+      uri: null
+    subject:
+      sub: google-apps|agent@acme.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: mcp-atlassian-confluence_delete_page
+      args:
+        page_id: "123456"
+  output:
+    expectedResult: deny
+
+- description: Red-team — delete tool named only in resource.name (payload.name harmless). Independent matching still denies.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: mcp-atlassian-confluence_delete_attachment
+      uri: null
+    subject:
+      sub: google-apps|agent@acme.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: mcp-atlassian-confluence_get_page
+      args:
+        page_id: "123456"
+  output:
+    expectedResult: deny
+
+- description: Red-team — mid-string delete verb (not a suffix match). Documented as out of scope, allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: mcp-atlassian-confluence_delete_page_tree
+      uri: null
+    payload:
+      name: mcp-atlassian-confluence_delete_page_tree
+      args:
+        page_id: "123456"
+  output:
+    expectedResult: allow
+
+- description: Red-team — delete tool name padded with trailing space + newline. Names are whitespace-trimmed before matching, so the freeze still fires (fixed bypass).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "mcp-atlassian-confluence_delete_page \n"
+      uri: null
+    subject:
+      sub: google-apps|agent@acme.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: "mcp-atlassian-confluence_delete_page \n"
+      args:
+        page_id: "123456"
+  output:
+    expectedResult: deny
+    expectedReason: Deleting Confluence pages or attachments is frozen on the agent channel. Deletions are irreversible, so a human must perform them in the Confluence UI. Contact your Confluence admins if this deletion is required.
+
+- description: Red-team — delete tool name padded with a zero-width space (U+200B) evades the suffix match. Documented limitation — not exploitable, since MCP servers dispatch by exact name and reject the padded name as an unknown tool.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "mcp-atlassian-confluence_delete_page​"
+      uri: null
+    payload:
+      name: "mcp-atlassian-confluence_delete_page​"
+      args:
+        page_id: "123456"
+  output:
+    expectedResult: allow
+
+- description: Red-team — content destruction via an allowed write; blank-body confluence_update_page passes through. Documented limitation — versioned and recoverable from page history, unlike the frozen irreversible deletes.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: mcp-atlassian-confluence_update_page
+      uri: null
+    subject:
+      sub: google-apps|agent@acme.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: mcp-atlassian-confluence_update_page
+      args:
+        page_id: "123456"
+        title: Runbook
+        body: ""
+  output:
+    expectedResult: allow
+
+- description: Red-team — confluence_move_page (relocating a page out of sight) passes through. Documented limitation — a move is reversible and is not deletion.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: mcp-atlassian-confluence_move_page
+      uri: null
+    payload:
+      name: mcp-atlassian-confluence_move_page
+      args:
+        page_id: "123456"
+        target_parent_id: "999"
+  output:
+    expectedResult: allow
+
+- description: Red-team — claims is a bare string naming the admin group (not an object). Break-glass fails closed, delete denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: mcp-atlassian-confluence_delete_page
+      uri: null
+    subject:
+      sub: google-apps|agent@acme.com
+      claims: confluence-admins
+    payload:
+      name: mcp-atlassian-confluence_delete_page
+      args:
+        page_id: "123456"
+  output:
+    expectedResult: deny
+
+- description: Red-team — resource block is a non-object (bare string) while payload.name carries the delete tool. Independent payload matching still denies.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource: garbage
+    subject:
+      sub: google-apps|agent@acme.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: mcp-atlassian-confluence_delete_page
+      args:
+        page_id: "123456"
+  output:
+    expectedResult: deny

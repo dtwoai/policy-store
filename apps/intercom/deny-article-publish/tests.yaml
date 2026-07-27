@@ -1,0 +1,435 @@
+# Branch coverage:
+#   allow: not is_article_write            -> case 1
+#   allow: article write, not is_publish   -> cases 2 (explicit draft), 3 (missing state)
+#   allow: publish by content-admin        -> case 4
+#   deny:  create publish, non-admin       -> case 5
+#   deny:  update publish, non-admin       -> case 6
+# Red-team:
+#   kebab-case separator alias             -> case 7
+#   uppercase tool name + padded/cased state -> case 8
+#   no subject/claims at all (fail closed) -> case 9
+#   empty groups array (fail closed)       -> case 10
+#   unrelated state value passes through   -> case 11
+#   wrong-case arg key State:published (residual, allowed) -> case 12
+#   non-string state:true (residual, allowed)              -> case 13
+#   content-admin claim malformed as string (fail closed)  -> case 14
+#   content-admin claim malformed as object (fail closed)   -> case 15
+#   camelCase tool name createArticle (uncovered suffix, allowed) -> case 16
+#   array-valued state ["published"] (non-string, allowed)  -> case 17
+
+- description: Non-article tool (read) is unaffected — policy allows.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: intercom-get_article
+      uri: null
+    subject:
+      sub: google-apps|agent@acme.com
+      claims:
+        groups:
+          - support
+    payload:
+      name: intercom-get_article
+      args:
+        id: art_42
+  output:
+    expectedResult: allow
+
+- description: create_article with explicit state draft — allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: intercom-create_article
+      uri: null
+    subject:
+      sub: google-apps|agent@acme.com
+      claims:
+        groups:
+          - support
+    payload:
+      name: intercom-create_article
+      args:
+        title: "Draft: onboarding"
+        author_id: "123"
+        body: "<p>...</p>"
+        state: draft
+  output:
+    expectedResult: allow
+
+- description: create_article with no state key — defaults to draft, allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: intercom-create_article
+      uri: null
+    subject:
+      sub: google-apps|agent@acme.com
+      claims:
+        groups:
+          - support
+    payload:
+      name: intercom-create_article
+      args:
+        title: Runbook
+        author_id: "123"
+        body: "<p>...</p>"
+  output:
+    expectedResult: allow
+
+- description: content-admin publishes directly — exemption allows.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: intercom-create_article
+      uri: null
+    subject:
+      sub: google-apps|kb-lead@acme.com
+      claims:
+        groups:
+          - content-admins
+    payload:
+      name: intercom-create_article
+      args:
+        title: Launch announcement
+        author_id: "9"
+        body: "<p>...</p>"
+        state: published
+  output:
+    expectedResult: allow
+
+- description: create_article publishing to the public Help Center by a non-admin — denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: intercom-create_article
+      uri: null
+    subject:
+      sub: google-apps|agent@acme.com
+      claims:
+        groups:
+          - support
+    payload:
+      name: intercom-create_article
+      args:
+        title: Refund policy
+        author_id: "123"
+        body: "<p>...</p>"
+        state: published
+  output:
+    expectedResult: deny
+    expectedReason: "This Intercom write publishes an article to your public Help Center (state: \"published\"), putting agent-authored content live and externally visible immediately. Agent-initiated publishing is blocked. Create or update the article as a draft instead (omit state, or set state to \"draft\") and ask a member of the content-admin team to review and publish it. Contact your admin if you believe this is a false positive."
+
+- description: update_article republishing a live doc by a non-admin — denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: intercom-update_article
+      uri: null
+    subject:
+      sub: google-apps|agent@acme.com
+      claims:
+        groups:
+          - support
+    payload:
+      name: intercom-update_article
+      args:
+        id: art_42
+        body: "<p>rewritten</p>"
+        state: published
+  output:
+    expectedResult: deny
+
+- description: Red-team — kebab-case separator alias with published still denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: mcp-intercom-create-article
+      uri: null
+    subject:
+      sub: google-apps|agent@acme.com
+      claims:
+        groups:
+          - support
+    payload:
+      name: mcp-intercom-create-article
+      args:
+        title: Sneaky
+        author_id: "123"
+        body: "<p>...</p>"
+        state: published
+  output:
+    expectedResult: deny
+
+- description: Red-team — uppercase tool name and padded/cased state value still denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: INTERCOM-Update_Article
+      uri: null
+    subject:
+      sub: google-apps|agent@acme.com
+      claims:
+        groups:
+          - support
+    payload:
+      name: INTERCOM-Update_Article
+      args:
+        id: art_7
+        body: "<p>...</p>"
+        state: "  Published  "
+  output:
+    expectedResult: deny
+
+- description: Red-team — no subject/claims at all, publish denied (fail closed).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: intercom-create_article
+      uri: null
+    payload:
+      name: intercom-create_article
+      args:
+        title: No identity
+        author_id: "123"
+        body: "<p>...</p>"
+        state: published
+  output:
+    expectedResult: deny
+
+- description: Red-team — empty groups array, publish denied (fail closed).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: intercom-create_article
+      uri: null
+    subject:
+      sub: google-apps|agent@acme.com
+      claims:
+        groups: []
+    payload:
+      name: intercom-create_article
+      args:
+        title: Empty groups
+        author_id: "123"
+        body: "<p>...</p>"
+        state: published
+  output:
+    expectedResult: deny
+
+- description: Article write with an unrelated state value (not published) passes through.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: intercom-update_article
+      uri: null
+    subject:
+      sub: google-apps|agent@acme.com
+      claims:
+        groups:
+          - support
+    payload:
+      name: intercom-update_article
+      args:
+        id: art_42
+        state: archived
+  output:
+    expectedResult: allow
+
+- description: >-
+    Red-team — publish flag under a case-variant key (State) reads the empty
+    default and passes through. Documents the exact-key behavior; not an
+    exploitable bypass because the verified Intercom server keys on lowercase
+    `state` and treats an unset `state` as draft.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: intercom-create_article
+      uri: null
+    subject:
+      sub: google-apps|agent@acme.com
+      claims:
+        groups:
+          - support
+    payload:
+      name: intercom-create_article
+      args:
+        title: Wrong-case key
+        author_id: "123"
+        body: "<p>...</p>"
+        State: published
+  output:
+    expectedResult: allow
+
+- description: >-
+    Red-team — non-string state value (boolean true) is not the string
+    "published", so the write is treated as a draft and passes through. Documents
+    the type edge; the verified server would not publish a non-string state
+    either.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: intercom-create_article
+      uri: null
+    subject:
+      sub: google-apps|agent@acme.com
+      claims:
+        groups:
+          - support
+    payload:
+      name: intercom-create_article
+      args:
+        title: Non-string state
+        author_id: "123"
+        body: "<p>...</p>"
+        state: true
+  output:
+    expectedResult: allow
+
+- description: >-
+    Red-team — content-admin exemption fails closed when the groups claim is a
+    malformed bare string instead of an array; the publish is still denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: intercom-create_article
+      uri: null
+    subject:
+      sub: google-apps|kb-lead@acme.com
+      claims:
+        groups: content-admins
+    payload:
+      name: intercom-create_article
+      args:
+        title: Malformed claim
+        author_id: "9"
+        body: "<p>...</p>"
+        state: published
+  output:
+    expectedResult: deny
+
+- description: >-
+    Red-team — content-admin exemption fails closed when the groups claim is a
+    malformed object instead of an array. Without the is_array guard `some g in
+    groups` would iterate the object's values and match "content-admins",
+    granting the exemption; the guard forces the publish to be denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: intercom-create_article
+      uri: null
+    subject:
+      sub: google-apps|kb-lead@acme.com
+      claims:
+        groups:
+          role: content-admins
+    payload:
+      name: intercom-create_article
+      args:
+        title: Object-shaped claim
+        author_id: "9"
+        body: "<p>...</p>"
+        state: published
+  output:
+    expectedResult: deny
+
+- description: >-
+    Red-team — camelCase tool name (createArticle) is an uncovered suffix, so a
+    published camelCase create passes through (allowed). Documents the
+    suffix-only residual: no surveyed Intercom server ships article writes in
+    camelCase; add its suffix to article_write_suffixes if one appears.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: intercom-createArticle
+      uri: null
+    subject:
+      sub: google-apps|agent@acme.com
+      claims:
+        groups:
+          - support
+    payload:
+      name: intercom-createArticle
+      args:
+        title: camelCase name
+        author_id: "123"
+        body: "<p>...</p>"
+        state: published
+  output:
+    expectedResult: allow
+
+- description: >-
+    Red-team — array-valued state (["published"]) is not the string "published",
+    so the case-fold makes is_publish undefined and the write is treated as a
+    draft (allowed). Documents the non-string residual; the verified server would
+    not publish an array-typed state either.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: intercom-create_article
+      uri: null
+    subject:
+      sub: google-apps|agent@acme.com
+      claims:
+        groups:
+          - support
+    payload:
+      name: intercom-create_article
+      args:
+        title: Array state
+        author_id: "123"
+        body: "<p>...</p>"
+        state:
+          - published
+  output:
+    expectedResult: allow

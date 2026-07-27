@@ -1,0 +1,556 @@
+# quickbooks / freeze-destructive-ops — every rule branch + red-team bypasses.
+
+- description: Read tool (get_invoice) passes through untouched.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: quickbooks-get_invoice
+      uri: null
+    payload:
+      name: quickbooks-get_invoice
+      args:
+        id: "145"
+  output:
+    expectedResult: allow
+
+- description: Search/report reads pass through untouched.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: quickbooks-search_invoices
+      uri: null
+    payload:
+      name: quickbooks-search_invoices
+      args:
+        criteria:
+          TxnDate: "2026-01-01"
+  output:
+    expectedResult: allow
+
+- description: Non-destructive create write passes through.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: quickbooks-create_invoice
+      uri: null
+    payload:
+      name: quickbooks-create_invoice
+      args:
+        customer_ref: "58"
+        line_items:
+          - item_ref: "1"
+            qty: 2
+            unit_price: 50
+  output:
+    expectedResult: allow
+
+- description: Non-destructive update write passes through.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: quickbooks-update_customer
+      uri: null
+    payload:
+      name: quickbooks-update_customer
+      args:
+        id: "58"
+        display_name: Acme LLC
+  output:
+    expectedResult: allow
+
+- description: Unrelated non-QuickBooks tool passes through.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-slack-post-message
+      uri: null
+    payload:
+      name: slack-mcp-slack-post-message
+      args:
+        channel: C1
+        text: hi
+  output:
+    expectedResult: allow
+
+- description: Dedicated delete_invoice tool is denied by the delete_ verb match.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: quickbooks-delete_invoice
+      uri: null
+    payload:
+      name: quickbooks-delete_invoice
+      args:
+        id: "145"
+  output:
+    expectedResult: deny
+    expectedReason: "The tool 'quickbooks-delete_invoice' performs a destructive QuickBooks operation. In QuickBooks Online most transaction deletes are hard deletes, recoverable only from the audit log, so agent-initiated deletes and deactivations are blocked on this channel. A person must perform the deletion in the QuickBooks Online UI. Contact your finance or InfoSec team if this block is a false positive."
+
+- description: delete_journal_entry (a different server-name prefix) is still denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: qbo-mcp-delete_journal_entry
+      uri: null
+    payload:
+      name: qbo-mcp-delete_journal_entry
+      args:
+        id: "9"
+  output:
+    expectedResult: deny
+
+- description: Uppercase/case-variant delete tool name is denied (case-insensitive).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: QuickBooks-DELETE_Payment
+      uri: null
+    payload:
+      name: QuickBooks-DELETE_Payment
+      args:
+        id: "22"
+  output:
+    expectedResult: deny
+
+- description: Bare delete_credit_memo tool (no server prefix) is denied at start-of-name boundary.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: delete_credit_memo
+      uri: null
+    payload:
+      name: delete_credit_memo
+      args:
+        id: "3"
+  output:
+    expectedResult: deny
+
+- description: Delete tool named only in the legacy payload.name (resource block omitted) is still denied (fail-open hardening).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    payload:
+      name: quickbooks-delete_bill
+      args:
+        id: "31"
+  output:
+    expectedResult: deny
+
+- description: Whitespace/newline-padded delete tool name is trimmed and denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "  quickbooks-delete_deposit\n"
+      uri: null
+    payload:
+      name: "  quickbooks-delete_deposit\n"
+      args:
+        id: "77"
+  output:
+    expectedResult: deny
+
+- description: Non-string resource name is coerced to "" and does not crash; payload.name still catches the delete verb.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: 12345
+      uri: null
+    payload:
+      name: quickbooks-delete_transfer
+      args:
+        id: "88"
+  output:
+    expectedResult: deny
+
+- description: Restore-style undelete_ tool is NOT matched (letter precedes delete_) and passes through.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: quickbooks-undelete_invoice
+      uri: null
+    payload:
+      name: quickbooks-undelete_invoice
+      args:
+        id: "145"
+  output:
+    expectedResult: allow
+
+- description: Parameterized mega-tool hiding delete in the operation argument is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: qbo-transaction
+      uri: null
+    payload:
+      name: qbo-transaction
+      args:
+        operation: delete
+        entity_type: Invoice
+        id: "145"
+  output:
+    expectedResult: deny
+    expectedReason: "This QuickBooks tool call requests a destructive operation ('delete') through its 'operation' argument. Delete, void, and deactivate are blocked on the agent channel because QuickBooks transaction deletes are hard deletes, recoverable only from the audit log. Perform the change in the QuickBooks Online UI instead. Contact your finance or InfoSec team if this block is a false positive."
+
+- description: Mega-tool operation=void is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: qbo-transaction
+      uri: null
+    payload:
+      name: qbo-transaction
+      args:
+        operation: void
+        entity_type: Payment
+        id: "22"
+  output:
+    expectedResult: deny
+    expectedReason: "This QuickBooks tool call requests a destructive operation ('void') through its 'operation' argument. Delete, void, and deactivate are blocked on the agent channel because QuickBooks transaction deletes are hard deletes, recoverable only from the audit log. Perform the change in the QuickBooks Online UI instead. Contact your finance or InfoSec team if this block is a false positive."
+
+- description: Mega-tool operation=deactivate (party deactivation) is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: qbo-party
+      uri: null
+    payload:
+      name: qbo-party
+      args:
+        operation: deactivate
+        party_type: Customer
+        id: "58"
+  output:
+    expectedResult: deny
+
+- description: Whitespace-padded/case-variant operation value is normalized and denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: qbo-transaction
+      uri: null
+    payload:
+      name: qbo-transaction
+      args:
+        operation: "  DELETE  "
+        entity_type: Bill
+        id: "12"
+  output:
+    expectedResult: deny
+
+- description: Destructive operation delivered under the alternate params.arguments container is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: qbo-transaction
+      uri: null
+    payload:
+      name: qbo-transaction
+      params:
+        arguments:
+          operation: delete
+          entity_type: Deposit
+          id: "77"
+  output:
+    expectedResult: deny
+
+- description: Mega-tool with a non-destructive operation (create) passes through.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: qbo-transaction
+      uri: null
+    payload:
+      name: qbo-transaction
+      args:
+        operation: create
+        entity_type: Invoice
+  output:
+    expectedResult: allow
+
+- description: Mega-tool with an update operation passes through.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: qbo-transaction
+      uri: null
+    payload:
+      name: qbo-transaction
+      params:
+        arguments:
+          operation: update
+          entity_type: Invoice
+          id: "145"
+  output:
+    expectedResult: allow
+
+# Red-team: hyphen-separated delete-invoice (a build/gateway that renders the
+# verb/entity boundary with `-` instead of `_`) must still be denied. This was a
+# real bypass under the old `delete_` regex; fixed by matching `delete[_-]`.
+- description: Hyphen-separated delete-invoice is denied (delete[_-] boundary).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: quickbooks-delete-invoice
+      uri: null
+    payload:
+      name: quickbooks-delete-invoice
+      args:
+        id: "145"
+  output:
+    expectedResult: deny
+
+# Red-team boundary lock: a READ tool whose name merely contains "deleted" must
+# NOT be over-blocked (the char after `delete` is a letter, not a separator).
+- description: Read tool get_deleted_invoices is allowed (not a delete_/delete- match).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: quickbooks-get_deleted_invoices
+      uri: null
+    payload:
+      name: quickbooks-get_deleted_invoices
+      args:
+        criteria:
+          TxnDate: "2026-01-01"
+  output:
+    expectedResult: allow
+
+# Red-team documented residual: a concatenated delete name with NO verb/entity
+# separator is not matched by the name rule. Not a real evasion on a correctly
+# configured gateway (it routes on the exact registered `delete_<entity>` name);
+# documented under Known limitations, compose PF-28 if the invariant can't hold.
+- description: No-separator concatenated deleteinvoice is not matched (documented residual, allowed).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: quickbooks-deleteinvoice
+      uri: null
+    payload:
+      name: quickbooks-deleteinvoice
+      args:
+        id: "145"
+  output:
+    expectedResult: allow
+
+# Red-team documented residual: reversible deactivation of a name entity via an
+# ordinary update_customer(active:false) write is NOT blocked — the policy allows
+# non-destructive updates by design. Bounded to reversible deactivations; hard
+# deletes/voids of transactions have no update_* equivalent. Documented under
+# Known limitations; compose PF-12 role-gate-writes to freeze active:false toggles.
+- description: Reversible deactivation via update_customer(active=false) passes through (documented residual).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: quickbooks-update_customer
+      uri: null
+    payload:
+      name: quickbooks-update_customer
+      args:
+        id: "58"
+        active: false
+  output:
+    expectedResult: allow
+
+# Red-team fix: the operation-argument rule blocks {delete, void, deactivate} but
+# the OLD tool-name rule only matched `delete[_-]`, so a dedicated void_/deactivate_
+# tool (plausible on the unverified Claude-connector build) would pass by name.
+# Fixed by broadening the name regex to (delete|void|deactivate)[_-].
+- description: Dedicated void_payment tool is denied by the broadened destructive-verb name match.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: quickbooks-void_payment
+      uri: null
+    payload:
+      name: quickbooks-void_payment
+      args:
+        id: "22"
+  output:
+    expectedResult: deny
+    expectedReason: "The tool 'quickbooks-void_payment' performs a destructive QuickBooks operation. In QuickBooks Online most transaction deletes are hard deletes, recoverable only from the audit log, so agent-initiated deletes and deactivations are blocked on this channel. A person must perform the deletion in the QuickBooks Online UI. Contact your finance or InfoSec team if this block is a false positive."
+
+- description: Dedicated deactivate_customer tool (hyphen-prefixed server) is denied by the broadened name match.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: qbo-mcp-deactivate_customer
+      uri: null
+    payload:
+      name: qbo-mcp-deactivate_customer
+      args:
+        id: "58"
+  output:
+    expectedResult: deny
+
+# Red-team boundary locks for the broadened verb set: read/lookup tools that merely
+# CONTAIN a destructive verb as a substring must NOT be over-blocked.
+- description: Read tool get_voided_invoices is allowed (void followed by a letter, not a separator).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: quickbooks-get_voided_invoices
+      uri: null
+    payload:
+      name: quickbooks-get_voided_invoices
+      args:
+        criteria:
+          TxnDate: "2026-01-01"
+  output:
+    expectedResult: allow
+
+- description: reactivate_customer (restore-style, letter precedes verb) is allowed, not over-blocked.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: quickbooks-reactivate_customer
+      uri: null
+    payload:
+      name: quickbooks-reactivate_customer
+      args:
+        id: "58"
+  output:
+    expectedResult: allow
+
+- description: avoid_duplicate (unrelated tool, 'void' preceded by a letter) is allowed, not over-blocked.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: qbo-avoid_duplicate
+      uri: null
+    payload:
+      name: qbo-avoid_duplicate
+      args:
+        id: "1"
+  output:
+    expectedResult: allow
+
+# Red-team documented residual: the operation-argument rule keys on the exact verb
+# set {delete, void, deactivate}. A parameterized mega-tool that uses a DIFFERENT
+# destructive verb (e.g. operation=purge/remove) and carries no delete_/void_/
+# deactivate_ tool name is NOT caught. No surveyed QBO build uses these verbs;
+# documented under Known limitations — extend destructive_operations if yours does.
+- description: Mega-tool operation=purge (verb outside the destructive set) is not caught (documented residual, allowed).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: qbo-transaction
+      uri: null
+    payload:
+      name: qbo-transaction
+      args:
+        operation: purge
+        entity_type: Invoice
+        id: "1"
+  output:
+    expectedResult: allow
+
+# Red-team documented residual: a non-string operation value (e.g. an array) is
+# stringified by sprintf("%v") to "[delete]", which is not in the destructive set,
+# so it is not caught by the argument rule. Not a real evasion: a typed mega-tool
+# server rejects a non-string operation, so the call never reaches a destructive
+# code path. Documented; asserts current behavior.
+- description: Mega-tool operation as an array value is stringified and not matched (documented residual, allowed).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: qbo-transaction
+      uri: null
+    payload:
+      name: qbo-transaction
+      args:
+        operation:
+          - delete
+        id: "1"
+  output:
+    expectedResult: allow

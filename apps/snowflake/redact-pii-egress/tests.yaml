@@ -1,0 +1,554 @@
+# Transform-only policy: every case expects allow. The assertions that matter
+# are transformApplied / transformedArgsContain (gate-only keys). Cardholder
+# PAN is intentionally NOT handled here (companion mask-pan-egress / PF-01).
+- description: Out-of-scope Snowflake tool (metadata listing) with SSN-looking
+    text. Policy applies no transform and the response passes through unchanged.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: snowflake-list_databases
+      uri: null
+    payload:
+      name: snowflake-list_databases
+      text:
+        - "Owner SSN: 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Ingress-mode call to a matching tool name. The policy only fires
+    on the output path, so no transform is applied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: snowflake-read_query
+      uri: null
+    payload:
+      name: snowflake-read_query
+      args:
+        query: SELECT ssn FROM customers
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: read_query (community server) result with an SSN and no subject
+    claims at all. The group exemption fails closed, so redaction applies
+    (over-redaction, never disclosure).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: snowflake-read_query
+      uri: null
+    payload:
+      name: snowflake-read_query
+      text:
+        - "Row 1: ssn 123-45-6789 for onboarding"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    name: snowflake-read_query
+    text:
+      - "Row 1: ssn [REDACTED-SSN] for onboarding"
+- description: run_snowflake_query (Labs server) result containing an email
+    address. The email is redacted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: snowflake-run_snowflake_query
+      uri: null
+    subject:
+      sub: auth0|u1
+      claims:
+        groups:
+          - analysts
+    payload:
+      name: snowflake-run_snowflake_query
+      text:
+        - "contact: jane.doe@acme.com booked"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "contact: [REDACTED-EMAIL] booked"
+- description: query_semantic_views (Labs) result containing a separator-
+    formatted US phone number. The phone number is redacted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: snowflake-query_semantic_views
+      uri: null
+    payload:
+      name: snowflake-query_semantic_views
+      text:
+        - "Call the lead at (206) 555-0100 tomorrow"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Call the lead at [REDACTED-PHONE] tomorrow"
+- description: Managed-server tool named after its SYSTEM_EXECUTE_SQL type
+    constant, carrying all three PII classes in one block. SSN, email, and
+    phone are all redacted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: snowflake-system_execute_sql
+      uri: null
+    payload:
+      name: snowflake-system_execute_sql
+      text:
+        - "cust 42 | ssn 540-12-3456 | jane@acme.com | 206-555-0100"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "cust 42 | ssn [REDACTED-SSN] | [REDACTED-EMAIL] | [REDACTED-PHONE]"
+- description: Managed-server Cortex Search tool named after its
+    CORTEX_SEARCH_SERVICE_QUERY type constant, returning an email. Redacted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: snowflake-cortex_search_service_query
+      uri: null
+    payload:
+      name: snowflake-cortex_search_service_query
+      text:
+        - "Best match: support@example.org (score 0.91)"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Best match: [REDACTED-EMAIL] (score 0.91)"
+- description: Managed-server Cortex Analyst tool named after its
+    CORTEX_ANALYST_MESSAGE type constant, returning an SSN in the answer.
+    Redacted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: snowflake-cortex_analyst_message
+      uri: null
+    payload:
+      name: snowflake-cortex_analyst_message
+      text:
+        - "The record for that employee lists SSN 078-05-1120."
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "The record for that employee lists SSN [REDACTED-SSN]."
+- description: read_query result read by a caller whose groups array contains
+    the placeholder pii-cleared group. Cleared — the SSN passes through
+    unredacted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: snowflake-read_query
+      uri: null
+    subject:
+      sub: auth0|u2
+      claims:
+        groups:
+          - pii-cleared
+    payload:
+      name: snowflake-read_query
+      text:
+        - "SSN 123-45-6789 for onboarding"
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: read_query result read by a caller whose IdP emits the groups
+    claim as a bare string rather than an array. Cleared — no redaction.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: snowflake-read_query
+      uri: null
+    subject:
+      sub: auth0|u3
+      claims:
+        groups: pii-cleared
+    payload:
+      name: snowflake-read_query
+      text:
+        - "SSN 123-45-6789 for onboarding"
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: read_query result read by a non-cleared caller (groups present
+    but not pii-cleared). Redaction applies.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: snowflake-read_query
+      uri: null
+    subject:
+      sub: auth0|u4
+      claims:
+        groups:
+          - analysts
+    payload:
+      name: snowflake-read_query
+      text:
+        - "SSN 123-45-6789 for onboarding"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "SSN [REDACTED-SSN] for onboarding"
+- description: Tool name only available via tool_metadata.name (resource name
+    empty). The fallback branch matches and redaction applies.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: ""
+      uri: null
+    tool_metadata:
+      name: snowflake-run_snowflake_query
+    payload:
+      name: snowflake-run_snowflake_query
+      text:
+        - "Payroll SSN 078-05-1120"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Payroll SSN [REDACTED-SSN]"
+- description: Result with mixed content blocks — a string with an SSN, a
+    non-string structured block, and a clean string. Only the matching string
+    is rewritten; the other blocks are preserved as-is.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: snowflake-read_query
+      uri: null
+    payload:
+      name: snowflake-read_query
+      text:
+        - "Contact SSN: 078-05-1120"
+        - type: resource
+          uri: snowflake://row/1
+        - no pii here
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Contact SSN: [REDACTED-SSN]"
+      - type: resource
+        uri: snowflake://row/1
+      - no pii here
+- description: Clean response from an in-scope tool — no PII patterns match, so
+    no transform is emitted and the response passes through unchanged.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: snowflake-read_query
+      uri: null
+    payload:
+      name: snowflake-read_query
+      text:
+        - "Quarterly revenue totals attached, no personal data."
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Tool name in mixed case. Matching is case-insensitive, so
+    redaction still applies.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: Snowflake-Read_Query
+      uri: null
+    payload:
+      name: Snowflake-Read_Query
+      text:
+        - "SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "SSN [REDACTED-SSN]"
+- description: In-scope tool whose payload has no text array at all. Nothing to
+    rewrite — no transform, no error.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: snowflake-read_query
+      uri: null
+    payload:
+      name: snowflake-read_query
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: In-scope tool whose payload.text is a bare string rather than the
+    MCP content-block array. The is_array guard keeps the transform undefined
+    rather than emitting a malformed payload.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: snowflake-read_query
+      uri: null
+    payload:
+      name: snowflake-read_query
+      text: "SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Red-team — managed-server SQL tool with an admin-chosen name
+    (sales-sql) that is not a verified wire name nor a type constant. The suffix
+    set does not match it, so the SSN passes through unredacted (documented
+    residual — pin the configured name in pii_result_suffixes).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: snowflake-sales-sql
+      uri: null
+    payload:
+      name: snowflake-sales-sql
+      text:
+        - "SSN 123-45-6789 exposed via admin-named tool"
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Red-team — bare 9-digit SSN run with no hyphens. The conservative
+    hyphenated pattern does not match it (documented residual — avoids
+    colliding with row IDs and sequence values).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: snowflake-read_query
+      uri: null
+    payload:
+      name: snowflake-read_query
+      text:
+        - "id 123456789 in results"
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Red-team — bare 10-digit phone run with no separators. The phone
+    pattern requires separators, so it is not matched (documented residual).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: snowflake-read_query
+      uri: null
+    payload:
+      name: snowflake-read_query
+      text:
+        - "phone 2065550100 on file"
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Red-team — US phone with no space after the closing parenthesis
+    ((206)555-0100). The pattern requires a separator after the area code, so it
+    is not matched (documented residual).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: snowflake-run_snowflake_query
+      uri: null
+    payload:
+      name: snowflake-run_snowflake_query
+      text:
+        - "reach me at (206)555-0100"
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Red-team — a Luhn-valid 16-digit PAN in the result. PAN is
+    intentionally out of scope (companion mask-pan-egress / PF-01), so this
+    policy leaves it untouched — no transform.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: snowflake-read_query
+      uri: null
+    payload:
+      name: snowflake-read_query
+      text:
+        - "card 4111 1111 1111 1111 on file"
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Red-team — email-shaped substring inside a connection string. The
+    email pattern over-matches and redacts it (documented residual — safe
+    over-redaction on egress, never disclosure).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: snowflake-run_snowflake_query
+      uri: null
+    payload:
+      name: snowflake-run_snowflake_query
+      text:
+        - "dsn: user:pw@db.internal.example.com:5432"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "dsn: user:[REDACTED-EMAIL]:5432"
+- description: Red-team — SSN with an extra trailing digit and no delimiter
+    (123-45-67890). The trailing \b anchor is not satisfied (9 -> 0 is not a word
+    boundary), so the value passes through unredacted (documented word-boundary
+    residual — loosening the anchor would leak the extra digit as [REDACTED-SSN]0).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: snowflake-read_query
+      uri: null
+    payload:
+      name: snowflake-read_query
+      text:
+        - "ref 123-45-67890 in export"
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Red-team — hyphenated SSN with leading digits glued on
+    (id00123-45-6789). The leading \b anchor cannot fall between two digits, so
+    the SSN escapes detection (documented word-boundary residual).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: snowflake-read_query
+      uri: null
+    payload:
+      name: snowflake-read_query
+      text:
+        - "id00123-45-6789 concatenated column"
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Red-team — separator-formatted US phone with an extra trailing
+    digit (206-555-01000). The trailing \b anchor is not satisfied, so the phone
+    passes through unredacted (documented word-boundary residual).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: snowflake-run_snowflake_query
+      uri: null
+    payload:
+      name: snowflake-run_snowflake_query
+      text:
+        - "call 206-555-01000 today"
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Red-team — dot-separated SSN (123.45.6789). The SSN pattern matches
+    hyphens only and the 3-3-4 phone pattern does not fit a 3-2-4 shape, so it
+    passes through unredacted (documented separator residual).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: snowflake-read_query
+      uri: null
+    payload:
+      name: snowflake-read_query
+      text:
+        - "ssn 123.45.6789 on file"
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Red-team — SSN written with full-width/unicode digits. \d matches
+    ASCII 0-9 only, so the value is not detected (documented obfuscation residual).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: snowflake-read_query
+      uri: null
+    payload:
+      name: snowflake-read_query
+      text:
+        - "ssn １２３-４５-６７８９ end"
+  output:
+    expectedResult: allow
+  transformApplied: false

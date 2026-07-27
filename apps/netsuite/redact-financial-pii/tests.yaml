@@ -1,0 +1,637 @@
+# Transform-only policy: every case expects allow. The assertions that matter
+# are transformApplied / transformedArgsContain (gate-only keys). Cardholder PAN
+# is intentionally NOT handled here (companion PF-01 policy).
+- description: ns_getRecord response with a canonical hyphenated SSN on an
+    employee record. The SSN is masked to the fixed token.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: netsuite-ns_getRecord
+      uri: null
+    payload:
+      name: netsuite-ns_getRecord
+      text:
+        - "employee 214 | ssn 123-45-6789 | dept payroll"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    name: netsuite-ns_getRecord
+    text:
+      - "employee 214 | ssn [REDACTED-FINANCIAL-PII] | dept payroll"
+- description: ns_runCustomSuiteQL result carrying a US TIN/EIN in the canonical
+    2-7 hyphenated form. The EIN is masked.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: netsuite-ns_runCustomSuiteQL
+      uri: null
+    payload:
+      name: netsuite-ns_runCustomSuiteQL
+      text:
+        - "vendor Acme Corp | tax id 98-7654321 | 1099 eligible"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "vendor Acme Corp | tax id [REDACTED-FINANCIAL-PII] | 1099 eligible"
+- description: ns_runSavedSearch result containing an IBAN. The IBAN is masked.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: netsuite-ns_runSavedSearch
+      uri: null
+    payload:
+      name: netsuite-ns_runSavedSearch
+      text:
+        - "remit to IBAN GB29NWBK60161331926819 by wire"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "remit to IBAN [REDACTED-FINANCIAL-PII] by wire"
+- description: SuiteQL result with a label-anchored bank account number and a
+    labelled routing number. Both numbers are masked, labels preserved.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: netsuite-ns_runCustomSuiteQL
+      uri: null
+    payload:
+      name: netsuite-ns_runCustomSuiteQL
+      text:
+        - "vendor Acme | account number: 000123456789 | routing 021000021"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "vendor Acme | account number: [REDACTED-FINANCIAL-PII] | routing [REDACTED-FINANCIAL-PII]"
+- description: One ns_getRecord block carrying all four classes at once — SSN,
+    EIN, IBAN, and a labelled account number. Every class is masked.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: netsuite-ns_getRecord
+      uri: null
+    payload:
+      name: netsuite-ns_getRecord
+      text:
+        - "ssn 540-12-3456 | ein 12-3456789 | IBAN DE89370400440532013000 | acct #: 12345678"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "ssn [REDACTED-FINANCIAL-PII] | ein [REDACTED-FINANCIAL-PII] | IBAN [REDACTED-FINANCIAL-PII] | acct #: [REDACTED-FINANCIAL-PII]"
+- description: Tool name only available via tool_metadata.name (resource name
+    empty). The fallback branch matches and the SSN is redacted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: ""
+      uri: null
+    tool_metadata:
+      name: netsuite-ns_runSavedSearch
+    payload:
+      name: netsuite-ns_runSavedSearch
+      text:
+        - "payroll ssn 078-05-1120 listed"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "payroll ssn [REDACTED-FINANCIAL-PII] listed"
+- description: Mixed content blocks — a string with an SSN, a non-string
+    structured block, and a clean string. Only the matching string is rewritten;
+    the other blocks are preserved as-is.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: netsuite-ns_runCustomSuiteQL
+      uri: null
+    payload:
+      name: netsuite-ns_runCustomSuiteQL
+      text:
+        - "contact ssn: 078-05-1120"
+        - type: resource
+          uri: netsuite://record/employee/214
+        - no financial pii here
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "contact ssn: [REDACTED-FINANCIAL-PII]"
+      - type: resource
+        uri: netsuite://record/employee/214
+      - no financial pii here
+- description: Tool name in mixed case. Matching is case-insensitive, so
+    redaction still applies.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: NetSuite-NS_GetRecord
+      uri: null
+    payload:
+      name: NetSuite-NS_GetRecord
+      text:
+        - "ssn 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "ssn [REDACTED-FINANCIAL-PII]"
+- description: Out-of-scope NetSuite write tool (ns_createRecord) whose text
+    contains an SSN. The policy only fires on the three read tools, so no
+    transform is applied.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: netsuite-ns_createRecord
+      uri: null
+    payload:
+      name: netsuite-ns_createRecord
+      text:
+        - "created employee 214 with ssn 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Out-of-scope read tool (ns_runReport) carrying an IBAN. Not in the
+    verified suffix set, so it passes through unredacted (documented residual —
+    add the suffix to financial_pii_read_suffixes to cover it).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: netsuite-ns_runReport
+      uri: null
+    payload:
+      name: netsuite-ns_runReport
+      text:
+        - "settlement IBAN GB29NWBK60161331926819"
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Ingress-mode call to a matching tool name. The policy only fires on
+    the output path (input.mode == "output"), so no transform is applied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-ns_runCustomSuiteQL
+      uri: null
+    payload:
+      name: netsuite-ns_runCustomSuiteQL
+      args:
+        sqlQuery: SELECT ssn FROM employee
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Clean response from an in-scope tool — no financial-PII patterns
+    match, so no transform is emitted and the response passes through unchanged.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: netsuite-ns_getRecord
+      uri: null
+    payload:
+      name: netsuite-ns_getRecord
+      text:
+        - "Q3 revenue totals attached, no personal financial data."
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: In-scope tool whose payload has no text array at all. Nothing to
+    rewrite — no transform, no error.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: netsuite-ns_getRecord
+      uri: null
+    payload:
+      name: netsuite-ns_getRecord
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: In-scope tool whose payload.text is a bare string rather than the
+    MCP content-block array. The is_array guard keeps the transform undefined
+    rather than emitting a malformed payload.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: netsuite-ns_getRecord
+      uri: null
+    payload:
+      name: netsuite-ns_getRecord
+      text: "ssn 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Red-team — bare 9-digit run with no hyphens (looks like an SSN or a
+    routing number but unlabelled). The conservative patterns require the
+    canonical hyphenated form or an account/routing label, so it passes through
+    unredacted (documented residual — avoids colliding with NetSuite internal IDs).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: netsuite-ns_runCustomSuiteQL
+      uri: null
+    payload:
+      name: netsuite-ns_runCustomSuiteQL
+      text:
+        - "internal id 123456789 for the record"
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Red-team — space-grouped IBAN (GB29 NWBK 6016 ...). The IBAN pattern
+    requires a contiguous run, so the grouped form is not matched (documented
+    residual).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: netsuite-ns_runSavedSearch
+      uri: null
+    payload:
+      name: netsuite-ns_runSavedSearch
+      text:
+        - "IBAN GB29 NWBK 6016 1331 9268 19 on file"
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Red-team — lower-case IBAN. The pattern matches upper-case country
+    codes only, so the lower-case form is not matched (documented residual).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: netsuite-ns_runSavedSearch
+      uri: null
+    payload:
+      name: netsuite-ns_runSavedSearch
+      text:
+        - "iban gb29nwbk60161331926819 lower"
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Red-team — dot-separated SSN (123.45.6789). The SSN pattern matches
+    hyphens only, so it passes through unredacted (documented separator residual).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: netsuite-ns_getRecord
+      uri: null
+    payload:
+      name: netsuite-ns_getRecord
+      text:
+        - "ssn 123.45.6789 on file"
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Red-team — SSN written with full-width/unicode digits. \d matches
+    ASCII 0-9 only, so the value is not detected (documented obfuscation residual).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: netsuite-ns_getRecord
+      uri: null
+    payload:
+      name: netsuite-ns_getRecord
+      text:
+        - "ssn １２３-４５-６７８９ end"
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Red-team — unlabelled bank-account-shaped digit run (12 digits) with
+    no account/routing label nearby. Label-anchored bank pattern does not match,
+    so it passes through (documented residual — conservative to avoid masking
+    order totals and internal IDs).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: netsuite-ns_runCustomSuiteQL
+      uri: null
+    payload:
+      name: netsuite-ns_runCustomSuiteQL
+      text:
+        - "transaction 000123456789 posted"
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Red-team — over-redaction residual. An unrelated 8-digit figure that
+    follows the word "account" within 12 characters is masked (safe over-masking
+    on egress, never disclosure). Documents the label-anchor trade-off.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: netsuite-ns_getRecord
+      uri: null
+    payload:
+      name: netsuite-ns_getRecord
+      text:
+        - "account balance is 12345678 dollars"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "account balance is [REDACTED-FINANCIAL-PII] dollars"
+- description: Red-team — a US phone number (206-555-0100) in an in-scope
+    response. Phones are out of scope for this financial-PII policy and the 3-3-4
+    shape is disjoint from both the SSN 3-2-4 and EIN 2-7 patterns, so it passes
+    through untouched.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: netsuite-ns_getRecord
+      uri: null
+    payload:
+      name: netsuite-ns_getRecord
+      text:
+        - "call the AP contact at 206-555-0100 today"
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Red-team FIX — labelled bank account number of 18 digits (longer
+    than the old 8-17 cap). The earlier bank pattern used a trailing word boundary
+    after a bounded digit run, which can never sit inside an all-digit run, so any
+    labelled run over 17 digits failed to match and leaked. The greedy unbounded
+    run now masks it in full.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: netsuite-ns_getRecord
+      uri: null
+    payload:
+      name: netsuite-ns_getRecord
+      text:
+        - "vendor Acme | acct 123456789012345678 | net 30"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "vendor Acme | acct [REDACTED-FINANCIAL-PII] | net 30"
+- description: Red-team FIX — labelled routing number of 18 digits. Same long-run
+    fix as the account case; the full labelled run is masked.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: netsuite-ns_runCustomSuiteQL
+      uri: null
+    payload:
+      name: netsuite-ns_runCustomSuiteQL
+      text:
+        - "routing 123456789012345678 confirmed"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "routing [REDACTED-FINANCIAL-PII] confirmed"
+- description: Red-team residual — SSN padded with a trailing digit (123-45-67890).
+    The SSN pattern is word-boundary anchored, so the extra digit breaks the
+    boundary and the value passes through unmasked (documented residual; the padded
+    value is also corrupted). Backstopped by the ingress HR/SuiteQL fences.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: netsuite-ns_getRecord
+      uri: null
+    payload:
+      name: netsuite-ns_getRecord
+      text:
+        - "ssn 123-45-67890 on file"
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Red-team residual — account label fused into a longer word
+    (bankaccount 12345678). The bank label must sit on a word boundary, so the
+    fused form is not anchored and the number passes through (documented residual).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: netsuite-ns_runCustomSuiteQL
+      uri: null
+    payload:
+      name: netsuite-ns_runCustomSuiteQL
+      text:
+        - "bankaccount 12345678 listed"
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Red-team residual — labelled account number shorter than the 8-digit
+    floor (account 1234567, 7 digits). The uniform \d{8,} floor applies even to
+    labelled runs, so a short labelled account/routing number passes through
+    unmasked (documented residual — lower the floor if you store short accounts).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: netsuite-ns_getRecord
+      uri: null
+    payload:
+      name: netsuite-ns_getRecord
+      text:
+        - "account 1234567 short"
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Red-team residual — bank account number printed with internal spaces
+    (account 1234 5678 9012). No single contiguous run reaches 8 digits, so the
+    grouped form passes through (documented grouping residual, same as IBANs).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: netsuite-ns_runCustomSuiteQL
+      uri: null
+    payload:
+      name: netsuite-ns_runCustomSuiteQL
+      text:
+        - "vendor Acme | account 1234 5678 9012 on file"
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Red-team residual — SSN padded with a LEADING digit (4123-45-6789).
+    The \b before the 3-digit group sits between two digits, so there is no word
+    boundary and the value passes through unmasked (documented either-end padding
+    residual; the padded value is also corrupted).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: netsuite-ns_getRecord
+      uri: null
+    payload:
+      name: netsuite-ns_getRecord
+      text:
+        - "ref 4123-45-6789 stored"
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Red-team residual — SSN buried in a STRUCTURED (object) content block
+    rather than a bare string. redact_block only rewrites string blocks, so a
+    non-string block passes through unmodified and the SSN inside it is not masked
+    (documented structured/nested-block residual).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: netsuite-ns_getRecord
+      uri: null
+    payload:
+      name: netsuite-ns_getRecord
+      text:
+        - type: text
+          text: "ssn 123-45-6789 here"
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Red-team coverage — the `aba` routing label masks a 9-digit routing
+    number. Confirms label-set members beyond account/acct/routing are anchored.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: netsuite-ns_getRecord
+      uri: null
+    payload:
+      name: netsuite-ns_getRecord
+      text:
+        - "aba 021000021 for wire"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "aba [REDACTED-FINANCIAL-PII] for wire"
+- description: Red-team coverage — the `a/c` label (with slash) masks a labelled
+    account number. Confirms the slash-bearing label anchors correctly.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: netsuite-ns_getRecord
+      uri: null
+    payload:
+      name: netsuite-ns_getRecord
+      text:
+        - "a/c 000123456789 primary"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "a/c [REDACTED-FINANCIAL-PII] primary"
+- description: Red-team correctness — two canonical SSNs in the same block. regex
+    replacement is global, so both are masked in one pass.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: netsuite-ns_getRecord
+      uri: null
+    payload:
+      name: netsuite-ns_getRecord
+      text:
+        - "ssn 111-22-3333 and ssn 444-55-6666"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "ssn [REDACTED-FINANCIAL-PII] and ssn [REDACTED-FINANCIAL-PII]"

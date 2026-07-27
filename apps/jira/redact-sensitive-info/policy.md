@@ -8,6 +8,9 @@ tags:
   - dlp
   - redaction
   - egress
+  - soc2
+  - gdpr-ccpa
+  - iso27001-nist
 publishedAt: 2026-06-15
 description: |
   # jira / redact-sensitive-info
@@ -26,6 +29,25 @@ description: |
   It is a transform-only egress policy — it never denies a call, it only rewrites
   matching content in the response to `[REDACTED]`. Any tool that is not a JIRA
   issue-view tool passes through untouched.
+
+  ## Compliance alignment
+
+  This policy instantiates egress PII/secrets redaction (family PF-02, with a
+  card-number masking slice of family PF-01) and supports alignment with:
+
+  - **SOC 2 CC6.7, P6.1** — restricts the transmission/movement of confidential
+    and personal information out of Jira issue content, and reduces
+    personal-information disclosure in agent-visible responses.
+  - **HIPAA §164.514(d), §164.514(a)–(b)** — minimum-necessary support: masks
+    identifiers (SSN, email, phone) on the egress path; partial support for
+    de-identification of identifier classes in issue text.
+  - **PCI DSS 3.4.1** — masks card-number-shaped values in displayed responses
+    (pattern-based, not Luhn-validated — see Known limitations).
+  - **GDPR Art. 5(1)(c), Art. 9; CPRA §1798.121, §1798.150** — data
+    minimisation, sensitive-personal-information limitation, and reduced
+    nonredacted-PI breach exposure on the agent channel.
+  - **ISO 27001 A.8.11, A.8.12** — data masking and data-leakage prevention on
+    tool responses.
 
   ## Why egress and not ingress
 
@@ -136,12 +158,16 @@ description: |
     inspected unless you add their suffixes to `view_tool_suffixes`.
   - **No identity-based exemptions.** All callers get the same redaction. Add an
     `input.subject.claims`-gated branch if a break-glass role needs raw values.
+
+  > **Compliance note.** This policy supports alignment with the cited framework controls **on the MCP path only**. No policy or bundle makes an organization compliant with any framework; web-UI, native-API, and in-app access are outside the gateway's reach by design. Validate against your own compliance program before relying on it.
 direction: egress
 apps:
   - jira
 industries: []
 bundles:
   - atlassian
+  - soc2
+  - gdpr-ccpa
 schemaVersion: 1.0.0
 minimumGatewayVersion: 1.0.0b24
 ---

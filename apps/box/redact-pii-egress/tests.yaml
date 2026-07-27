@@ -1,0 +1,503 @@
+# Egress transform policy (default allow := true) — allow is always true; the
+# meaningful assertions are transformApplied / transformedArgsContain. Cases
+# cover every rule branch: each detection class, the Luhn gate, both pairing
+# heuristics, the tool_metadata fallback, both group-exemption forms, fail-closed
+# on missing claims, out-of-scope tools, non-string blocks, and the ingress guard.
+
+- description: Content tool, non-exempt caller — SSN and a Luhn-valid card are both redacted in place.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: box-mcp-get_file_content
+      uri: null
+    subject:
+      sub: auth0|u1
+      claims:
+        groups:
+          - marketing
+    payload:
+      name: box-mcp-get_file_content
+      text:
+        - "Employee SSN: 123-45-6789, card 4111 1111 1111 1111"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Employee SSN: [REDACTED-SSN], card [REDACTED-CC]"
+
+- description: Labeled routing + account numbers co-occur (bank_pair) — both are redacted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: box-mcp-ai_extract_structured
+      uri: null
+    subject:
+      sub: auth0|u3
+      claims:
+        groups:
+          - eng
+    payload:
+      name: box-mcp-ai_extract_structured
+      text:
+        - "Routing number: 021000021 Account number: 1234567890"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "[REDACTED-BANK-ROUTING] [REDACTED-BANK-ACCOUNT]"
+
+- description: Email and phone co-occur (contact_pair) — both are redacted, surrounding text kept.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: box-search_files_keyword
+      uri: null
+    subject:
+      sub: auth0|u4
+      claims:
+        groups:
+          - eng
+    payload:
+      name: box-search_files_keyword
+      text:
+        - "Contact: jane.doe@acme.com or call (415) 555-0142 today"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Contact: [REDACTED-EMAIL] or call [REDACTED-PHONE] today"
+
+- description: Tool name only under tool_metadata.name (resource.name empty) — community box_search_tool still matched via the fallback branch.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: ""
+      uri: null
+    tool_metadata:
+      name: box_search_tool
+    subject:
+      sub: auth0|u5
+      claims:
+        groups:
+          - eng
+    payload:
+      name: box_search_tool
+      text:
+        - "SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "SSN [REDACTED-SSN]"
+
+- description: Community server box_file_text_extract_tool suffix (via resource.name) is in scope.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: box-community-box_file_text_extract_tool
+      uri: null
+    subject:
+      sub: auth0|u6
+      claims:
+        groups:
+          - eng
+    payload:
+      name: box-community-box_file_text_extract_tool
+      text:
+        - "Patient SSN 078-05-1120 on file"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Patient SSN [REDACTED-SSN] on file"
+
+- description: Only the block that contains PII is rewritten; clean blocks pass through unchanged.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: box-mcp-ai_qa_multi_file
+      uri: null
+    subject:
+      sub: auth0|u7
+      claims:
+        groups:
+          - eng
+    payload:
+      name: box-mcp-ai_qa_multi_file
+      text:
+        - "Clean line here"
+        - "SSN 123-45-6789 in second block"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Clean line here"
+      - "SSN [REDACTED-SSN] in second block"
+
+- description: Exempt caller (groups array contains hr) — response passes through unredacted, no transform.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: box-mcp-get_file_content
+      uri: null
+    subject:
+      sub: auth0|u2
+      claims:
+        groups:
+          - hr
+    payload:
+      name: box-mcp-get_file_content
+      text:
+        - "Employee SSN: 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Exempt caller with a bare-string groups claim (finance) — the string branch matches, no transform.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: box-mcp-get_file_content
+      uri: null
+    subject:
+      sub: auth0|u8
+      claims:
+        groups: finance
+    payload:
+      name: box-mcp-get_file_content
+      text:
+        - "Employee SSN: 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Group name matching is case-insensitive — uppercase HR is exempt, no transform.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: box-mcp-get_file_content
+      uri: null
+    subject:
+      sub: auth0|u9
+      claims:
+        groups:
+          - Staff
+          - HR
+    payload:
+      name: box-mcp-get_file_content
+      text:
+        - "SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Fail closed for the grant — subject has no claims, so the caller is not exempt and redaction applies.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: box-mcp-get_file_content
+      uri: null
+    subject:
+      sub: auth0|u10
+    payload:
+      name: box-mcp-get_file_content
+      text:
+        - "SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "SSN [REDACTED-SSN]"
+
+- description: Out-of-scope tool (get_download_url returns a URL, not content) — never matched, no transform even with an SSN present.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: box-mcp-get_download_url
+      uri: null
+    subject:
+      sub: auth0|u11
+      claims:
+        groups:
+          - eng
+    payload:
+      name: box-mcp-get_download_url
+      text:
+        - "SSN 123-45-6789 https://box.com/x"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Card-shaped run that fails the Luhn check (an invoice reference) is left alone — no transform.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: box-mcp-get_file_content
+      uri: null
+    subject:
+      sub: auth0|u12
+      claims:
+        groups:
+          - eng
+    payload:
+      name: box-mcp-get_file_content
+      text:
+        - "Invoice ref 4111 1111 1111 1112 for order"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Lone email with no phone in the block is not a contact_pair — left usable, no transform.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: box-mcp-get_file_content
+      uri: null
+    subject:
+      sub: auth0|u13
+      claims:
+        groups:
+          - eng
+    payload:
+      name: box-mcp-get_file_content
+      text:
+        - "Reach me at jane.doe@acme.com anytime"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Lone labeled routing number with no account number is not a bank_pair — left alone, no transform.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: box-mcp-get_file_content
+      uri: null
+    subject:
+      sub: auth0|u14
+      claims:
+        groups:
+          - eng
+    payload:
+      name: box-mcp-get_file_content
+      text:
+        - "ABA routing 021000021 is the wire path"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Non-string (structured/JSON) content block passes through the redact_block string guard unmodified — no transform.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: box-mcp-ai_extract_structured
+      uri: null
+    subject:
+      sub: auth0|u15
+      claims:
+        groups:
+          - eng
+    payload:
+      name: box-mcp-ai_extract_structured
+      text:
+        - field: ssn
+          value: 123-45-6789
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Ingress hook (mode input) is never in scope — the same tool + SSN produces no transform on the pre-invoke path.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-mcp-get_file_content
+      uri: null
+    subject:
+      sub: auth0|u16
+      claims:
+        groups:
+          - eng
+    payload:
+      name: box-mcp-get_file_content
+      text:
+        - "SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: In-scope tool but the content carries no PII — response passes through byte-identical, no transform.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: box-mcp-get_file_content
+      uri: null
+    subject:
+      sub: auth0|u17
+      claims:
+        groups:
+          - eng
+    payload:
+      name: box-mcp-get_file_content
+      text:
+        - "The quarterly report is ready for review."
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+# --- Red-team regression cases (reviewer, standards §10) ---
+
+- description: "Red-team: object-shaped groups claim {department: finance} must NOT grant the exemption — is_array guard fails it closed, so redaction still applies."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: box-mcp-get_file_content
+      uri: null
+    subject:
+      sub: auth0|u18
+      claims:
+        groups:
+          department: finance
+    payload:
+      name: box-mcp-get_file_content
+      text:
+        - "SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "SSN [REDACTED-SSN]"
+
+- description: "Red-team: nested-array groups [[hr]] is not a flat array of strings — fails closed (not exempt), redaction applies."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: box-mcp-get_file_content
+      uri: null
+    subject:
+      sub: auth0|u19
+      claims:
+        groups:
+          - - hr
+    payload:
+      name: box-mcp-get_file_content
+      text:
+        - "SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "SSN [REDACTED-SSN]"
+
+- description: "Red-team: egress with action=tool_post_invoke but mode unset — is_egress still matches on action, so redaction fires (no fail-open leak)."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    resource:
+      type: tool
+      name: box-mcp-get_file_content
+      uri: null
+    subject:
+      sub: auth0|u20
+      claims:
+        groups:
+          - eng
+    payload:
+      name: box-mcp-get_file_content
+      text:
+        - "SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "SSN [REDACTED-SSN]"
+
+- description: "Red-team: tool name present only under payload.name (resource.name empty, no tool_metadata) — payload.name is a candidate surface, so the call is in scope and redaction fires."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: ""
+      uri: null
+    subject:
+      sub: auth0|u21
+      claims:
+        groups:
+          - eng
+    payload:
+      name: box-mcp-get_file_content
+      text:
+        - "SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "SSN [REDACTED-SSN]"

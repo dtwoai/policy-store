@@ -6,6 +6,8 @@ tags:
   - governance
   - read-only
   - ingress
+  - soc2
+  - gdpr-ccpa
 publishedAt: 2026-06-16
 description: |
   # hubspot / read-only
@@ -20,6 +22,22 @@ description: |
   `hubspot-manage-crm-objects` — the create/update tool exposed by the HubSpot MCP
   server — is denied. Every other HubSpot tool (search, list, read) passes
   through unchanged.
+
+  ## Compliance alignment
+
+  - **SOC 2 CC6.1; CC6.3** — logical access restriction and least privilege:
+    agents get a read-only HubSpot posture; no write reaches the CRM through
+    the gateway.
+  - **HIPAA §164.312(a)(1); §164.308(a)(4)** — access control and information
+    access management on the MCP path, for portals whose contact records carry
+    health-related data.
+  - **PCI DSS 7.2.1; 7.2.2** — least-privilege access model: the agent channel
+    is restricted to the minimum (read) access needed.
+  - **GDPR Art. 25; Art. 29** — data protection by default on the agent channel,
+    and processing only on documented instructions — no unsanctioned agent
+    writes to personal data.
+  - **ISO 27001 A.5.15** — access control: enforces the read-only access
+    decision at a technical control point.
 
   ## Why ingress
 
@@ -79,12 +97,16 @@ description: |
     same suffix, it would also be blocked — narrow the match if that is a concern.
   - **No identity-based exemptions.** All callers are read-only. To allow a
     break-glass writer, add an `allow if` branch gated on `input.subject.claims`.
+
+  > **Compliance note.** This policy supports alignment with the cited framework controls **on the MCP path only**. No policy or bundle makes an organization compliant with any framework; web-UI, native-API, and in-app access are outside the gateway's reach by design. Validate against your own compliance program before relying on it.
 direction: ingress
 apps:
   - hubspot
 industries: []
 bundles:
   - crm
+  - soc2
+  - gdpr-ccpa
 schemaVersion: 1.0.0
 minimumGatewayVersion: 1.0.0b24
 ---

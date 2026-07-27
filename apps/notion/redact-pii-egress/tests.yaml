@@ -1,0 +1,744 @@
+# Egress transform policy (default allow := true) — allow is always true; the
+# meaningful assertions are transformApplied / transformedArgsContain. Cases
+# cover every rule branch: each detection class independently (email, phone)
+# and both together, every in-scope tool suffix, the resource.name /
+# tool_metadata.name / payload.name candidate surfaces, both group-exemption
+# forms (hr and legal, array and bare-string), case-insensitive matching,
+# fail-closed on missing/oddly-shaped claims, out-of-scope tools (including
+# the deliberate notion-get-users exclusion), non-string blocks,
+# conservative-regex negatives (UUID page IDs / dates / version strings), and
+# the ingress guard.
+
+- description: In-scope notion-fetch, non-exempt caller — email and phone are both redacted in place; surrounding page text is kept.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: notion-notion-fetch
+      uri: null
+    subject:
+      sub: auth0|u1
+      claims:
+        groups:
+          - marketing
+    payload:
+      name: notion-notion-fetch
+      text:
+        - "Candidate contact: jane@acme.com or 206-555-0100"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Candidate contact: [REDACTED-EMAIL] or [REDACTED-PHONE]"
+
+- description: Lone email in a notion-search snippet is redacted on its own — no pairing required.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: notion-notion-search
+      uri: null
+    subject:
+      sub: auth0|u2
+      claims:
+        groups:
+          - eng
+    payload:
+      name: notion-notion-search
+      text:
+        - "Match in page 'Vendors': billing contact ops.lead@example.co.uk"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Match in page 'Vendors': billing contact [REDACTED-EMAIL]"
+
+- description: Lone parenthesized phone number in a notion-get-comments thread is redacted independently.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: notion-notion-get-comments
+      uri: null
+    subject:
+      sub: auth0|u3
+      claims:
+        groups:
+          - support
+    payload:
+      name: notion-notion-get-comments
+      text:
+        - "Call the candidate at (206) 555-0100 before 5pm"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Call the candidate at [REDACTED-PHONE] before 5pm"
+
+- description: Data-source query rows (notion-query-data-sources) carrying a PII column value — the serialized row text is redacted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: notion-notion-query-data-sources
+      uri: null
+    subject:
+      sub: auth0|u4
+      claims:
+        groups:
+          - analytics
+    payload:
+      name: notion-notion-query-data-sources
+      text:
+        - '{"rows":[{"Name":"Jane Doe","Email":"jane@acme.com","Phone":"206-555-0100"}]}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - '{"rows":[{"Name":"Jane Doe","Email":"[REDACTED-EMAIL]","Phone":"[REDACTED-PHONE]"}]}'
+
+- description: Meeting notes (notion-query-meeting-notes) with an international-format phone are in scope and redacted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: notion-notion-query-meeting-notes
+      uri: null
+    subject:
+      sub: auth0|u5
+      claims:
+        groups:
+          - eng
+    payload:
+      name: notion-notion-query-meeting-notes
+      text:
+        - "Follow up with the vendor at +1 206.555.0100"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Follow up with the vendor at [REDACTED-PHONE]"
+
+- description: Tool name only under tool_metadata.name (resource.name empty) — notion-fetch still matched via the candidate-surface union.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: ""
+      uri: null
+    tool_metadata:
+      name: notion-notion-fetch
+    subject:
+      sub: auth0|u6
+      claims:
+        groups:
+          - eng
+    payload:
+      name: notion-notion-fetch
+      text:
+        - "Reach jane@acme.com"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Reach [REDACTED-EMAIL]"
+
+- description: Tool name present only under payload.name (resource.name empty, no tool_metadata) — payload.name is a candidate surface, so the call is in scope and redaction fires.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: ""
+      uri: null
+    subject:
+      sub: auth0|u7
+      claims:
+        groups:
+          - eng
+    payload:
+      name: notion-notion-search
+      text:
+        - "Result: jane@acme.com"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Result: [REDACTED-EMAIL]"
+
+- description: Only the block that contains PII is rewritten; clean blocks pass through unchanged.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: notion-notion-fetch
+      uri: null
+    subject:
+      sub: auth0|u8
+      claims:
+        groups:
+          - eng
+    payload:
+      name: notion-notion-fetch
+      text:
+        - "Release notes for v1.2.3"
+        - "Escalation contact: 206-555-0100"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Release notes for v1.2.3"
+      - "Escalation contact: [REDACTED-PHONE]"
+
+- description: Exempt caller (groups array contains hr) — response passes through unredacted, no transform.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: notion-notion-fetch
+      uri: null
+    subject:
+      sub: auth0|u9
+      claims:
+        groups:
+          - hr
+    payload:
+      name: notion-notion-fetch
+      text:
+        - "Candidate contact: jane@acme.com or 206-555-0100"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Exempt caller (groups array contains legal) — response passes through unredacted, no transform.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: notion-notion-query-meeting-notes
+      uri: null
+    subject:
+      sub: auth0|u10
+      claims:
+        groups:
+          - staff
+          - legal
+    payload:
+      name: notion-notion-query-meeting-notes
+      text:
+        - "Deposition witness: jane@acme.com"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Exempt caller with a bare-string groups claim (hr) — the string branch matches, no transform.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: notion-notion-fetch
+      uri: null
+    subject:
+      sub: auth0|u11
+      claims:
+        groups: hr
+    payload:
+      name: notion-notion-fetch
+      text:
+        - "Candidate contact: jane@acme.com"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Group name matching is case-insensitive — uppercase LEGAL is exempt, no transform.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: notion-notion-fetch
+      uri: null
+    subject:
+      sub: auth0|u12
+      claims:
+        groups:
+          - staff
+          - LEGAL
+    payload:
+      name: notion-notion-fetch
+      text:
+        - "Contact jane@acme.com"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Fail closed for the grant — subject has no claims, so the caller is not exempt and redaction applies.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: notion-notion-fetch
+      uri: null
+    subject:
+      sub: auth0|u13
+    payload:
+      name: notion-notion-fetch
+      text:
+        - "Contact jane@acme.com"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Contact [REDACTED-EMAIL]"
+
+- description: Fail closed for the grant — no subject at all (IdP not configured), redaction still applies.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: notion-notion-fetch
+      uri: null
+    payload:
+      name: notion-notion-fetch
+      text:
+        - "Contact jane@acme.com"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Contact [REDACTED-EMAIL]"
+
+- description: Deliberate exclusion — notion-get-users returns member emails by design and is NOT in scope; no transform even with emails present (gate it at ingress with fence-user-directory).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: notion-notion-get-users
+      uri: null
+    subject:
+      sub: auth0|u14
+      claims:
+        groups:
+          - eng
+    payload:
+      name: notion-notion-get-users
+      text:
+        - '{"users":[{"name":"Jane Doe","email":"jane@acme.com"}]}'
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Out-of-scope write tool (notion-create-pages) — no transform even if the echoed response carries an email.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: notion-notion-create-pages
+      uri: null
+    subject:
+      sub: auth0|u15
+      claims:
+        groups:
+          - eng
+    payload:
+      name: notion-notion-create-pages
+      text:
+        - "Created page 'Contacts' containing jane@acme.com"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Conservative-regex negatives — a Notion page UUID, a date, and a dotted version string are NOT redacted, so an otherwise clean page passes through byte-identical.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: notion-notion-fetch
+      uri: null
+    subject:
+      sub: auth0|u16
+      claims:
+        groups:
+          - eng
+    payload:
+      name: notion-notion-fetch
+      text:
+        - "Page 123e4567-e89b-12d3-a456-426614174000, updated 2026-07-15, build v1.2.3"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: In-scope tool but the content carries no PII — response passes through byte-identical, no transform.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: notion-notion-search
+      uri: null
+    subject:
+      sub: auth0|u17
+      claims:
+        groups:
+          - eng
+    payload:
+      name: notion-notion-search
+      text:
+        - "The Q3 roadmap page is ready for review."
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Ingress hook (mode input) is never in scope — the same tool + email produces no transform on the pre-invoke path.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: notion-notion-fetch
+      uri: null
+    subject:
+      sub: auth0|u18
+      claims:
+        groups:
+          - eng
+    payload:
+      name: notion-notion-fetch
+      text:
+        - "Contact jane@acme.com"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+# --- Red-team-style hardening cases (standards §10 anticipation) ---
+
+- description: "Red-team: egress with action=tool_post_invoke but mode unset — is_egress still matches on action, so redaction fires (no fail-open leak)."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    resource:
+      type: tool
+      name: notion-notion-fetch
+      uri: null
+    subject:
+      sub: auth0|u19
+      claims:
+        groups:
+          - eng
+    payload:
+      name: notion-notion-fetch
+      text:
+        - "Contact jane@acme.com"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Contact [REDACTED-EMAIL]"
+
+- description: "Red-team: uppercase tool name NOTION-NOTION-FETCH is still matched — tool matching is case-insensitive."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: NOTION-NOTION-FETCH
+      uri: null
+    subject:
+      sub: auth0|u20
+      claims:
+        groups:
+          - eng
+    payload:
+      name: NOTION-NOTION-FETCH
+      text:
+        - "Contact jane@acme.com"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Contact [REDACTED-EMAIL]"
+
+- description: "Red-team: object-shaped groups claim {department: hr} must NOT grant the exemption — the is_array guard fails it closed, so redaction still applies."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: notion-notion-fetch
+      uri: null
+    subject:
+      sub: auth0|u21
+      claims:
+        groups:
+          department: hr
+    payload:
+      name: notion-notion-fetch
+      text:
+        - "Contact jane@acme.com"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Contact [REDACTED-EMAIL]"
+
+- description: "Red-team: nested-array groups [[hr]] is not a flat array of strings — the is_string(g) guard fails it closed (not exempt), redaction applies."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: notion-notion-fetch
+      uri: null
+    subject:
+      sub: auth0|u22
+      claims:
+        groups:
+          - - hr
+    payload:
+      name: notion-notion-fetch
+      text:
+        - "Contact jane@acme.com"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Contact [REDACTED-EMAIL]"
+
+- description: "Red-team: page body delivered as MCP-standard structured text blocks {type:text, text:...} — the inner `text` is redacted and `type` preserved."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: notion-notion-fetch
+      uri: null
+    subject:
+      sub: auth0|u23
+      claims:
+        groups:
+          - eng
+    payload:
+      name: notion-notion-fetch
+      text:
+        - type: text
+          text: "Candidate contact: jane@acme.com or 206-555-0100"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - text: "Candidate contact: [REDACTED-EMAIL] or [REDACTED-PHONE]"
+        type: text
+
+- description: "Red-team: mixed content-block array — one plain string and one MCP {type,text} object, both carrying PII — every block is redacted regardless of shape."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: notion-notion-query-meeting-notes
+      uri: null
+    subject:
+      sub: auth0|u24
+      claims:
+        groups:
+          - support
+    payload:
+      name: notion-notion-query-meeting-notes
+      text:
+        - "Plain block phone 206-555-0100"
+        - type: text
+          text: "Object block email ops.lead@example.co.uk"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Plain block phone [REDACTED-PHONE]"
+      - text: "Object block email [REDACTED-EMAIL]"
+        type: text
+
+- description: "Red-team DOCUMENTED residual: a structured block with NO string `text` key (custom {column,value} query-row shape) passes through untouched — PII under other keys is out of the policy's claim, so no transform even with an email in `value`."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: notion-notion-query-data-sources
+      uri: null
+    subject:
+      sub: auth0|u25
+      claims:
+        groups:
+          - eng
+    payload:
+      name: notion-notion-query-data-sources
+      text:
+        - column: email
+          value: "jane@acme.com"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Red-team DOCUMENTED residual: off-spec scalar `text` (a bare string, not an array) fails the is_array transform guard — no transform fires and the email passes through (fail-open on a shape off the documented gateway contract)."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: notion-notion-fetch
+      uri: null
+    subject:
+      sub: auth0|u26
+      claims:
+        groups:
+          - eng
+    payload:
+      name: notion-notion-fetch
+      text: "Contact jane@acme.com"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Red-team DOCUMENTED residual: notion-query-database-view returns database rows but is NOT in pii_read_suffixes — no transform, content passes through unredacted (add the suffix if your deployment relies on view reads)."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: notion-notion-query-database-view
+      uri: null
+    subject:
+      sub: auth0|u27
+      claims:
+        groups:
+          - eng
+    payload:
+      name: notion-notion-query-database-view
+      text:
+        - "Row: jane@acme.com"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Red-team DOCUMENTED residual: official LOCAL server tool names (unprefixed `search`) are not matched — a separate per-implementation policy is required, so no transform here."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: notion-local-search
+      uri: null
+    subject:
+      sub: auth0|u28
+      claims:
+        groups:
+          - eng
+    payload:
+      name: notion-local-search
+      text:
+        - "Result: jane@acme.com"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Red-team DOCUMENTED residual: notion-get-async-task returns the eventual result of async operations (can carry page content) but is NOT in pii_read_suffixes — no transform, content passes through unredacted (add the suffix if your deployment relies on async-task content reads)."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: notion-notion-get-async-task
+      uri: null
+    subject:
+      sub: auth0|u29
+      claims:
+        groups:
+          - eng
+    payload:
+      name: notion-notion-get-async-task
+      text:
+        - "Async page result: jane@acme.com 206-555-0100"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Red-team DOCUMENTED residual: a phone number with a directly-appended extension (206-555-0100x123) escapes the trailing word-boundary anchor and is NOT matched — the leading digits pass through unredacted (best-effort pattern residual; the anchor is deliberate so the pattern does not fire inside longer ID/digit runs)."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: notion-notion-fetch
+      uri: null
+    subject:
+      sub: auth0|u30
+      claims:
+        groups:
+          - eng
+    payload:
+      name: notion-notion-fetch
+      text:
+        - "Desk line 206-555-0100x123"
+  output:
+    expectedResult: allow
+  transformApplied: false

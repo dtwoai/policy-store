@@ -5,7 +5,9 @@ tags:
   - secrets
   - dlp
   - ingress
-publishedAt: 2026-06-02
+  - soc2
+  - iso27001-nist
+publishedAt: 2026-07-12
 description: |
   # slack / block-secrets
 
@@ -18,6 +20,13 @@ description: |
   Blocks Slack send-message tool calls whose message body looks like it contains a secret — API keys, passwords, tokens, or PEM-formatted private keys. All other tool calls pass through unchanged.
 
   The check runs at ingress, before the call reaches the Slack MCP server, so a blocked message is never delivered to Slack and never appears in any channel's history.
+
+  ## Compliance alignment
+
+  - **SOC 2 CC6.7** — supports the restriction on transmission/movement of confidential information by stopping credentials from moving into Slack over the agent channel; **CC6.6** — hardens the boundary by keeping secrets out of a third-party workspace an attacker could read.
+  - **PCI DSS 8.6.2** — supports the prohibition on credentials appearing outside secure storage by blocking passwords, keys, and tokens from being posted to Slack.
+  - **ISO 27001 A.8.12** — data leakage prevention on the agent's Slack write path.
+  - **GDPR Art. 5(1)(f) / Art. 32** — supports security of processing: authentication secrets that could expose personal data never land in chat history.
 
   ## Why ingress and not egress
 
@@ -109,12 +118,15 @@ description: |
   - **Regex over plain text.** Secrets concatenated into longer sentences may still match; secrets that don't match a known shape (rotating short-lived tokens, custom-format keys) will not. Treat this as a high-signal first line of defense, not a complete DLP solution.
   - **Attachments and blocks not inspected.** Slack send-message tools accept `attachments` and `blocks` arguments containing structured content. This policy only inspects the top-level `text` / `message` string. Extend `message_text` rules if your environment routinely sends secret-laden content through those fields.
   - **No identity-based exemptions.** All callers are subject to the same check. If you need an InfoSec break-glass user that can post anything, gate it with `input.subject.claims` as a separate `allow if` branch.
+
+  > **Compliance note.** This policy supports alignment with the cited framework controls **on the MCP path only**. No policy or bundle makes an organization compliant with any framework; web-UI, native-API, and in-app access are outside the gateway's reach by design. Validate against your own compliance program before relying on it.
 direction: ingress
 apps:
   - slack
 industries: []
 bundles:
   - im-messaging
+  - soc2
 schemaVersion: 1.0.0
 minimumGatewayVersion: 1.0.0b24
 ---

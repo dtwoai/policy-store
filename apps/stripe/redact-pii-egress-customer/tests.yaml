@@ -1,0 +1,453 @@
+# Transform-only policy: every case expects allow. The assertions that matter
+# are transformApplied / transformedArgsContain (gate-only keys). PAN is a
+# non-issue on this surface — Stripe never returns raw card numbers; last4 is
+# the only card identifier present and it is masked.
+- description: Out-of-scope Stripe tool (create_customer echo) with an email in
+    the output. Policy applies no transform and the response passes through
+    unchanged.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: stripe-create_customer
+      uri: null
+    payload:
+      name: stripe-create_customer
+      text:
+        - '{"id": "cus_new1", "email": "jane@acme.com"}'
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Ingress-mode call to a matching tool name. The policy only fires
+    on the output path, so no transform is applied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: stripe-list_customers
+      uri: null
+    payload:
+      name: stripe-list_customers
+      args:
+        email: jane@acme.com
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: list_customers result with a full customer record and no subject
+    claims at all. The finance exemption fails closed, so the caller receives
+    the redacted view (over-redaction, never disclosure). Name, IDs, and the
+    created timestamp survive; email, phone, and the address object are masked.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: stripe-list_customers
+      uri: null
+    payload:
+      name: stripe-list_customers
+      text:
+        - '{"id": "cus_9s6XKzkNRiz8i3", "object": "customer", "name": "Jane Diaz", "email": "jane@acme.com", "phone": "+15551234567", "address": {"city": "Seattle", "country": "US", "line1": "1 Main St", "postal_code": "98101"}, "created": 1719936000}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    name: stripe-list_customers
+    text:
+      - '{"id": "cus_9s6XKzkNRiz8i3", "object": "customer", "name": "Jane Diaz", "email": "[REDACTED-EMAIL]", "phone": "[REDACTED-PHONE]", "address": "[REDACTED-ADDRESS]", "created": 1719936000}'
+- description: search_stripe_resources result read by a caller whose groups
+    array contains the placeholder finance group. Exempt — the response passes
+    through unmodified.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: stripe-search_stripe_resources
+      uri: null
+    subject:
+      sub: auth0|u1
+      claims:
+        groups:
+          - finance
+    payload:
+      name: stripe-search_stripe_resources
+      text:
+        - '{"email": "jane@acme.com", "phone": "+15551234567"}'
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Caller whose IdP emits the groups claim as a bare string rather
+    than an array. Exempt — no redaction.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: stripe-list_customers
+      uri: null
+    subject:
+      sub: auth0|u2
+      claims:
+        groups: finance
+    payload:
+      name: stripe-list_customers
+      text:
+        - '{"email": "jane@acme.com"}'
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Caller in the finance group with mixed-case IdP spelling
+    (Finance) among several groups. Group matching is case-insensitive, so the
+    caller is exempt.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: stripe-fetch_stripe_resources
+      uri: null
+    subject:
+      sub: auth0|u3
+      claims:
+        groups:
+          - support
+          - Finance
+    payload:
+      name: stripe-fetch_stripe_resources
+      text:
+        - '{"email": "jane@acme.com"}'
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: fetch_stripe_resources result read by a non-finance caller
+    (groups present but only support). Redaction applies.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: stripe-fetch_stripe_resources
+      uri: null
+    subject:
+      sub: auth0|u4
+      claims:
+        groups:
+          - support
+    payload:
+      name: stripe-fetch_stripe_resources
+      text:
+        - '{"id": "cus_4", "email": "sam@corp.io"}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - '{"id": "cus_4", "email": "[REDACTED-EMAIL]"}'
+- description: stripe_api_read returning a charge with nested billing_details
+    (address object, email, phone) and card last4. All four field classes are
+    masked in place; the JSON structure stays valid.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: stripe-stripe_api_read
+      uri: null
+    subject:
+      sub: auth0|u5
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: stripe-stripe_api_read
+      text:
+        - '{"id": "ch_3Nq0", "object": "charge", "billing_details": {"address": {"city": "Austin", "line1": "500 Oak Ave"}, "email": "sam@corp.io", "phone": "512-555-0100"}, "payment_method_details": {"card": {"brand": "visa", "last4": "4242"}}}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - '{"id": "ch_3Nq0", "object": "charge", "billing_details": {"address": "[REDACTED-ADDRESS]", "email": "[REDACTED-EMAIL]", "phone": "[REDACTED-PHONE]"}, "payment_method_details": {"card": {"brand": "visa", "last4": "[REDACTED-LAST4]"}}}'
+- description: Tool name in mixed case. Matching is case-insensitive, so
+    redaction still applies.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: Stripe-List_Customers
+      uri: null
+    payload:
+      name: Stripe-List_Customers
+      text:
+        - '{"email": "jane@acme.com"}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - '{"email": "[REDACTED-EMAIL]"}'
+- description: Tool name only available via tool_metadata.name (resource name
+    empty). The fallback branch matches and redaction applies.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: ""
+      uri: null
+    tool_metadata:
+      name: stripe-search_stripe_resources
+    payload:
+      name: stripe-search_stripe_resources
+      text:
+        - '{"phone": "+15551234567"}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - '{"phone": "[REDACTED-PHONE]"}'
+- description: Clean response from an in-scope tool — no PII fields, no email
+    shapes. No transform is emitted and the response passes through unchanged.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: stripe-list_customers
+      uri: null
+    payload:
+      name: stripe-list_customers
+      text:
+        - '{"object": "list", "data": [], "has_more": false}'
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: In-scope tool whose payload has no text array at all. Nothing to
+    rewrite — no transform, no error.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: stripe-list_customers
+      uri: null
+    payload:
+      name: stripe-list_customers
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: In-scope tool whose payload.text is a bare string rather than
+    the MCP content-block array. The is_array guard keeps the transform
+    undefined rather than emitting a malformed payload.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: stripe-list_customers
+      uri: null
+    payload:
+      name: stripe-list_customers
+      text: '{"email": "jane@acme.com"}'
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Result with mixed content blocks — a clean string, a non-string
+    structured block, and a serialized-JSON string with an email. Only the
+    matching string is rewritten; the other blocks are preserved as-is.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: stripe-fetch_stripe_resources
+      uri: null
+    payload:
+      name: stripe-fetch_stripe_resources
+      text:
+        - Customer record follows.
+        - type: resource
+          uri: stripe://customers/cus_1
+        - '{"email": "a@b.co"}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - Customer record follows.
+      - type: resource
+        uri: stripe://customers/cus_1
+      - '{"email": "[REDACTED-EMAIL]"}'
+- description: Red-team — email embedded in prose text (a description string
+    reformatted by the server), not under an email key. The generic email
+    pattern catches it.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: stripe-search_stripe_resources
+      uri: null
+    payload:
+      name: stripe-search_stripe_resources
+      text:
+        - Contact the customer at jane.doe@acme.com before refunding.
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - Contact the customer at [REDACTED-EMAIL] before refunding.
+- description: Red-team — bare last4 digits in prose (card ending in 4242)
+    outside the JSON last4 key form. Not matched — four digits alone would
+    over-fire on amounts and dates (documented residual).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: stripe-fetch_stripe_resources
+      uri: null
+    payload:
+      name: stripe-fetch_stripe_resources
+      text:
+        - Visa card ending in 4242, expires 2027.
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Red-team — community server (atharvagupta2003/mcp-stripe) uses
+    inverted noun_verb names. customer_list does not match the verified suffix
+    set, so the email passes through unredacted (documented residual — pin
+    your deployment's names in bulk_read_suffixes).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: stripe-customer_list
+      uri: null
+    payload:
+      name: stripe-customer_list
+      text:
+        - '{"email": "jane@acme.com"}'
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Red-team — legacy list_invoices is a read tool that can carry
+    customer email, but it is outside the four bulk PII channels this policy
+    covers (documented residual — extend bulk_read_suffixes if needed).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: stripe-list_invoices
+      uri: null
+    payload:
+      name: stripe-list_invoices
+      text:
+        - '{"id": "in_1", "customer_email": "jane@acme.com"}'
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Null identity fields (address, email, phone all null). The
+    key-anchored patterns only match quoted string / object values, so nulls
+    carry no PII and no transform is emitted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: stripe-fetch_stripe_resources
+      uri: null
+    subject:
+      sub: auth0|u6
+      claims:
+        groups:
+          - support
+    payload:
+      name: stripe-fetch_stripe_resources
+      text:
+        - '{"id": "cus_1", "address": null, "email": null, "phone": null}'
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Red-team fix — a dispute object fetched via the in-scope
+    stripe_api_read meta-tool carries customer PII under compound keys
+    (billing_address, shipping_address, customer_phone_number). The key match
+    accepts any key containing phone/address, so all are masked; customer_name
+    survives (name is intentionally not redacted). Before the fix these fields
+    leaked because the patterns anchored only on the bare phone/address keys.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: stripe-stripe_api_read
+      uri: null
+    subject:
+      sub: auth0|u7
+      claims:
+        groups:
+          - support
+    payload:
+      name: stripe-stripe_api_read
+      text:
+        - '{"id": "dp_1", "object": "dispute", "evidence": {"customer_name": "Jane Diaz", "billing_address": "1 Main St, Seattle WA", "shipping_address": {"city": "Seattle", "line1": "1 Main St"}, "customer_phone_number": "+15551234567"}}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - '{"id": "dp_1", "object": "dispute", "evidence": {"customer_name": "Jane Diaz", "billing_address": "[REDACTED-ADDRESS]", "shipping_address": "[REDACTED-ADDRESS]", "customer_phone_number": "[REDACTED-PHONE]"}}'
+- description: Red-team documented residual — a whole-list read through the
+    legacy list_disputes tool. That suffix is not in bulk_read_suffixes (only
+    the four verified bulk channels are), so the dispute list — including
+    customer email and addresses — passes through unredacted. Pin list_disputes
+    into bulk_read_suffixes if your deployment exposes it and your posture
+    requires it.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: stripe-list_disputes
+      uri: null
+    subject:
+      sub: auth0|u8
+      claims:
+        groups:
+          - support
+    payload:
+      name: stripe-list_disputes
+      text:
+        - '{"object": "list", "data": [{"id": "dp_1", "evidence": {"customer_email_address": "jane@acme.com", "billing_address": "1 Main St"}}]}'
+  output:
+    expectedResult: allow
+  transformApplied: false

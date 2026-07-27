@@ -1,0 +1,661 @@
+# Deny reason string is kept identical across every deny case that asserts it;
+# it must match the sprintf output in policy.md exactly.
+
+# --- Reads pass for everyone (not is_write_tool branch) ---
+- description: Read tool (getjiraissue) with no subject at all — reads pass for everyone.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-getjiraissue
+      uri: null
+    payload:
+      name: atlassian-getjiraissue
+      args:
+        issueIdOrKey: DEV-7
+  output:
+    expectedResult: allow
+- description: Search tool (searchjiraissuesusingjql) for a caller with unrelated
+    groups — reads pass regardless of identity.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-searchjiraissuesusingjql
+      uri: null
+    subject:
+      sub: auth0|bob
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: atlassian-searchjiraissuesusingjql
+      args:
+        jql: project = DEV ORDER BY created DESC
+  output:
+    expectedResult: allow
+- description: Project/issue-type metadata read (getjiraprojectissuetypesmetadata)
+    with empty claims — treated as a read, allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-getjiraprojectissuetypesmetadata
+      uri: null
+    subject:
+      sub: auth0|carol
+      claims: {}
+    payload:
+      name: atlassian-getjiraprojectissuetypesmetadata
+      args:
+        projectIdOrKey: DEV
+  output:
+    expectedResult: allow
+- description: Read whose name CONTAINS "jiraissue" but is not a gated write
+    (gettransitionsforjiraissue) — endswith is exact at the tail, so it passes.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-gettransitionsforjiraissue
+      uri: null
+    payload:
+      name: atlassian-gettransitionsforjiraissue
+      args:
+        issueIdOrKey: DEV-7
+  output:
+    expectedResult: allow
+- description: Non-tool ingress hook (prompt_pre_fetch) — no write suffix, passes.
+  input:
+    action: prompt_pre_fetch
+    kind: prompt_pre_fetch
+    mode: input
+    resource:
+      type: prompt
+      name: greeting
+      uri: null
+    payload:
+      prompt_id: greeting
+      args:
+        user: alice
+  output:
+    expectedResult: allow
+
+# --- Writes pass for writer-group members (is_write_tool + caller_is_writer) ---
+- description: Official write (createjiraissue) by a member of jira-writers — allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-createjiraissue
+      uri: null
+    subject:
+      sub: auth0|alice
+      claims:
+        groups:
+          - jira-writers
+    payload:
+      name: atlassian-createjiraissue
+      args:
+        projectKey: DEV
+        summary: New task
+  output:
+    expectedResult: allow
+- description: Community write (jira_update_issue) when jira-writers is one of
+    several groups — allowed (community dialect).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: mcp-atlassian-jira_update_issue
+      uri: null
+    subject:
+      sub: auth0|alice
+      claims:
+        groups:
+          - engineering
+          - jira-writers
+    payload:
+      name: mcp-atlassian-jira_update_issue
+      args:
+        issue_key: DEV-7
+        fields:
+          summary: updated
+  output:
+    expectedResult: allow
+- description: Official issue-link write (createissuelink) by a writer — allowed
+    (exercises the issue-link suffix branch, official dialect).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-createissuelink
+      uri: null
+    subject:
+      sub: auth0|alice
+      claims:
+        groups:
+          - jira-writers
+    payload:
+      name: atlassian-createissuelink
+      args:
+        inwardIssue:
+          key: DEV-7
+        outwardIssue:
+          key: DEV-8
+        type:
+          name: Blocks
+  output:
+    expectedResult: allow
+- description: Community transition (jira_transition_issue) by a writer — allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: mcp-atlassian-jira_transition_issue
+      uri: null
+    subject:
+      sub: auth0|alice
+      claims:
+        groups:
+          - jira-writers
+    payload:
+      name: mcp-atlassian-jira_transition_issue
+      args:
+        issue_key: DEV-7
+        transition:
+          id: "31"
+  output:
+    expectedResult: allow
+
+# --- Writes deny for non-members (is_write_tool + not caller_is_writer) ---
+- description: Official write (editjiraissue) by a caller whose groups do not
+    include jira-writers — denied with the standard reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-editjiraissue
+      uri: null
+    subject:
+      sub: auth0|bob
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: atlassian-editjiraissue
+      args:
+        issueIdOrKey: DEV-7
+        fields:
+          summary: changed
+  output:
+    expectedResult: deny
+    expectedReason: Jira write tools are restricted to members of the 'jira-writers' group — this account has read-only Jira access through the gateway. Ask your identity admin to add you to 'jira-writers', or hand this write (create, edit, transition, comment, worklog, or issue link) to a teammate with Jira write access. If this tool is actually read-only, contact your InfoSec team to update the policy.
+- description: Community create (jira_create_issue) with no subject in the input at
+    all — identity lookup fails closed, write denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: mcp-atlassian-jira_create_issue
+      uri: null
+    payload:
+      name: mcp-atlassian-jira_create_issue
+      args:
+        project: DEV
+        summary: New task
+  output:
+    expectedResult: deny
+- description: Official transition (transitionjiraissue) with an empty groups
+    array — denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-transitionjiraissue
+      uri: null
+    subject:
+      sub: auth0|bob
+      claims:
+        groups: []
+    payload:
+      name: atlassian-transitionjiraissue
+      args:
+        issueIdOrKey: DEV-7
+        transition:
+          id: "31"
+  output:
+    expectedResult: deny
+- description: Official comment write (addcommenttojiraissue) by a non-writer —
+    denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-addcommenttojiraissue
+      uri: null
+    subject:
+      sub: auth0|bob
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: atlassian-addcommenttojiraissue
+      args:
+        issueIdOrKey: DEV-7
+        commentBody: looks good
+  output:
+    expectedResult: deny
+- description: Community worklog write (jira_add_worklog) by a non-writer — denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: mcp-atlassian-jira_add_worklog
+      uri: null
+    subject:
+      sub: auth0|bob
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: mcp-atlassian-jira_add_worklog
+      args:
+        issue_key: DEV-7
+        time_spent: 1h
+  output:
+    expectedResult: deny
+- description: Community issue-link write (jira_create_issue_link) by a non-writer —
+    denied. Confirms this snake_case suffix matches and does not collide with the
+    jira_create_issue suffix.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: mcp-atlassian-jira_create_issue_link
+      uri: null
+    subject:
+      sub: auth0|bob
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: mcp-atlassian-jira_create_issue_link
+      args:
+        link_type: Blocks
+        inward_issue_key: DEV-7
+        outward_issue_key: DEV-8
+  output:
+    expectedResult: deny
+- description: Uppercased write tool name (ATLASSIAN-CREATEJIRAISSUE) without the
+    group — matching is case-insensitive, so still denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ATLASSIAN-CREATEJIRAISSUE
+      uri: null
+    subject:
+      sub: auth0|bob
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: ATLASSIAN-CREATEJIRAISSUE
+      args:
+        projectKey: DEV
+        summary: New task
+  output:
+    expectedResult: deny
+
+# --- Red-team: identity-shape spoofing must fail closed ---
+- description: Red-team — groups claim is a plain string ("jira-writers") instead of
+    an array. Malformed shape fails closed, write denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-createjiraissue
+      uri: null
+    subject:
+      sub: auth0|mallory
+      claims:
+        groups: jira-writers
+    payload:
+      name: atlassian-createjiraissue
+      args:
+        projectKey: DEV
+        summary: sneaky
+  output:
+    expectedResult: deny
+    expectedReason: Jira write tools are restricted to members of the 'jira-writers' group — this account has read-only Jira access through the gateway. Ask your identity admin to add you to 'jira-writers', or hand this write (create, edit, transition, comment, worklog, or issue link) to a teammate with Jira write access. If this tool is actually read-only, contact your InfoSec team to update the policy.
+- description: Red-team — groups claim shaped as an object whose VALUE is the writer
+    group name ({"role":"jira-writers"}). `some x in obj` iterates values, so this
+    would fail OPEN without the is_array guard. Non-array shape must fail closed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-editjiraissue
+      uri: null
+    subject:
+      sub: auth0|mallory
+      claims:
+        groups:
+          role: jira-writers
+    payload:
+      name: atlassian-editjiraissue
+      args:
+        issueIdOrKey: DEV-7
+        fields:
+          summary: sneaky
+  output:
+    expectedResult: deny
+    expectedReason: Jira write tools are restricted to members of the 'jira-writers' group — this account has read-only Jira access through the gateway. Ask your identity admin to add you to 'jira-writers', or hand this write (create, edit, transition, comment, worklog, or issue link) to a teammate with Jira write access. If this tool is actually read-only, contact your InfoSec team to update the policy.
+
+# --- Red-team: batch-create must be gated (create operation in bulk) ---
+- description: Red-team — community batch-create (jira_batch_create_issues) by a
+    non-writer. This tool creates issues wholesale and carries none of the six
+    single-op suffixes; it is explicitly gated as a create variant, so denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: mcp-atlassian-jira_batch_create_issues
+      uri: null
+    subject:
+      sub: auth0|mallory
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: mcp-atlassian-jira_batch_create_issues
+      args:
+        issues:
+          - project: DEV
+            summary: bulk one
+          - project: DEV
+            summary: bulk two
+  output:
+    expectedResult: deny
+    expectedReason: Jira write tools are restricted to members of the 'jira-writers' group — this account has read-only Jira access through the gateway. Ask your identity admin to add you to 'jira-writers', or hand this write (create, edit, transition, comment, worklog, or issue link) to a teammate with Jira write access. If this tool is actually read-only, contact your InfoSec team to update the policy.
+- description: Community batch-create (jira_batch_create_issues) by a jira-writers
+    member — allowed (exercises the batch-create suffix branch for a writer).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: mcp-atlassian-jira_batch_create_issues
+      uri: null
+    subject:
+      sub: auth0|alice
+      claims:
+        groups:
+          - jira-writers
+    payload:
+      name: mcp-atlassian-jira_batch_create_issues
+      args:
+        issues:
+          - project: DEV
+            summary: bulk one
+  output:
+    expectedResult: allow
+
+# --- Red-team: community-only variants of gated operation classes must be gated ---
+- description: Red-team (fixed) — community comment rewrite (jira_edit_comment) by a
+    non-writer. Adding comments is gated, so rewriting an existing comment must be
+    too; this suffix was added after review. Denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: mcp-atlassian-jira_edit_comment
+      uri: null
+    subject:
+      sub: auth0|mallory
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: mcp-atlassian-jira_edit_comment
+      args:
+        issue_key: DEV-7
+        comment_id: "10001"
+        body: rewritten by agent
+  output:
+    expectedResult: deny
+    expectedReason: Jira write tools are restricted to members of the 'jira-writers' group — this account has read-only Jira access through the gateway. Ask your identity admin to add you to 'jira-writers', or hand this write (create, edit, transition, comment, worklog, or issue link) to a teammate with Jira write access. If this tool is actually read-only, contact your InfoSec team to update the policy.
+- description: Red-team (fixed) — community epic link (jira_link_to_epic) by a
+    non-writer. Issue linking is gated, so linking an issue to an epic must be too;
+    this suffix was added after review. Denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: mcp-atlassian-jira_link_to_epic
+      uri: null
+    subject:
+      sub: auth0|mallory
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: mcp-atlassian-jira_link_to_epic
+      args:
+        issue_key: DEV-7
+        epic_key: DEV-1
+  output:
+    expectedResult: deny
+    expectedReason: Jira write tools are restricted to members of the 'jira-writers' group — this account has read-only Jira access through the gateway. Ask your identity admin to add you to 'jira-writers', or hand this write (create, edit, transition, comment, worklog, or issue link) to a teammate with Jira write access. If this tool is actually read-only, contact your InfoSec team to update the policy.
+- description: Community epic link (jira_link_to_epic) by a jira-writers member —
+    allowed (writer branch for the suffix added in review).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: mcp-atlassian-jira_link_to_epic
+      uri: null
+    subject:
+      sub: auth0|alice
+      claims:
+        groups:
+          - jira-writers
+    payload:
+      name: mcp-atlassian-jira_link_to_epic
+      args:
+        issue_key: DEV-7
+        epic_key: DEV-1
+  output:
+    expectedResult: allow
+
+# --- Red-team: degenerate tool hook must not present a write as a read ---
+- description: Red-team (fixed) — tool hook with resource.name null but the legacy
+    payload.name alias identifying a write tool. Without the payload.name fallback
+    the write would look like a read and fail OPEN; with it, the non-writer is
+    denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: null
+      uri: null
+    subject:
+      sub: auth0|mallory
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: atlassian-createjiraissue
+      args:
+        projectKey: DEV
+        summary: sneaky via degenerate hook
+  output:
+    expectedResult: deny
+    expectedReason: Jira write tools are restricted to members of the 'jira-writers' group — this account has read-only Jira access through the gateway. Ask your identity admin to add you to 'jira-writers', or hand this write (create, edit, transition, comment, worklog, or issue link) to a teammate with Jira write access. If this tool is actually read-only, contact your InfoSec team to update the policy.
+- description: Legacy-fallback sanity — resource.name null with payload.name naming
+    a read tool (getjiraissue). Fallback resolves the name, read passes for
+    everyone.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: null
+      uri: null
+    payload:
+      name: atlassian-getjiraissue
+      args:
+        issueIdOrKey: DEV-7
+  output:
+    expectedResult: allow
+
+# --- Documented residual (Known limitations: closed write set) ---
+- description: Documents the closed-write-set limitation — the community
+    destructive tool jira_delete_issue carries none of the six gated suffixes, so
+    it is NOT gated by this baseline and passes even without the writer group. Gate
+    it with the destructive-op / sensitive-project companions.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: mcp-atlassian-jira_delete_issue
+      uri: null
+    subject:
+      sub: auth0|mallory
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: mcp-atlassian-jira_delete_issue
+      args:
+        issue_key: DEV-7
+  output:
+    expectedResult: allow
+- description: Documents the closed-write-set limitation — the community
+    jira_create_remote_issue_link (attaches an external URL, a distinct operation
+    from the gated issue-to-issue createissuelink) carries none of the gated
+    suffixes, so it is NOT gated and passes even for a non-writer. Gate it with the
+    sensitive-project / destructive-op companions if needed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: mcp-atlassian-jira_create_remote_issue_link
+      uri: null
+    subject:
+      sub: auth0|mallory
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: mcp-atlassian-jira_create_remote_issue_link
+      args:
+        issue_key: DEV-7
+        url: https://example.com/evidence
+  output:
+    expectedResult: allow
+- description: Documents the closed-write-set limitation — the community
+    jira_update_proforma_form_answers updates issue-attached ProForma form answers,
+    issue-adjacent data this baseline does not treat as an issue edit. It carries
+    none of the gated suffixes, so it is NOT gated and passes even for a
+    non-writer. Extend write_suffixes if your tenant uses ProForma forms for
+    controlled data.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: mcp-atlassian-jira_update_proforma_form_answers
+      uri: null
+    subject:
+      sub: auth0|mallory
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: mcp-atlassian-jira_update_proforma_form_answers
+      args:
+        issue_key: DEV-7
+        form_id: "42"
+        answers:
+          - question: budget
+            answer: "100000"
+  output:
+    expectedResult: allow
+- description: Documents the official-server residual — write tools in Rovo
+    permission groups outside write_jira (here JSM Ops updateJsmOpsAlert) are not
+    issue writes and are NOT gated by this baseline; they pass even for a
+    non-writer. Gate them separately if your tenant exposes JSM Ops or Compass
+    tools.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-updatejsmopsalert
+      uri: null
+    subject:
+      sub: auth0|mallory
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: atlassian-updatejsmopsalert
+      args:
+        alert_id: "A-123"
+        status: acknowledged
+  output:
+    expectedResult: allow

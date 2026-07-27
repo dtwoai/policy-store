@@ -1,0 +1,456 @@
+# All cases expect allow — this is a transform-only policy that never denies.
+# Transform assertions (transformApplied / transform / transformedArgsContain)
+# are gate-only and stripped by the d2 importer.
+
+- description: Unrelated tool (createjiraissue) carrying a fields-like arg — not a
+    read tool, passes through untouched.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-createjiraissue
+      uri: null
+    payload:
+      name: atlassian-createjiraissue
+      args:
+        projectKey: ENG
+        summary: New ticket
+        fields: ["*all"]
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Search with "*ALL" (uppercase, padded whitespace) mixed into fields
+    and maxResults 100 — banned token stripped, remaining fields kept in order,
+    maxResults clamped to 50, jql preserved.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-searchjiraissuesusingjql
+      uri: null
+    payload:
+      name: atlassian-searchjiraissuesusingjql
+      args:
+        jql: project = ENG
+        fields: ["summary", " *ALL ", "status"]
+        maxResults: 100
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    jql: project = ENG
+    fields: ["summary", "status"]
+    maxResults: 50
+
+- description: Search whose fields is exactly ["*all"] and maxResults absent —
+    stripping leaves nothing, so the default safe subset is substituted and the
+    ceiling is injected.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-searchjiraissuesusingjql
+      uri: null
+    payload:
+      name: atlassian-searchjiraissuesusingjql
+      args:
+        jql: assignee = currentUser()
+        fields: ["*all"]
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    jql: assignee = currentUser()
+    fields: ["summary", "status", "issuetype", "priority", "assignee", "reporter", "created", "updated", "labels"]
+    maxResults: 50
+
+- description: Search pulling comment threads, in-range maxResults, caller in a
+    non-exempt group — "comment" stripped, maxResults 25 passes through unchanged.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-searchjiraissuesusingjql
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups: ["engineering"]
+    payload:
+      name: atlassian-searchjiraissuesusingjql
+      args:
+        jql: project = ENG
+        fields: ["comment", "summary"]
+        maxResults: 25
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    fields: ["summary"]
+    maxResults: 25
+
+- description: Bare search with neither fields nor maxResults — the ceiling is
+    injected so the server's own default page size never governs.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-searchjiraissuesusingjql
+      uri: null
+    payload:
+      name: atlassian-searchjiraissuesusingjql
+      args:
+        jql: project = ENG ORDER BY created DESC
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    jql: project = ENG ORDER BY created DESC
+    maxResults: 50
+
+- description: Search already within policy — safe named fields and maxResults at
+    the ceiling — no transform fires.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-searchjiraissuesusingjql
+      uri: null
+    payload:
+      name: atlassian-searchjiraissuesusingjql
+      args:
+        jql: project = ENG
+        fields: ["summary", "status"]
+        maxResults: 50
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Issue view requesting "*ALL" — falls back to the default safe
+    subset; no maxResults is injected into issue-view tools (full payload asserted).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-getjiraissue
+      uri: null
+    payload:
+      name: atlassian-getjiraissue
+      args:
+        issueIdOrKey: HR-7
+        fields: ["*ALL"]
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transform:
+    transformed_payload:
+      fields: ["summary", "status", "issuetype", "priority", "assignee", "reporter", "created", "updated", "labels"]
+      issueIdOrKey: HR-7
+
+- description: Issue view with no fields argument at all — left completely
+    untouched.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-getjiraissue
+      uri: null
+    payload:
+      name: atlassian-getjiraissue
+      args:
+        issueIdOrKey: ENG-42
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Power-user exemption — caller's groups include jira-power-users,
+    so "*all" and an oversized maxResults pass through unchanged.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-searchjiraissuesusingjql
+      uri: null
+    subject:
+      sub: google-apps|analyst@example.com
+      claims:
+        groups: ["engineering", "jira-power-users"]
+    payload:
+      name: atlassian-searchjiraissuesusingjql
+      args:
+        jql: project = ENG
+        fields: ["*all", "comment"]
+        maxResults: 500
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Community jira_search with a comma-separated fields string
+    containing "comment" (padded) and no maxResults — string rewritten with the
+    banned token dropped, ceiling injected.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: jira-mcp-jira_search
+      uri: null
+    payload:
+      name: jira-mcp-jira_search
+      args:
+        jql: project = OPS
+        fields: "summary, comment ,status"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    jql: project = OPS
+    fields: summary,status
+    maxResults: 50
+
+- description: Community jira_get_issue with fields as the bare string "*all" —
+    falls back to the default safe subset in comma-joined string form; no
+    maxResults injected (full payload asserted).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: jira-mcp-jira_get_issue
+      uri: null
+    payload:
+      name: jira-mcp-jira_get_issue
+      args:
+        fields: "*all"
+        issue_key: ENG-9
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transform:
+    transformed_payload:
+      fields: summary,status,issuetype,priority,assignee,reporter,created,updated,labels
+      issue_key: ENG-9
+
+- description: Search with a non-numeric maxResults ("unlimited") — fail-safe
+    clamp replaces it with the ceiling rather than letting the server parse it.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-searchjiraissuesusingjql
+      uri: null
+    payload:
+      name: atlassian-searchjiraissuesusingjql
+      args:
+        jql: project = ENG
+        maxResults: unlimited
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    maxResults: 50
+
+- description: Search with a non-positive maxResults (0, read by some servers as
+    "use default/unbounded") — clamped to the ceiling.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-searchjiraissuesusingjql
+      uri: null
+    payload:
+      name: atlassian-searchjiraissuesusingjql
+      args:
+        jql: project = ENG
+        maxResults: 0
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    maxResults: 50
+
+- description: "Red-team F1 — the ''*navigable'' Jira wildcard (all navigable
+    fields incl. custom fields) is stripped like ''*all''; here it stands alone
+    so the fields fall back to the default safe subset and maxResults clamps."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-searchjiraissuesusingjql
+      uri: null
+    payload:
+      name: atlassian-searchjiraissuesusingjql
+      args:
+        jql: project = ENG
+        fields: ["*navigable"]
+        maxResults: 100
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    jql: project = ENG
+    fields: ["summary", "status", "issuetype", "priority", "assignee", "reporter", "created", "updated", "labels"]
+    maxResults: 50
+
+- description: "Red-team F1 — ''*navigable'' inside a community comma-separated
+    fields string is dropped, remaining named field kept."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: jira-mcp-jira_search
+      uri: null
+    payload:
+      name: jira-mcp-jira_search
+      args:
+        jql: project = OPS
+        fields: "summary,*navigable"
+        maxResults: 10
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    fields: summary
+    maxResults: 10
+
+- description: "Red-team F2 — a banned token packed behind a comma inside a
+    single array element (''*all,comment'') must not slip through atomically;
+    Jira comma-splits fields server-side, so the whole element is dropped and
+    the fields fall back to the default safe subset."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-searchjiraissuesusingjql
+      uri: null
+    payload:
+      name: atlassian-searchjiraissuesusingjql
+      args:
+        jql: project = ENG
+        fields: ["*all,comment"]
+        maxResults: 100
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    jql: project = ENG
+    fields: ["summary", "status", "issuetype", "priority", "assignee", "reporter", "created", "updated", "labels"]
+    maxResults: 50
+
+- description: "Red-team F2 — mixed comma element (''summary,*all'') on an
+    issue-view tool: the element carrying the banned token is dropped whole,
+    the plain ''status'' element survives, no maxResults injected (full payload)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-getjiraissue
+      uri: null
+    payload:
+      name: atlassian-getjiraissue
+      args:
+        issueIdOrKey: HR-7
+        fields: ["status", "summary,*all"]
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transform:
+    transformed_payload:
+      fields: ["status"]
+      issueIdOrKey: HR-7
+
+- description: "Red-team F3 (documented limitation) — an out-of-scope community
+    bulk-read tool (jira_get_project_issues) is NOT in the matched read set, so
+    even a ''*all'' / maxResults 1000 request passes through untouched. Cover it
+    with an additional policy if your deployment exposes it."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: jira-mcp-jira_get_project_issues
+      uri: null
+    payload:
+      name: jira-mcp-jira_get_project_issues
+      args:
+        fields: ["*all"]
+        maxResults: 1000
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Red-team F4 (documented limitation) — a community server that
+    reads page size from ''limit'' rather than ''maxResults'' is NOT clamped on
+    that key; limit passes through and the ceiling is merely injected under
+    maxResults. Extend the clamp to your server's key before relying on it."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: jira-mcp-jira_search
+      uri: null
+    payload:
+      name: jira-mcp-jira_search
+      args:
+        jql: project = ENG
+        limit: 1000
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    limit: 1000
+    maxResults: 50
+
+- description: Egress hook on the same search tool name — ingress-only policy,
+    no transform on tool_post_invoke.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: atlassian-searchjiraissuesusingjql
+      uri: null
+    payload:
+      name: atlassian-searchjiraissuesusingjql
+      text:
+        - '{"issues": []}'
+  output:
+    expectedResult: allow
+  transformApplied: false

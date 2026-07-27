@@ -1,0 +1,523 @@
+- description: Unguarded tool (create_incident) passes through untouched.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-create_incident
+      uri: null
+    payload:
+      name: servicenow-mcp-create_incident
+      args:
+        short_description: printer down
+  output:
+    expectedResult: allow
+
+- description: Generic Table-API call on a non-sensitive table (incident) is allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-perform_query
+      uri: null
+    payload:
+      name: servicenow-mcp-perform_query
+      args:
+        table: incident
+        query: active=true
+  output:
+    expectedResult: allow
+
+- description: perform_query on sys_user with no matching group is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-perform_query
+      uri: null
+    subject:
+      claims:
+        groups:
+          - service-desk
+    payload:
+      name: servicenow-mcp-perform_query
+      args:
+        table: sys_user
+        query: active=true
+  output:
+    expectedResult: deny
+    expectedReason: "Access to the ServiceNow table 'sys_user' is restricted to the hr, infosec group(s). Narrow your query to a non-sensitive table, or request membership in one of those groups."
+
+- description: perform_query on sys_user allowed when caller is in infosec.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-perform_query
+      uri: null
+    subject:
+      claims:
+        groups:
+          - infosec
+    payload:
+      name: servicenow-mcp-perform_query
+      args:
+        table: sys_user
+  output:
+    expectedResult: allow
+
+- description: get_record on sys_user allowed when caller is in hr.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-get_record
+      uri: null
+    subject:
+      claims:
+        groups:
+          - hr
+    payload:
+      name: servicenow-mcp-get_record
+      args:
+        table: sys_user
+        sys_id: abc123
+  output:
+    expectedResult: allow
+
+- description: search_records on an HRSD case table (sn_hr_core_ prefix) denied without hr group.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-search_records
+      uri: null
+    subject:
+      claims:
+        groups:
+          - service-desk
+    payload:
+      name: servicenow-mcp-search_records
+      args:
+        table: sn_hr_core_case
+  output:
+    expectedResult: deny
+    expectedReason: "Access to the ServiceNow table 'sn_hr_core_case' is restricted to the hr group(s). Narrow your query to a non-sensitive table, or request membership in one of those groups."
+
+- description: HRSD case table allowed for hr group member.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-search_records
+      uri: null
+    subject:
+      claims:
+        groups:
+          - hr
+    payload:
+      name: servicenow-mcp-search_records
+      args:
+        table: sn_hr_core_case
+  output:
+    expectedResult: allow
+
+- description: HRSD case table denied for infosec (owns CMDB/sys_user, not HR tables).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-get_record
+      uri: null
+    subject:
+      claims:
+        groups:
+          - infosec
+    payload:
+      name: servicenow-mcp-get_record
+      args:
+        table: sn_hr_core_case
+        sys_id: def456
+  output:
+    expectedResult: deny
+    expectedReason: "Access to the ServiceNow table 'sn_hr_core_case' is restricted to the hr group(s). Narrow your query to a non-sensitive table, or request membership in one of those groups."
+
+- description: CMDB table (cmdb_ci prefix) denied without infosec group.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-perform_query
+      uri: null
+    subject:
+      claims:
+        groups:
+          - hr
+    payload:
+      name: servicenow-mcp-perform_query
+      args:
+        table: cmdb_ci_server
+  output:
+    expectedResult: deny
+    expectedReason: "Access to the ServiceNow table 'cmdb_ci_server' is restricted to the infosec group(s). Narrow your query to a non-sensitive table, or request membership in one of those groups."
+
+- description: CMDB table allowed for infosec group member.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-perform_query
+      uri: null
+    subject:
+      claims:
+        groups:
+          - infosec
+    payload:
+      name: servicenow-mcp-perform_query
+      args:
+        table: cmdb_ci
+  output:
+    expectedResult: allow
+
+- description: Fail closed — generic Table-API call with no table argument is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-search_records
+      uri: null
+    subject:
+      claims:
+        groups:
+          - infosec
+    payload:
+      name: servicenow-mcp-search_records
+      args:
+        query: active=true
+  output:
+    expectedResult: deny
+    expectedReason: "The ServiceNow tool 'servicenow-mcp-search_records' was called without a 'table' argument, so the query cannot be scoped to a non-sensitive table. Name the specific table you are authorized to read."
+
+- description: Red-team — case-insensitive table match. SYS_USER (uppercase) still denied without a group.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-perform_query
+      uri: null
+    subject:
+      claims:
+        groups:
+          - service-desk
+    payload:
+      name: servicenow-mcp-perform_query
+      args:
+        table: SYS_USER
+  output:
+    expectedResult: deny
+    expectedReason: "Access to the ServiceNow table 'sys_user' is restricted to the hr, infosec group(s). Narrow your query to a non-sensitive table, or request membership in one of those groups."
+
+- description: Red-team — case-insensitive tool-name match. Uppercased suffix on sys_user still denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: SERVICENOW-MCP-PERFORM_QUERY
+      uri: null
+    subject:
+      claims:
+        groups:
+          - service-desk
+    payload:
+      name: SERVICENOW-MCP-PERFORM_QUERY
+      args:
+        table: sys_user
+  output:
+    expectedResult: deny
+
+- description: natural_language_search targeting sys_user is denied without a group.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-natural_language_search
+      uri: null
+    subject:
+      claims:
+        groups:
+          - service-desk
+    payload:
+      name: servicenow-mcp-natural_language_search
+      args:
+        table: sys_user
+        query: show me all users
+  output:
+    expectedResult: deny
+    expectedReason: "Access to the ServiceNow table 'sys_user' is restricted to the hr, infosec group(s). Narrow your query to a non-sensitive table, or request membership in one of those groups."
+
+- description: natural_language_search with no table argument fails closed (unverified arg shape, documented).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-natural_language_search
+      uri: null
+    subject:
+      claims:
+        groups:
+          - infosec
+    payload:
+      name: servicenow-mcp-natural_language_search
+      args:
+        query: list everyone in finance
+  output:
+    expectedResult: deny
+    expectedReason: "The ServiceNow tool 'servicenow-mcp-natural_language_search' was called without a 'table' argument, so the query cannot be scoped to a non-sensitive table. Name the specific table you are authorized to read."
+
+- description: list_users denied when caller has no groups (empty array).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-list_users
+      uri: null
+    subject:
+      claims:
+        groups: []
+    payload:
+      name: servicenow-mcp-list_users
+      args:
+        limit: 50
+  output:
+    expectedResult: deny
+    expectedReason: "Access to the ServiceNow user directory (the sys_user table: names, emails, phones, manager chains) is restricted to the hr or infosec group. Narrow your query to a non-sensitive lookup, or request membership in one of those groups."
+
+- description: list_users allowed for hr group member.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-list_users
+      uri: null
+    subject:
+      claims:
+        groups:
+          - hr
+    payload:
+      name: servicenow-mcp-list_users
+      args:
+        limit: 50
+  output:
+    expectedResult: allow
+
+- description: get_user allowed for infosec group member.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-get_user
+      uri: null
+    subject:
+      claims:
+        groups:
+          - infosec
+    payload:
+      name: servicenow-mcp-get_user
+      args:
+        user_id: jdoe
+  output:
+    expectedResult: allow
+
+- description: Red-team FIXED — newline-suffixed table 'sys_user\n' is trimmed and still denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-perform_query
+      uri: null
+    subject:
+      claims:
+        groups:
+          - service-desk
+    payload:
+      name: servicenow-mcp-perform_query
+      args:
+        table: "sys_user\n"
+  output:
+    expectedResult: deny
+    expectedReason: "Access to the ServiceNow table 'sys_user' is restricted to the hr, infosec group(s). Narrow your query to a non-sensitive table, or request membership in one of those groups."
+
+- description: Red-team FIXED — trailing-space table 'sys_user ' is trimmed and still denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-perform_query
+      uri: null
+    subject:
+      claims:
+        groups:
+          - service-desk
+    payload:
+      name: servicenow-mcp-perform_query
+      args:
+        table: "sys_user "
+  output:
+    expectedResult: deny
+    expectedReason: "Access to the ServiceNow table 'sys_user' is restricted to the hr, infosec group(s). Narrow your query to a non-sensitive table, or request membership in one of those groups."
+
+- description: Red-team FIXED — generic tool with the args key entirely absent fails closed (deny).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-perform_query
+      uri: null
+    subject:
+      claims:
+        groups:
+          - infosec
+    payload:
+      name: servicenow-mcp-perform_query
+  output:
+    expectedResult: deny
+    expectedReason: "The ServiceNow tool 'servicenow-mcp-perform_query' was called without a 'table' argument, so the query cannot be scoped to a non-sensitive table. Name the specific table you are authorized to read."
+
+- description: Red-team DOCUMENTED residual — dot-walk field exfil via a permitted table (incident) is NOT caught (allow). See Known limitations.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-perform_query
+      uri: null
+    subject:
+      claims:
+        groups:
+          - service-desk
+    payload:
+      name: servicenow-mcp-perform_query
+      args:
+        table: incident
+        sysparm_fields: caller_id.email,caller_id.phone
+  output:
+    expectedResult: allow
+
+- description: Red-team DOCUMENTED residual — sibling sys_user_grmember (group membership / ACL recon) is not exact-match sys_user, passes through for an ungrouped caller (allow). See Known limitations.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-perform_query
+      uri: null
+    subject:
+      claims:
+        groups:
+          - service-desk
+    payload:
+      name: servicenow-mcp-perform_query
+      args:
+        table: sys_user_grmember
+  output:
+    expectedResult: allow
+
+- description: Red-team DOCUMENTED residual — sibling sys_user_group is not exact-match sys_user, passes through for an ungrouped caller (allow). See Known limitations.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-get_record
+      uri: null
+    subject:
+      claims:
+        groups:
+          - service-desk
+    payload:
+      name: servicenow-mcp-get_record
+      args:
+        table: sys_user_group
+        sys_id: abc123
+  output:
+    expectedResult: allow
+
+- description: Red-team DOCUMENTED residual — MCP resource read servicenow://tables/sys_user is tool-only-guarded, passes through (allow). See Known limitations.
+  input:
+    action: resource_read
+    kind: resource_read
+    mode: input
+    resource:
+      type: resource
+      name: servicenow://tables/sys_user
+      uri: servicenow://tables/sys_user
+    subject:
+      claims:
+        groups:
+          - service-desk
+    payload:
+      name: servicenow://tables/sys_user
+      args: {}
+  output:
+    expectedResult: allow
+
+- description: Red-team — get_user with the claims block entirely absent fails closed (deny).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-get_user
+      uri: null
+    payload:
+      name: servicenow-mcp-get_user
+      args:
+        user_id: jdoe
+  output:
+    expectedResult: deny
+    expectedReason: "Access to the ServiceNow user directory (the sys_user table: names, emails, phones, manager chains) is restricted to the hr or infosec group. Narrow your query to a non-sensitive lookup, or request membership in one of those groups."

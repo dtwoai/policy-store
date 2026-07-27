@@ -1,0 +1,316 @@
+- description: Read tool outside the delete/cancel verb family, caller has no
+    claims at all. Policy should allow (pass-through branch).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-list-mail-messages
+      uri: null
+    payload:
+      name: ms365-list-mail-messages
+      args: {}
+  output:
+    expectedResult: allow
+- description: Move tool (the suggested alternative to deleting) is not gated.
+    Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-move-mail-message
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - finance
+    payload:
+      name: ms365-move-mail-message
+      args:
+        messageId: AAMkAGI1
+        destinationFolderId: archive
+  output:
+    expectedResult: allow
+- description: Delete mail message with no subject block at all (no IdP claims
+    reached the gateway). Fails closed — deny with reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-delete-mail-message
+      uri: null
+    payload:
+      name: ms365-delete-mail-message
+      args:
+        messageId: AAMkAGI1
+  output:
+    expectedResult: deny
+    expectedReason: "This delete/cancel operation is blocked because it is irreversible: records must survive agent error and prompt injection. Move the item to another folder or archive it instead of deleting. For legitimate admin cleanup, ask a member of your Microsoft 365 admin group (placeholder: m365-admin) to run it, or ask your InfoSec team to add you to that group."
+- description: Delete OneDrive file by a caller whose groups do not include
+    m365-admin. Deny with reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-delete-onedrive-file
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - finance
+          - hr
+    payload:
+      name: ms365-delete-onedrive-file
+      args:
+        driveId: b!xyz
+        driveItemId: 01ABC
+  output:
+    expectedResult: deny
+    expectedReason: "This delete/cancel operation is blocked because it is irreversible: records must survive agent error and prompt injection. Move the item to another folder or archive it instead of deleting. For legitimate admin cleanup, ask a member of your Microsoft 365 admin group (placeholder: m365-admin) to run it, or ask your InfoSec team to add you to that group."
+- description: Delete group by a caller who carries m365-admin among other
+    groups. Admin branch allows the call.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-delete-group
+      uri: null
+    subject:
+      sub: admin@example.com
+      claims:
+        groups:
+          - engineering
+          - m365-admin
+    payload:
+      name: ms365-delete-group
+      args:
+        groupId: 9f9f9f9f
+  output:
+    expectedResult: allow
+- description: Cancel calendar event by a non-admin. The cancel- verb branch
+    matches and the call is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-cancel-calendar-event
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - sales
+    payload:
+      name: ms365-cancel-calendar-event
+      args:
+        eventId: AAMkEvent1
+  output:
+    expectedResult: deny
+    expectedReason: "This delete/cancel operation is blocked because it is irreversible: records must survive agent error and prompt injection. Move the item to another folder or archive it instead of deleting. For legitimate admin cleanup, ask a member of your Microsoft 365 admin group (placeholder: m365-admin) to run it, or ask your InfoSec team to add you to that group."
+- description: Cancel calendar event by an m365-admin member. Allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-cancel-calendar-event
+      uri: null
+    subject:
+      sub: admin@example.com
+      claims:
+        groups:
+          - m365-admin
+    payload:
+      name: ms365-cancel-calendar-event
+      args:
+        eventId: AAMkEvent1
+  output:
+    expectedResult: allow
+- description: Mixed-case tool name (MS365-Delete-Excel-Range) must still match
+    the delete verb — matching is case-insensitive. Deny for non-admin.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: MS365-Delete-Excel-Range
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - finance
+    payload:
+      name: MS365-Delete-Excel-Range
+      args:
+        driveId: b!xyz
+        driveItemId: 01ABC
+        workbookWorksheetId: Sheet1
+        address: Sheet1!A1:D10
+  output:
+    expectedResult: deny
+    expectedReason: "This delete/cancel operation is blocked because it is irreversible: records must survive agent error and prompt injection. Move the item to another folder or archive it instead of deleting. For legitimate admin cleanup, ask a member of your Microsoft 365 admin group (placeholder: m365-admin) to run it, or ask your InfoSec team to add you to that group."
+- description: Unprefixed deployment — tool name starts with delete- (no
+    gateway server-name prefix). The startswith branch catches it. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: delete-mail-folder
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - hr
+    payload:
+      name: delete-mail-folder
+      args:
+        folderId: AAMkFolder1
+  output:
+    expectedResult: deny
+    expectedReason: "This delete/cancel operation is blocked because it is irreversible: records must survive agent error and prompt injection. Move the item to another folder or archive it instead of deleting. For legitimate admin cleanup, ask a member of your Microsoft 365 admin group (placeholder: m365-admin) to run it, or ask your InfoSec team to add you to that group."
+- description: Unprefixed deployment — tool name starts with cancel-. The
+    startswith branch catches it. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: cancel-calendar-event
+      uri: null
+    payload:
+      name: cancel-calendar-event
+      args:
+        eventId: AAMkEvent1
+  output:
+    expectedResult: deny
+    expectedReason: "This delete/cancel operation is blocked because it is irreversible: records must survive agent error and prompt injection. Move the item to another folder or archive it instead of deleting. For legitimate admin cleanup, ask a member of your Microsoft 365 admin group (placeholder: m365-admin) to run it, or ask your InfoSec team to add you to that group."
+- description: Claims present but groups claim missing entirely. Fails closed —
+    deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-delete-subscription
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        org_id: org_abc123
+    payload:
+      name: ms365-delete-subscription
+      args:
+        subscriptionId: sub-1
+  output:
+    expectedResult: deny
+    expectedReason: "This delete/cancel operation is blocked because it is irreversible: records must survive agent error and prompt injection. Move the item to another folder or archive it instead of deleting. For legitimate admin cleanup, ask a member of your Microsoft 365 admin group (placeholder: m365-admin) to run it, or ask your InfoSec team to add you to that group."
+- description: "Red-team type confusion: resource.name is a non-string (number)
+    while payload.name carries a real delete tool. The names are matched
+    independently, so the malformed resource.name cannot suppress the delete —
+    deny (fail-closed)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: 42
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - finance
+    payload:
+      name: ms365-delete-mail-message
+      args:
+        messageId: AAMkAGI1
+  output:
+    expectedResult: deny
+    expectedReason: "This delete/cancel operation is blocked because it is irreversible: records must survive agent error and prompt injection. Move the item to another folder or archive it instead of deleting. For legitimate admin cleanup, ask a member of your Microsoft 365 admin group (placeholder: m365-admin) to run it, or ask your InfoSec team to add you to that group."
+- description: "Red-team type confusion: payload.name is a non-string (array)
+    while resource.name carries a real delete tool. Independent matching still
+    catches the delete verb — deny (fail-closed)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-delete-group
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - finance
+    payload:
+      name:
+        - malformed
+      args:
+        groupId: 9f9f9f9f
+  output:
+    expectedResult: deny
+    expectedReason: "This delete/cancel operation is blocked because it is irreversible: records must survive agent error and prompt injection. Move the item to another folder or archive it instead of deleting. For legitimate admin cleanup, ask a member of your Microsoft 365 admin group (placeholder: m365-admin) to run it, or ask your InfoSec team to add you to that group."
+- description: "Red-team type confusion: resource.name is null while payload.name
+    carries a real delete tool. null coerces to empty string, payload branch
+    still matches — deny (fail-closed)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: null
+      uri: null
+    payload:
+      name: ms365-delete-onedrive-file
+      args:
+        driveId: b!xyz
+        driveItemId: 01ABC
+  output:
+    expectedResult: deny
+    expectedReason: "This delete/cancel operation is blocked because it is irreversible: records must survive agent error and prompt injection. Move the item to another folder or archive it instead of deleting. For legitimate admin cleanup, ask a member of your Microsoft 365 admin group (placeholder: m365-admin) to run it, or ask your InfoSec team to add you to that group."
+- description: Groups claim is a bare string ("m365-admin") instead of an
+    array. Membership iteration over a string fails closed — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-delete-team-channel
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups: m365-admin
+    payload:
+      name: ms365-delete-team-channel
+      args:
+        teamId: t-1
+        channelId: c-1
+  output:
+    expectedResult: deny
+    expectedReason: "This delete/cancel operation is blocked because it is irreversible: records must survive agent error and prompt injection. Move the item to another folder or archive it instead of deleting. For legitimate admin cleanup, ask a member of your Microsoft 365 admin group (placeholder: m365-admin) to run it, or ask your InfoSec team to add you to that group."

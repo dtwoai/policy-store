@@ -1,0 +1,763 @@
+# Transform-only policy: every case expects allow. The assertions that matter are
+# transformApplied / transformedArgsContain (gate-only keys). This policy is NOT
+# tool-name-scoped — it fires on every Gusto egress response — so several cases
+# deliberately use different tool names (official, community kebab-case, StackOne
+# hris_*) to prove the guard does not depend on a name list.
+
+# --- Branch: is_egress via mode == "output"; SSN class ---
+- description: Employee read with a canonical hyphenated SSN. Egress scope matched
+    via mode == "output"; the SSN is masked to the fixed token.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: gusto-get_gusto_employee
+      uri: null
+    payload:
+      name: gusto-get_gusto_employee
+      text:
+        - "employee 214 | ssn 123-45-6789 | dept payroll"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    name: gusto-get_gusto_employee
+    text:
+      - "employee 214 | ssn [REDACTED-FINANCIAL-ID] | dept payroll"
+
+# --- Branch: is_egress via action only (mode absent) ---
+- description: Egress scope matched via the PARC action alone (mode key absent).
+    The SSN is still masked, proving the action branch fires independently.
+  input:
+    action: tool_post_invoke
+    resource:
+      type: tool
+      name: gusto-get_gusto_employee
+      uri: null
+    payload:
+      name: gusto-get_gusto_employee
+      text:
+        - "ssn 540-12-3456 on file"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "ssn [REDACTED-FINANCIAL-ID] on file"
+
+# --- Branch: is_egress via legacy kind only (mode + action absent) ---
+- description: Egress scope matched via the legacy `kind` alias alone (mode and
+    action absent) — an older gateway near the minimum version. The SSN is masked.
+  input:
+    kind: tool_post_invoke
+    resource:
+      type: tool
+      name: gusto-get_gusto_employee
+      uri: null
+    payload:
+      name: gusto-get_gusto_employee
+      text:
+        - "ssn 078-05-1120 recorded"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "ssn [REDACTED-FINANCIAL-ID] recorded"
+
+# --- Branch: bank account class (account label) + routing class in one block ---
+- description: Contractor bank read (community kebab-case tool name) with a
+    label-anchored account number and a labelled routing number. Both are masked,
+    labels preserved. Proves the policy is not tool-name-scoped.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: gusto-community-get-contractor-bank
+      uri: null
+    payload:
+      name: gusto-community-get-contractor-bank
+      text:
+        - "contractor Acme | account number: 000123456789 | routing 021000021"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "contractor Acme | account number: [REDACTED-FINANCIAL-ID] | routing [REDACTED-FINANCIAL-ID]"
+
+# --- Branch: bank class via `acct` label ---
+- description: The `acct` account label anchors an 8+ digit run (StackOne hris_*
+    tool name). Confirms the abbreviated account label is anchored.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: gusto-stackone-hris_get_employee_bank_account
+      uri: null
+    payload:
+      name: gusto-stackone-hris_get_employee_bank_account
+      text:
+        - "acct 12345678 primary"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "acct [REDACTED-FINANCIAL-ID] primary"
+
+# --- Branch: bank class via `a/c` (slash-bearing) label ---
+- description: The `a/c` label (with slash) anchors a labelled account number.
+    Confirms the slash-bearing label anchors correctly on a word boundary.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: gusto-get_contractor
+      uri: null
+    payload:
+      name: gusto-get_contractor
+      text:
+        - "a/c 000123456789 primary"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "a/c [REDACTED-FINANCIAL-ID] primary"
+
+# --- Branch: bank class via `bank` label ---
+- description: The `bank` label anchors an 8+ digit account run.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: gusto-get_gusto_employee
+      uri: null
+    payload:
+      name: gusto-get_gusto_employee
+      text:
+        - "bank 87654321 verified"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "bank [REDACTED-FINANCIAL-ID] verified"
+
+# --- Branch: routing class via `aba` label ---
+- description: The `aba` routing label masks a 9-digit routing number. Confirms
+    routing-label-set members beyond `routing` are anchored.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: gusto-get_contractor
+      uri: null
+    payload:
+      name: gusto-get_contractor
+      text:
+        - "aba 021000021 for wire"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "aba [REDACTED-FINANCIAL-ID] for wire"
+
+# --- Branch: routing class via `rtn` label ---
+- description: The `rtn` routing label masks a 9-digit routing number.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: gusto-get_contractor
+      uri: null
+    payload:
+      name: gusto-get_contractor
+      text:
+        - "rtn 011401533 confirmed"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "rtn [REDACTED-FINANCIAL-ID] confirmed"
+
+# --- Correctness: multiple SSNs in one block are all masked (global replace) ---
+- description: Two canonical SSNs in the same block. regex replacement is global,
+    so both are masked in one pass.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: gusto-list_company_employees
+      uri: null
+    payload:
+      name: gusto-list_company_employees
+      text:
+        - "ssn 111-22-3333 and ssn 444-55-6666"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "ssn [REDACTED-FINANCIAL-ID] and ssn [REDACTED-FINANCIAL-ID]"
+
+# --- Branch: non-string block passthrough (mixed content blocks) ---
+- description: Mixed content blocks — a string with an SSN, a non-string structured
+    block, and a clean string. Only the matching string is rewritten; the other
+    blocks are preserved as-is.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: gusto-get_gusto_employee
+      uri: null
+    payload:
+      name: gusto-get_gusto_employee
+      text:
+        - "contact ssn: 078-05-1120"
+        - type: resource
+          uri: gusto://employee/214
+        - no financial ids here
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "contact ssn: [REDACTED-FINANCIAL-ID]"
+      - type: resource
+        uri: gusto://employee/214
+      - no financial ids here
+
+# --- FIX: long labelled account run (18 digits) masked in full ---
+- description: Labelled account number of 18 digits (longer than a naive bounded
+    cap). The greedy unbounded \d{8,} masks the full run rather than failing open
+    on over-length runs.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: gusto-get_gusto_employee
+      uri: null
+    payload:
+      name: gusto-get_gusto_employee
+      text:
+        - "contractor Acme | acct 123456789012345678 | net 30"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "contractor Acme | acct [REDACTED-FINANCIAL-ID] | net 30"
+
+# --- Over-redaction residual (documented label-anchor trade-off) ---
+- description: Red-team — an unrelated 8-digit figure that follows the word
+    "account" within 12 characters is masked (safe over-masking on egress, never
+    disclosure). Documents the label-anchor trade-off.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: gusto-get_payroll
+      uri: null
+    payload:
+      name: gusto-get_payroll
+      text:
+        - "account balance is 12345678 dollars"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "account balance is [REDACTED-FINANCIAL-ID] dollars"
+
+# --- No transform: clean response ---
+- description: Clean response — no financial-ID patterns match, so no transform is
+    emitted and the response passes through unchanged.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: gusto-list_company_departments
+      uri: null
+    payload:
+      name: gusto-list_company_departments
+      text:
+        - "Engineering, Sales, Support"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+# --- No transform: ingress call (request path) ---
+- description: Ingress-mode call. None of the three egress signals hold on the
+    request path, so the transform never fires even though args mention an SSN.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gusto-get_gusto_employee
+      uri: null
+    payload:
+      name: gusto-get_gusto_employee
+      args:
+        query: "find employee with ssn 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+# --- No transform: payload has no text array ---
+- description: Egress call whose payload has no text array at all. Nothing to
+    rewrite — no transform, no error.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: gusto-get_gusto_employee
+      uri: null
+    payload:
+      name: gusto-get_gusto_employee
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+# --- No transform: payload.text is a bare string, not the content-block array ---
+- description: payload.text is a bare string rather than the MCP content-block
+    array. The is_array guard keeps the transform undefined rather than emitting a
+    malformed payload.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: gusto-get_gusto_employee
+      uri: null
+    payload:
+      name: gusto-get_gusto_employee
+      text: "ssn 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+# --- Red-team residual: bare 9-digit run (no hyphens, unlabelled) ---
+- description: Red-team — a bare 9-digit run (looks like an SSN or routing number
+    but unhyphenated and unlabelled). The conservative patterns require the
+    canonical hyphenated SSN form or an account/routing label, so it passes through
+    (documented residual — avoids colliding with amounts/IDs).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: gusto-get_payroll
+      uri: null
+    payload:
+      name: gusto-get_payroll
+      text:
+        - "internal id 123456789 for the pay run"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+# --- Red-team residual: dot-separated SSN ---
+- description: Red-team — dot-separated SSN (123.45.6789). The SSN pattern matches
+    hyphens only, so it passes through (documented separator residual).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: gusto-get_gusto_employee
+      uri: null
+    payload:
+      name: gusto-get_gusto_employee
+      text:
+        - "ssn 123.45.6789 on file"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+# --- Red-team residual: full-width/unicode-digit SSN ---
+- description: Red-team — SSN written with full-width/unicode digits. \d matches
+    ASCII 0-9 only, so the value is not detected (documented obfuscation residual).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: gusto-get_gusto_employee
+      uri: null
+    payload:
+      name: gusto-get_gusto_employee
+      text:
+        - "ssn １２３-４５-６７８９ end"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+# --- Red-team residual: unlabelled bank-account-shaped digit run ---
+- description: Red-team — a 12-digit run with no account/routing label nearby. The
+    label-anchored patterns do not match, so it passes through (conservative to
+    avoid masking amounts/IDs).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: gusto-get_contractor_payment
+      uri: null
+    payload:
+      name: gusto-get_contractor_payment
+      text:
+        - "payment 000123456789 posted"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+# --- Red-team residual: SSN padded with a trailing digit ---
+- description: Red-team — SSN padded with a trailing digit (123-45-67890). The
+    trailing \b sits between two digits, so the boundary fails and the value passes
+    through (documented padding residual; the padded value is also corrupted).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: gusto-get_gusto_employee
+      uri: null
+    payload:
+      name: gusto-get_gusto_employee
+      text:
+        - "ssn 123-45-67890 on file"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+# --- Red-team residual: SSN padded with a leading digit ---
+- description: Red-team — SSN padded with a leading digit (4123-45-6789). The
+    leading \b sits between two digits, so the boundary fails and the value passes
+    through (documented either-end padding residual).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: gusto-get_gusto_employee
+      uri: null
+    payload:
+      name: gusto-get_gusto_employee
+      text:
+        - "ref 4123-45-6789 stored"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+# --- Red-team residual: account label fused into a longer word ---
+- description: Red-team — the `account` label fused into a longer word (subaccount
+    12345678). The label must sit on a word boundary, so the fused form is not
+    anchored and the number passes through (documented residual). Note the `bank`
+    label, by contrast, anchors "bank..." forms because it sits at a boundary.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: gusto-get_gusto_employee
+      uri: null
+    payload:
+      name: gusto-get_gusto_employee
+      text:
+        - "subaccount 12345678 listed"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+# --- Red-team residual: labelled account shorter than the 8-digit floor ---
+- description: Red-team — labelled account number of 7 digits (account 1234567).
+    The \d{8,} floor applies even to labelled runs, so a short labelled account
+    passes through (documented residual — lower the floor for short accounts).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: gusto-get_gusto_employee
+      uri: null
+    payload:
+      name: gusto-get_gusto_employee
+      text:
+        - "account 1234567 short"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+# --- Red-team residual: bank account printed with internal spaces ---
+- description: Red-team — account number printed with internal spaces (account 1234
+    5678 9012). No single contiguous run reaches 8 digits, so the grouped form
+    passes through (documented grouping residual).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: gusto-get_contractor
+      uri: null
+    payload:
+      name: gusto-get_contractor
+      text:
+        - "contractor Acme | account 1234 5678 9012 on file"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+# --- Red-team residual: SSN buried in a STRUCTURED (object) block ---
+- description: Red-team — SSN buried in a structured (object) content block rather
+    than a bare string. redact_block only rewrites string blocks, so the non-string
+    block passes through unmodified and the SSN inside is not masked (documented
+    structured/nested-block residual). No string block changed, so no transform.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: gusto-get_gusto_employee
+      uri: null
+    payload:
+      name: gusto-get_gusto_employee
+      text:
+        - type: text
+          text: "ssn 123-45-6789 here"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+# --- Red-team: US phone number is out of scope and not masked ---
+- description: Red-team — a US phone number (206-555-0100) in a response. Phones are
+    out of scope; the 3-3-4 shape is disjoint from the SSN 3-2-4 pattern, so it
+    passes through untouched.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: gusto-get_gusto_employee
+      uri: null
+    payload:
+      name: gusto-get_gusto_employee
+      text:
+        - "call the payroll contact at 206-555-0100 today"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+# --- Red-team (fix A): word that BEGINS with a label word is over-masked ---
+- description: Red-team — `bankaccount 12345678`. The `\b` anchors only the START
+    of the label, so the `bank` prefix at a word boundary matches and the run is
+    masked (safe over-masking on egress). Corrects the earlier doc claim that this
+    form "passes through". Contrast `subaccount` below, where the label is interior.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: gusto-get_gusto_employee
+      uri: null
+    payload:
+      name: gusto-get_gusto_employee
+      text:
+        - "bankaccount 12345678 listed"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "bankaccount [REDACTED-FINANCIAL-ID] listed"
+
+# --- Red-team (fix A): label fused directly onto the digits (no separator) ---
+- description: Red-team — `account12345678` with no separator between label and
+    digits. The connector group matches zero characters, so the run is still
+    masked. Documents why a trailing `\b` after the label is deliberately omitted
+    (it would fail open on this no-separator form).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: gusto-get_contractor
+      uri: null
+    payload:
+      name: gusto-get_contractor
+      text:
+        - "acct87654321 primary"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "acct[REDACTED-FINANCIAL-ID] primary"
+
+# --- Red-team (fix B): SSN with a LETTER fused to the front passes through ---
+- description: Red-team — SSN with a non-digit word character (a letter) fused to
+    the front (`ref123-45-6789`). Like digit padding, a fused letter breaks the
+    leading word boundary, so the value passes through unmasked (documented
+    word-boundary residual — now covers letters, not only digits). At egress the
+    upstream response text, not the agent, controls this formatting.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: gusto-get_gusto_employee
+      uri: null
+    payload:
+      name: gusto-get_gusto_employee
+      text:
+        - "ref123-45-6789 stored"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+# --- Red-team residual (reviewer): label separated from digits by a NEWLINE ---
+- description: Red-team — account label printed on its own line above the value
+    (account:\n12345678), as in pretty-printed / multi-line record output. The
+    connector class excludes newlines, so the label is not anchored to the value
+    and the number passes through unmasked (documented multi-line residual).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: gusto-get_gusto_employee
+      uri: null
+    payload:
+      name: gusto-get_gusto_employee
+      text:
+        - "account:\n12345678 here"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+# --- Red-team residual (reviewer): routing label separated by a NEWLINE ---
+- description: Red-team — routing label on its own line above a 9-digit routing
+    number (routing:\n021000021). Same newline-in-connector residual as the bank
+    case; the number passes through unmasked.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: gusto-get_contractor
+      uri: null
+    payload:
+      name: gusto-get_contractor
+      text:
+        - "routing:\n021000021"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+# --- Red-team residual (reviewer): non-ASCII (U+2011) hyphen SSN separator ---
+- description: Red-team — SSN written with a U+2011 non-breaking hyphen instead of
+    an ASCII hyphen. The pattern's separator is a literal ASCII '-', so the value
+    is not detected (documented separator residual, alongside dot/space).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: gusto-get_gusto_employee
+      uri: null
+    payload:
+      name: gusto-get_gusto_employee
+      text:
+        - "ssn 123‑45‑6789 on file"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+# --- Red-team residual (reviewer): SSN with a TRAILING letter fused on ---
+- description: Red-team — SSN with a letter fused to the END (123-45-6789ref). Like
+    a leading letter, a trailing word character breaks the closing word boundary,
+    so the value passes through unmasked (documented either-end word-boundary
+    residual).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: gusto-get_gusto_employee
+      uri: null
+    payload:
+      name: gusto-get_gusto_employee
+      text:
+        - "123-45-6789ref stored"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+# --- Red-team: ISO date not masked (disjoint from SSN shape) ---
+- description: Red-team — an ISO date (2026-07-17, 4-2-2 shape) is disjoint from the
+    SSN 3-2-4 shape, so it is not mistaken for an SSN.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: gusto-get_payroll
+      uri: null
+    payload:
+      name: gusto-get_payroll
+      text:
+        - "pay date 2026-07-17 processed"
+  output:
+    expectedResult: allow
+  transformApplied: false

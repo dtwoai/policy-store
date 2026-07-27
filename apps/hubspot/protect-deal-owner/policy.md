@@ -22,6 +22,12 @@ description: |
   and reassignment. Deal creates, other update fields, and all other tools pass
   through unchanged.
 
+  ## Compliance alignment
+
+  - **SOC 2 CC6.3** — role-based access and least privilege: reassigning deal
+    ownership (quota attribution, territory routing) is reserved for humans with
+    CRM admin rights; the agent channel cannot do it.
+
   ## Why ingress
 
   Deal ownership drives quota attribution, territory routing, and reporting. The
@@ -113,6 +119,8 @@ description: |
   - **No identity-based exemptions.** All callers are treated the same. To allow a
     break-glass role to reassign deals, add an `allow if` branch gated on
     `input.subject.claims`.
+
+  > **Compliance note.** This policy supports alignment with the cited framework controls **on the MCP path only**. No policy or bundle makes an organization compliant with any framework; web-UI, native-API, and in-app access are outside the gateway's reach by design. Validate against your own compliance program before relying on it.
 direction: ingress
 apps:
   - hubspot

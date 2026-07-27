@@ -1,0 +1,531 @@
+- description: search with num_results 500 above the ceiling — lowered to 50; other
+    args preserved.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: glean-search
+      uri: null
+    payload:
+      name: glean-search
+      args:
+        query: q3 roadmap
+        app: gdrive
+        num_results: 500
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    num_results: 50
+    query: q3 roadmap
+    app: gdrive
+- description: search with exhaustive true — rewritten to false; num_results absent
+    and left alone.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: glean-search
+      uri: null
+    payload:
+      name: glean-search
+      args:
+        query: onboarding
+        app: confluence
+        exhaustive: true
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    exhaustive: false
+    query: onboarding
+    app: confluence
+- description: search with both num_results 500 and exhaustive true — both bulk-export
+    parameters rewritten in one transform.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: glean-mcp-search
+      uri: null
+    payload:
+      name: glean-mcp-search
+      args:
+        query: ""
+        app: slack
+        num_results: 500
+        exhaustive: true
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    num_results: 50
+    exhaustive: false
+    app: slack
+- description: search with num_results exactly 50 (the ceiling) — boundary value passes
+    through unchanged (clamp only fires above the ceiling).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: glean-search
+      uri: null
+    payload:
+      name: glean-search
+      args:
+        query: policy docs
+        num_results: 50
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: search with num_results 25 — already within the ceiling, no transform.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: glean-search
+      uri: null
+    payload:
+      name: glean-search
+      args:
+        query: expense policy
+        num_results: 25
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: search with neither num_results nor exhaustive set — both unset, left
+    alone, no transform (the policy never injects a value).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: glean-search
+      uri: null
+    payload:
+      name: glean-search
+      args:
+        query: vpn setup
+        app: confluence
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: search with exhaustive explicitly false — already disabled, left alone,
+    no transform.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: glean-search
+      uri: null
+    payload:
+      name: glean-search
+      args:
+        query: security review
+        exhaustive: false
+        num_results: 10
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Uppercase tool name GLEAN-SEARCH with num_results 300 — tool matching
+    is case-insensitive.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: GLEAN-SEARCH
+      uri: null
+    payload:
+      name: GLEAN-SEARCH
+      args:
+        query: incident postmortems
+        num_results: 300
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    num_results: 50
+    query: incident postmortems
+- description: search with args object missing entirely — nothing to clamp, no error,
+    no transform (object.get defaults).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: glean-search
+      uri: null
+    payload:
+      name: glean-search
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: chat tool with a stray num_results 500 — chat is out of scope, passes
+    through untouched.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: glean-chat
+      uri: null
+    payload:
+      name: glean-chat
+      args:
+        message: summarise the q3 roadmap
+        num_results: 500
+        exhaustive: true
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: "Red-team: employee_search with num_results 500 and exhaustive true —
+    name ends in _search, not -search, so it is NOT matched and passes through.
+    (Governed by a datasource/directory policy, not this one.)"
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: glean-employee_search
+      uri: null
+    payload:
+      name: glean-employee_search
+      args:
+        query: reportsto:ceo@corp.com
+        num_results: 500
+        exhaustive: true
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: "Red-team: code_search with num_results 500 — another _search sibling
+    that is out of scope, passes through unclamped."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: glean-code_search
+      uri: null
+    payload:
+      name: glean-code_search
+      args:
+        query: AWS_SECRET
+        num_results: 500
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: "Red-team (documented gap): deprecated local server company_search with
+    num_results 500 — ends in _search, not matched. Add a legacy alias only if a
+    tenant still runs the archived package. See Known limitations."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: glean-company_search
+      uri: null
+    payload:
+      name: glean-company_search
+      args:
+        query: acme
+        num_results: 500
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Egress hook (tool_post_invoke) on glean-search with num_results 500 —
+    the action guard keeps the ingress transform from firing on the output path.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: glean-search
+      uri: null
+    payload:
+      name: glean-search
+      text:
+        - '{"results": []}'
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: "Red-team: num_results as a numeric string \"500\" — defensive coercion
+    lowers it to 50 in case a lenient server parses the string."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: glean-search
+      uri: null
+    payload:
+      name: glean-search
+      args:
+        query: contracts
+        num_results: "500"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    num_results: 50
+    query: contracts
+- description: "Red-team: exhaustive as the string \"true\" — defensive coercion
+    disables it (rewritten to boolean false)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: glean-search
+      uri: null
+    payload:
+      name: glean-search
+      args:
+        query: legal hold
+        exhaustive: "true"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    exhaustive: false
+    query: legal hold
+- description: "Red-team (documented gap): non-numeric string num_results \"all\" —
+    to_number fails, branch fails safe, value left alone (no transform). Relies on
+    Glean's own server-side validation. See Known limitations."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: glean-search
+      uri: null
+    payload:
+      name: glean-search
+      args:
+        query: everything
+        num_results: all
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: "Red-team (documented gap): negative num_results -1 — the policy caps
+    the upper bound only and does not rewrite non-positive values; Glean caps at 500
+    server-side. Passes through. See Known limitations."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: glean-search
+      uri: null
+    payload:
+      name: glean-search
+      args:
+        query: everything
+        num_results: -1
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: "Red-team (fixed): exhaustive as the JSON number 1 — a lenient server
+    could coerce nonzero numbers to true, so the sweep flag is neutralised (rewritten
+    to boolean false)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: glean-search
+      uri: null
+    payload:
+      name: glean-search
+      args:
+        query: everything
+        exhaustive: 1
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    exhaustive: false
+    query: everything
+- description: "Red-team (fixed): exhaustive as the string \"1\" — truthy-string
+    coercion now disables it (rewritten to boolean false)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: glean-search
+      uri: null
+    payload:
+      name: glean-search
+      args:
+        query: everything
+        exhaustive: "1"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    exhaustive: false
+- description: "Red-team (fixed): exhaustive as the string \"YES\" — case-insensitive
+    truthy-string coercion disables it."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: glean-search
+      uri: null
+    payload:
+      name: glean-search
+      args:
+        query: everything
+        exhaustive: "YES"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    exhaustive: false
+- description: "exhaustive as the number 0 — falsy, must NOT be treated as the sweep
+    flag; left alone (guards against over-clamping)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: glean-search
+      uri: null
+    payload:
+      name: glean-search
+      args:
+        query: everything
+        exhaustive: 0
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: "Red-team (documented gap): num_results as a whitespace-padded string
+    \"  500 \" — to_number rejects it, branch fails safe, value left unchanged (no
+    transform). Relies on Glean's server-side cap of 500. See Known limitations."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: glean-search
+      uri: null
+    payload:
+      name: glean-search
+      args:
+        query: contracts
+        num_results: "  500 "
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Unprefixed bare tool name "search" with exhaustive true — matches the
+    bare Glean search name and disables the sweep.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: search
+      uri: null
+    payload:
+      name: search
+      args:
+        query: roadmap
+        exhaustive: true
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    exhaustive: false
+- description: "Red-team (fixed): exhaustive as the whitespace-padded string \" true \"
+    — a lenient server that trims before coercing would read this as true, so the
+    membership check now trims first and disables the sweep. Without the trim this
+    padded form slipped past while the bare \"true\" was caught (asymmetric bypass)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: glean-search
+      uri: null
+    payload:
+      name: glean-search
+      args:
+        query: everything
+        exhaustive: " true "
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    exhaustive: false
+- description: "Red-team (fixed): exhaustive as the padded upper-case string \"TRUE \"
+    — case-insensitive + whitespace-trim coercion disables it."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: glean-search
+      uri: null
+    payload:
+      name: glean-search
+      args:
+        query: everything
+        exhaustive: "TRUE "
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    exhaustive: false
+- description: "exhaustive as a whitespace-only string \"   \" — trims to empty, not in
+    the truthy set, must NOT be treated as the sweep flag; left alone (guards the
+    trim fix against over-clamping blank strings)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: glean-search
+      uri: null
+    payload:
+      name: glean-search
+      args:
+        query: everything
+        exhaustive: "   "
+  output:
+    expectedResult: allow
+  transformApplied: false

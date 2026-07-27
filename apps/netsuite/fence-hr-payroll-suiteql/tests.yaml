@@ -1,0 +1,555 @@
+- description: Non-fenced NetSuite tool (ns_getRecord) passes through untouched.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_getRecord
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: netsuite-mcp-ns_getRecord
+      arguments:
+        recordType: salesorder
+        id: "123"
+  output:
+    expectedResult: allow
+
+- description: SuiteQL query over a non-HR table by a non-HR caller is allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_runCustomSuiteQL
+      uri: null
+    subject:
+      sub: google-apps|analyst@example.com
+      claims:
+        groups:
+          - finance
+    payload:
+      name: netsuite-mcp-ns_runCustomSuiteQL
+      arguments:
+        sqlQuery: SELECT tranid, amount FROM transaction WHERE type = 'SalesOrd'
+  output:
+    expectedResult: allow
+
+- description: SuiteQL query naming employee/ssn/compensation by a non-HR caller is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_runCustomSuiteQL
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: netsuite-mcp-ns_runCustomSuiteQL
+      arguments:
+        sqlQuery: SELECT firstname, ssn, compensation FROM employee
+  output:
+    expectedResult: deny
+    expectedReason: This SuiteQL query references HR or payroll data (employee, payroll, paycheck, compensation, salary, or SSN/TIN columns), restricted to the 'hr' IdP group. Request only the non-HR columns you need, or ask an HR-authorized user to run it. Contact InfoSec if this fence is wrong.
+
+- description: The same HR/payroll SuiteQL query is allowed for a caller in the hr group (group exemption).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_runCustomSuiteQL
+      uri: null
+    subject:
+      sub: google-apps|hrlead@example.com
+      claims:
+        groups:
+          - hr
+    payload:
+      name: netsuite-mcp-ns_runCustomSuiteQL
+      arguments:
+        sqlQuery: SELECT firstname, ssn, compensation FROM employee
+  output:
+    expectedResult: allow
+
+- description: Red-team — payrollitem table (matched via the payroll prefix pattern) by a non-HR caller is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_runCustomSuiteQL
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: netsuite-mcp-ns_runCustomSuiteQL
+      arguments:
+        sqlQuery: SELECT name, amount FROM payrollitem
+  output:
+    expectedResult: deny
+    expectedReason: This SuiteQL query references HR or payroll data (employee, payroll, paycheck, compensation, salary, or SSN/TIN columns), restricted to the 'hr' IdP group. Request only the non-HR columns you need, or ask an HR-authorized user to run it. Contact InfoSec if this fence is wrong.
+
+- description: Red-team — salary column reference by a non-HR caller is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_runCustomSuiteQL
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: netsuite-mcp-ns_runCustomSuiteQL
+      arguments:
+        sqlQuery: SELECT entityid, salary FROM entity WHERE id = 7
+  output:
+    expectedResult: deny
+    expectedReason: This SuiteQL query references HR or payroll data (employee, payroll, paycheck, compensation, salary, or SSN/TIN columns), restricted to the 'hr' IdP group. Request only the non-HR columns you need, or ask an HR-authorized user to run it. Contact InfoSec if this fence is wrong.
+
+- description: Red-team — TIN/taxid column tokens by a non-HR caller are denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_runCustomSuiteQL
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: netsuite-mcp-ns_runCustomSuiteQL
+      arguments:
+        sqlQuery: SELECT entityid, tin, taxidnum FROM vendor
+  output:
+    expectedResult: deny
+    expectedReason: This SuiteQL query references HR or payroll data (employee, payroll, paycheck, compensation, salary, or SSN/TIN columns), restricted to the 'hr' IdP group. Request only the non-HR columns you need, or ask an HR-authorized user to run it. Contact InfoSec if this fence is wrong.
+
+- description: Red-team — lowercase SuiteQL (case-insensitive) naming employee/ssn is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_runCustomSuiteQL
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: netsuite-mcp-ns_runCustomSuiteQL
+      arguments:
+        sqlQuery: select entityid, ssn from employee where subsidiary = 1
+  output:
+    expectedResult: deny
+    expectedReason: This SuiteQL query references HR or payroll data (employee, payroll, paycheck, compensation, salary, or SSN/TIN columns), restricted to the 'hr' IdP group. Request only the non-HR columns you need, or ask an HR-authorized user to run it. Contact InfoSec if this fence is wrong.
+
+- description: Red-team — fail closed when the caller has no subject/claims at all and runs an HR/payroll query.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_runCustomSuiteQL
+      uri: null
+    payload:
+      name: netsuite-mcp-ns_runCustomSuiteQL
+      arguments:
+        sqlQuery: SELECT firstname, lastname, compensation FROM employee
+  output:
+    expectedResult: deny
+    expectedReason: This SuiteQL query references HR or payroll data (employee, payroll, paycheck, compensation, salary, or SSN/TIN columns), restricted to the 'hr' IdP group. Request only the non-HR columns you need, or ask an HR-authorized user to run it. Contact InfoSec if this fence is wrong.
+
+- description: Red-team — malformed (string) groups claim fails closed on an HR/payroll query.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_runCustomSuiteQL
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups: hr
+    payload:
+      name: netsuite-mcp-ns_runCustomSuiteQL
+      arguments:
+        sqlQuery: SELECT ssn FROM employee
+  output:
+    expectedResult: deny
+    expectedReason: This SuiteQL query references HR or payroll data (employee, payroll, paycheck, compensation, salary, or SSN/TIN columns), restricted to the 'hr' IdP group. Request only the non-HR columns you need, or ask an HR-authorized user to run it. Contact InfoSec if this fence is wrong.
+
+- description: Red-team (DOCUMENTED RESIDUAL) — a SuiteQL call with no sqlQuery argument has nothing to fence and is allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_runCustomSuiteQL
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: netsuite-mcp-ns_runCustomSuiteQL
+      arguments: {}
+  output:
+    expectedResult: allow
+
+- description: Saved search whose identifier contains a payroll token, by a non-HR caller, is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_runSavedSearch
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: netsuite-mcp-ns_runSavedSearch
+      arguments:
+        searchId: customsearch_monthly_payroll_run
+  output:
+    expectedResult: deny
+    expectedReason: This saved search targets HR or payroll data, restricted to the 'hr' IdP group. Ask an HR-authorized user to run it, or contact InfoSec if this fence is wrong.
+
+- description: Red-team — saved search identifier with an underscore-bounded hr token by a non-HR caller is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_runSavedSearch
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: netsuite-mcp-ns_runSavedSearch
+      arguments:
+        searchId: customsearch_hr_headcount
+  output:
+    expectedResult: deny
+    expectedReason: This saved search targets HR or payroll data, restricted to the 'hr' IdP group. Ask an HR-authorized user to run it, or contact InfoSec if this fence is wrong.
+
+- description: Saved search targeting payroll data is allowed for a caller in the hr group.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_runSavedSearch
+      uri: null
+    subject:
+      sub: google-apps|hrlead@example.com
+      claims:
+        groups:
+          - hr
+    payload:
+      name: netsuite-mcp-ns_runSavedSearch
+      arguments:
+        searchId: customsearch_hr_headcount
+  output:
+    expectedResult: allow
+
+- description: Saved search with a benign identifier (no hr/payroll token) by a non-HR caller is allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_runSavedSearch
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: netsuite-mcp-ns_runSavedSearch
+      arguments:
+        searchId: customsearch_open_sales_orders
+  output:
+    expectedResult: allow
+
+- description: Red-team — a benign identifier containing "hr" mid-word (threshold) is NOT mistaken for the hr token; allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_runSavedSearch
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: netsuite-mcp-ns_runSavedSearch
+      arguments:
+        searchId: customsearch_threshold_report
+  output:
+    expectedResult: allow
+
+- description: Red-team — gateway-prefixed tool name still matches by ns_runcustomsuiteql suffix; HR query by non-HR caller denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: acme-erp-connector-ns_runCustomSuiteQL
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: acme-erp-connector-ns_runCustomSuiteQL
+      arguments:
+        sqlQuery: SELECT * FROM payroll
+  output:
+    expectedResult: deny
+    expectedReason: This SuiteQL query references HR or payroll data (employee, payroll, paycheck, compensation, salary, or SSN/TIN columns), restricted to the 'hr' IdP group. Request only the non-HR columns you need, or ask an HR-authorized user to run it. Contact InfoSec if this fence is wrong.
+
+- description: Red-team (FIXED) — HR/payroll SuiteQL delivered under the canonical PARC `payload.args` key (not `arguments`) is still fenced for a non-HR caller.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_runCustomSuiteQL
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: netsuite-mcp-ns_runCustomSuiteQL
+      args:
+        sqlQuery: SELECT firstname, ssn, compensation FROM employee
+  output:
+    expectedResult: deny
+    expectedReason: This SuiteQL query references HR or payroll data (employee, payroll, paycheck, compensation, salary, or SSN/TIN columns), restricted to the 'hr' IdP group. Request only the non-HR columns you need, or ask an HR-authorized user to run it. Contact InfoSec if this fence is wrong.
+
+- description: Red-team (FIXED) — paycheck payroll transaction table by a non-HR caller is denied (paycheck prefix pattern).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_runCustomSuiteQL
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: netsuite-mcp-ns_runCustomSuiteQL
+      arguments:
+        sqlQuery: SELECT employee, netamount FROM paycheck
+  output:
+    expectedResult: deny
+    expectedReason: This SuiteQL query references HR or payroll data (employee, payroll, paycheck, compensation, salary, or SSN/TIN columns), restricted to the 'hr' IdP group. Request only the non-HR columns you need, or ask an HR-authorized user to run it. Contact InfoSec if this fence is wrong.
+
+- description: Red-team (FIXED) — paycheckjournal (payroll GL) by a non-HR caller is denied via the paycheck prefix.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_runCustomSuiteQL
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: netsuite-mcp-ns_runCustomSuiteQL
+      arguments:
+        sqlQuery: SELECT id, amount FROM paycheckjournal
+  output:
+    expectedResult: deny
+    expectedReason: This SuiteQL query references HR or payroll data (employee, payroll, paycheck, compensation, salary, or SSN/TIN columns), restricted to the 'hr' IdP group. Request only the non-HR columns you need, or ask an HR-authorized user to run it. Contact InfoSec if this fence is wrong.
+
+- description: Red-team (FIXED) — saved search identifier delivered under the PARC `args` key is still fenced for a non-HR caller.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_runSavedSearch
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: netsuite-mcp-ns_runSavedSearch
+      args:
+        searchId: customsearch_monthly_payroll_run
+  output:
+    expectedResult: deny
+    expectedReason: This saved search targets HR or payroll data, restricted to the 'hr' IdP group. Ask an HR-authorized user to run it, or contact InfoSec if this fence is wrong.
+
+- description: Red-team (FIXED) — saved search identifier with a plural payroll token (customsearch_payrolls) by a non-HR caller is denied; the payroll token is a bare substring so a trailing letter no longer slips the fence.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_runSavedSearch
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: netsuite-mcp-ns_runSavedSearch
+      arguments:
+        searchId: customsearch_payrolls
+  output:
+    expectedResult: deny
+    expectedReason: This saved search targets HR or payroll data, restricted to the 'hr' IdP group. Ask an HR-authorized user to run it, or contact InfoSec if this fence is wrong.
+
+- description: Red-team (FIXED) — saved search identifier with a suffixed payroll token (customsearch_payrolldata2026) by a non-HR caller is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_runSavedSearch
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: netsuite-mcp-ns_runSavedSearch
+      arguments:
+        searchId: customsearch_payrolldata2026
+  output:
+    expectedResult: deny
+    expectedReason: This saved search targets HR or payroll data, restricted to the 'hr' IdP group. Ask an HR-authorized user to run it, or contact InfoSec if this fence is wrong.
+
+- description: Red-team (FIXED) — concatenated hrpayroll identifier (defeats both token boundaries in the old pattern) by a non-HR caller is denied via the payroll substring.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_runSavedSearch
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: netsuite-mcp-ns_runSavedSearch
+      arguments:
+        searchId: customsearch_hrpayroll
+  output:
+    expectedResult: deny
+    expectedReason: This saved search targets HR or payroll data, restricted to the 'hr' IdP group. Ask an HR-authorized user to run it, or contact InfoSec if this fence is wrong.
+
+- description: Red-team — the 2-char hr token stays boundaried, so an identifier embedding "hr" (href) is NOT mistaken for the hr token; allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_runSavedSearch
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: netsuite-mcp-ns_runSavedSearch
+      arguments:
+        searchId: customsearch_href_links
+  output:
+    expectedResult: allow
+
+- description: Red-team (DOCUMENTED RESIDUAL) — a null argument container has no sqlQuery to fence and is coerced to {} (fail-safe, no type error); allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_runCustomSuiteQL
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: netsuite-mcp-ns_runCustomSuiteQL
+      args: null
+  output:
+    expectedResult: allow

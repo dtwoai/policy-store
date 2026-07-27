@@ -6,7 +6,10 @@ tags:
   - governance
   - read-only
   - ingress
-publishedAt: 2026-06-16
+  - soc2
+  - gdpr-ccpa
+  - iso27001-nist
+publishedAt: 2026-07-12
 description: |
   # salesforce / read-only
 
@@ -22,6 +25,16 @@ description: |
   `listrecentsobjectrecords`) are allowed. Any other `salesforce-*` tool —
   including current and future write tools like `createsobjectrecord`,
   `updatesobjectrecord`, `updaterelatedrecord` — is denied.
+
+  ## Compliance alignment
+
+  - **SOC 2 CC6.1** — enforces logical access security over Salesforce data on the agent channel: only named read tools reach the org.
+  - **SOC 2 CC6.3** — least privilege for the agent identity: write capability is removed regardless of the OAuth token's underlying Salesforce permissions.
+  - **HIPAA §164.308(a)(4) / §164.312(a)(1)** — supports information access management and technical access control by narrowing what an authenticated agent session can do to read-only.
+  - **PCI DSS 7.2.1/7.2.2, 7.2.5** — supports a least-privilege access model, including for the application/system account the MCP server runs as.
+  - **GDPR Art. 25 / Art. 29** — data protection by default on the agent channel (unknown tools fail closed) and processing kept within the controller's instructions (no mutations).
+  - **SOX ITGC (access to programs & data); §802 / 18 U.S.C. §1519** — supports safeguarding of financial records (Opportunity, Order, Contract) by denying create/update/delete tools, including future ones, on this path.
+  - **ISO 27001 A.5.15 / NIST 800-53 AC-3** — access-control enforcement at the gateway policy enforcement point.
 
   ## Why an allowlist (fail-closed)
 
@@ -90,12 +103,16 @@ description: |
     the checks are adjusted.
   - **No identity-based exemptions.** All callers are read-only. To allow a
     break-glass writer, add an `allow if` branch gated on `input.subject.claims`.
+
+  > **Compliance note.** This policy supports alignment with the cited framework controls **on the MCP path only**. No policy or bundle makes an organization compliant with any framework; web-UI, native-API, and in-app access are outside the gateway's reach by design. Validate against your own compliance program before relying on it.
 direction: ingress
 apps:
   - salesforce
 industries: []
 bundles:
   - crm
+  - soc2
+  - gdpr-ccpa
 schemaVersion: 1.0.0
 minimumGatewayVersion: 1.0.0b24
 ---

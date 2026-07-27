@@ -1,0 +1,340 @@
+- description: Audited standard read tool (ns_getRecord) under the gateway server
+    prefix, matched by the `-` separator suffix branch. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_getRecord
+      uri: null
+    payload:
+      name: netsuite-mcp-ns_getRecord
+      args:
+        recordType: salesorder
+        id: "12345"
+  output:
+    expectedResult: allow
+- description: Audited standard write tool (ns_createRecord) is on the shipped
+    allowlist and passes this outer gate — the finance-write companion policy
+    governs which record types it may create. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_createRecord
+      uri: null
+    payload:
+      name: netsuite-mcp-ns_createRecord
+      args:
+        recordType: customer
+        data: "{\"companyName\": \"Acme\"}"
+  output:
+    expectedResult: allow
+- description: Mixed-case prefixed name (NetSuite-MCP-NS_RunCustomSuiteQL) still
+    matches after case normalization. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: NetSuite-MCP-NS_RunCustomSuiteQL
+      uri: null
+    payload:
+      name: NetSuite-MCP-NS_RunCustomSuiteQL
+      args:
+        sqlQuery: SELECT id FROM transaction LIMIT 10
+  output:
+    expectedResult: allow
+- description: Unprefixed bare tool name (ns_getsubsidiaries) — a deployment that
+    sends the tool name without a server prefix — matches the exact-match branch.
+    Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ns_getsubsidiaries
+      uri: null
+    payload:
+      name: ns_getsubsidiaries
+      args: {}
+  output:
+    expectedResult: allow
+- description: Audited saved-search read tool (ns_runSavedSearch) under the server
+    prefix. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_runSavedSearch
+      uri: null
+    payload:
+      name: netsuite-mcp-ns_runSavedSearch
+      args:
+        searchId: customsearch_ar_aging
+  output:
+    expectedResult: allow
+- description: "Documented residual: a custom tool literally named
+    `report-ns_runreport` (hyphen separator included) matches the `ns_runreport`
+    entry via the `-` suffix branch and is allowed. Portable suffix matching
+    trusts the `<server-name>-` convention — recorded under Known limitations;
+    pin full exact names to close it. Policy should allow."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-report-ns_runreport
+      uri: null
+    payload:
+      name: netsuite-mcp-report-ns_runreport
+      args: {}
+  output:
+    expectedResult: allow
+- description: Account-specific custom SuiteScript tool exposed on /v1/all
+    (post_bank_transfer) with a developer-chosen name not on the allowlist.
+    Policy should deny with the drift-alert reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-post_bank_transfer
+      uri: null
+    payload:
+      name: netsuite-mcp-post_bank_transfer
+      args:
+        amount: "50000"
+  output:
+    expectedResult: deny
+    expectedReason: The NetSuite tool 'netsuite-mcp-post_bank_transfer' is not on the pinned allowlist of audited NetSuite standard MCP tools, so it is denied by default. The NetSuite AI Connector's /services/mcp/v1/all endpoint can expose account-specific custom SuiteScript tools (built with Oracle's MCP Sample Tools) whose developer-chosen names and side effects are unknowable in advance, so an unrecognized name may be a new, renamed, or custom tool that has not been reviewed. If this tool is legitimate, ask your gateway operator to audit it and add its exact tool-name suffix to the allowlist in this policy before agents can call it.
+- description: "Near-miss guard: a custom tool `my_ns_getrecord` ends with the
+    allowlisted string `ns_getrecord` but NOT with `-ns_getrecord` (the char
+    before the suffix is `_`, not the `-` separator), so it is not a suffix
+    match. Policy should deny."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-my_ns_getrecord
+      uri: null
+    payload:
+      name: netsuite-mcp-my_ns_getrecord
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: The NetSuite tool 'netsuite-mcp-my_ns_getrecord' is not on the pinned allowlist of audited NetSuite standard MCP tools, so it is denied by default. The NetSuite AI Connector's /services/mcp/v1/all endpoint can expose account-specific custom SuiteScript tools (built with Oracle's MCP Sample Tools) whose developer-chosen names and side effects are unknowable in advance, so an unrecognized name may be a new, renamed, or custom tool that has not been reviewed. If this tool is legitimate, ask your gateway operator to audit it and add its exact tool-name suffix to the allowlist in this policy before agents can call it.
+- description: "No delete tool exists in the standard SuiteApp: a call to
+    ns_deleterecord is an unknown name and is denied. Payload/args omitted to
+    confirm the name-only decision does not fail open on missing arguments."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_deleteRecord
+      uri: null
+  output:
+    expectedResult: deny
+    expectedReason: The NetSuite tool 'netsuite-mcp-ns_deleterecord' is not on the pinned allowlist of audited NetSuite standard MCP tools, so it is denied by default. The NetSuite AI Connector's /services/mcp/v1/all endpoint can expose account-specific custom SuiteScript tools (built with Oracle's MCP Sample Tools) whose developer-chosen names and side effects are unknowable in advance, so an unrecognized name may be a new, renamed, or custom tool that has not been reviewed. If this tool is legitimate, ask your gateway operator to audit it and add its exact tool-name suffix to the allowlist in this policy before agents can call it.
+- description: "Red-team (Unicode case-fold): a homoglyph variant of an allowlisted
+    name (ns_createrecord written with a Cyrillic 'а') fails the raw ASCII
+    character-class guard before lower() runs, so it never reaches an allow
+    branch. Policy should deny."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_creаterecord
+      uri: null
+    payload:
+      name: netsuite-mcp-ns_creаterecord
+      args: {}
+  output:
+    expectedResult: deny
+- description: "Red-team (whitespace padding): an allowlisted name with a trailing
+    space fails the ASCII character-class guard (space is outside [A-Za-z0-9._-]),
+    so it is denied rather than trimmed into an allow (fail closed)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "netsuite-mcp-ns_getrecord "
+      uri: null
+    payload:
+      name: "netsuite-mcp-ns_getrecord "
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "The NetSuite tool 'netsuite-mcp-ns_getrecord ' is not on the pinned allowlist of audited NetSuite standard MCP tools, so it is denied by default. The NetSuite AI Connector's /services/mcp/v1/all endpoint can expose account-specific custom SuiteScript tools (built with Oracle's MCP Sample Tools) whose developer-chosen names and side effects are unknowable in advance, so an unrecognized name may be a new, renamed, or custom tool that has not been reviewed. If this tool is legitimate, ask your gateway operator to audit it and add its exact tool-name suffix to the allowlist in this policy before agents can call it."
+- description: A request with no tool name at all cannot be matched against the
+    allowlist and is denied (fail closed) with the nameless reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      uri: null
+  output:
+    expectedResult: deny
+    expectedReason: This request carries no tool name, so it cannot be matched against the pinned NetSuite allowlist and is denied by default (fail closed). Verify the gateway is populating input.resource.name with the dump-input debug technique; if tool names are missing systemically, fix the gateway configuration rather than relaxing this policy.
+- description: "Malformed/hostile request: a non-string tool name (a number) is
+    coerced to \"\" instead of raising a lower() type error, and is denied with
+    the nameless reason (fail closed)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: 12345
+      uri: null
+    payload:
+      name: 12345
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: This request carries no tool name, so it cannot be matched against the pinned NetSuite allowlist and is denied by default (fail closed). Verify the gateway is populating input.resource.name with the dump-input debug technique; if tool names are missing systemically, fix the gateway configuration rather than relaxing this policy.
+- description: Tool on a different MCP server behind the same pipeline
+    (slack-mcp-slack-post-message) is not on the NetSuite allowlist and is denied
+    — this policy is a strict allowlist with no per-server pass-through (see Known
+    limitations). Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-slack-post-message
+      uri: null
+    payload:
+      name: slack-mcp-slack-post-message
+      args:
+        channel: C0123456789
+        text: lunch in 5
+  output:
+    expectedResult: deny
+    expectedReason: The NetSuite tool 'slack-mcp-slack-post-message' is not on the pinned allowlist of audited NetSuite standard MCP tools, so it is denied by default. The NetSuite AI Connector's /services/mcp/v1/all endpoint can expose account-specific custom SuiteScript tools (built with Oracle's MCP Sample Tools) whose developer-chosen names and side effects are unknowable in advance, so an unrecognized name may be a new, renamed, or custom tool that has not been reviewed. If this tool is legitimate, ask your gateway operator to audit it and add its exact tool-name suffix to the allowlist in this policy before agents can call it.
+- description: "Red-team (malformed resource): `resource` is null instead of an
+    object. object.get on a non-object would raise a built-in type error and
+    leave the deny reasonless; the resource_obj normalization keeps it a clean
+    fail-closed deny carrying the nameless reason so the drift-alert content is
+    preserved. Policy should deny."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource: null
+  output:
+    expectedResult: deny
+    expectedReason: This request carries no tool name, so it cannot be matched against the pinned NetSuite allowlist and is denied by default (fail closed). Verify the gateway is populating input.resource.name with the dump-input debug technique; if tool names are missing systemically, fix the gateway configuration rather than relaxing this policy.
+- description: "Red-team (malformed resource): `resource` is a string, not an
+    object. Normalized to {} so the name resolves to \"\" and the deny carries
+    the nameless fail-closed reason. Policy should deny."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource: "not-an-object"
+  output:
+    expectedResult: deny
+    expectedReason: This request carries no tool name, so it cannot be matched against the pinned NetSuite allowlist and is denied by default (fail closed). Verify the gateway is populating input.resource.name with the dump-input debug technique; if tool names are missing systemically, fix the gateway configuration rather than relaxing this policy.
+- description: "Red-team (encoding — trailing newline): an allowlisted name with a
+    trailing newline (`netsuite-mcp-ns_getrecord\\n`) fails the anchored ASCII
+    character-class guard (RE2 `^...$` does not admit the trailing newline), so it
+    never reaches an allow branch and is denied with the drift reason. Locks in
+    that newline injection cannot smuggle an allowlisted name through. Policy
+    should deny."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "netsuite-mcp-ns_getrecord\n"
+      uri: null
+  output:
+    expectedResult: deny
+- description: "Red-team (regex near-miss — plural): `ns_getrecords` neither equals
+    the allowlisted `ns_getrecord` nor ends with `-ns_getrecord`, so a pluralized
+    look-alike does not slip through. Policy should deny."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_getrecords
+      uri: null
+    payload:
+      name: netsuite-mcp-ns_getrecords
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: The NetSuite tool 'netsuite-mcp-ns_getrecords' is not on the pinned allowlist of audited NetSuite standard MCP tools, so it is denied by default. The NetSuite AI Connector's /services/mcp/v1/all endpoint can expose account-specific custom SuiteScript tools (built with Oracle's MCP Sample Tools) whose developer-chosen names and side effects are unknowable in advance, so an unrecognized name may be a new, renamed, or custom tool that has not been reviewed. If this tool is legitimate, ask your gateway operator to audit it and add its exact tool-name suffix to the allowlist in this policy before agents can call it.
+- description: "Red-team (documented residual — WRITE-suffix smuggle, the sharp
+    edge): an attacker who installs a custom SuiteScript tool on /v1/all can name
+    it `<anything>-ns_createrecord` (hyphen separator included) and the `-` suffix
+    branch ALLOWS it, smuggling an arbitrary create past the default-deny. This
+    test locks in the dangerous behavior the Known-limitations `Suffix matching
+    trusts the <server-name>- prefix convention` bullet warns about — previously
+    the suffix residual was only exercised via a benign read tool
+    (`report-ns_runreport`). The real fix is to pin full exact gateway names for
+    any account that connects to /v1/all. Policy currently ALLOWS (documented)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: evilserver-ns_createrecord
+      uri: null
+    payload:
+      name: evilserver-ns_createrecord
+      args:
+        recordType: vendor
+        data: "{\"account\": \"999888777\"}"
+  output:
+    expectedResult: allow
+- description: "Red-team (malformed resource — number): `resource` is a number, not
+    an object. The description claims a number in place of the resource object is
+    normalized to {} so the name resolves to \"\" and the deny carries the nameless
+    fail-closed reason. Locks in that claimed shape (previously only null and
+    string were tested). Policy should deny."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource: 42
+  output:
+    expectedResult: deny
+    expectedReason: This request carries no tool name, so it cannot be matched against the pinned NetSuite allowlist and is denied by default (fail closed). Verify the gateway is populating input.resource.name with the dump-input debug technique; if tool names are missing systemically, fix the gateway configuration rather than relaxing this policy.
+- description: "Red-team (malformed resource — array): `resource` is an array, not
+    an object (is_object is false for arrays), normalized to {} so the name
+    resolves to \"\" and the deny carries the nameless fail-closed reason. Locks in
+    the array shape the description names. Policy should deny."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource: []
+  output:
+    expectedResult: deny
+    expectedReason: This request carries no tool name, so it cannot be matched against the pinned NetSuite allowlist and is denied by default (fail closed). Verify the gateway is populating input.resource.name with the dump-input debug technique; if tool names are missing systemically, fix the gateway configuration rather than relaxing this policy.

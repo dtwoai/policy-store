@@ -1,0 +1,481 @@
+# Egress transform policy (default allow := true) — allow is always true; the
+# meaningful assertions are transformApplied / transformedArgsContain. Cases
+# cover every secret pattern branch (key=value, AWS access-key ID, AWS
+# secret-access-key, GitHub classic PAT, GitHub fine-grained PAT, Slack token,
+# Stripe live key, Google API key, OpenAI key, PEM header), every in-scope tool
+# suffix (get_file_contents, search_code, get_job_logs, pull_request_read,
+# community get_pull_request_files), the tool_metadata/payload-name fallbacks,
+# non-string blocks, out-of-scope tools, the ingress guard, and red-team
+# mode/surface bypasses.
+
+# --- One case per secret pattern branch (positive) ---
+
+- description: "Pattern[1] AWS access-key ID in a file read (get_file_contents) is masked in place."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: github-mcp-get_file_contents
+      uri: null
+    payload:
+      name: github-mcp-get_file_contents
+      text:
+        - "const key = 'AKIAIOSFODNN7EXAMPLE';"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "const key = '[REDACTED-SECRET]';"
+
+- description: "Pattern[3] GitHub classic PAT in search_code results is masked; surrounding text kept."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: github-mcp-search_code
+      uri: null
+    payload:
+      name: github-mcp-search_code
+      text:
+        - "See ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 in code"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "See [REDACTED-SECRET] in code"
+
+- description: "Pattern[0] generic key=value secret in a CI log (get_job_logs) is masked."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: github-mcp-get_job_logs
+      uri: null
+    payload:
+      name: github-mcp-get_job_logs
+      text:
+        - "db password = hunter2superSecret only"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "db [REDACTED-SECRET] only"
+
+- description: "Pattern[9] PEM private-key header in a PR diff (pull_request_read) is masked."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: github-mcp-pull_request_read
+      uri: null
+    payload:
+      name: github-mcp-pull_request_read
+      text:
+        - "-----BEGIN RSA PRIVATE KEY----- (see file)"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "[REDACTED-SECRET] (see file)"
+
+- description: "Pattern[2] AWS secret-access-key (40-char run near 'aws') is masked."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: github-mcp-get_file_contents
+      uri: null
+    payload:
+      name: github-mcp-get_file_contents
+      text:
+        - "aws cred wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY end"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "[REDACTED-SECRET] end"
+
+- description: "Pattern[4] GitHub fine-grained PAT (github_pat_ + 82) is masked."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: github-mcp-get_file_contents
+      uri: null
+    payload:
+      name: github-mcp-get_file_contents
+      text:
+        - "Leaked github_pat_ABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXYZ0123 today"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Leaked [REDACTED-SECRET] today"
+
+- description: "Pattern[5] Slack token (xoxb-) is masked."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: github-mcp-get_file_contents
+      uri: null
+    payload:
+      name: github-mcp-get_file_contents
+      text:
+        - "Token xoxb-1234567890ABCDEF found"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Token [REDACTED-SECRET] found"
+
+- description: "Pattern[6] Stripe live secret key (sk_live_) is masked."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: github-mcp-get_file_contents
+      uri: null
+    payload:
+      name: github-mcp-get_file_contents
+      text:
+        - "stripe sk_live_0123456789abcdefABCDEFxy live"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "stripe [REDACTED-SECRET] live"
+
+- description: "Pattern[7] Google API key (AIza) is masked."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: github-mcp-get_file_contents
+      uri: null
+    payload:
+      name: github-mcp-get_file_contents
+      text:
+        - "key AIzaSyABCDEFGHIJKLMNOPQRSTUVWXYZ0123456 end"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "key [REDACTED-SECRET] end"
+
+- description: "Pattern[8] OpenAI API key (sk-) is masked."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: github-mcp-get_file_contents
+      uri: null
+    payload:
+      name: github-mcp-get_file_contents
+      text:
+        - "openai sk-abcdefghij0123456789ABCD key"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "openai [REDACTED-SECRET] key"
+
+# --- Scope / surface branches ---
+
+- description: "Community server get_pull_request_files suffix is in scope; secret masked."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: gh-community-get_pull_request_files
+      uri: null
+    payload:
+      name: gh-community-get_pull_request_files
+      text:
+        - "diff added AKIAIOSFODNN7EXAMPLE here"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "diff added [REDACTED-SECRET] here"
+
+- description: "Tool name only under tool_metadata.name (resource.name empty) — still matched via the fallback surface."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: ""
+      uri: null
+    tool_metadata:
+      name: github-mcp-search_code
+    payload:
+      name: github-mcp-search_code
+      text:
+        - "found ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 leak"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "found [REDACTED-SECRET] leak"
+
+- description: "Only the block containing a secret is rewritten; clean blocks pass through unchanged."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: github-mcp-get_file_contents
+      uri: null
+    payload:
+      name: github-mcp-get_file_contents
+      text:
+        - "function add(a, b) { return a + b; }"
+        - "const k = 'AKIAIOSFODNN7EXAMPLE';"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "function add(a, b) { return a + b; }"
+      - "const k = '[REDACTED-SECRET]';"
+
+# --- No-transform branches (negative) ---
+
+- description: "In-scope tool but the content carries no secret — response passes through byte-identical, no transform."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: github-mcp-search_code
+      uri: null
+    payload:
+      name: github-mcp-search_code
+      text:
+        - "function add(a, b) { return a + b; }"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Out-of-scope tool (get_me) is never scanned — no transform even with an AWS key in the text."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: github-mcp-get_me
+      uri: null
+    payload:
+      name: github-mcp-get_me
+      text:
+        - "AKIAIOSFODNN7EXAMPLE"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Non-string (structured/JSON) content block passes through the redact_block string guard unmodified — no transform."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: github-mcp-get_file_contents
+      uri: null
+    payload:
+      name: github-mcp-get_file_contents
+      text:
+        - path: config.py
+          key: AKIAIOSFODNN7EXAMPLE
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Ingress hook (mode input / tool_pre_invoke) is never in scope — the same tool + secret produces no transform on the pre-invoke path."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-get_file_contents
+      uri: null
+    payload:
+      name: github-mcp-get_file_contents
+      text:
+        - "const key = 'AKIAIOSFODNN7EXAMPLE';"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+# --- Red-team regression cases (reviewer, standards §10) ---
+
+- description: "Red-team: egress with action=tool_post_invoke but mode unset — is_egress still matches on action, so redaction fires (no fail-open leak)."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    resource:
+      type: tool
+      name: github-mcp-get_file_contents
+      uri: null
+    payload:
+      name: github-mcp-get_file_contents
+      text:
+        - "const key = 'AKIAIOSFODNN7EXAMPLE';"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "const key = '[REDACTED-SECRET]';"
+
+- description: "Red-team: tool name present only under payload.name (resource.name empty, no tool_metadata) — payload.name is a candidate surface, so the call is in scope and redaction fires."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: ""
+      uri: null
+    payload:
+      name: github-mcp-get_file_contents
+      text:
+        - "const key = 'AKIAIOSFODNN7EXAMPLE';"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "const key = '[REDACTED-SECRET]';"
+
+- description: "Red-team: uppercase tool-name prefix (GITHUB-MCP-GET_FILE_CONTENTS) — suffix match is case-insensitive, redaction fires."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: GITHUB-MCP-GET_FILE_CONTENTS
+      uri: null
+    payload:
+      name: GITHUB-MCP-GET_FILE_CONTENTS
+      text:
+        - "const key = 'AKIAIOSFODNN7EXAMPLE';"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "const key = '[REDACTED-SECRET]';"
+
+- description: "Red-team (bypass, fixed): committed secret read back via get_commit's file patch — commit read is now in scope, secret masked (agent can't sidestep the file-read scan by fetching the commit)."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: github-mcp-get_commit
+      uri: null
+    payload:
+      name: github-mcp-get_commit
+      text:
+        - "+const key = 'AKIAIOSFODNN7EXAMPLE';"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "+const key = '[REDACTED-SECRET]';"
+
+- description: "Red-team (fail-open, fixed): egress identified only by the legacy kind alias (mode AND action unset) — is_egress still matches on kind, so redaction fires instead of leaking."
+  input:
+    kind: tool_post_invoke
+    resource:
+      type: tool
+      name: github-mcp-get_file_contents
+      uri: null
+    payload:
+      name: github-mcp-get_file_contents
+      text:
+        - "const key = 'AKIAIOSFODNN7EXAMPLE';"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "const key = '[REDACTED-SECRET]';"
+
+- description: "Red-team (encoding residual, documented): a base64-embedded secret in an in-scope file read matches no known shape — it passes through unredacted (known limitation: this is high-signal masking, not complete DLP)."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: github-mcp-get_file_contents
+      uri: null
+    payload:
+      name: github-mcp-get_file_contents
+      text:
+        - "const blob = 'Z2hwX0FCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFla';"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Red-team (scope residual, documented): a secret echoed in a commit MESSAGE returned by list_commits is out of scope (metadata read, not code/diff) — no transform, content passes through."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: github-mcp-list_commits
+      uri: null
+    payload:
+      name: github-mcp-list_commits
+      text:
+        - "fix: remove leaked key AKIAIOSFODNN7EXAMPLE from config"
+  output:
+    expectedResult: allow
+  transformApplied: false

@@ -1,0 +1,352 @@
+- description: Unrelated Docusign tool (createEnvelope) is not guarded. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: docusign-createEnvelope
+      uri: null
+    payload:
+      name: docusign-createEnvelope
+      args:
+        emailSubject: Please sign
+        status: created
+  output:
+    expectedResult: allow
+- description: updateEnvelopeRecipients is a different tool and is deliberately not
+    matched by the updateEnvelope suffix. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: docusign-updateEnvelopeRecipients
+      uri: null
+    payload:
+      name: docusign-updateEnvelopeRecipients
+      args:
+        envelopeId: abc-123
+        signers:
+          - email: signer@example.com
+            name: Signer
+  output:
+    expectedResult: allow
+- description: Non-void updateEnvelope (sending a draft) passes through. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: docusign-updateEnvelope
+      uri: null
+    payload:
+      name: docusign-updateEnvelope
+      args:
+        envelopeId: abc-123
+        status: sent
+  output:
+    expectedResult: allow
+- description: updateEnvelope with no args at all is not a void attempt. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: docusign-updateEnvelope
+      uri: null
+    payload:
+      name: docusign-updateEnvelope
+      args: {}
+  output:
+    expectedResult: allow
+- description: Void attempt via the documented body shape (status voided + voidedReason),
+    caller not in contract-ops. Policy should deny with the void reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: docusign-updateEnvelope
+      uri: null
+    payload:
+      name: docusign-updateEnvelope
+      args:
+        envelopeId: abc-123
+        status: voided
+        voidedReason: sent to wrong signer
+    subject:
+      sub: auth0|agent
+      claims:
+        groups:
+          - engineering
+  output:
+    expectedResult: deny
+    expectedReason: Voiding a Docusign envelope permanently invalidates a legally significant signed record, so agent-initiated voids are blocked. Prepare a correcting envelope instead, or ask a member of the contract-ops group to perform the void. Contact your administrator if this block looks wrong.
+- description: Void attempt with obfuscated key/value casing and whitespace ("Status":" Voided ").
+    Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: docusign-updateEnvelope
+      uri: null
+    payload:
+      name: docusign-updateEnvelope
+      args:
+        envelopeId: abc-123
+        Status: " Voided "
+  output:
+    expectedResult: deny
+    expectedReason: Voiding a Docusign envelope permanently invalidates a legally significant signed record, so agent-initiated voids are blocked. Prepare a correcting envelope instead, or ask a member of the contract-ops group to perform the void. Contact your administrator if this block looks wrong.
+- description: Void attempt where status is voided but voidedReason is empty. Still a
+    void. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: docusign-updateEnvelope
+      uri: null
+    payload:
+      name: docusign-updateEnvelope
+      args:
+        envelopeId: abc-123
+        status: voided
+        voidedReason: ""
+  output:
+    expectedResult: deny
+    expectedReason: Voiding a Docusign envelope permanently invalidates a legally significant signed record, so agent-initiated voids are blocked. Prepare a correcting envelope instead, or ask a member of the contract-ops group to perform the void. Contact your administrator if this block looks wrong.
+- description: Void intent signalled by a voidedReason key with the status key missing
+    entirely. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: docusign-updateEnvelope
+      uri: null
+    payload:
+      name: docusign-updateEnvelope
+      args:
+        envelopeId: abc-123
+        voidedReason: cleanup
+  output:
+    expectedResult: deny
+    expectedReason: Voiding a Docusign envelope permanently invalidates a legally significant signed record, so agent-initiated voids are blocked. Prepare a correcting envelope instead, or ask a member of the contract-ops group to perform the void. Contact your administrator if this block looks wrong.
+- description: contract-ops member voiding an envelope is exempt (legitimate remediation).
+    Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: docusign-updateEnvelope
+      uri: null
+    payload:
+      name: docusign-updateEnvelope
+      args:
+        envelopeId: abc-123
+        status: voided
+        voidedReason: duplicate envelope sent in error
+    subject:
+      sub: auth0|ops-user
+      claims:
+        groups:
+          - contract-ops
+  output:
+    expectedResult: allow
+- description: cancelWorkflowInstance from a caller with no identity claims at all.
+    Exemption fails closed. Policy should deny with the cancel reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: docusign-cancelWorkflowInstance
+      uri: null
+    payload:
+      name: docusign-cancelWorkflowInstance
+      args:
+        instanceId: wf-instance-9
+  output:
+    expectedResult: deny
+    expectedReason: Cancelling a running Docusign Maestro workflow instance is irreversible, so agent-initiated cancellations are blocked. Ask a member of the contract-ops group to cancel the instance from the Docusign console. Contact your administrator if this block looks wrong.
+- description: cancelWorkflowInstance from a caller in the wrong group. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: docusign-cancelWorkflowInstance
+      uri: null
+    payload:
+      name: docusign-cancelWorkflowInstance
+      args:
+        instanceId: wf-instance-9
+    subject:
+      sub: auth0|agent
+      claims:
+        groups:
+          - finance
+  output:
+    expectedResult: deny
+    expectedReason: Cancelling a running Docusign Maestro workflow instance is irreversible, so agent-initiated cancellations are blocked. Ask a member of the contract-ops group to cancel the instance from the Docusign console. Contact your administrator if this block looks wrong.
+- description: cancelWorkflowInstance from a contract-ops member is exempt. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: docusign-cancelWorkflowInstance
+      uri: null
+    payload:
+      name: docusign-cancelWorkflowInstance
+      args:
+        instanceId: wf-instance-9
+    subject:
+      sub: auth0|ops-user
+      claims:
+        groups:
+          - contract-ops
+          - engineering
+  output:
+    expectedResult: allow
+- description: pauseNewWorkflowInstances (account-wide suspension) from a non-exempt
+    caller. Policy should deny with the pause reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: docusign-pauseNewWorkflowInstances
+      uri: null
+    payload:
+      name: docusign-pauseNewWorkflowInstances
+      args:
+        workflowId: wf-42
+    subject:
+      sub: auth0|agent
+      claims:
+        groups: []
+  output:
+    expectedResult: deny
+    expectedReason: Pausing new Docusign Maestro workflow instances suspends the workflow account-wide, so agent-initiated pauses are blocked. Ask a member of the contract-ops group to pause the workflow from the Docusign console. Contact your administrator if this block looks wrong.
+- description: pauseNewWorkflowInstances from a contract-ops member is exempt. Policy
+    should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: docusign-pauseNewWorkflowInstances
+      uri: null
+    payload:
+      name: docusign-pauseNewWorkflowInstances
+      args:
+        workflowId: wf-42
+    subject:
+      sub: auth0|ops-user
+      claims:
+        groups:
+          - contract-ops
+  output:
+    expectedResult: allow
+- description: Spoofing surface — a string-valued groups claim ("contract-ops" as a
+    plain string, not an array) does not grant the exemption. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: docusign-cancelWorkflowInstance
+      uri: null
+    payload:
+      name: docusign-cancelWorkflowInstance
+      args:
+        instanceId: wf-instance-9
+    subject:
+      sub: auth0|agent
+      claims:
+        groups: contract-ops
+  output:
+    expectedResult: deny
+    expectedReason: Cancelling a running Docusign Maestro workflow instance is irreversible, so agent-initiated cancellations are blocked. Ask a member of the contract-ops group to cancel the instance from the Docusign console. Contact your administrator if this block looks wrong.
+- description: Red-team residual (documented limitation) — a void body nested under a
+    wrapper key ("envelope") evades the top-level-only argument check. No wrapper shape
+    is documented for the official server; this test pins the current pass-through
+    behaviour. Policy allows.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: docusign-updateEnvelope
+      uri: null
+    payload:
+      name: docusign-updateEnvelope
+      args:
+        envelopeId: abc-123
+        envelope:
+          status: voided
+          voidedReason: nested to evade
+  output:
+    expectedResult: allow
+- description: Red-team residual (documented limitation) — an updateEnvelope document
+    purge via a "purgeState" field (no status voided, no voidedReason) is a separate
+    irreversible destruction that this void-focused policy does not key on. The field
+    is unverified in the landscape note; this test pins the current pass-through
+    behaviour. Policy allows.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: docusign-updateEnvelope
+      uri: null
+    payload:
+      name: docusign-updateEnvelope
+      args:
+        envelopeId: abc-123
+        purgeState: documents_and_metadata_queued
+  output:
+    expectedResult: allow
+- description: Red-team residual (documented limitation) — a non-string, array-wrapped
+    status value (["voided"]) with no voidedReason evades Signal 1's string equality
+    check. Not exploitable — the Docusign REST body requires a string status, so this
+    malformed shape is rejected server-side and no void occurs; any well-formed void
+    carries voidedReason (Signal 2). This test pins the current pass-through behaviour.
+    Policy allows.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: docusign-updateEnvelope
+      uri: null
+    payload:
+      name: docusign-updateEnvelope
+      args:
+        envelopeId: abc-123
+        status:
+          - voided
+  output:
+    expectedResult: allow

@@ -1,0 +1,388 @@
+- description: Scoped record read tool (tsmztech query_records) is not an escape
+    hatch. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: sf-community-salesforce_query_records
+      uri: null
+    payload:
+      name: sf-community-salesforce_query_records
+      args:
+        objectName: Case
+        fields:
+          - Subject
+          - Status
+  output:
+    expectedResult: allow
+- description: Non-Salesforce tool passes through untouched. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-slack-post-message
+      uri: null
+    payload:
+      name: slack-mcp-slack-post-message
+      args:
+        channel: C0123456789
+        text: lunch in 5
+  output:
+    expectedResult: allow
+- description: tsmztech salesforce_read_apex is read-only and shares a stem with
+    the blocked write tools but is not a suffix match. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: sf-community-salesforce_read_apex
+      uri: null
+    payload:
+      name: sf-community-salesforce_read_apex
+      args:
+        className: AccountService
+  output:
+    expectedResult: allow
+- description: Tool name merely ending in the letters "restful" without a separator
+    (hypothetical getrestful) is not matched by the anchored restful rules. Policy
+    should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: sf-community-getrestful
+      uri: null
+    payload:
+      name: sf-community-getrestful
+      args: {}
+  output:
+    expectedResult: allow
+- description: tsmztech salesforce_execute_anonymous (arbitrary anonymous Apex).
+    Policy should deny with a reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: sf-community-salesforce_execute_anonymous
+      uri: null
+    payload:
+      name: sf-community-salesforce_execute_anonymous
+      args:
+        apexCode: "delete [SELECT Id FROM Contact];"
+  output:
+    expectedResult: deny
+    expectedReason: This tool executes raw code or raw API requests against Salesforce and bypasses the gateway's object- and argument-level policies, so it is disabled for all users on this path. Use the scoped record tools (query, create, update) instead; for genuine Apex or Tooling API work, use the Salesforce Developer Console or CLI outside the agent channel. Contact your InfoSec team if you believe this block is a mistake.
+- description: tsmztech salesforce_write_apex (plants persistent Apex code). Policy
+    should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: sf-community-salesforce_write_apex
+      uri: null
+    payload:
+      name: sf-community-salesforce_write_apex
+      args:
+        className: Exfil
+        body: "public class Exfil { }"
+  output:
+    expectedResult: deny
+    expectedReason: This tool executes raw code or raw API requests against Salesforce and bypasses the gateway's object- and argument-level policies, so it is disabled for all users on this path. Use the scoped record tools (query, create, update) instead; for genuine Apex or Tooling API work, use the Salesforce Developer Console or CLI outside the agent channel. Contact your InfoSec team if you believe this block is a mistake.
+- description: tsmztech salesforce_write_apex_trigger (write-once, execute-forever
+    trigger). Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: sf-community-salesforce_write_apex_trigger
+      uri: null
+    payload:
+      name: sf-community-salesforce_write_apex_trigger
+      args:
+        triggerName: ContactSync
+        objectName: Contact
+  output:
+    expectedResult: deny
+    expectedReason: This tool executes raw code or raw API requests against Salesforce and bypasses the gateway's object- and argument-level policies, so it is disabled for all users on this path. Use the scoped record tools (query, create, update) instead; for genuine Apex or Tooling API work, use the Salesforce Developer Console or CLI outside the agent channel. Contact your InfoSec team if you believe this block is a mistake.
+- description: tsmztech salesforce_manage_field_permissions (can silently widen
+    field-level security). Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: sf-community-salesforce_manage_field_permissions
+      uri: null
+    payload:
+      name: sf-community-salesforce_manage_field_permissions
+      args:
+        operation: grant
+        objectName: Contact
+        fieldName: SSN__c
+  output:
+    expectedResult: deny
+    expectedReason: This tool executes raw code or raw API requests against Salesforce and bypasses the gateway's object- and argument-level policies, so it is disabled for all users on this path. Use the scoped record tools (query, create, update) instead; for genuine Apex or Tooling API work, use the Salesforce Developer Console or CLI outside the agent channel. Contact your InfoSec team if you believe this block is a mistake.
+- description: smn2gnt apex_execute (Apex REST execution). Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: smn2gnt-sf-apex_execute
+      uri: null
+    payload:
+      name: smn2gnt-sf-apex_execute
+      args:
+        endpoint: /MyApexRest
+        method: POST
+  output:
+    expectedResult: deny
+    expectedReason: This tool executes raw code or raw API requests against Salesforce and bypasses the gateway's object- and argument-level policies, so it is disabled for all users on this path. Use the scoped record tools (query, create, update) instead; for genuine Apex or Tooling API work, use the Salesforce Developer Console or CLI outside the agent channel. Contact your InfoSec team if you believe this block is a mistake.
+- description: smn2gnt tooling_execute (raw Tooling API). Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: smn2gnt-sf-tooling_execute
+      uri: null
+    payload:
+      name: smn2gnt-sf-tooling_execute
+      args:
+        action: sobjects/ApexClass
+        method: POST
+  output:
+    expectedResult: deny
+    expectedReason: This tool executes raw code or raw API requests against Salesforce and bypasses the gateway's object- and argument-level policies, so it is disabled for all users on this path. Use the scoped record tools (query, create, update) instead; for genuine Apex or Tooling API work, use the Salesforce Developer Console or CLI outside the agent channel. Contact your InfoSec team if you believe this block is a mistake.
+- description: smn2gnt restful with the gateway's dash-separated server prefix.
+    Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: smn2gnt-sf-restful
+      uri: null
+    payload:
+      name: smn2gnt-sf-restful
+      args:
+        path: /services/data/v62.0/sobjects/Contact
+        method: DELETE
+  output:
+    expectedResult: deny
+    expectedReason: This tool executes raw code or raw API requests against Salesforce and bypasses the gateway's object- and argument-level policies, so it is disabled for all users on this path. Use the scoped record tools (query, create, update) instead; for genuine Apex or Tooling API work, use the Salesforce Developer Console or CLI outside the agent channel. Contact your InfoSec team if you believe this block is a mistake.
+- description: restful as the bare, unprefixed tool name (server exposed without
+    a gateway prefix). Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: restful
+      uri: null
+    payload:
+      name: restful
+      args:
+        path: /services/data/v62.0/query
+  output:
+    expectedResult: deny
+    expectedReason: This tool executes raw code or raw API requests against Salesforce and bypasses the gateway's object- and argument-level policies, so it is disabled for all users on this path. Use the scoped record tools (query, create, update) instead; for genuine Apex or Tooling API work, use the Salesforce Developer Console or CLI outside the agent channel. Contact your InfoSec team if you believe this block is a mistake.
+- description: restful with an underscore separator (server prefix joined with
+    underscores). Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: sf_community_restful
+      uri: null
+    payload:
+      name: sf_community_restful
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: This tool executes raw code or raw API requests against Salesforce and bypasses the gateway's object- and argument-level policies, so it is disabled for all users on this path. Use the scoped record tools (query, create, update) instead; for genuine Apex or Tooling API work, use the Salesforce Developer Console or CLI outside the agent channel. Contact your InfoSec team if you believe this block is a mistake.
+- description: Mixed-case tool name (Salesforce_Execute_Anonymous) still matches
+    case-insensitively. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: SF-Community-Salesforce_Execute_Anonymous
+      uri: null
+    payload:
+      name: SF-Community-Salesforce_Execute_Anonymous
+      args:
+        apexCode: "System.debug('hi');"
+  output:
+    expectedResult: deny
+    expectedReason: This tool executes raw code or raw API requests against Salesforce and bypasses the gateway's object- and argument-level policies, so it is disabled for all users on this path. Use the scoped record tools (query, create, update) instead; for genuine Apex or Tooling API work, use the Salesforce Developer Console or CLI outside the agent channel. Contact your InfoSec team if you believe this block is a mistake.
+- description: Escape-hatch tool with no arguments at all still denies (decision
+    is name-based; missing args must not fail open).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: sf-community-tooling_execute
+      uri: null
+    payload:
+      name: sf-community-tooling_execute
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: This tool executes raw code or raw API requests against Salesforce and bypasses the gateway's object- and argument-level policies, so it is disabled for all users on this path. Use the scoped record tools (query, create, update) instead; for genuine Apex or Tooling API work, use the Salesforce Developer Console or CLI outside the agent channel. Contact your InfoSec team if you believe this block is a mistake.
+- description: "Red-team regression: restful namespaced with a dot separator
+    (smn2gnt.sf.restful) must still deny. The old -/_-only anchoring let this
+    through; the non-alphanumeric boundary now catches it."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: smn2gnt.sf.restful
+      uri: null
+    payload:
+      name: smn2gnt.sf.restful
+      args:
+        path: /services/data/v62.0/sobjects/Contact
+        method: DELETE
+  output:
+    expectedResult: deny
+    expectedReason: This tool executes raw code or raw API requests against Salesforce and bypasses the gateway's object- and argument-level policies, so it is disabled for all users on this path. Use the scoped record tools (query, create, update) instead; for genuine Apex or Tooling API work, use the Salesforce Developer Console or CLI outside the agent channel. Contact your InfoSec team if you believe this block is a mistake.
+- description: "Red-team regression: restful namespaced with a slash separator
+    (smn2gnt/sf/restful) must still deny under the boundary match."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: smn2gnt/sf/restful
+      uri: null
+    payload:
+      name: smn2gnt/sf/restful
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: This tool executes raw code or raw API requests against Salesforce and bypasses the gateway's object- and argument-level policies, so it is disabled for all users on this path. Use the scoped record tools (query, create, update) instead; for genuine Apex or Tooling API work, use the Salesforce Developer Console or CLI outside the agent channel. Contact your InfoSec team if you believe this block is a mistake.
+- description: Escape-hatch tool with no payload object at all still denies
+    (decision reads only resource.name; a missing payload must not fail open).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: sf-community-salesforce_execute_anonymous
+      uri: null
+  output:
+    expectedResult: deny
+    expectedReason: This tool executes raw code or raw API requests against Salesforce and bypasses the gateway's object- and argument-level policies, so it is disabled for all users on this path. Use the scoped record tools (query, create, update) instead; for genuine Apex or Tooling API work, use the Salesforce Developer Console or CLI outside the agent channel. Contact your InfoSec team if you believe this block is a mistake.
+- description: "Documented behavior: a request with no tool name at all is not an
+    escape hatch and is allowed (the gateway never routes a nameless tool call,
+    so this is not a reachable bypass)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      uri: null
+  output:
+    expectedResult: allow
+- description: "Red-team regression: escape-hatch name with a trailing newline
+    (salesforce_execute_anonymous\\n) must still deny. The old lower()-only match
+    let a trailing newline evade the endswith check; trim_space now closes it."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "sf-community-salesforce_execute_anonymous\n"
+      uri: null
+    payload:
+      name: "sf-community-salesforce_execute_anonymous\n"
+      args:
+        apexCode: "delete [SELECT Id FROM Contact];"
+  output:
+    expectedResult: deny
+    expectedReason: This tool executes raw code or raw API requests against Salesforce and bypasses the gateway's object- and argument-level policies, so it is disabled for all users on this path. Use the scoped record tools (query, create, update) instead; for genuine Apex or Tooling API work, use the Salesforce Developer Console or CLI outside the agent channel. Contact your InfoSec team if you believe this block is a mistake.
+- description: "Red-team regression: escape-hatch name with a trailing space
+    (tooling_execute + space) must still deny under trim_space normalization."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "sf-community-tooling_execute "
+      uri: null
+    payload:
+      name: "sf-community-tooling_execute "
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: This tool executes raw code or raw API requests against Salesforce and bypasses the gateway's object- and argument-level policies, so it is disabled for all users on this path. Use the scoped record tools (query, create, update) instead; for genuine Apex or Tooling API work, use the Salesforce Developer Console or CLI outside the agent channel. Contact your InfoSec team if you believe this block is a mistake.
+- description: "Red-team regression: restful with a trailing CRLF (smn2gnt-sf-restful\\r\\n)
+    must still deny. The anchored $ regex matched only end-of-text, letting a
+    trailing CRLF evade; trim_space now strips it before the match."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "smn2gnt-sf-restful\r\n"
+      uri: null
+    payload:
+      name: "smn2gnt-sf-restful\r\n"
+      args:
+        path: /services/data/v62.0/sobjects/Contact
+        method: DELETE
+  output:
+    expectedResult: deny
+    expectedReason: This tool executes raw code or raw API requests against Salesforce and bypasses the gateway's object- and argument-level policies, so it is disabled for all users on this path. Use the scoped record tools (query, create, update) instead; for genuine Apex or Tooling API work, use the Salesforce Developer Console or CLI outside the agent channel. Contact your InfoSec team if you believe this block is a mistake.
+- description: tsmztech salesforce_manage_object (schema/metadata DDL) is deliberately
+    out of scope — this policy denies only the raw code/API passthrough hatches per
+    its source spec, not privileged metadata tools. Policy should allow (govern via
+    a schema-freeze / role-gate policy instead).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: sf-community-salesforce_manage_object
+      uri: null
+    payload:
+      name: sf-community-salesforce_manage_object
+      args:
+        objectName: Exfil__c
+  output:
+    expectedResult: allow

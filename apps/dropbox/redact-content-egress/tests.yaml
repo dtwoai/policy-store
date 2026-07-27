@@ -1,0 +1,620 @@
+# Egress transform policy (default allow := true) — allow is always true; the
+# meaningful assertions are transformApplied / transformedArgsContain. Cases
+# cover every rule branch: each detection class (SSN, email, phone, secret,
+# Luhn-checked PAN mask), the full-PAN carve-out (array + bare-string forms and
+# its PAN-only scope), fail-closed on missing/malformed claims, every tool-name
+# surface, out-of-scope tools (DownloadLink / metadata), the ingress guard,
+# non-string blocks, and red-team bypasses.
+
+- description: Official GetFileContent, non-exempt caller — SSN redacted, Luhn-valid PAN masked to BIN+last4, AKIA secret redacted, all in one block.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: dropbox-mcp-GetFileContent
+      uri: null
+    subject:
+      sub: auth0|u1
+      claims:
+        groups:
+          - support
+    payload:
+      name: dropbox-mcp-GetFileContent
+      text:
+        - "SSN 123-45-6789, card 4111 1111 1111 1111, key AKIA1234567890ABCDEF"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "SSN [REDACTED-SSN], card 411111******1111, key [REDACTED-SECRET]"
+
+- description: Email and phone are redacted stand-alone (no co-occurrence heuristic) on community get_file_content.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: dbx-get_file_content
+      uri: null
+    subject:
+      sub: auth0|u2
+      claims:
+        groups:
+          - eng
+    payload:
+      name: dbx-get_file_content
+      text:
+        - "Contact jane.doe@acme.com or 415-555-0142 for access"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Contact [REDACTED-EMAIL] or [REDACTED-PHONE] for access"
+
+- description: Community download_file — a PEM private-key block (BEGIN…END, spanning newlines) is redacted wholesale.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: dbx-download_file
+      uri: null
+    subject:
+      sub: auth0|u3
+      claims:
+        groups:
+          - eng
+    payload:
+      name: dbx-download_file
+      text:
+        - "config:\n-----BEGIN RSA PRIVATE KEY-----\nMIIBVwIBADANBgkq\n-----END RSA PRIVATE KEY-----\ndone"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "config:\n[REDACTED-SECRET]\ndone"
+
+- description: ngs dropbox_download — a GitHub ghp_ token prefix is redacted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: dropbox-mcp-dropbox_download
+      uri: null
+    subject:
+      sub: auth0|u4
+      claims:
+        groups:
+          - eng
+    payload:
+      name: dropbox-mcp-dropbox_download
+      text:
+        - "token=ghp_abcdefghijklmnopqrstuvwxyz0123456789 in .env"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "token=[REDACTED-SECRET] in .env"
+
+- description: Case-insensitive tool match — uppercase GETFILECONTENT suffix still in scope; a 15-digit Amex PAN is masked.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: DROPBOX-MCP-GETFILECONTENT
+      uri: null
+    subject:
+      sub: auth0|u5
+      claims:
+        groups:
+          - eng
+    payload:
+      name: DROPBOX-MCP-GETFILECONTENT
+      text:
+        - "Amex 3782 822463 10005 on file"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Amex 378282*****0005 on file"
+
+- description: Full-PAN carve-out (groups array contains pci-fullpan) — the PAN is kept raw but the SSN is still redacted (carve-out is PAN-only).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: dropbox-mcp-GetFileContent
+      uri: null
+    subject:
+      sub: auth0|u6
+      claims:
+        groups:
+          - pci-fullpan
+    payload:
+      name: dropbox-mcp-GetFileContent
+      text:
+        - "SSN 123-45-6789, card 4111 1111 1111 1111"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "SSN [REDACTED-SSN], card 4111 1111 1111 1111"
+
+- description: Full-PAN carve-out, content has only a PAN — nothing changes, so no transform (byte-identical passthrough).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: dropbox-mcp-GetFileContent
+      uri: null
+    subject:
+      sub: auth0|u7
+      claims:
+        groups:
+          - pci-fullpan
+    payload:
+      name: dropbox-mcp-GetFileContent
+      text:
+        - "card 4111 1111 1111 1111"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Full-PAN carve-out via a bare-string groups claim — PAN kept, SSN still redacted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: dropbox-mcp-GetFileContent
+      uri: null
+    subject:
+      sub: auth0|u8
+      claims:
+        groups: pci-fullpan
+    payload:
+      name: dropbox-mcp-GetFileContent
+      text:
+        - "SSN 123-45-6789 card 4111 1111 1111 1111"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "SSN [REDACTED-SSN] card 4111 1111 1111 1111"
+
+- description: Fail closed for the carve-out — subject has no claims, so the caller is not exempt and the PAN is masked.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: dropbox-mcp-GetFileContent
+      uri: null
+    subject:
+      sub: auth0|u9
+    payload:
+      name: dropbox-mcp-GetFileContent
+      text:
+        - "card 4111 1111 1111 1111"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "card 411111******1111"
+
+- description: Luhn-invalid card-shaped run (an invoice reference) is left alone — no transform.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: dropbox-mcp-GetFileContent
+      uri: null
+    subject:
+      sub: auth0|u10
+      claims:
+        groups:
+          - eng
+    payload:
+      name: dropbox-mcp-GetFileContent
+      text:
+        - "Invoice ref 4111 1111 1111 1112 for order"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Out-of-scope URL minter DownloadLink (returns a URL, not content) is never matched — no transform even with an SSN present.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: dropbox-mcp-DownloadLink
+      uri: null
+    subject:
+      sub: auth0|u11
+      claims:
+        groups:
+          - eng
+    payload:
+      name: dropbox-mcp-DownloadLink
+      text:
+        - "SSN 123-45-6789 https://dl.dropboxusercontent.com/x"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Out-of-scope metadata tool GetFileMetadata — filenames/metadata are not content, so no transform even with a PAN in the output.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: dropbox-mcp-GetFileMetadata
+      uri: null
+    subject:
+      sub: auth0|u12
+      claims:
+        groups:
+          - eng
+    payload:
+      name: dropbox-mcp-GetFileMetadata
+      text:
+        - "name: card-4111 1111 1111 1111.pdf"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Tool name only under tool_metadata.name (resource.name empty) — community get_file_content still matched via the fallback surface.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: ""
+      uri: null
+    tool_metadata:
+      name: get_file_content
+    subject:
+      sub: auth0|u13
+      claims:
+        groups:
+          - eng
+    payload:
+      name: get_file_content
+      text:
+        - "SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "SSN [REDACTED-SSN]"
+
+- description: Only the block with sensitive data is rewritten; clean blocks pass through unchanged.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: dropbox-mcp-GetFileContent
+      uri: null
+    subject:
+      sub: auth0|u14
+      claims:
+        groups:
+          - eng
+    payload:
+      name: dropbox-mcp-GetFileContent
+      text:
+        - "Quarterly summary, no identifiers here."
+        - "But this line has SSN 078-05-1120."
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Quarterly summary, no identifiers here."
+      - "But this line has SSN [REDACTED-SSN]."
+
+- description: In-scope tool but content carries nothing sensitive — response passes through byte-identical, no transform.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: dropbox-mcp-GetFileContent
+      uri: null
+    subject:
+      sub: auth0|u15
+      claims:
+        groups:
+          - eng
+    payload:
+      name: dropbox-mcp-GetFileContent
+      text:
+        - "The project kickoff is scheduled for next Tuesday."
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Non-string (structured/JSON object) content block passes through the redact_block string guard unmodified — no transform.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: dropbox-mcp-GetFileContent
+      uri: null
+    subject:
+      sub: auth0|u16
+      claims:
+        groups:
+          - eng
+    payload:
+      name: dropbox-mcp-GetFileContent
+      text:
+        - field: ssn
+          value: 123-45-6789
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Ingress hook (mode input) is never in scope — the same content tool + SSN produces no transform on the pre-invoke path.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: dropbox-mcp-GetFileContent
+      uri: null
+    subject:
+      sub: auth0|u17
+      claims:
+        groups:
+          - eng
+    payload:
+      name: dropbox-mcp-GetFileContent
+      text:
+        - "SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+# --- Red-team regression cases (reviewer, standards §10) ---
+
+- description: "Red-team: object-shaped groups claim {role: pci-fullpan} must NOT grant the carve-out — the is_array guard fails it closed, so the PAN is masked."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: dropbox-mcp-GetFileContent
+      uri: null
+    subject:
+      sub: auth0|u18
+      claims:
+        groups:
+          role: pci-fullpan
+    payload:
+      name: dropbox-mcp-GetFileContent
+      text:
+        - "card 4111 1111 1111 1111"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "card 411111******1111"
+
+- description: "Red-team: egress with action=tool_post_invoke but mode unset — is_egress still matches on action, so redaction fires (no fail-open leak)."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    resource:
+      type: tool
+      name: dropbox-mcp-GetFileContent
+      uri: null
+    subject:
+      sub: auth0|u19
+      claims:
+        groups:
+          - eng
+    payload:
+      name: dropbox-mcp-GetFileContent
+      text:
+        - "SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "SSN [REDACTED-SSN]"
+
+- description: "Red-team: tool name present only under payload.name (resource.name empty, no tool_metadata) — payload.name is a candidate surface, so the call is in scope and redaction fires."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: ""
+      uri: null
+    subject:
+      sub: auth0|u20
+      claims:
+        groups:
+          - eng
+    payload:
+      name: dropbox-mcp-GetFileContent
+      text:
+        - "SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "SSN [REDACTED-SSN]"
+
+- description: "Red-team: a 20+ digit identifier is never partially masked (no word boundary inside a digit run) — left alone, no transform."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: dropbox-mcp-GetFileContent
+      uri: null
+    subject:
+      sub: auth0|u21
+      claims:
+        groups:
+          - eng
+    payload:
+      name: dropbox-mcp-GetFileContent
+      text:
+        - "trace id 41111111111111114111 logged"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Red-team (fixed): dot-separated 16-digit PAN (4111.1111.1111.1111) is now masked — the separator class covers space, dash, AND dot, closing the dotted-card bypass."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: dropbox-mcp-GetFileContent
+      uri: null
+    subject:
+      sub: auth0|u22
+      claims:
+        groups:
+          - eng
+    payload:
+      name: dropbox-mcp-GetFileContent
+      text:
+        - "card 4111.1111.1111.1111 on file"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "card 411111******1111 on file"
+
+- description: "Red-team (fixed): a dotted 4-4-4-4 run that fails Luhn (a version/build string) is still left alone — the dot separator did not weaken the Luhn gate."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: dropbox-mcp-GetFileContent
+      uri: null
+    subject:
+      sub: auth0|u23
+      claims:
+        groups:
+          - eng
+    payload:
+      name: dropbox-mcp-GetFileContent
+      text:
+        - "build 1234.5678.9012.3456 shipped"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Red-team (documented, fail-open): payload.text delivered as a BARE STRING (not an array) passes through unredacted — the transform requires is_array(text_blocks). Confirm your gateway emits array-shaped text blocks. See Known limitations."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: dropbox-mcp-GetFileContent
+      uri: null
+    subject:
+      sub: auth0|u24
+      claims:
+        groups:
+          - eng
+    payload:
+      name: dropbox-mcp-GetFileContent
+      text: "SSN 123-45-6789 card 4111 1111 1111 1111"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Red-team (documented edge): a card number glued directly to an email TLD with no separator (jane@acme.com4111111111111111) defeats the \\b anchor on both patterns and passes through. Contrived shape; see Known limitations."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: dropbox-mcp-GetFileContent
+      uri: null
+    subject:
+      sub: auth0|u25
+      claims:
+        groups:
+          - eng
+    payload:
+      name: dropbox-mcp-GetFileContent
+      text:
+        - "mail jane@acme.com4111111111111111 x"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Red-team (fail-closed): no subject key at all — caller_may_view_full_pan is undefined, so PAN masking still applies (carve-out fails closed on a missing subject)."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: dropbox-mcp-GetFileContent
+      uri: null
+    payload:
+      name: dropbox-mcp-GetFileContent
+      text:
+        - "card 4111 1111 1111 1111"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "card 411111******1111"

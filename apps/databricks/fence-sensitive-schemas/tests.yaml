@@ -1,0 +1,583 @@
+- description: Unrecognized tool (list_uc_catalogs) passes through untouched.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-uc-list_uc_catalogs
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: databricks-uc-list_uc_catalogs
+      args: {}
+  output:
+    expectedResult: allow
+
+- description: Read-only SELECT against a non-fenced schema is allowed for a non-exempt caller.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-sql-execute_sql_read_only
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: databricks-sql-execute_sql_read_only
+      args:
+        statement: SELECT order_id, total FROM sales.orders LIMIT 10
+  output:
+    expectedResult: allow
+
+- description: data-privacy caller reading a fenced hr. schema is allowed (group exemption).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-sql-execute_sql_read_only
+      uri: null
+    subject:
+      sub: google-apps|dpo@example.com
+      claims:
+        groups:
+          - data-privacy
+    payload:
+      name: databricks-sql-execute_sql_read_only
+      args:
+        statement: SELECT employee_id FROM hr.salaries
+  output:
+    expectedResult: allow
+
+- description: Non-exempt caller running a read-only SELECT against a fenced hr. schema is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-sql-execute_sql_read_only
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: databricks-sql-execute_sql_read_only
+      args:
+        statement: SELECT employee_id, salary FROM hr.salaries
+  output:
+    expectedResult: deny
+    expectedReason: This Databricks call targets the fenced sensitive namespace 'hr.'. Reading fenced lakehouse schemas requires the 'data-privacy' IdP group — request access through your data-privacy access-request process. Contact your data platform admin if this namespace is mislabeled.
+
+- description: Non-exempt caller on the read-write execute_sql tool referencing a fenced pii_ table is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-sql-execute_sql
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: databricks-sql-execute_sql
+      args:
+        statement: SELECT email FROM analytics.pii_customers WHERE id = 5
+  output:
+    expectedResult: deny
+    expectedReason: This Databricks call targets the fenced sensitive namespace 'pii_'. Reading fenced lakehouse schemas requires the 'data-privacy' IdP group — request access through your data-privacy access-request process. Contact your data platform admin if this namespace is mislabeled.
+
+- description: Community execute_sql_query (sql arg) referencing a fenced _phi table is denied for a non-exempt caller.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-community-execute_sql_query
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - analytics
+    payload:
+      name: databricks-community-execute_sql_query
+      args:
+        sql: SELECT result FROM clinical.labresults_phi WHERE patient = 1
+  output:
+    expectedResult: deny
+    expectedReason: This Databricks call targets the fenced sensitive namespace '_phi'. Reading fenced lakehouse schemas requires the 'data-privacy' IdP group — request access through your data-privacy access-request process. Contact your data platform admin if this namespace is mislabeled.
+
+- description: describe_uc_table on a fenced payroll. table name is denied for a non-exempt caller.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-uc-describe_uc_table
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: databricks-uc-describe_uc_table
+      args:
+        full_table_name: main.payroll.runs
+  output:
+    expectedResult: deny
+    expectedReason: This Databricks call targets the fenced sensitive namespace 'payroll.'. Reading fenced lakehouse schemas requires the 'data-privacy' IdP group — request access through your data-privacy access-request process. Contact your data platform admin if this namespace is mislabeled.
+
+- description: describe_uc_schema on a fenced payroll schema (synthetic catalog.schema. prefix) is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-uc-describe_uc_schema
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: databricks-uc-describe_uc_schema
+      args:
+        catalog_name: main
+        schema_name: payroll
+  output:
+    expectedResult: deny
+    expectedReason: This Databricks call targets the fenced sensitive namespace 'payroll.'. Reading fenced lakehouse schemas requires the 'data-privacy' IdP group — request access through your data-privacy access-request process. Contact your data platform admin if this namespace is mislabeled.
+
+- description: describe_uc_schema on a non-fenced schema is allowed for a non-exempt caller.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-uc-describe_uc_schema
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: databricks-uc-describe_uc_schema
+      args:
+        catalog_name: main
+        schema_name: sales
+  output:
+    expectedResult: allow
+
+- description: Broad 'comp' pattern fences a compensation schema for a non-exempt caller.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-sql-execute_sql_read_only
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: databricks-sql-execute_sql_read_only
+      args:
+        statement: SELECT band FROM hrdata.compensation WHERE id = 7
+  output:
+    expectedResult: deny
+    expectedReason: This Databricks call targets the fenced sensitive namespace 'comp'. Reading fenced lakehouse schemas requires the 'data-privacy' IdP group — request access through your data-privacy access-request process. Contact your data platform admin if this namespace is mislabeled.
+
+- description: Red-team — case-insensitive match (uppercase PAYROLL.) still fences a non-exempt caller.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-sql-execute_sql_read_only
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: databricks-sql-execute_sql_read_only
+      args:
+        statement: SELECT NET_PAY FROM MAIN.PAYROLL.RUNS
+  output:
+    expectedResult: deny
+    expectedReason: This Databricks call targets the fenced sensitive namespace 'payroll.'. Reading fenced lakehouse schemas requires the 'data-privacy' IdP group — request access through your data-privacy access-request process. Contact your data platform admin if this namespace is mislabeled.
+
+- description: Fail-closed — execute_sql with no SQL argument is denied for a non-exempt caller.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-sql-execute_sql
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: databricks-sql-execute_sql
+      args:
+        warehouse_id: wh-123
+  output:
+    expectedResult: deny
+    expectedReason: This Databricks SQL or Unity Catalog call is missing its statement or table-name argument, so its target namespace cannot be checked against the sensitive-schema fence — the call is denied fail-closed. Supply the SQL text or the full table/schema name, or request the 'data-privacy' IdP group through your data-privacy access-request process.
+
+- description: Fail-closed — describe_uc_table with no full_table_name is denied for a non-exempt caller.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-uc-describe_uc_table
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: databricks-uc-describe_uc_table
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: This Databricks SQL or Unity Catalog call is missing its statement or table-name argument, so its target namespace cannot be checked against the sensitive-schema fence — the call is denied fail-closed. Supply the SQL text or the full table/schema name, or request the 'data-privacy' IdP group through your data-privacy access-request process.
+
+- description: Red-team — no subject/claims at all, referencing a fenced schema, fails closed (denied).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-sql-execute_sql_read_only
+      uri: null
+    payload:
+      name: databricks-sql-execute_sql_read_only
+      args:
+        statement: SELECT employee_id FROM hr.salaries
+  output:
+    expectedResult: deny
+    expectedReason: This Databricks call targets the fenced sensitive namespace 'hr.'. Reading fenced lakehouse schemas requires the 'data-privacy' IdP group — request access through your data-privacy access-request process. Contact your data platform admin if this namespace is mislabeled.
+
+- description: Red-team — malformed (string) groups claim fails closed on a fenced reference.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-sql-execute_sql_read_only
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups: data-privacy
+    payload:
+      name: databricks-sql-execute_sql_read_only
+      args:
+        statement: SELECT employee_id FROM hr.salaries
+  output:
+    expectedResult: deny
+    expectedReason: This Databricks call targets the fenced sensitive namespace 'hr.'. Reading fenced lakehouse schemas requires the 'data-privacy' IdP group — request access through your data-privacy access-request process. Contact your data platform admin if this namespace is mislabeled.
+
+- description: data-privacy caller on describe_uc_table for a fenced payroll table is allowed (exemption).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-uc-describe_uc_table
+      uri: null
+    subject:
+      sub: google-apps|dpo@example.com
+      claims:
+        groups:
+          - data-privacy
+          - engineering
+    payload:
+      name: databricks-uc-describe_uc_table
+      args:
+        full_table_name: main.payroll.runs
+  output:
+    expectedResult: allow
+
+- description: Red-team (DOCUMENTED RESIDUAL) — dynamic identifier splits the fenced prefix across concatenated literals, so it never appears contiguously and the fence does not fire (allowed). Locked in per Known limitations; pair with guard-warehouse-sql + egress redaction.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-sql-execute_sql
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: databricks-sql-execute_sql
+      args:
+        statement: SELECT email FROM IDENTIFIER('pi' || 'i_customers') WHERE id = 5
+  output:
+    expectedResult: allow
+
+- description: Red-team (FIXED) — backtick-quoted identifier `hr`.`salaries` is normalized before matching, so it still fences a non-exempt caller.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-sql-execute_sql_read_only
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: databricks-sql-execute_sql_read_only
+      args:
+        statement: "SELECT employee_id FROM `hr`.`salaries`"
+  output:
+    expectedResult: deny
+    expectedReason: This Databricks call targets the fenced sensitive namespace 'hr.'. Reading fenced lakehouse schemas requires the 'data-privacy' IdP group — request access through your data-privacy access-request process. Contact your data platform admin if this namespace is mislabeled.
+
+- description: Red-team (FIXED) — whitespace around the dot separator (main.hr . salaries) is collapsed before matching, so it still fences a non-exempt caller.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-sql-execute_sql_read_only
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: databricks-sql-execute_sql_read_only
+      args:
+        statement: SELECT employee_id FROM main.hr . salaries
+  output:
+    expectedResult: deny
+    expectedReason: This Databricks call targets the fenced sensitive namespace 'hr.'. Reading fenced lakehouse schemas requires the 'data-privacy' IdP group — request access through your data-privacy access-request process. Contact your data platform admin if this namespace is mislabeled.
+
+- description: Red-team (DOCUMENTED RESIDUAL) — USE SCHEMA hr sets session context with no dotted reference, so the fence does not fire (allowed). Locked in per Known limitations; enforce UC naming + pair with guard-warehouse-sql.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-sql-execute_sql_read_only
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: databricks-sql-execute_sql_read_only
+      args:
+        statement: USE SCHEMA hr
+  output:
+    expectedResult: allow
+
+- description: Red-team (DOCUMENTED GAP) — describe_uc_catalog on a catalog literally named payroll is catalog-level enumeration, not fenced here (allowed). Locked in per Known limitations; scope via default-deny-unknown-tools.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-uc-describe_uc_catalog
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: databricks-uc-describe_uc_catalog
+      args:
+        catalog_name: payroll
+  output:
+    expectedResult: allow
+
+- description: Red-team (FIXED) — object-valued groups claim {role0 data-privacy} does not spoof the exempt group; it is coerced to [] and the fenced hr. reference is denied fail-closed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-sql-execute_sql_read_only
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          role0: data-privacy
+    payload:
+      name: databricks-sql-execute_sql_read_only
+      args:
+        statement: SELECT employee_id FROM hr.salaries
+  output:
+    expectedResult: deny
+    expectedReason: This Databricks call targets the fenced sensitive namespace 'hr.'. Reading fenced lakehouse schemas requires the 'data-privacy' IdP group — request access through your data-privacy access-request process. Contact your data platform admin if this namespace is mislabeled.
+
+- description: Red-team (DOCUMENTED RESIDUAL) — inline block comment wedged between schema and dot (main.hr/**/.salaries) breaks the contiguous hr. pattern, so the fence does not fire (allowed). Comment stripping is not attempted at the wire level (string-literal false-negative hazard). Locked in per Known limitations.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-sql-execute_sql_read_only
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: databricks-sql-execute_sql_read_only
+      args:
+        statement: SELECT employee_id FROM main.hr/**/.salaries
+  output:
+    expectedResult: allow
+
+- description: Red-team (DOCUMENTED RESIDUAL) — line comment wedged between schema and dot (main.hr--x\n.salaries) breaks the contiguous hr. pattern, so the fence does not fire (allowed). Locked in per Known limitations; enforce UC naming + pair with guard-warehouse-sql + egress backstop.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-sql-execute_sql_read_only
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: databricks-sql-execute_sql_read_only
+      args:
+        statement: "SELECT employee_id FROM main.hr--x\n.salaries"
+  output:
+    expectedResult: allow
+
+- description: Red-team (FIXED) — describe_uc_table with a non-string (array) full_table_name is uninspectable; it must fail closed (deny), not slip through. Previously allowed because the array counted as "present" but produced no normalized text.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-uc-describe_uc_table
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: databricks-uc-describe_uc_table
+      args:
+        full_table_name:
+          - main
+          - payroll
+          - runs
+  output:
+    expectedResult: deny
+    expectedReason: This Databricks SQL or Unity Catalog call is missing its statement or table-name argument, so its target namespace cannot be checked against the sensitive-schema fence — the call is denied fail-closed. Supply the SQL text or the full table/schema name, or request the 'data-privacy' IdP group through your data-privacy access-request process.
+
+- description: Red-team (FIXED) — execute_sql with a non-string (number) sql argument is uninspectable and must fail closed (deny) for a non-exempt caller.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-sql-execute_sql
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: databricks-sql-execute_sql
+      args:
+        sql: 12345
+  output:
+    expectedResult: deny
+    expectedReason: This Databricks SQL or Unity Catalog call is missing its statement or table-name argument, so its target namespace cannot be checked against the sensitive-schema fence — the call is denied fail-closed. Supply the SQL text or the full table/schema name, or request the 'data-privacy' IdP group through your data-privacy access-request process.
+
+- description: Red-team (FIXED) — describe_uc_schema with a non-string (array) schema_name is uninspectable and must fail closed (deny) rather than passing the synthetic-prefix check.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-uc-describe_uc_schema
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: databricks-uc-describe_uc_schema
+      args:
+        catalog_name: main
+        schema_name:
+          - payroll
+  output:
+    expectedResult: deny
+    expectedReason: This Databricks SQL or Unity Catalog call is missing its statement or table-name argument, so its target namespace cannot be checked against the sensitive-schema fence — the call is denied fail-closed. Supply the SQL text or the full table/schema name, or request the 'data-privacy' IdP group through your data-privacy access-request process.

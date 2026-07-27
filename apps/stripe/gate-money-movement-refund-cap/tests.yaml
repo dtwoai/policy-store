@@ -1,0 +1,314 @@
+# Reason strings used below:
+#   GROUP: "Agent-issued Stripe refunds are limited to members of the finance or billing-admin group. ..."
+#   CEIL:  "This refund has no explicit amount or exceeds the 50000-cent ($500.00) ceiling ..."
+- description: Non-refund Stripe tool (list_customers) passes through untouched.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: stripe-mcp-list_customers
+      uri: null
+    subject:
+      sub: auth0|jane
+      claims:
+        groups:
+          - support
+    payload:
+      name: stripe-mcp-list_customers
+      args:
+        limit: 10
+  output:
+    expectedResult: allow
+- description: Finance-group member refunds $25.00 (2500 cents) via the official
+    create_refund tool — under the ceiling, allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: stripe-mcp-create_refund
+      uri: null
+    subject:
+      sub: auth0|jane
+      claims:
+        groups:
+          - finance
+    payload:
+      name: stripe-mcp-create_refund
+      args:
+        payment_intent: pi_3AbcDef
+        amount: 2500
+  output:
+    expectedResult: allow
+- description: Billing-admin member refunds exactly the 50000-cent ceiling —
+    boundary value is allowed (cap is inclusive).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: stripe-mcp-create_refund
+      uri: null
+    subject:
+      sub: auth0|omar
+      claims:
+        groups:
+          - billing-admin
+    payload:
+      name: stripe-mcp-create_refund
+      args:
+        payment_intent: pi_3AbcDef
+        amount: 50000
+  output:
+    expectedResult: allow
+- description: Group membership is matched case-insensitively ("Finance") and so is
+    the tool name (uppercase) — allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: Stripe-MCP-CREATE_REFUND
+      uri: null
+    subject:
+      sub: auth0|jane
+      claims:
+        groups:
+          - Finance
+    payload:
+      name: Stripe-MCP-CREATE_REFUND
+      args:
+        payment_intent: pi_3AbcDef
+        amount: 100
+  output:
+    expectedResult: allow
+- description: Finance member refunds 50001 cents — one cent over the ceiling,
+    denied with the cap reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: stripe-mcp-create_refund
+      uri: null
+    subject:
+      sub: auth0|jane
+      claims:
+        groups:
+          - finance
+    payload:
+      name: stripe-mcp-create_refund
+      args:
+        payment_intent: pi_3AbcDef
+        amount: 50001
+  output:
+    expectedResult: deny
+    expectedReason: This refund has no explicit amount or exceeds the 50000-cent ($500.00) ceiling for agent-issued refunds; Stripe treats a missing amount as a full refund. Route this refund to a human in the Stripe dashboard. Contact your InfoSec team if the cap is blocking a legitimate refund.
+- description: Finance member omits amount — Stripe would issue a FULL refund, so
+    the missing amount is treated as unbounded and denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: stripe-mcp-create_refund
+      uri: null
+    subject:
+      sub: auth0|jane
+      claims:
+        groups:
+          - finance
+    payload:
+      name: stripe-mcp-create_refund
+      args:
+        payment_intent: pi_3AbcDef
+  output:
+    expectedResult: deny
+    expectedReason: This refund has no explicit amount or exceeds the 50000-cent ($500.00) ceiling for agent-issued refunds; Stripe treats a missing amount as a full refund. Route this refund to a human in the Stripe dashboard. Contact your InfoSec team if the cap is blocking a legitimate refund.
+- description: Explicit amount 0 is not a valid positive refund amount — denied
+    (fail closed) with the cap reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: stripe-mcp-create_refund
+      uri: null
+    subject:
+      sub: auth0|jane
+      claims:
+        groups:
+          - finance
+    payload:
+      name: stripe-mcp-create_refund
+      args:
+        payment_intent: pi_3AbcDef
+        amount: 0
+  output:
+    expectedResult: deny
+    expectedReason: This refund has no explicit amount or exceeds the 50000-cent ($500.00) ceiling for agent-issued refunds; Stripe treats a missing amount as a full refund. Route this refund to a human in the Stripe dashboard. Contact your InfoSec team if the cap is blocking a legitimate refund.
+- description: Non-numeric amount ("2500" as a string) fails closed — denied with
+    the cap reason even for a finance member.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: stripe-mcp-create_refund
+      uri: null
+    subject:
+      sub: auth0|jane
+      claims:
+        groups:
+          - finance
+    payload:
+      name: stripe-mcp-create_refund
+      args:
+        payment_intent: pi_3AbcDef
+        amount: "2500"
+  output:
+    expectedResult: deny
+    expectedReason: This refund has no explicit amount or exceeds the 50000-cent ($500.00) ceiling for agent-issued refunds; Stripe treats a missing amount as a full refund. Route this refund to a human in the Stripe dashboard. Contact your InfoSec team if the cap is blocking a legitimate refund.
+- description: Refund tool call with args missing entirely — denied (default deny
+    fails closed) with the cap reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: stripe-mcp-create_refund
+      uri: null
+    subject:
+      sub: auth0|jane
+      claims:
+        groups:
+          - finance
+    payload:
+      name: stripe-mcp-create_refund
+  output:
+    expectedResult: deny
+    expectedReason: This refund has no explicit amount or exceeds the 50000-cent ($500.00) ceiling for agent-issued refunds; Stripe treats a missing amount as a full refund. Route this refund to a human in the Stripe dashboard. Contact your InfoSec team if the cap is blocking a legitimate refund.
+- description: Caller outside the finance/billing-admin groups is denied even for a
+    small in-cap refund.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: stripe-mcp-create_refund
+      uri: null
+    subject:
+      sub: auth0|sam
+      claims:
+        groups:
+          - support
+    payload:
+      name: stripe-mcp-create_refund
+      args:
+        payment_intent: pi_3AbcDef
+        amount: 100
+  output:
+    expectedResult: deny
+    expectedReason: Agent-issued Stripe refunds are limited to members of the finance or billing-admin group. Ask someone in those groups to issue this refund from the Stripe dashboard. Contact your InfoSec team if you believe your access is misconfigured.
+- description: Caller with no subject/claims at all (unpopulated identity) fails
+    closed on the group gate.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: stripe-mcp-create_refund
+      uri: null
+    payload:
+      name: stripe-mcp-create_refund
+      args:
+        payment_intent: pi_3AbcDef
+        amount: 100
+  output:
+    expectedResult: deny
+    expectedReason: Agent-issued Stripe refunds are limited to members of the finance or billing-admin group. Ask someone in those groups to issue this refund from the Stripe dashboard. Contact your InfoSec team if you believe your access is misconfigured.
+- description: Community server's inverted refund_create suffix is matched too —
+    non-group caller denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: stripe-community-refund_create
+      uri: null
+    subject:
+      sub: auth0|sam
+      claims:
+        groups:
+          - support
+    payload:
+      name: stripe-community-refund_create
+      args:
+        payment_intent: pi_3AbcDef
+        amount: 100
+  output:
+    expectedResult: deny
+    expectedReason: Agent-issued Stripe refunds are limited to members of the finance or billing-admin group. Ask someone in those groups to issue this refund from the Stripe dashboard. Contact your InfoSec team if you believe your access is misconfigured.
+- description: "Documented residual (red-team): the meta-tool stripe_api_write can
+    issue a refund via POST /v1/refunds but is NOT a dedicated refund tool, so this
+    single-purpose policy passes it through. Locks in the known-limitation escape
+    hatch — pair with an API-write gate to close it."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: stripe-mcp-stripe_api_write
+      uri: null
+    subject:
+      sub: auth0|sam
+      claims:
+        groups:
+          - support
+    payload:
+      name: stripe-mcp-stripe_api_write
+      args:
+        method: POST
+        path: /v1/refunds
+        params:
+          payment_intent: pi_3AbcDef
+          amount: 9999999
+  output:
+    expectedResult: allow
+- description: Out-of-group caller AND over-ceiling amount — both reasons fire and
+    are joined sorted with "; ".
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: stripe-mcp-create_refund
+      uri: null
+    subject:
+      sub: auth0|sam
+      claims:
+        groups:
+          - support
+    payload:
+      name: stripe-mcp-create_refund
+      args:
+        payment_intent: pi_3AbcDef
+        amount: 99999
+  output:
+    expectedResult: deny
+    expectedReason: Agent-issued Stripe refunds are limited to members of the finance or billing-admin group. Ask someone in those groups to issue this refund from the Stripe dashboard. Contact your InfoSec team if you believe your access is misconfigured.; This refund has no explicit amount or exceeds the 50000-cent ($500.00) ceiling for agent-issued refunds; Stripe treats a missing amount as a full refund. Route this refund to a human in the Stripe dashboard. Contact your InfoSec team if the cap is blocking a legitimate refund.

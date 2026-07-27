@@ -1,0 +1,780 @@
+# Tests for monday/fence-sensitive-boards.
+# Covers: pass-through, board fence (deny + allow with group), write fence,
+# workspace fence, scoped/unscoped search, privileged unscoped search,
+# and fail-closed red-team cases.
+
+- description: Non-inspected tool (get_board_info) passes through untouched.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-mcp_get_board_info
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: monday-mcp_get_board_info
+      args:
+        boardId: 1111111111
+  output:
+    expectedResult: allow
+
+- description: Read of a non-fenced board is allowed regardless of group.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-mcp_get_board_items_page
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: monday-mcp_get_board_items_page
+      args:
+        boardId: 9999999999
+  output:
+    expectedResult: allow
+
+- description: Read of a fenced HR board WITHOUT the hr group is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-mcp_get_board_items_page
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: monday-mcp_get_board_items_page
+      args:
+        boardId: 1111111111
+  output:
+    expectedResult: deny
+    expectedReason: monday board 1111111111 is fenced as sensitive and requires the 'hr' IdP group. Ask your monday admin for access, or contact InfoSec if this fence looks wrong.
+
+- description: Read of a fenced HR board WITH the hr group is allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-mcp_get_board_items_page
+      uri: null
+    subject:
+      sub: google-apps|recruiter@example.com
+      claims:
+        groups:
+          - hr
+    payload:
+      name: monday-mcp_get_board_items_page
+      args:
+        boardId: 1111111111
+  output:
+    expectedResult: allow
+
+- description: Case-insensitive group match — caller with 'HR' (uppercase) is allowed on the hr board.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-mcp_get_full_board_data
+      uri: null
+    subject:
+      sub: google-apps|recruiter@example.com
+      claims:
+        groups:
+          - HR
+    payload:
+      name: monday-mcp_get_full_board_data
+      args:
+        boardId: 1111111111
+  output:
+    expectedResult: allow
+
+- description: Wrong group (sales) trying to read the HR board is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-mcp_board_insights
+      uri: null
+    subject:
+      sub: google-apps|ae@example.com
+      claims:
+        groups:
+          - sales
+    payload:
+      name: monday-mcp_board_insights
+      args:
+        boardId: 1111111111
+  output:
+    expectedResult: deny
+    expectedReason: monday board 1111111111 is fenced as sensitive and requires the 'hr' IdP group. Ask your monday admin for access, or contact InfoSec if this fence looks wrong.
+
+- description: Write (create_item) into a fenced CRM board without the sales group is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-mcp_create_item
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: monday-mcp_create_item
+      args:
+        boardId: 2222222222
+        name: New deal
+  output:
+    expectedResult: deny
+    expectedReason: monday board 2222222222 is fenced as sensitive and requires the 'sales' IdP group. Ask your monday admin for access, or contact InfoSec if this fence looks wrong.
+
+- description: Write (create_item) into a fenced CRM board WITH the sales group is allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-mcp_create_item
+      uri: null
+    subject:
+      sub: google-apps|ae@example.com
+      claims:
+        groups:
+          - sales
+    payload:
+      name: monday-mcp_create_item
+      args:
+        boardId: 2222222222
+        name: New deal
+  output:
+    expectedResult: allow
+
+- description: Write (change_item_column_values) into a fenced security board without infosec is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-mcp_change_item_column_values
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: monday-mcp_change_item_column_values
+      args:
+        boardId: 3333333333
+        itemId: 42
+        columnValues: '{"status":{"label":"Done"}}'
+  output:
+    expectedResult: deny
+    expectedReason: monday board 3333333333 is fenced as sensitive and requires the 'infosec' IdP group. Ask your monday admin for access, or contact InfoSec if this fence looks wrong.
+
+- description: Scoped search restricted to a non-fenced board is allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-mcp_search
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: monday-mcp_search
+      args:
+        searchTerm: roadmap
+        boardIds:
+          - 9999999999
+  output:
+    expectedResult: allow
+
+- description: Scoped search touching a fenced HR board without the hr group is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-mcp_search
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: monday-mcp_search
+      args:
+        searchTerm: salary
+        boardIds:
+          - 9999999999
+          - 1111111111
+  output:
+    expectedResult: deny
+    expectedReason: monday board 1111111111 is fenced as sensitive and requires the 'hr' IdP group. Ask your monday admin for access, or contact InfoSec if this fence looks wrong.
+
+- description: Red-team — unscoped account-wide search by a non-privileged caller is denied (cannot enumerate around the fence).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-mcp_search
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: monday-mcp_search
+      args:
+        searchTerm: candidate offer salary
+  output:
+    expectedResult: deny
+    expectedReason: Account-wide monday search is restricted while sensitive boards are fenced. Re-run the search with boardIds or workspaceIds scoped to boards you may access, or ask your monday admin for the fenced groups.
+
+- description: Unscoped account-wide search by a fully-privileged caller (holds hr, sales, infosec) is allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-mcp_search
+      uri: null
+    subject:
+      sub: google-apps|admin@example.com
+      claims:
+        groups:
+          - hr
+          - sales
+          - infosec
+    payload:
+      name: monday-mcp_search
+      args:
+        searchTerm: quarterly review
+  output:
+    expectedResult: allow
+
+- description: read_docs scoped to a fenced HR workspace (via workspaceIds) without the hr group is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-mcp_read_docs
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: monday-mcp_read_docs
+      args:
+        workspaceIds:
+          - 4444444444
+  output:
+    expectedResult: deny
+    expectedReason: monday workspace 4444444444 is fenced as sensitive and requires the 'hr' IdP group. Ask your monday admin for access, or contact InfoSec if this fence looks wrong.
+
+- description: Board ID supplied as a string (not a number) is still matched against the fence.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-mcp_get_full_board_data
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: monday-mcp_get_full_board_data
+      args:
+        boardId: "2222222222"
+  output:
+    expectedResult: deny
+    expectedReason: monday board 2222222222 is fenced as sensitive and requires the 'sales' IdP group. Ask your monday admin for access, or contact InfoSec if this fence looks wrong.
+
+- description: Red-team — fail closed when the caller has no subject/claims at all and reads a fenced board.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-mcp_get_board_items_page
+      uri: null
+    payload:
+      name: monday-mcp_get_board_items_page
+      args:
+        boardId: 1111111111
+  output:
+    expectedResult: deny
+    expectedReason: monday board 1111111111 is fenced as sensitive and requires the 'hr' IdP group. Ask your monday admin for access, or contact InfoSec if this fence looks wrong.
+
+- description: Red-team — malformed (string) groups claim fails closed on a fenced board.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-mcp_get_board_items_page
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups: hr
+    payload:
+      name: monday-mcp_get_board_items_page
+      args:
+        boardId: 1111111111
+  output:
+    expectedResult: deny
+    expectedReason: monday board 1111111111 is fenced as sensitive and requires the 'hr' IdP group. Ask your monday admin for access, or contact InfoSec if this fence looks wrong.
+
+- description: Community sakce name (monday_create_item) suffix-matches create_item and is fenced on a CRM board.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday_create_item
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: monday_create_item
+      args:
+        boardId: 2222222222
+        name: New deal
+  output:
+    expectedResult: deny
+    expectedReason: monday board 2222222222 is fenced as sensitive and requires the 'sales' IdP group. Ask your monday admin for access, or contact InfoSec if this fence looks wrong.
+
+- description: Red-team — batch write (create_items) into a fenced CRM board without the sales group is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-mcp_create_items
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: monday-mcp_create_items
+      args:
+        boardId: 2222222222
+        items:
+          - name: deal one
+          - name: deal two
+  output:
+    expectedResult: deny
+    expectedReason: monday board 2222222222 is fenced as sensitive and requires the 'sales' IdP group. Ask your monday admin for access, or contact InfoSec if this fence looks wrong.
+
+- description: Red-team — batch write (create_items) carrying a fenced board only in a per-item boardId is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-mcp_create_items
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: monday-mcp_create_items
+      args:
+        items:
+          - name: candidate
+            boardId: 1111111111
+  output:
+    expectedResult: deny
+    expectedReason: monday board 1111111111 is fenced as sensitive and requires the 'hr' IdP group. Ask your monday admin for access, or contact InfoSec if this fence looks wrong.
+
+- description: Batch write (create_items) into a non-fenced board is allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-mcp_create_items
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: monday-mcp_create_items
+      args:
+        boardId: 9999999999
+        items:
+          - name: task one
+  output:
+    expectedResult: allow
+
+- description: Red-team (documented residual) — GraphQL escape hatch (all_monday_api) is NOT fenced here; relies on the deny-escape-hatch companion policy.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-mcp_all_monday_api
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: monday-mcp_all_monday_api
+      args:
+        query: "query { boards(ids: 1111111111) { items_page { items { name } } } }"
+  output:
+    expectedResult: allow
+
+- description: Red-team (fixed) — get_updates on a fenced HR board without the hr group is denied (item-comment read fence).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-mcp_get_updates
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: monday-mcp_get_updates
+      args:
+        boardId: 1111111111
+  output:
+    expectedResult: deny
+    expectedReason: monday board 1111111111 is fenced as sensitive and requires the 'hr' IdP group. Ask your monday admin for access, or contact InfoSec if this fence looks wrong.
+
+- description: get_updates on a fenced HR board WITH the hr group is allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-mcp_get_updates
+      uri: null
+    subject:
+      sub: google-apps|recruiter@example.com
+      claims:
+        groups:
+          - hr
+    payload:
+      name: monday-mcp_get_updates
+      args:
+        boardId: 1111111111
+  output:
+    expectedResult: allow
+
+- description: Red-team (fixed) — get_board_activity on a fenced security board without infosec is denied (activity-log read fence).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-mcp_get_board_activity
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: monday-mcp_get_board_activity
+      args:
+        boardId: 3333333333
+  output:
+    expectedResult: deny
+    expectedReason: monday board 3333333333 is fenced as sensitive and requires the 'infosec' IdP group. Ask your monday admin for access, or contact InfoSec if this fence looks wrong.
+
+- description: Red-team (documented residual) — get_board_info is an uninspected metadata reader; a fenced board's schema/metadata is NOT fenced.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-mcp_get_board_info
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: monday-mcp_get_board_info
+      args:
+        boardId: 1111111111
+  output:
+    expectedResult: allow
+
+- description: Red-team (documented residual) — a board-scoped tool called with empty args names no fenced ID, so it passes through.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-mcp_get_board_items_page
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: monday-mcp_get_board_items_page
+      args: {}
+  output:
+    expectedResult: allow
+
+- description: Red-team (documented residual) — search scoped to a workspace NOT in fenced_workspaces is allowed even if it could reach a fenced board inside it.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-mcp_search
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: monday-mcp_search
+      args:
+        searchTerm: salary
+        workspaceIds:
+          - 6666666666
+  output:
+    expectedResult: allow
+
+- description: Red-team (documented residual) — a non-canonical leading-zero board ID string does not match the canonical fence key.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-mcp_get_full_board_data
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: monday-mcp_get_full_board_data
+      args:
+        boardId: "01111111111"
+  output:
+    expectedResult: allow
+
+- description: Red-team (fixed) — sakce write-update (monday_update_item) into a fenced CRM board without sales is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday_update_item
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: monday_update_item
+      args:
+        boardId: 2222222222
+        itemId: 42
+        columnValues: '{"status":{"label":"Won"}}'
+  output:
+    expectedResult: deny
+    expectedReason: monday board 2222222222 is fenced as sensitive and requires the 'sales' IdP group. Ask your monday admin for access, or contact InfoSec if this fence looks wrong.
+
+- description: sakce write-update (monday_update_item) into a fenced CRM board WITH the sales group is allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday_update_item
+      uri: null
+    subject:
+      sub: google-apps|ae@example.com
+      claims:
+        groups:
+          - sales
+    payload:
+      name: monday_update_item
+      args:
+        boardId: 2222222222
+        itemId: 42
+        columnValues: '{"status":{"label":"Won"}}'
+  output:
+    expectedResult: allow
+
+- description: Red-team (fixed) — sakce content read (monday_list_items_in_groups) of a fenced HR board without hr is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday_list_items_in_groups
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: monday_list_items_in_groups
+      args:
+        boardId: 1111111111
+  output:
+    expectedResult: deny
+    expectedReason: monday board 1111111111 is fenced as sensitive and requires the 'hr' IdP group. Ask your monday admin for access, or contact InfoSec if this fence looks wrong.
+
+- description: Red-team (documented residual) — sakce item-ID-scoped read (monday_get_items_by_id) carries no boardId, so it passes through unfenced.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday_get_items_by_id
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: monday_get_items_by_id
+      args:
+        itemId: 42
+  output:
+    expectedResult: allow
+
+- description: Red-team (documented residual) — a decoy non-fenced boardId makes an otherwise account-wide search count as scoped and is allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-mcp_search
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: monday-mcp_search
+      args:
+        searchTerm: candidate offer salary
+        boardIds:
+          - 1
+  output:
+    expectedResult: allow
+
+- description: Multi-board read where one boardId in the array is fenced away is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-mcp_get_board_items_page
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: monday-mcp_get_board_items_page
+      args:
+        boardIds:
+          - 9999999999
+          - 3333333333
+  output:
+    expectedResult: deny
+    expectedReason: monday board 3333333333 is fenced as sensitive and requires the 'infosec' IdP group. Ask your monday admin for access, or contact InfoSec if this fence looks wrong.

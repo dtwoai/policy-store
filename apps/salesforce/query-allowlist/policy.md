@@ -6,7 +6,11 @@ tags:
   - data-protection
   - governance
   - ingress
-publishedAt: 2026-06-16
+  - soc2
+  - pci-dss
+  - gdpr-ccpa
+  - iso27001-nist
+publishedAt: 2026-07-12
 description: |
   # salesforce / query-allowlist
 
@@ -21,6 +25,16 @@ description: |
   SOQL `FROM` clause and allows the call only when that object is in the
   allowlist. All other Salesforce tools and all non-Salesforce tools pass through
   untouched.
+
+  ## Compliance alignment
+
+  - **SOC 2 C1.1 / P4.1** — supports protection of confidential information and limits personal-information use to identified purposes by scoping agent queries to three business objects.
+  - **HIPAA §164.502(b) / §164.514(d)** — supports minimum-necessary access: agents cannot query objects (e.g. `Case`, `User`, health-cloud or custom objects) outside the approved set.
+  - **HIPAA §164.308(a)(4)** — supports information access management by defining which record classes the agent channel may read at all.
+  - **PCI DSS 7.2.6** — restricts programmatic query access to stored data: SOQL against objects that may hold account data is denied unless the object is explicitly allowlisted.
+  - **GDPR Art. 5(1)(b)** — supports purpose limitation: the queryable surface matches the CRM purpose the agent was granted, not the whole org.
+  - **CCPA/CPRA §1798.121** — supports limiting access to sensitive personal information held in non-allowlisted objects.
+  - **ISO 27001 A.8.3** — information access restriction on the SOQL read path.
 
   ## Why ingress
 
@@ -90,12 +104,17 @@ description: |
     child-relationship subqueries in the SELECT list, are denied.
   - **No identity-based exemptions.** All callers get the same allowlist. Add an
     `input.subject.claims`-gated branch for a break-glass role.
+
+  > **Compliance note.** This policy supports alignment with the cited framework controls **on the MCP path only**. No policy or bundle makes an organization compliant with any framework; web-UI, native-API, and in-app access are outside the gateway's reach by design. Validate against your own compliance program before relying on it.
 direction: ingress
 apps:
   - salesforce
 industries: []
 bundles:
   - crm
+  - soc2
+  - pci-dss
+  - gdpr-ccpa
 schemaVersion: 1.0.0
 minimumGatewayVersion: 1.0.0b24
 ---

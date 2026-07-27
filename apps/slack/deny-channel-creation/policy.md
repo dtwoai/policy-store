@@ -5,7 +5,9 @@ tags:
   - access-control
   - governance
   - ingress
-publishedAt: 2026-06-16
+  - soc2
+  - iso27001-nist
+publishedAt: 2026-07-12
 description: |
   # slack / deny-channel-creation
 
@@ -18,6 +20,18 @@ description: |
   Blocks Slack channel-creation tool calls at ingress. Every other Slack tool —
   and every non-Slack tool — passes through untouched. A blocked call returns a
   clear denial reason instead of creating a channel.
+
+  ## Compliance alignment
+
+  - **SOC 2 CC6.1** — supports logical access security by removing a workspace-structure
+    mutation from the agent's reach on the MCP path.
+  - **SOC 2 CC6.3** — supports role-based access and least privilege: agents get no
+    channel-creation capability by default, regardless of what the underlying OAuth
+    grant allows.
+  - **ISO 27001 A.5.15 / NIST 800-53 AC-3** — access-control enforcement on the agent
+    channel for a write the connected identity could otherwise perform.
+  - **GDPR Art. 25** — supports data protection by design and by default for the agent
+    channel: structural workspace changes are off unless deliberately enabled.
 
   ## Why ingress
 
@@ -97,12 +111,15 @@ description: |
   - **No identity-based exemptions.** All callers are treated the same. To allow a
     specific admin/break-glass user to create channels, gate a separate
     `allow if` branch on `input.subject.claims`.
+
+  > **Compliance note.** This policy supports alignment with the cited framework controls **on the MCP path only**. No policy or bundle makes an organization compliant with any framework; web-UI, native-API, and in-app access are outside the gateway's reach by design. Validate against your own compliance program before relying on it.
 direction: ingress
 apps:
   - slack
 industries: []
 bundles:
   - slack
+  - soc2
 schemaVersion: 1.0.0
 minimumGatewayVersion: 1.0.0b24
 ---

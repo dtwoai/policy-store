@@ -1,0 +1,479 @@
+- description: Read tool (readGoogleDoc) is not a delete operation. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-drive-mcp-readGoogleDoc
+      uri: null
+    payload:
+      name: google-drive-mcp-readGoogleDoc
+      args:
+        documentId: 1AbCdEfGhIjKlMnOp
+  output:
+    expectedResult: allow
+- description: Non-destructive write (uploadFile) passes through — deletes only are
+    frozen here; role-gate-writes handles other writes.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-drive-mcp-uploadFile
+      uri: null
+    payload:
+      name: google-drive-mcp-uploadFile
+      args:
+        parentFolderId: 1AbCdEfGhIjKlMnOp
+        content: quarterly notes
+  output:
+    expectedResult: allow
+- description: deleteItem with no subject at all (no IdP configured) — object.get
+    chain fails closed. Policy should deny with a reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-drive-mcp-deleteItem
+      uri: null
+    payload:
+      name: google-drive-mcp-deleteItem
+      args:
+        itemId: 1AbCdEfGhIjKlMnOp
+  output:
+    expectedResult: deny
+    expectedReason: Deleting Google Drive content from an agent is blocked. Ask a human collaborator to perform the deletion in the Drive UI instead. If this is a false positive, ask your gateway administrator to add you to the drive-admins IdP group or contact your InfoSec team.
+- description: deleteItem with claims present but no groups claim — missing claim
+    fails closed. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-drive-mcp-deleteItem
+      uri: null
+    subject:
+      sub: google-apps|analyst@example.com
+      claims:
+        email: analyst@example.com
+    payload:
+      name: google-drive-mcp-deleteItem
+      args:
+        itemId: 1AbCdEfGhIjKlMnOp
+  output:
+    expectedResult: deny
+    expectedReason: Deleting Google Drive content from an agent is blocked. Ask a human collaborator to perform the deletion in the Drive UI instead. If this is a false positive, ask your gateway administrator to add you to the drive-admins IdP group or contact your InfoSec team.
+- description: deleteItem by a caller whose groups do not include drive-admins.
+    Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-drive-mcp-deleteItem
+      uri: null
+    subject:
+      sub: google-apps|analyst@example.com
+      claims:
+        groups:
+          - engineering
+          - finance
+    payload:
+      name: google-drive-mcp-deleteItem
+      args:
+        itemId: 1AbCdEfGhIjKlMnOp
+  output:
+    expectedResult: deny
+    expectedReason: Deleting Google Drive content from an agent is blocked. Ask a human collaborator to perform the deletion in the Drive UI instead. If this is a false positive, ask your gateway administrator to add you to the drive-admins IdP group or contact your InfoSec team.
+- description: deleteItem by a drive-admins member. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-drive-mcp-deleteItem
+      uri: null
+    subject:
+      sub: google-apps|ops@example.com
+      claims:
+        groups:
+          - engineering
+          - drive-admins
+    payload:
+      name: google-drive-mcp-deleteItem
+      args:
+        itemId: 1AbCdEfGhIjKlMnOp
+  output:
+    expectedResult: allow
+- description: deleteRange with mixed-case tool name (DeleteRange) — matching is
+    case-insensitive. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: Google-Drive-MCP-DeleteRange
+      uri: null
+    subject:
+      sub: google-apps|analyst@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: Google-Drive-MCP-DeleteRange
+      args:
+        spreadsheetId: 1AbCdEfGhIjKlMnOp
+        range: Sheet1!A1:C10
+  output:
+    expectedResult: deny
+    expectedReason: Deleting Google Drive content from an agent is blocked. Ask a human collaborator to perform the deletion in the Drive UI instead. If this is a false positive, ask your gateway administrator to add you to the drive-admins IdP group or contact your InfoSec team.
+- description: deleteSheet by a non-admin. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-drive-mcp-deleteSheet
+      uri: null
+    subject:
+      sub: google-apps|analyst@example.com
+      claims:
+        groups: []
+    payload:
+      name: google-drive-mcp-deleteSheet
+      args:
+        spreadsheetId: 1AbCdEfGhIjKlMnOp
+        sheetId: 42
+  output:
+    expectedResult: deny
+    expectedReason: Deleting Google Drive content from an agent is blocked. Ask a human collaborator to perform the deletion in the Drive UI instead. If this is a false positive, ask your gateway administrator to add you to the drive-admins IdP group or contact your InfoSec team.
+- description: deleteGoogleSlide by a non-admin. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-drive-mcp-deleteGoogleSlide
+      uri: null
+    subject:
+      sub: google-apps|analyst@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: google-drive-mcp-deleteGoogleSlide
+      args:
+        presentationId: 1AbCdEfGhIjKlMnOp
+        slideId: p5
+  output:
+    expectedResult: deny
+    expectedReason: Deleting Google Drive content from an agent is blocked. Ask a human collaborator to perform the deletion in the Drive UI instead. If this is a false positive, ask your gateway administrator to add you to the drive-admins IdP group or contact your InfoSec team.
+- description: deleteComment by a non-admin. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-drive-mcp-deleteComment
+      uri: null
+    subject:
+      sub: google-apps|analyst@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: google-drive-mcp-deleteComment
+      args:
+        fileId: 1AbCdEfGhIjKlMnOp
+        commentId: AAAA1234
+  output:
+    expectedResult: deny
+    expectedReason: Deleting Google Drive content from an agent is blocked. Ask a human collaborator to perform the deletion in the Drive UI instead. If this is a false positive, ask your gateway administrator to add you to the drive-admins IdP group or contact your InfoSec team.
+- description: deleteCalendarEvent from the same server is out of scope here (it
+    belongs to the google-calendar catalog). Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-drive-mcp-deleteCalendarEvent
+      uri: null
+    subject:
+      sub: google-apps|analyst@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: google-drive-mcp-deleteCalendarEvent
+      args:
+        calendarId: primary
+        eventId: evt123
+  output:
+    expectedResult: allow
+- description: groups claim is a plain string instead of an array — iteration fails,
+    exemption does not fire, policy fails closed. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-drive-mcp-deleteItem
+      uri: null
+    subject:
+      sub: google-apps|analyst@example.com
+      claims:
+        groups: drive-admins
+    payload:
+      name: google-drive-mcp-deleteItem
+      args:
+        itemId: 1AbCdEfGhIjKlMnOp
+  output:
+    expectedResult: deny
+    expectedReason: Deleting Google Drive content from an agent is blocked. Ask a human collaborator to perform the deletion in the Drive UI instead. If this is a false positive, ask your gateway administrator to add you to the drive-admins IdP group or contact your InfoSec team.
+- description: "RED-TEAM (documented over-match): a restore tool named undeleteItem
+    ends with the deleteitem suffix, so a non-admin call is denied. Pins the
+    documented false-positive behavior — switch to exact-name matching if a real
+    server exposes such a name."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-drive-mcp-undeleteItem
+      uri: null
+    subject:
+      sub: google-apps|analyst@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: google-drive-mcp-undeleteItem
+      args:
+        itemId: 1AbCdEfGhIjKlMnOp
+  output:
+    expectedResult: deny
+    expectedReason: Deleting Google Drive content from an agent is blocked. Ask a human collaborator to perform the deletion in the Drive UI instead. If this is a false positive, ask your gateway administrator to add you to the drive-admins IdP group or contact your InfoSec team.
+- description: "RED-TEAM (documented under-match, differently-verbed): a hypothetical
+    delete_file tool does not end in any covered suffix, so it is NOT frozen and
+    passes through. No current Drive server exposes this name; pins the documented
+    residual. Extend destructive_suffixes if your server uses it."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-drive-mcp-delete_file
+      uri: null
+    subject:
+      sub: google-apps|analyst@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: google-drive-mcp-delete_file
+      args:
+        fileId: 1AbCdEfGhIjKlMnOp
+  output:
+    expectedResult: allow
+- description: "RED-TEAM (claim-spoofing, fail-open closed): groups claim shaped as
+    an object/map whose value is drive-admins. `some group in groups` would iterate
+    object VALUES and match, granting the exemption — the is_array guard forces this
+    to fail closed. Policy should deny."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-drive-mcp-deleteItem
+      uri: null
+    subject:
+      sub: google-apps|analyst@example.com
+      claims:
+        groups:
+          role: drive-admins
+    payload:
+      name: google-drive-mcp-deleteItem
+      args:
+        itemId: 1AbCdEfGhIjKlMnOp
+  output:
+    expectedResult: deny
+    expectedReason: Deleting Google Drive content from an agent is blocked. Ask a human collaborator to perform the deletion in the Drive UI instead. If this is a false positive, ask your gateway administrator to add you to the drive-admins IdP group or contact your InfoSec team.
+- description: "RED-TEAM (claim-spoofing, fail-open closed): groups claim is an
+    object whose value matches — but for a NON-destructive tool the call still
+    passes (exemption is irrelevant; only deletes are gated). Guards against the
+    fix over-blocking reads. Policy should allow."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-drive-mcp-readGoogleDoc
+      uri: null
+    subject:
+      sub: google-apps|analyst@example.com
+      claims:
+        groups:
+          role: drive-admins
+    payload:
+      name: google-drive-mcp-readGoogleDoc
+      args:
+        documentId: 1AbCdEfGhIjKlMnOp
+  output:
+    expectedResult: allow
+- description: "RED-TEAM (documented under-match, trailing qualifier): a hard-delete
+    named deleteItemPermanently does NOT end in the deleteitem token (endswith is
+    exact), so suffix matching misses it and it passes through. No current Drive
+    server exposes this name; pins the documented residual so a future server name
+    change is caught by the suite."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-drive-mcp-deleteItemPermanently
+      uri: null
+    subject:
+      sub: google-apps|analyst@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: google-drive-mcp-deleteItemPermanently
+      args:
+        itemId: 1AbCdEfGhIjKlMnOp
+  output:
+    expectedResult: allow
+- description: "RED-TEAM (documented under-match, whitespace/newline padding): a tool
+    name with a trailing newline does NOT end in the deleteitem token, so endswith
+    misses it. MCP dispatches by exact registered name, so a padded name never
+    resolves to the real delete tool at the server — not a live bypass. Pins the
+    §10 newline edge."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "google-drive-mcp-deleteItem\n"
+      uri: null
+    subject:
+      sub: google-apps|analyst@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: "google-drive-mcp-deleteItem\n"
+      args:
+        itemId: 1AbCdEfGhIjKlMnOp
+  output:
+    expectedResult: allow
+- description: "RED-TEAM (over-match guard, real read tool): listComments is a real
+    piotr-agier READ tool whose name is near the deletecomment suffix but does not
+    end in it. Must pass through so the freeze does not false-deny legitimate reads."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-drive-mcp-listComments
+      uri: null
+    subject:
+      sub: google-apps|analyst@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: google-drive-mcp-listComments
+      args:
+        fileId: 1AbCdEfGhIjKlMnOp
+  output:
+    expectedResult: allow
+- description: "RED-TEAM (claim-spoofing, array-with-object element): groups is a
+    proper array but one element is an object {\"x\":\"drive-admins\"} and the other
+    a benign string. Element-wise `group == \"drive-admins\"` never matches (object
+    != string; benign string != admin), so the exemption fails closed. Complements
+    the object-map case by exercising is_array-true with a non-string element."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-drive-mcp-deleteItem
+      uri: null
+    subject:
+      sub: google-apps|analyst@example.com
+      claims:
+        groups:
+          - x: drive-admins
+          - engineering
+    payload:
+      name: google-drive-mcp-deleteItem
+      args:
+        itemId: 1AbCdEfGhIjKlMnOp
+  output:
+    expectedResult: deny
+    expectedReason: Deleting Google Drive content from an agent is blocked. Ask a human collaborator to perform the deletion in the Drive UI instead. If this is a false positive, ask your gateway administrator to add you to the drive-admins IdP group or contact your InfoSec team.
+- description: "RED-TEAM (claim-spoofing, null groups): the description promises a
+    null groups claim fails closed. is_array(null) is false, so the exemption does
+    not fire and the delete is denied. Pins the description's stated guarantee."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-drive-mcp-deleteItem
+      uri: null
+    subject:
+      sub: google-apps|analyst@example.com
+      claims:
+        groups: null
+    payload:
+      name: google-drive-mcp-deleteItem
+      args:
+        itemId: 1AbCdEfGhIjKlMnOp
+  output:
+    expectedResult: deny
+    expectedReason: Deleting Google Drive content from an agent is blocked. Ask a human collaborator to perform the deletion in the Drive UI instead. If this is a false positive, ask your gateway administrator to add you to the drive-admins IdP group or contact your InfoSec team.
+- description: "RED-TEAM (claim-spoofing, numeric groups): the description promises a
+    number-shaped groups claim fails closed. is_array(42) is false, so the exemption
+    does not fire and the delete is denied. Pins the description's stated guarantee."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-drive-mcp-deleteItem
+      uri: null
+    subject:
+      sub: google-apps|analyst@example.com
+      claims:
+        groups: 42
+    payload:
+      name: google-drive-mcp-deleteItem
+      args:
+        itemId: 1AbCdEfGhIjKlMnOp
+  output:
+    expectedResult: deny
+    expectedReason: Deleting Google Drive content from an agent is blocked. Ask a human collaborator to perform the deletion in the Drive UI instead. If this is a false positive, ask your gateway administrator to add you to the drive-admins IdP group or contact your InfoSec team.

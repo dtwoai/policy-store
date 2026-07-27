@@ -1,0 +1,386 @@
+# Tests for servicenow.ingress.default_deny_unknown_tools
+# Covers every rule branch: exact-match allow, prefixed (`-suffix`) allow,
+# default deny, fail-closed on missing/empty name, and the deny reason string.
+# Also covers the red-team bypasses the reviewer would attempt: suffix collision
+# without the `-` separator, end-of-name collision, and naming divergence.
+
+# --- allow: exact match branch (bare, unprefixed tool name) ---
+- description: Bare allowlisted tool name (no gateway prefix) matches the exact-match branch. Allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: create_incident
+      uri: null
+    payload:
+      name: create_incident
+      args:
+        short_description: Printer on floor 3 is down
+  output:
+    expectedResult: allow
+
+- description: Bare read-only allowlisted tool (list_incidents) exact match. Allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: list_incidents
+      uri: null
+    payload:
+      name: list_incidents
+      args:
+        limit: 10
+  output:
+    expectedResult: allow
+
+# --- allow: prefixed match branch (`<server-name>-<suffix>`) ---
+- description: Gateway-prefixed allowlisted tool (servicenow-mcp-create_incident) matches the `-suffix` branch. Allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-create_incident
+      uri: null
+    payload:
+      name: servicenow-mcp-create_incident
+      args:
+        short_description: VPN outage
+  output:
+    expectedResult: allow
+
+- description: Gateway-prefixed generic-access tool (get_record) is on the starter allowlist. Allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-get_record
+      uri: null
+    payload:
+      name: servicenow-mcp-get_record
+      args:
+        table: incident
+        sys_id: abc123
+  output:
+    expectedResult: allow
+
+- description: Prefixed michaelbuckner generic-query tool (perform_query) is allowlisted. Allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-perform_query
+      uri: null
+    payload:
+      name: servicenow-mcp-perform_query
+      args:
+        table: incident
+        query: active=true
+  output:
+    expectedResult: allow
+
+# --- allow: case-insensitivity (lower() on the tool name) ---
+- description: Uppercased gateway-prefixed allowlisted tool still matches after lower(). Allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: SERVICENOW-MCP-CREATE_INCIDENT
+      uri: null
+    payload:
+      name: SERVICENOW-MCP-CREATE_INCIDENT
+      args:
+        short_description: Case-folding check
+  output:
+    expectedResult: allow
+
+# --- deny: default (high-blast-radius tool deliberately excluded) ---
+- description: High-blast-radius change-approval tool (approve_change) is not allowlisted. Deny with the audit reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-approve_change
+      uri: null
+    payload:
+      name: servicenow-mcp-approve_change
+      args:
+        change_id: CHG0031337
+  output:
+    expectedResult: deny
+    expectedReason: "This ServiceNow tool has not been audited for agent use, so the gateway denies it by default. Ask a gateway admin to review the tool and, if it is safe for agents, add it to the audited allowlist."
+
+- description: Server-side code-editing tool (update_script) is excluded from the starter set. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-update_script
+      uri: null
+    payload:
+      name: servicenow-mcp-update_script
+      args:
+        script: "gs.log('x')"
+  output:
+    expectedResult: deny
+
+# --- deny: naming divergence (noun_verb convention) ---
+- description: noun_verb naming convention (incident_create) from a swapped-in server is not on the allowlist. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-incident_create
+      uri: null
+    payload:
+      name: servicenow-mcp-incident_create
+      args:
+        short_description: divergent naming
+  output:
+    expectedResult: deny
+
+# --- deny: red-team suffix collision WITHOUT the `-` separator ---
+- description: "Red-team: forget_record ends with the allowlisted string get_record but lacks the `-` separator and is not an exact match. Deny (fails closed)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-forget_record
+      uri: null
+    payload:
+      name: servicenow-mcp-forget_record
+      args:
+        table: sys_user
+  output:
+    expectedResult: deny
+
+# --- deny: red-team end-of-name collision (allowlisted string is a prefix of the real suffix) ---
+- description: "Red-team: add_commentary contains add_comment as a leading substring but does not end with it. Deny."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-add_commentary
+      uri: null
+    payload:
+      name: servicenow-mcp-add_commentary
+      args:
+        text: not a real comment tool
+  output:
+    expectedResult: deny
+
+# --- deny: fail-closed on empty tool name ---
+- description: "Fail-closed: empty resource.name matches nothing. Deny."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ""
+      uri: null
+    payload:
+      name: ""
+      args: {}
+  output:
+    expectedResult: deny
+
+# --- deny: fail-closed on missing resource.name entirely ---
+- description: "Fail-closed: resource with no name key resolves to \"\" via object.get. Deny."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      uri: null
+    payload:
+      args: {}
+  output:
+    expectedResult: deny
+
+# --- deny: fail-closed on missing resource entirely ---
+- description: "Fail-closed: no resource object at all resolves to \"\" via nested object.get. Deny."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    payload:
+      args: {}
+  output:
+    expectedResult: deny
+
+# --- deny: red-team non-string name (number) must not error the decision ---
+# A numeric resource.name would make lower() raise a built-in type error,
+# leaving allow AND reason undefined (a deny with no surfaced reason). The
+# is_string guard coerces it to "" so the deny is clean and carries the reason.
+- description: "Red-team: numeric resource.name is coerced to \"\" (no lower() type error). Clean deny WITH reason."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: 123
+      uri: null
+    payload:
+      name: 123
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "This ServiceNow tool has not been audited for agent use, so the gateway denies it by default. Ask a gateway admin to review the tool and, if it is safe for agents, add it to the audited allowlist."
+
+# --- deny: red-team non-string name (null) ---
+- description: "Red-team: null resource.name is coerced to \"\" via the non-string branch. Deny with reason."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: null
+      uri: null
+    payload:
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "This ServiceNow tool has not been audited for agent use, so the gateway denies it by default. Ask a gateway admin to review the tool and, if it is safe for agents, add it to the audited allowlist."
+
+# --- deny: red-team non-string name (object) ---
+- description: "Red-team: object-valued resource.name is coerced to \"\" (not passed to lower()). Deny."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name:
+        nested: create_incident
+      uri: null
+    payload:
+      args: {}
+  output:
+    expectedResult: deny
+
+# --- allow: DOCUMENTED RESIDUAL (Known limitations #3) ---
+# A tool literally named `<anything>-<allowlisted-suffix>` (separator included)
+# matches the prefixed branch even though it is NOT the audited tool. This test
+# pins the documented residual bypass: suffix matching trusts the `-` prefix
+# convention for portability. Exact-name pinning closes it if a deployment needs
+# to. If this ever flips to deny, the suffix-matching contract changed.
+- description: "Red-team/documented residual: hyphen-glued name (evil_wrapper-get_record) rides the `-suffix` branch and is ALLOWED. Documents Known-limitations #3."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-evil_wrapper-get_record
+      uri: null
+    payload:
+      name: servicenow-mcp-evil_wrapper-get_record
+      args:
+        table: sys_user
+  output:
+    expectedResult: allow
+
+# --- deny: red-team Unicode case-fold spoof (FIXED bypass) ---
+# The Kelvin sign U+212A lowercases to ASCII "k". Before the raw-name ASCII
+# guard, `list_<U+212A>nowledge_bases` folded to the allowlisted
+# `list_knowledge_bases` and was ALLOWED. The guard checks the raw (pre-lower)
+# name against [A-Za-z0-9._-] and denies it. If this ever flips to allow, the
+# Unicode-fold protection has regressed.
+- description: "Red-team (fixed): Kelvin-sign U+212A in place of 'k' folds to the allowlisted list_knowledge_bases but the raw name is non-ASCII. Deny with reason."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "servicenow-mcp-list_Knowledge_bases"
+      uri: null
+    payload:
+      name: "servicenow-mcp-list_Knowledge_bases"
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "This ServiceNow tool has not been audited for agent use, so the gateway denies it by default. Ask a gateway admin to review the tool and, if it is safe for agents, add it to the audited allowlist."
+
+# --- deny: red-team Cyrillic homoglyph spoof of an allowlisted name ---
+# Cyrillic small 'е' (U+0435) visually mimics ASCII 'e'. `cr<U+0435>ate_incident`
+# looks like create_incident but is a different, non-ASCII string; the raw-name
+# ASCII guard denies it.
+- description: "Red-team: Cyrillic homoglyph (U+0435) spoof of create_incident is non-ASCII. Deny."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "servicenow-mcp-crеate_incident"
+      uri: null
+    payload:
+      name: "servicenow-mcp-crеate_incident"
+      args:
+        short_description: homoglyph spoof
+  output:
+    expectedResult: deny
+
+# --- deny: red-team underscore-glue wrapper (distinct from hyphen-glue residual) ---
+# `evil_get_record` glues a wrapper name to an allowlisted suffix with an
+# underscore, not the `-` separator, and is not an exact match. Fails closed.
+# (Contrast the documented hyphen-glue residual `...-get_record`, which allows.)
+- description: "Red-team: underscore-glued wrapper (evil_get_record) lacks the `-` separator and is not exact. Deny (fails closed)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-evil_get_record
+      uri: null
+    payload:
+      name: servicenow-mcp-evil_get_record
+      args:
+        table: sys_user
+  output:
+    expectedResult: deny
+
+# --- deny: red-team tab separator instead of hyphen ---
+# A tab (U+0009) before an allowlisted suffix is neither the `-` separator nor
+# an exact match, and is outside the ASCII name class. Deny.
+- description: "Red-team: tab-glued name (evil<TAB>get_record) is not a `-suffix` match and is denied."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "servicenow-mcp-evil\tget_record"
+      uri: null
+    payload:
+      name: "servicenow-mcp-evil\tget_record"
+      args: {}
+  output:
+    expectedResult: deny

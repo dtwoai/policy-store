@@ -1,0 +1,329 @@
+- description: Non-search Notion tool (notion-fetch) passes through unchanged.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: notion-notion-fetch
+      uri: null
+    payload:
+      name: notion-notion-fetch
+      args:
+        id: "https://www.notion.so/acme/Q3-Launch-Retro-abc123"
+  output:
+    expectedResult: allow
+- description: Default-scope native search with no args at all. Policy should allow
+    (missing args is the native default scope, not an external branch).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: notion-notion-search
+      uri: null
+    payload:
+      name: notion-notion-search
+  output:
+    expectedResult: allow
+- description: Native workspace search with query_type internal and a teamspace filter.
+    Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: notion-notion-search
+      uri: null
+    payload:
+      name: notion-notion-search
+      args:
+        query: Q3 launch retro
+        query_type: internal
+        filters:
+          teamspace_id: ts_1234567890
+  output:
+    expectedResult: allow
+- description: Native people search with query_type user. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: notion-notion-search
+      uri: null
+    payload:
+      name: notion-notion-search
+      args:
+        query: denis
+        query_type: user
+  output:
+    expectedResult: allow
+- description: Search text merely mentions "jira" — query content is never inspected,
+    only query_type/filters scope. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: notion-notion-search
+      uri: null
+    payload:
+      name: notion-notion-search
+      args:
+        query: notes about the jira migration
+        query_type: internal
+  output:
+    expectedResult: allow
+- description: Legacy official local server tool name (plain `search` behind a
+    `notion-mcp` server prefix) with native default scope. Suffix match catches it
+    and the policy allows.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: notion-mcp-search
+      uri: null
+    payload:
+      name: notion-mcp-search
+      args:
+        query: onboarding checklist
+  output:
+    expectedResult: allow
+- description: query_type names a connected source (slack) — not a recognized native
+    scope. Policy should deny with the query_type reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: notion-notion-search
+      uri: null
+    payload:
+      name: notion-notion-search
+      args:
+        query: quarterly numbers thread
+        query_type: slack
+  output:
+    expectedResult: deny
+    expectedReason: This Notion search sets query_type to a value that is not a recognized native Notion scope, so it may reach connected Slack, Google Drive, or Jira content. Use the default workspace search, or query those systems through their own governed MCP connectors. Contact your InfoSec team if this was a false positive.
+- description: query_type is not a string (unrecognized shape). Fail closed on the
+    external-scope branch — deny with the query_type reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: notion-notion-search
+      uri: null
+    payload:
+      name: notion-notion-search
+      args:
+        query: launch docs
+        query_type:
+          - internal
+  output:
+    expectedResult: deny
+    expectedReason: This Notion search sets query_type to a value that is not a recognized native Notion scope, so it may reach connected Slack, Google Drive, or Jira content. Use the default workspace search, or query those systems through their own governed MCP connectors. Contact your InfoSec team if this was a false positive.
+- description: filters value scopes the search to google_drive. Policy should deny
+    with the connected-source filters reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: notion-notion-search
+      uri: null
+    payload:
+      name: notion-notion-search
+      args:
+        query: customer contract
+        filters:
+          source: google_drive
+  output:
+    expectedResult: deny
+    expectedReason: This Notion search is filtered to a connected external source (Slack, Google Drive, or Jira). Search that system through its own governed MCP connector instead. Contact your InfoSec team if this was a false positive.
+- description: filters key names a connected source (slack) with nested config.
+    Key-walk branch — deny with the connected-source filters reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: notion-notion-search
+      uri: null
+    payload:
+      name: notion-notion-search
+      args:
+        query: incident retro
+        filters:
+          slack:
+            channels:
+              - C0123456789
+  output:
+    expectedResult: deny
+    expectedReason: This Notion search is filtered to a connected external source (Slack, Google Drive, or Jira). Search that system through its own governed MCP connector instead. Contact your InfoSec team if this was a false positive.
+- description: Connected source buried in a nested array value (sources list including
+    jira). Recursive walk catches it — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: notion-notion-search
+      uri: null
+    payload:
+      name: notion-notion-search
+      args:
+        query: open bugs
+        filters:
+          scope:
+            sources:
+              - jira
+  output:
+    expectedResult: deny
+    expectedReason: This Notion search is filtered to a connected external source (Slack, Google Drive, or Jira). Search that system through its own governed MCP connector instead. Contact your InfoSec team if this was a false positive.
+- description: Case and separator variant ("Google-Drive") canonicalizes to
+    google_drive. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: notion-notion-search
+      uri: null
+    payload:
+      name: notion-notion-search
+      args:
+        query: shared folders
+        filters:
+          source: Google-Drive
+  output:
+    expectedResult: deny
+    expectedReason: This Notion search is filtered to a connected external source (Slack, Google Drive, or Jira). Search that system through its own governed MCP connector instead. Contact your InfoSec team if this was a false positive.
+- description: Generic connected-scope word in filters (scope set to "connected").
+    Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: notion-notion-search
+      uri: null
+    payload:
+      name: notion-notion-search
+      args:
+        query: everything about acme
+        filters:
+          scope: connected
+  output:
+    expectedResult: deny
+    expectedReason: This Notion search is filtered to a connected external source (Slack, Google Drive, or Jira). Search that system through its own governed MCP connector instead. Contact your InfoSec team if this was a false positive.
+- description: filters is a scalar string the policy cannot inspect (not an external
+    token). Unrecognized-shape branch fails closed — deny with the shape reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: notion-notion-search
+      uri: null
+    payload:
+      name: notion-notion-search
+      args:
+        query: roadmap
+        filters: everything
+  output:
+    expectedResult: deny
+    expectedReason: This Notion search uses a filters shape this policy cannot verify as native Notion scope. Re-run the search without filters or with native filters (for example teamspace filters). Contact your InfoSec team if this was a false positive.
+- description: filters is a scalar string that IS an external token (slack) — both
+    the connected-source and unrecognized-shape reasons fire, joined and sorted.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: notion-notion-search
+      uri: null
+    payload:
+      name: notion-notion-search
+      args:
+        query: quarterly numbers thread
+        filters: slack
+  output:
+    expectedResult: deny
+    expectedReason: This Notion search is filtered to a connected external source (Slack, Google Drive, or Jira). Search that system through its own governed MCP connector instead. Contact your InfoSec team if this was a false positive.; This Notion search uses a filters shape this policy cannot verify as native Notion scope. Re-run the search without filters or with native filters (for example teamspace filters). Contact your InfoSec team if this was a false positive.
+- description: Red-team — external token padded with surrounding whitespace (" slack ").
+    canonical() trims first, so padding cannot dodge token equality. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: notion-notion-search
+      uri: null
+    payload:
+      name: notion-notion-search
+      args:
+        query: q3 thread
+        filters:
+          source: " slack "
+  output:
+    expectedResult: deny
+    expectedReason: This Notion search is filtered to a connected external source (Slack, Google Drive, or Jira). Search that system through its own governed MCP connector instead. Contact your InfoSec team if this was a false positive.
+- description: Red-team — external token with a leading newline ("\ngoogle drive").
+    trim_space strips the newline, interior space maps to underscore -> google_drive. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: notion-notion-search
+      uri: null
+    payload:
+      name: notion-notion-search
+      args:
+        query: shared folders
+        filters:
+          source: "\ngoogle drive"
+  output:
+    expectedResult: deny
+    expectedReason: This Notion search is filtered to a connected external source (Slack, Google Drive, or Jira). Search that system through its own governed MCP connector instead. Contact your InfoSec team if this was a false positive.
+- description: Red-team residual (documented) — legacy local bare `search` joined to
+    its server prefix with a dot (`notion.search`) does NOT end in `-search`, so it is
+    treated as a non-search tool and allowed even with a connected-source filter. Confirms
+    the "bare search only caught when hyphen-joined" Known limitation. Does not affect the
+    hosted server (`notion-search`).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: notion.search
+      uri: null
+    payload:
+      name: notion.search
+      args:
+        query: customer contract
+        filters:
+          source: slack
+  output:
+    expectedResult: allow

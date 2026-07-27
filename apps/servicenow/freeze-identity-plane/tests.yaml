@@ -1,0 +1,547 @@
+- description: Directory read (list_users) passes through — reads stay open for
+    recon-free operation, no identity required.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-list_users
+      uri: null
+    payload:
+      name: servicenow-list_users
+      args:
+        limit: 20
+  output:
+    expectedResult: allow
+- description: get_user read passes through — read-side identity exposure is the
+    fence/redaction companions' job, not this policy's.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-get_user
+      uri: null
+    payload:
+      name: servicenow-get_user
+      args:
+        user_id: u-1
+  output:
+    expectedResult: allow
+- description: list_groups read passes through — not an identity mutation.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-list_groups
+      uri: null
+    payload:
+      name: servicenow-list_groups
+      args: {}
+  output:
+    expectedResult: allow
+- description: Unrelated write tool (create_incident) passes through — this policy
+    only freezes the identity plane.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-create_incident
+      uri: null
+    payload:
+      name: servicenow-create_incident
+      args:
+        short_description: printer down
+  output:
+    expectedResult: allow
+- description: add_group_members with no subject at all — identity reads fail closed,
+    mutation is denied (the core privilege-escalation primitive).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-add_group_members
+      uri: null
+    payload:
+      name: servicenow-add_group_members
+      args:
+        group: admins
+        members:
+          - agent-user
+  output:
+    expectedResult: deny
+    expectedReason: "ServiceNow identity and group changes are frozen on the agent path — group membership drives ServiceNow ACLs, so user and group mutations are privilege-escalation primitives. Make these changes in the ServiceNow UI, or ask your identity admin to add you to the 'identity-admins' IdP group if your role requires making them through the gateway. Contact your InfoSec team if this looks like a false positive."
+- description: add_group_members by a caller whose groups claim lacks identity-admins
+    — denied (self-granted admin reach blocked).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-add_group_members
+      uri: null
+    subject:
+      sub: auth0|agent-user
+      claims:
+        groups:
+          - service_desk
+    payload:
+      name: servicenow-add_group_members
+      args:
+        group: admins
+        members:
+          - agent-user
+  output:
+    expectedResult: deny
+    expectedReason: "ServiceNow identity and group changes are frozen on the agent path — group membership drives ServiceNow ACLs, so user and group mutations are privilege-escalation primitives. Make these changes in the ServiceNow UI, or ask your identity admin to add you to the 'identity-admins' IdP group if your role requires making them through the gateway. Contact your InfoSec team if this looks like a false positive."
+- description: add_group_members by an identity-admins member — the admin exemption
+    fires and the call is allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-add_group_members
+      uri: null
+    subject:
+      sub: auth0|iam-operator
+      claims:
+        groups:
+          - service_desk
+          - identity-admins
+    payload:
+      name: servicenow-add_group_members
+      args:
+        group: admins
+        members:
+          - real-hire
+  output:
+    expectedResult: allow
+- description: create_user by a non-admin — user provisioning is frozen.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-create_user
+      uri: null
+    subject:
+      sub: auth0|agent-user
+      claims:
+        groups:
+          - service_desk
+    payload:
+      name: servicenow-create_user
+      args:
+        user_name: shadow.admin
+  output:
+    expectedResult: deny
+    expectedReason: "ServiceNow identity and group changes are frozen on the agent path — group membership drives ServiceNow ACLs, so user and group mutations are privilege-escalation primitives. Make these changes in the ServiceNow UI, or ask your identity admin to add you to the 'identity-admins' IdP group if your role requires making them through the gateway. Contact your InfoSec team if this looks like a false positive."
+- description: update_user with an empty groups claim — denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-update_user
+      uri: null
+    subject:
+      sub: auth0|agent-user
+      claims:
+        groups: []
+    payload:
+      name: servicenow-update_user
+      args:
+        user_id: u-1
+        active: true
+  output:
+    expectedResult: deny
+    expectedReason: "ServiceNow identity and group changes are frozen on the agent path — group membership drives ServiceNow ACLs, so user and group mutations are privilege-escalation primitives. Make these changes in the ServiceNow UI, or ask your identity admin to add you to the 'identity-admins' IdP group if your role requires making them through the gateway. Contact your InfoSec team if this looks like a false positive."
+- description: create_group with claims present but no groups key — object.get
+    default yields an empty list, mutation is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-create_group
+      uri: null
+    subject:
+      sub: auth0|agent-user
+      claims:
+        org_id: org_123
+    payload:
+      name: servicenow-create_group
+      args:
+        name: shadow-group
+  output:
+    expectedResult: deny
+    expectedReason: "ServiceNow identity and group changes are frozen on the agent path — group membership drives ServiceNow ACLs, so user and group mutations are privilege-escalation primitives. Make these changes in the ServiceNow UI, or ask your identity admin to add you to the 'identity-admins' IdP group if your role requires making them through the gateway. Contact your InfoSec team if this looks like a false positive."
+- description: update_group by an identity-admins member — the exemption covers group
+    property changes as well.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-update_group
+      uri: null
+    subject:
+      sub: auth0|iam-operator
+      claims:
+        groups:
+          - identity-admins
+    payload:
+      name: servicenow-update_group
+      args:
+        group_id: g-1
+        description: renamed
+  output:
+    expectedResult: allow
+- description: remove_group_members with a groups claim that is a string, not an
+    array — non-array claim shapes fail closed and the mutation is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-remove_group_members
+      uri: null
+    subject:
+      sub: auth0|agent-user
+      claims:
+        groups: identity-admins
+    payload:
+      name: servicenow-remove_group_members
+      args:
+        group: admins
+        members:
+          - victim
+  output:
+    expectedResult: deny
+    expectedReason: "ServiceNow identity and group changes are frozen on the agent path — group membership drives ServiceNow ACLs, so user and group mutations are privilege-escalation primitives. Make these changes in the ServiceNow UI, or ask your identity admin to add you to the 'identity-admins' IdP group if your role requires making them through the gateway. Contact your InfoSec team if this looks like a false positive."
+- description: create_group with a case-mismatched group name (Identity-Admins) —
+    group comparison is exact and case-sensitive, so the caller is not exempt.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-create_group
+      uri: null
+    subject:
+      sub: auth0|agent-user
+      claims:
+        groups:
+          - Identity-Admins
+    payload:
+      name: servicenow-create_group
+      args:
+        name: another-group
+  output:
+    expectedResult: deny
+    expectedReason: "ServiceNow identity and group changes are frozen on the agent path — group membership drives ServiceNow ACLs, so user and group mutations are privilege-escalation primitives. Make these changes in the ServiceNow UI, or ask your identity admin to add you to the 'identity-admins' IdP group if your role requires making them through the gateway. Contact your InfoSec team if this looks like a false positive."
+- description: Uppercase tool name (SERVICENOW-Create_User) still matches — tool
+    matching is case-insensitive.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: SERVICENOW-Create_User
+      uri: null
+    payload:
+      name: SERVICENOW-Create_User
+      args:
+        user_name: x
+  output:
+    expectedResult: deny
+    expectedReason: "ServiceNow identity and group changes are frozen on the agent path — group membership drives ServiceNow ACLs, so user and group mutations are privilege-escalation primitives. Make these changes in the ServiceNow UI, or ask your identity admin to add you to the 'identity-admins' IdP group if your role requires making them through the gateway. Contact your InfoSec team if this looks like a false positive."
+- description: "Red-team (portability): bare unprefixed tool name (create_user, no
+    gateway server-name prefix) — each suffix is the trailing token itself, so
+    endswith matches the bare name and the mutation is denied."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: create_user
+      uri: null
+    subject:
+      sub: auth0|agent-user
+      claims:
+        groups:
+          - service_desk
+    payload:
+      name: create_user
+      args:
+        user_name: shadow
+  output:
+    expectedResult: deny
+    expectedReason: "ServiceNow identity and group changes are frozen on the agent path — group membership drives ServiceNow ACLs, so user and group mutations are privilege-escalation primitives. Make these changes in the ServiceNow UI, or ask your identity admin to add you to the 'identity-admins' IdP group if your role requires making them through the gateway. Contact your InfoSec team if this looks like a false positive."
+- description: "Red-team (portability): a dot-separated prefix (instance.add_group_members)
+    still ends with the suffix and is denied — any separator works because the suffix
+    is the trailing token."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: instance.add_group_members
+      uri: null
+    subject:
+      sub: auth0|agent-user
+      claims:
+        groups:
+          - service_desk
+    payload:
+      name: instance.add_group_members
+      args:
+        group: admins
+        members:
+          - agent-user
+  output:
+    expectedResult: deny
+    expectedReason: "ServiceNow identity and group changes are frozen on the agent path — group membership drives ServiceNow ACLs, so user and group mutations are privilege-escalation primitives. Make these changes in the ServiceNow UI, or ask your identity admin to add you to the 'identity-admins' IdP group if your role requires making them through the gateway. Contact your InfoSec team if this looks like a false positive."
+- description: "Red-team (robustness): subject explicitly null — object.get chain
+    yields an empty group list, caller is not exempt, mutation denied (fail closed)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-add_group_members
+      uri: null
+    subject: null
+    payload:
+      name: servicenow-add_group_members
+      args:
+        group: admins
+        members:
+          - agent-user
+  output:
+    expectedResult: deny
+    expectedReason: "ServiceNow identity and group changes are frozen on the agent path — group membership drives ServiceNow ACLs, so user and group mutations are privilege-escalation primitives. Make these changes in the ServiceNow UI, or ask your identity admin to add you to the 'identity-admins' IdP group if your role requires making them through the gateway. Contact your InfoSec team if this looks like a false positive."
+- description: "Red-team (fixed): object-shaped groups claim whose VALUE is
+    identity-admins ({\"role\":\"identity-admins\"}) would fail OPEN if `some group in
+    caller_groups` iterated object values — is_array guard makes the non-array shape
+    fail closed and the mutation is denied."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-update_group
+      uri: null
+    subject:
+      sub: auth0|agent-user
+      claims:
+        groups:
+          role: identity-admins
+    payload:
+      name: servicenow-update_group
+      args:
+        group_id: g-1
+        description: renamed
+  output:
+    expectedResult: deny
+    expectedReason: "ServiceNow identity and group changes are frozen on the agent path — group membership drives ServiceNow ACLs, so user and group mutations are privilege-escalation primitives. Make these changes in the ServiceNow UI, or ask your identity admin to add you to the 'identity-admins' IdP group if your role requires making them through the gateway. Contact your InfoSec team if this looks like a false positive."
+- description: "Red-team (fixed): trailing-newline tool name (servicenow-create_user\\n)
+    would defeat the endswith suffix match — now trim_space'd before matching, so it is
+    denied."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "servicenow-create_user\n"
+      uri: null
+    subject:
+      sub: auth0|agent-user
+      claims:
+        groups:
+          - service_desk
+    payload:
+      name: "servicenow-create_user\n"
+      args:
+        user_name: shadow
+  output:
+    expectedResult: deny
+    expectedReason: "ServiceNow identity and group changes are frozen on the agent path — group membership drives ServiceNow ACLs, so user and group mutations are privilege-escalation primitives. Make these changes in the ServiceNow UI, or ask your identity admin to add you to the 'identity-admins' IdP group if your role requires making them through the gateway. Contact your InfoSec team if this looks like a false positive."
+- description: "Red-team (fixed): trailing-space tool name still matches after
+    trim_space and is denied."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "servicenow-remove_group_members "
+      uri: null
+    payload:
+      name: "servicenow-remove_group_members "
+      args:
+        group: admins
+        members:
+          - victim
+  output:
+    expectedResult: deny
+    expectedReason: "ServiceNow identity and group changes are frozen on the agent path — group membership drives ServiceNow ACLs, so user and group mutations are privilege-escalation primitives. Make these changes in the ServiceNow UI, or ask your identity admin to add you to the 'identity-admins' IdP group if your role requires making them through the gateway. Contact your InfoSec team if this looks like a false positive."
+- description: "Red-team (claim-spoofing, confirmed safe): a lookalike group name
+    (identity-admins-viewers) that merely contains the admin group as a substring does
+    NOT grant the exemption — the match is exact `==`, not substring/prefix, so the
+    mutation is denied."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-add_group_members
+      uri: null
+    subject:
+      sub: auth0|agent-user
+      claims:
+        groups:
+          - identity-admins-viewers
+    payload:
+      name: servicenow-add_group_members
+      args:
+        group: admins
+        members:
+          - agent-user
+  output:
+    expectedResult: deny
+    expectedReason: "ServiceNow identity and group changes are frozen on the agent path — group membership drives ServiceNow ACLs, so user and group mutations are privilege-escalation primitives. Make these changes in the ServiceNow UI, or ask your identity admin to add you to the 'identity-admins' IdP group if your role requires making them through the gateway. Contact your InfoSec team if this looks like a false positive."
+- description: "Red-team (documented limitation): a gateway that normalizes snake_case
+    to kebab-case (create-user) produces no suffix match and passes through — documented
+    normalization assumption, not the DTwo gateway's behavior (it forwards names verbatim)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-create-user
+      uri: null
+    subject:
+      sub: auth0|agent-user
+      claims:
+        groups:
+          - service_desk
+    payload:
+      name: servicenow-create-user
+      args:
+        user_name: shadow
+  output:
+    expectedResult: allow
+- description: "Red-team (documented limitation): a gateway/SDK that auto-camelCases
+    tool names (addGroupMembers) collapses the snake_case separator, so lower() yields
+    'addgroupmembers' which ends with no suffix and passes through — documented
+    separator-collapse assumption, not the DTwo gateway's behavior (it forwards names
+    verbatim in snake_case)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-addGroupMembers
+      uri: null
+    subject:
+      sub: auth0|agent-user
+      claims:
+        groups:
+          - service_desk
+    payload:
+      name: servicenow-addGroupMembers
+      args:
+        group: admins
+        members:
+          - agent-user
+  output:
+    expectedResult: allow
+- description: "Red-team (documented limitation): michaelbuckner's generic
+    natural_language_update reaches sys_user without matching any identity-mutation
+    suffix — passes through; deploy a PF-22 escape-hatch deny and PF-28 allowlist
+    alongside this policy."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-natural_language_update
+      uri: null
+    subject:
+      sub: auth0|agent-user
+      claims:
+        groups:
+          - service_desk
+    payload:
+      name: servicenow-natural_language_update
+      args:
+        query: set the admin flag on user agent-user in sys_user
+  output:
+    expectedResult: allow
+- description: "Red-team (documented limitation): a noun_verb server vocabulary
+    (LokiMCPUniverse-style servicenow-user_create) ends with none of the verb_noun
+    suffixes, so the identity mutation passes through — documented reordered-token
+    divergence; add the noun_verb forms per tenant or rely on the PF-28 allowlist."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-user_create
+      uri: null
+    subject:
+      sub: auth0|agent-user
+      claims:
+        groups:
+          - service_desk
+    payload:
+      name: servicenow-user_create
+      args:
+        user_name: shadow
+  output:
+    expectedResult: allow
+- description: "Red-team (documented limitation): missing/empty tool name matches no
+    suffix and passes through — inherent blocklist semantics; the gateway reliably
+    populates resource.name on tool_pre_invoke."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ""
+      uri: null
+    payload:
+      name: ""
+      args: {}
+  output:
+    expectedResult: allow

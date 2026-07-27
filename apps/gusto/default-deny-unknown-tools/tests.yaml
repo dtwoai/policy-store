@@ -1,0 +1,391 @@
+# Tests for gusto/default-deny-unknown-tools.
+# Covers every branch of the exact-membership allowlist gate:
+#   - allow: exact official names (read + gusto-mid-name + utility), case-insensitive;
+#   - deny (fail closed / drift vectors): community kebab-case name, StackOne-style
+#     hris_* aggregator action, renamed/versioned upstream tool, gateway-prefixed
+#     name missed by the bare starter list (documents the re-pin requirement),
+#     destructive write on a swapped-in server, missing/empty name, non-string name,
+#     Unicode case-fold homoglyph, embedded-newline splice, whitespace padding.
+
+- description: Exact official read (get_payroll) is on the allowlist and is allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: get_payroll
+      uri: null
+    payload:
+      name: get_payroll
+      args:
+        company_uuid: c-123
+        payroll_uuid: p-456
+  output:
+    expectedResult: allow
+
+- description: Exact official name with mid-name "gusto" (list_gusto_companies) is allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: list_gusto_companies
+      uri: null
+    payload:
+      name: list_gusto_companies
+      args: {}
+  output:
+    expectedResult: allow
+
+- description: Utility read (get_token_info) is on the allowlist and is allowed. Also guards the Kelvin-sign homoglyph case below (this name contains a real ASCII "k").
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: get_token_info
+      uri: null
+    payload:
+      name: get_token_info
+      args: {}
+  output:
+    expectedResult: allow
+
+- description: Time-tracking read (list_company_time_sheets) is on the allowlist and is allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: list_company_time_sheets
+      uri: null
+    payload:
+      name: list_company_time_sheets
+      args:
+        company_uuid: c-123
+  output:
+    expectedResult: allow
+
+- description: Matching is case-insensitive (GET_GUSTO_EMPLOYEE) — an allowlisted name in uppercase is allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: GET_GUSTO_EMPLOYEE
+      uri: null
+    payload:
+      name: GET_GUSTO_EMPLOYEE
+      args:
+        employee_uuid: e-789
+  output:
+    expectedResult: allow
+
+- description: Community kebab-case name (Savinda96 get-all-employees) never matches the snake_case official names and is denied — drift vector 1.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: get-all-employees
+      uri: null
+    payload:
+      name: get-all-employees
+      args:
+        terminated: false
+  output:
+    expectedResult: deny
+    expectedReason: "This Gusto tool is not on the audited allowlist, so the gateway denies it by default and surfaces the call as tool drift. The allowlist pins the 36 read-only official Gusto tool names; anything else — StackOne aggregator write actions, community kebab-case tools (get-all-employees, get-payrolls) with their wider bank-account / pay-stub / tax-ID read surface, or a renamed or newly added upstream tool — is denied until it is re-audited. If this tool is legitimate, ask a gateway admin to review it and, once approved, add its exact name (with your server-name prefix) to the allowlist for this Gusto pipeline."
+
+- description: StackOne-style aggregator action (hris_create_employee, unverified naming) is not an official name and is denied — drift vector 2 (also blocks the write surface the official server lacks).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: hris_create_employee
+      uri: null
+    payload:
+      name: hris_create_employee
+      args:
+        first_name: Jane
+  output:
+    expectedResult: deny
+
+- description: Renamed / versioned upstream tool (get_payroll_v2) stops matching an allowlisted name and is denied — drift vector 3.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: get_payroll_v2
+      uri: null
+    payload:
+      name: get_payroll_v2
+      args:
+        payroll_uuid: p-456
+  output:
+    expectedResult: deny
+
+- description: Gateway-prefixed official name (gusto-mcp-get_payroll) is NOT an exact member of the bare starter list and is denied — documents the required re-pin step for prefixed deployments.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gusto-mcp-get_payroll
+      uri: null
+    payload:
+      name: gusto-mcp-get_payroll
+      args:
+        payroll_uuid: p-456
+  output:
+    expectedResult: deny
+
+- description: Destructive write on a swapped-in server (delete_payroll) is not on the read-only official allowlist and is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: delete_payroll
+      uri: null
+    payload:
+      name: delete_payroll
+      args:
+        payroll_uuid: p-456
+  output:
+    expectedResult: deny
+
+- description: Empty tool name matches nothing and is denied (fail closed).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ""
+      uri: null
+    payload:
+      name: ""
+      args: {}
+  output:
+    expectedResult: deny
+
+- description: Non-string tool name (number) is coerced to "" instead of raising a lower() type error — clean, reasoned deny (fail closed).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: 12345
+      uri: null
+    payload:
+      name: 12345
+      args: {}
+  output:
+    expectedResult: deny
+
+- description: >-
+    Unicode case-fold spoof — "get_toKen_info" uses the Kelvin sign U+212A,
+    which lower() folds to ASCII "k" (yielding "get_token_info", a member). The
+    raw ASCII guard (^[A-Za-z0-9._-]+$) runs BEFORE lower() and rejects the
+    non-ASCII code point, so the name is denied. Closes the homoglyph evasion.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "get_toKen_info"
+      uri: null
+    payload:
+      name: "get_toKen_info"
+      args: {}
+  output:
+    expectedResult: deny
+
+- description: >-
+    Red-team regression — an embedded newline splicing a denied name onto an
+    allowlisted one ("delete_payroll\nget_payroll") is denied. The raw ASCII
+    guard regex is NOT multiline in OPA/Go, so $ anchors to end-of-text and the
+    newline breaks the whole-string match; the exact-membership check also never
+    equals a spliced string. Locks the non-multiline anchoring assumption.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "delete_payroll\nget_payroll"
+      uri: null
+    payload:
+      name: "delete_payroll\nget_payroll"
+      args: {}
+  output:
+    expectedResult: deny
+
+- description: >-
+    Red-team regression — whitespace padding around an allowlisted name
+    ("  get_payroll ") fails the raw ASCII character-class guard (space is
+    outside [A-Za-z0-9._-]) and is denied. Locks the guard against
+    whitespace-smuggled names.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "  get_payroll "
+      uri: null
+    payload:
+      name: "  get_payroll "
+      args: {}
+  output:
+    expectedResult: deny
+
+- description: >-
+    Red-team regression — the resource object is absent entirely (no
+    resource.name at all). object.get resolves raw_tool_name to "" and the
+    request fails closed. Directly answers the standards §10 question "does
+    default allow fail closed when args are missing entirely."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    payload:
+      name: get_payroll
+      args:
+        payroll_uuid: p-456
+  output:
+    expectedResult: deny
+
+- description: >-
+    Red-team regression — a malformed/hostile request where resource is a bare
+    string ("get_payroll") instead of an object. object.get over a non-object
+    yields the "" default rather than raising a type error, so the decision is
+    a clean, reasoned deny (fail closed) — not an undefined allow with no
+    surfaced reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource: get_payroll
+    payload:
+      name: get_payroll
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "This Gusto tool is not on the audited allowlist, so the gateway denies it by default and surfaces the call as tool drift. The allowlist pins the 36 read-only official Gusto tool names; anything else — StackOne aggregator write actions, community kebab-case tools (get-all-employees, get-payrolls) with their wider bank-account / pay-stub / tax-ID read surface, or a renamed or newly added upstream tool — is denied until it is re-audited. If this tool is legitimate, ask a gateway admin to review it and, once approved, add its exact name (with your server-name prefix) to the allowlist for this Gusto pipeline."
+
+- description: >-
+    Red-team regression — resource.name is JSON null (a distinct non-string
+    type from the number case above). is_string is false, so tool_name is
+    coerced to "" and the ASCII guard never runs lower() on a non-string;
+    denied with a clean reason (fail closed).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: null
+      uri: null
+    payload:
+      name: null
+      args: {}
+  output:
+    expectedResult: deny
+
+- description: >-
+    Red-team regression — an allowlisted name embedded as a SUBSTRING of a
+    longer name ("xget_payrollx") is denied. Locks the exact-membership
+    guarantee: matching is equality, never substring/contains, so wrapping an
+    approved name in extra characters cannot smuggle it past the gate.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: xget_payrollx
+      uri: null
+    payload:
+      name: xget_payrollx
+      args: {}
+  output:
+    expectedResult: deny
+
+- description: >-
+    Red-team regression — a TRAILING newline on an otherwise-exact allowlisted
+    name ("get_payroll\n") is denied. This is the classic $-vs-\Z regex-anchor
+    bypass shape: in OPA/Go RE2 the un-flagged $ is \z (absolute end of text),
+    not \Z (end-or-before-final-newline), so ^[A-Za-z0-9._-]+$ does NOT match a
+    string with a trailing newline; even if it did, exact membership
+    ("get_payroll\n" != "get_payroll") still fails. Double-locked deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "get_payroll\n"
+      uri: null
+    payload:
+      name: "get_payroll\n"
+      args: {}
+  output:
+    expectedResult: deny
+
+- description: >-
+    Red-team regression — a very long tool name (an allowlisted name padded with
+    hundreds of trailing characters) is denied. Length does not change the
+    outcome: the raw ASCII guard and the exact-membership check evaluate the
+    whole string, so no amount of padding around an approved name matches a
+    member. Answers the standards §10 "very long strings" regex-edge vector.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: get_payroll_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      uri: null
+    payload:
+      name: get_payroll_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      args: {}
+  output:
+    expectedResult: deny
+
+- description: >-
+    Red-team regression — resource.name is a JSON array (a non-string type
+    distinct from the number/null cases above). is_string is false, so tool_name
+    is coerced to "" and the ASCII guard never hands lower() a non-string;
+    denied with a clean reason (fail closed).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name:
+        - get_payroll
+      uri: null
+    payload:
+      name:
+        - get_payroll
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "This Gusto tool is not on the audited allowlist, so the gateway denies it by default and surfaces the call as tool drift. The allowlist pins the 36 read-only official Gusto tool names; anything else — StackOne aggregator write actions, community kebab-case tools (get-all-employees, get-payrolls) with their wider bank-account / pay-stub / tax-ID read surface, or a renamed or newly added upstream tool — is denied until it is re-audited. If this tool is legitimate, ask a gateway admin to review it and, once approved, add its exact name (with your server-name prefix) to the allowlist for this Gusto pipeline."

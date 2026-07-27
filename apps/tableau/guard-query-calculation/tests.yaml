@@ -1,0 +1,532 @@
+# Tests for tableau/guard-query-calculation (PF-07, ingress).
+# Covers every rule branch: non-guarded tool passthrough, analyst exemption,
+# calculation-free query pass, fail-safe on missing/empty query, and the
+# calculation deny for non-analysts (fields[] direct, filters[] nested,
+# filters[] direct) — plus red-team cases (no claims at all fails closed,
+# non-object array element, calculation confined but analyst still exempt).
+#
+# Red-team gate (standards §10) additions:
+#   - TOP-N filter `fieldToMeasure` calc (non-analyst) MUST deny — this position
+#     was a confirmed bypass before the recursive-walk fix (VDS topNFilterSchema:
+#     fieldToMeasure is a FilterField union that admits {calculation}).
+#   - Same fieldToMeasure calc by a data-analysts caller MUST still allow.
+#   - Bare tool name `query-datasource` (no gateway prefix) is ALLOWED —
+#     documents the suffix-match portability fail-open (see Known limitations).
+#   - Stringified `query` (JSON passed as a string, not an object) is ALLOWED —
+#     walk sees an opaque scalar, so the guard does not fire; documents the
+#     structured-query fail-open backstopped by the server's VDS object schema.
+#   - Mis-cased `Calculation` key (casing/lookalike-key trick) is ALLOWED — JSON
+#     keys are case-sensitive so walk misses it; documents the case-sensitive-key
+#     fail-open (server VDS schema rejects the mis-cased field as the backstop).
+#   - `groups` sent as a bare string (claim-spoof) with a calc MUST deny — the
+#     is_array guard makes a non-array groups claim fail closed (not exempt).
+#   - A column literally NAMED "calculation" (a fieldCaption VALUE, not a
+#     `calculation:` key) is ALLOWED — walk keys on the structural key name.
+
+# --- Passthrough: non-guarded Tableau tool -----------------------------------
+- description: list-datasources is not the VDS query tool. Policy should allow regardless of args.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: tableau-mcp-list-datasources
+      uri: null
+    payload:
+      name: tableau-mcp-list-datasources
+      args: {}
+  output:
+    expectedResult: allow
+
+- description: get-view-data is not the VDS query tool even though it returns row data. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: tableau-mcp-get-view-data
+      uri: null
+    payload:
+      name: tableau-mcp-get-view-data
+      args:
+        viewId: v-987
+  output:
+    expectedResult: allow
+
+# --- Calculation-free query passes for a non-analyst -------------------------
+- description: fieldCaption-only fields and a standard SET filter, non-analyst caller. No calculation. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: tableau-mcp-query-datasource
+      uri: null
+    subject:
+      sub: "google-apps|mkt@dtwo.ai"
+      claims:
+        groups:
+          - marketing
+    payload:
+      name: tableau-mcp-query-datasource
+      args:
+        datasourceLuid: abc-123
+        query:
+          fields:
+            - fieldCaption: Region
+            - fieldCaption: Sales
+          filters:
+            - field:
+                fieldCaption: Region
+              filterType: SET
+              values:
+                - West
+  output:
+    expectedResult: allow
+
+# --- Fail-safe: missing / empty query object ---------------------------------
+- description: query-datasource with no query object, non-analyst. Fail safe — no calculation to detect. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: tableau-mcp-query-datasource
+      uri: null
+    subject:
+      sub: "google-apps|mkt@dtwo.ai"
+      claims:
+        groups:
+          - marketing
+    payload:
+      name: tableau-mcp-query-datasource
+      args:
+        datasourceLuid: abc-123
+  output:
+    expectedResult: allow
+
+- description: query-datasource with an empty query object and empty arrays, non-analyst. Fail safe. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: tableau-mcp-query-datasource
+      uri: null
+    subject:
+      sub: "google-apps|mkt@dtwo.ai"
+      claims:
+        groups:
+          - marketing
+    payload:
+      name: tableau-mcp-query-datasource
+      args:
+        datasourceLuid: abc-123
+        query:
+          fields: []
+          filters: []
+  output:
+    expectedResult: allow
+
+# --- Denies: calculation present, non-analyst caller -------------------------
+- description: Calculation directly in fields[], non-analyst caller. Policy should deny with the calculation reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: tableau-mcp-query-datasource
+      uri: null
+    subject:
+      sub: "google-apps|mkt@dtwo.ai"
+      claims:
+        groups:
+          - marketing
+    payload:
+      name: tableau-mcp-query-datasource
+      args:
+        datasourceLuid: abc-123
+        query:
+          fields:
+            - fieldCaption: Region
+            - calculation: "SUM([Salary]) / SUM([Headcount])"
+              fieldAlias: avg_salary
+  output:
+    expectedResult: deny
+    expectedReason: "This Tableau VizQL Data Service query includes a calculation field, which accepts an arbitrary Tableau calc expression that can reference any column in the datasource and bypasses column-level (fieldCaption) allowlisting. Arbitrary calculations are restricted to the data-analysts group on the agent MCP path. Re-issue the query using only fieldCaption fields and standard filters, or ask a member of the data-analysts group to run it. If you need calculation access, contact your data platform team."
+
+- description: Calculation nested under a filter's field sub-object, non-analyst caller. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: tableau-mcp-query-datasource
+      uri: null
+    subject:
+      sub: "google-apps|mkt@dtwo.ai"
+      claims:
+        groups:
+          - marketing
+    payload:
+      name: tableau-mcp-query-datasource
+      args:
+        datasourceLuid: abc-123
+        query:
+          fields:
+            - fieldCaption: Region
+          filters:
+            - field:
+                calculation: "IF [Salary] > 200000 THEN 1 ELSE 0 END"
+              filterType: QUANTITATIVE
+              min: 1
+  output:
+    expectedResult: deny
+    expectedReason: "This Tableau VizQL Data Service query includes a calculation field, which accepts an arbitrary Tableau calc expression that can reference any column in the datasource and bypasses column-level (fieldCaption) allowlisting. Arbitrary calculations are restricted to the data-analysts group on the agent MCP path. Re-issue the query using only fieldCaption fields and standard filters, or ask a member of the data-analysts group to run it. If you need calculation access, contact your data platform team."
+
+- description: Calculation directly on a filters[] entry (not nested), non-analyst caller. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: tableau-mcp-query-datasource
+      uri: null
+    subject:
+      sub: "google-apps|mkt@dtwo.ai"
+      claims:
+        groups:
+          - marketing
+    payload:
+      name: tableau-mcp-query-datasource
+      args:
+        datasourceLuid: abc-123
+        query:
+          filters:
+            - calculation: "[Salary] > 200000"
+              filterType: QUANTITATIVE
+  output:
+    expectedResult: deny
+
+# --- Red-team: exemption fails closed when no groups claim -------------------
+- description: Calculation query with no subject claims at all. Exemption fails closed. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: tableau-mcp-query-datasource
+      uri: null
+    payload:
+      name: tableau-mcp-query-datasource
+      args:
+        datasourceLuid: abc-123
+        query:
+          fields:
+            - calculation: "SUM([Amount])"
+  output:
+    expectedResult: deny
+
+# --- Red-team: non-object array element carries no calculation ---------------
+- description: fields[] contains a non-object element and no calculation, non-analyst. walk treats the bare string as a scalar leaf with no calculation key. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: tableau-mcp-query-datasource
+      uri: null
+    subject:
+      sub: "google-apps|mkt@dtwo.ai"
+      claims:
+        groups:
+          - marketing
+    payload:
+      name: tableau-mcp-query-datasource
+      args:
+        datasourceLuid: abc-123
+        query:
+          fields:
+            - Region
+            - fieldCaption: Sales
+  output:
+    expectedResult: allow
+
+# --- Red-team: calculation smuggled into a TOP-N filter's fieldToMeasure ------
+- description: >-
+    Calculation hidden in a TOP-N filter's fieldToMeasure sub-object, non-analyst
+    caller. This position (distinct from field) was a confirmed bypass before the
+    recursive-walk fix. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: tableau-mcp-query-datasource
+      uri: null
+    subject:
+      sub: "google-apps|mkt@dtwo.ai"
+      claims:
+        groups:
+          - marketing
+    payload:
+      name: tableau-mcp-query-datasource
+      args:
+        datasourceLuid: abc-123
+        query:
+          fields:
+            - fieldCaption: State
+          filters:
+            - field:
+                fieldCaption: State
+              filterType: TOP
+              howMany: 10
+              fieldToMeasure:
+                calculation: "SUM([Salary]) / SUM([Headcount])"
+              direction: TOP
+  output:
+    expectedResult: deny
+    expectedReason: "This Tableau VizQL Data Service query includes a calculation field, which accepts an arbitrary Tableau calc expression that can reference any column in the datasource and bypasses column-level (fieldCaption) allowlisting. Arbitrary calculations are restricted to the data-analysts group on the agent MCP path. Re-issue the query using only fieldCaption fields and standard filters, or ask a member of the data-analysts group to run it. If you need calculation access, contact your data platform team."
+
+- description: >-
+    Same TOP-N fieldToMeasure calculation by a data-analysts caller. Exempt —
+    policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: tableau-mcp-query-datasource
+      uri: null
+    subject:
+      sub: "google-apps|analyst@dtwo.ai"
+      claims:
+        groups:
+          - data-analysts
+    payload:
+      name: tableau-mcp-query-datasource
+      args:
+        datasourceLuid: abc-123
+        query:
+          filters:
+            - field:
+                fieldCaption: State
+              filterType: TOP
+              howMany: 10
+              fieldToMeasure:
+                calculation: "SUM([Salary]) / SUM([Headcount])"
+              direction: TOP
+  output:
+    expectedResult: allow
+
+# --- Red-team: bare tool name (no gateway prefix) fails open (documented) -----
+- description: >-
+    Bare tool name `query-datasource` with no gateway server prefix carrying a
+    calculation, non-analyst. The suffix match requires a leading hyphen, so this
+    does NOT match and passes unguarded — documents the portability fail-open in
+    Known limitations. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: query-datasource
+      uri: null
+    subject:
+      sub: "google-apps|mkt@dtwo.ai"
+      claims:
+        groups:
+          - marketing
+    payload:
+      name: query-datasource
+      args:
+        datasourceLuid: abc-123
+        query:
+          fields:
+            - calculation: "SUM([Salary])"
+  output:
+    expectedResult: allow
+
+# --- Red-team: stringified query blob fails open (documented) ----------------
+- description: >-
+    Query passed as a stringified JSON blob rather than an object, carrying a
+    calculation, non-analyst. walk sees an opaque scalar with no `calculation`
+    key, so the guard does not fire and the call passes unguarded — documents the
+    structured-query fail-open (the server's VDS object schema rejects a
+    string-typed query as the backstop). Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: tableau-mcp-query-datasource
+      uri: null
+    subject:
+      sub: "google-apps|mkt@dtwo.ai"
+      claims:
+        groups:
+          - marketing
+    payload:
+      name: tableau-mcp-query-datasource
+      args:
+        datasourceLuid: abc-123
+        query: '{"fields":[{"calculation":"SUM([Salary])"}]}'
+  output:
+    expectedResult: allow
+
+# --- Analyst exemption -------------------------------------------------------
+- description: Calculation in fields[] by a caller whose groups claim includes data-analysts. Exempt — policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: tableau-mcp-query-datasource
+      uri: null
+    subject:
+      sub: "google-apps|analyst@dtwo.ai"
+      claims:
+        groups:
+          - data-analysts
+    payload:
+      name: tableau-mcp-query-datasource
+      args:
+        datasourceLuid: abc-123
+        query:
+          fields:
+            - calculation: "SUM([Salary]) / SUM([Headcount])"
+              fieldAlias: avg_salary
+  output:
+    expectedResult: allow
+
+- description: Calculation nested in a filter by a data-analysts caller. Exempt — policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: tableau-mcp-query-datasource
+      uri: null
+    subject:
+      sub: "google-apps|analyst@dtwo.ai"
+      claims:
+        groups:
+          - data-analysts
+    payload:
+      name: tableau-mcp-query-datasource
+      args:
+        datasourceLuid: abc-123
+        query:
+          filters:
+            - field:
+                calculation: "[Salary] > 200000"
+              filterType: QUANTITATIVE
+              min: 1
+  output:
+    expectedResult: allow
+
+# --- Red-team: mis-cased calculation key (casing/lookalike trick) fails open ---
+- description: >-
+    Mis-cased calculation key `Calculation` (capital C), non-analyst. JSON keys
+    are case-sensitive, so walk does not match the lowercase `calculation` key and
+    the guard does not fire — documents the casing/lookalike-key fail-open. The
+    official VDS schema only recognizes lowercase `calculation`, so the server
+    rejects the mis-cased field before it executes (backstop, not a data leak).
+    Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: tableau-mcp-query-datasource
+      uri: null
+    subject:
+      sub: "google-apps|mkt@dtwo.ai"
+      claims:
+        groups:
+          - marketing
+    payload:
+      name: tableau-mcp-query-datasource
+      args:
+        datasourceLuid: abc-123
+        query:
+          fields:
+            - Calculation: "SUM([Salary])"
+              fieldAlias: avg_salary
+  output:
+    expectedResult: allow
+
+# --- Red-team: claim-spoof — groups sent as a bare string fails closed --------
+- description: >-
+    Claim-spoofing attempt: `groups` sent as a bare string "data-analysts" instead
+    of an array, carrying a calculation, non-analyst path. The is_array guard
+    yields no memberships, so is_analyst fails closed and the caller is NOT exempt.
+    Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: tableau-mcp-query-datasource
+      uri: null
+    subject:
+      sub: "google-apps|mkt@dtwo.ai"
+      claims:
+        groups: data-analysts
+    payload:
+      name: tableau-mcp-query-datasource
+      args:
+        datasourceLuid: abc-123
+        query:
+          fields:
+            - calculation: "SUM([Salary])"
+  output:
+    expectedResult: deny
+    expectedReason: "This Tableau VizQL Data Service query includes a calculation field, which accepts an arbitrary Tableau calc expression that can reference any column in the datasource and bypasses column-level (fieldCaption) allowlisting. Arbitrary calculations are restricted to the data-analysts group on the agent MCP path. Re-issue the query using only fieldCaption fields and standard filters, or ask a member of the data-analysts group to run it. If you need calculation access, contact your data platform team."
+
+# --- Red-team: column NAMED "calculation" (value, not key) does not deny ------
+- description: >-
+    A column literally named "calculation" carried as a fieldCaption VALUE (not a
+    `calculation:` key), non-analyst. walk keys on the structural key name, so a
+    value of "calculation" under fieldCaption is not matched and there is no
+    arbitrary-expression surface. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: tableau-mcp-query-datasource
+      uri: null
+    subject:
+      sub: "google-apps|mkt@dtwo.ai"
+      claims:
+        groups:
+          - marketing
+    payload:
+      name: tableau-mcp-query-datasource
+      args:
+        datasourceLuid: abc-123
+        query:
+          fields:
+            - fieldCaption: calculation
+  output:
+    expectedResult: allow

@@ -1,0 +1,458 @@
+- description: Read tool (list-events) is not a create/update write — allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-calendar-mcp-list-events
+      uri: null
+    payload:
+      name: google-calendar-mcp-list-events
+      args:
+        calendarId: primary
+  output:
+    expectedResult: allow
+
+- description: Destructive delete-event ends in -event but not create/update/manage
+    _event — not matched, allow (exposure policy governs writes, not deletes).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-calendar-mcp-delete-event
+      uri: null
+    payload:
+      name: google-calendar-mcp-delete-event
+      args:
+        eventId: abc123
+  output:
+    expectedResult: allow
+
+- description: create-event with private visibility and no delegation flags — allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-calendar-mcp-create-event
+      uri: null
+    payload:
+      name: google-calendar-mcp-create-event
+      args:
+        summary: 1:1 sync
+        start: "2026-07-20T10:00:00Z"
+        end: "2026-07-20T10:30:00Z"
+        visibility: private
+  output:
+    expectedResult: allow
+
+- description: create-event with no args at all — every flag resolves to its safe
+    default, so the call is allowed (omitted flag == safe).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-calendar-mcp-create-event
+      uri: null
+    payload:
+      name: google-calendar-mcp-create-event
+  output:
+    expectedResult: allow
+
+- description: manage_event delete action carries none of the exposure flags — read
+    at safe defaults and allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: workspace-mcp-manage_event
+      uri: null
+    payload:
+      name: workspace-mcp-manage_event
+      args:
+        action: delete
+        eventId: abc123
+  output:
+    expectedResult: allow
+
+- description: create-event with visibility=public — deny (publishes the event).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-calendar-mcp-create-event
+      uri: null
+    payload:
+      name: google-calendar-mcp-create-event
+      args:
+        summary: Project Atlas M&A sync
+        visibility: public
+  output:
+    expectedResult: deny
+    expectedReason: 'This event sets visibility to "public", which publishes its summary, description, attendees, and time to anyone. Set visibility to "private" or "default" before creating or updating the event. Contact your security team if a public event is genuinely required.'
+
+- description: Uppercase PUBLIC visibility — matched case-insensitively, deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-calendar-mcp-create-event
+      uri: null
+    payload:
+      name: google-calendar-mcp-create-event
+      args:
+        summary: Board pre-read
+        visibility: PUBLIC
+  output:
+    expectedResult: deny
+    expectedReason: 'This event sets visibility to "public", which publishes its summary, description, attendees, and time to anyone. Set visibility to "private" or "default" before creating or updating the event. Contact your security team if a public event is genuinely required.'
+
+- description: Google snake-case create_event with guestsCanModify=true — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-calendar-create_event
+      uri: null
+    payload:
+      name: google-calendar-create_event
+      args:
+        summary: Deal team
+        guestsCanModify: true
+  output:
+    expectedResult: deny
+    expectedReason: 'This event sets guestsCanModify to true, granting every guest — including any external attendees — edit rights over the event. Remove guestsCanModify (or set it to false) before creating or updating the event. Contact your security team if delegated edit access is genuinely required.'
+
+- description: guestsCanModify sent as the string "true" (client coercion) — still
+    denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-calendar-mcp-create-event
+      uri: null
+    payload:
+      name: google-calendar-mcp-create-event
+      args:
+        summary: Deal team
+        guestsCanModify: "true"
+  output:
+    expectedResult: deny
+    expectedReason: 'This event sets guestsCanModify to true, granting every guest — including any external attendees — edit rights over the event. Remove guestsCanModify (or set it to false) before creating or updating the event. Contact your security team if delegated edit access is genuinely required.'
+
+- description: update-event with guestsCanInviteOthers=true — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-calendar-mcp-update-event
+      uri: null
+    payload:
+      name: google-calendar-mcp-update-event
+      args:
+        eventId: abc123
+        guestsCanInviteOthers: true
+  output:
+    expectedResult: deny
+    expectedReason: 'This event sets guestsCanInviteOthers to true, letting guests invite others and widen who can see the event. Remove guestsCanInviteOthers (or set it to false) before creating or updating the event. Contact your security team if this is genuinely required.'
+
+- description: manage_event create with anyoneCanAddSelf=true — deny (consolidated
+    tool matched by suffix).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: workspace-mcp-manage_event
+      uri: null
+    payload:
+      name: workspace-mcp-manage_event
+      args:
+        action: create
+        summary: All-hands
+        anyoneCanAddSelf: true
+  output:
+    expectedResult: deny
+    expectedReason: 'This event sets anyoneCanAddSelf to true, letting anyone add themselves as a guest and read the event body. Remove anyoneCanAddSelf (or set it to false) before creating or updating the event. Contact your security team if this is genuinely required.'
+
+- description: Gateway-prefixed kebab name (gcal-mcp-create-event) with public
+    visibility — suffix match still fires, deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gcal-mcp-create-event
+      uri: null
+    payload:
+      name: gcal-mcp-create-event
+      args:
+        summary: Roadmap
+        visibility: public
+  output:
+    expectedResult: deny
+    expectedReason: 'This event sets visibility to "public", which publishes its summary, description, attendees, and time to anyone. Set visibility to "private" or "default" before creating or updating the event. Contact your security team if a public event is genuinely required.'
+
+- description: Two flags at once (public visibility + guestsCanModify) — deny; both
+    reasons are collected and joined.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-calendar-mcp-create-event
+      uri: null
+    payload:
+      name: google-calendar-mcp-create-event
+      args:
+        summary: Leak
+        visibility: public
+        guestsCanModify: true
+  output:
+    expectedResult: deny
+    expectedReason: 'This event sets guestsCanModify to true, granting every guest — including any external attendees — edit rights over the event. Remove guestsCanModify (or set it to false) before creating or updating the event. Contact your security team if delegated edit access is genuinely required.; This event sets visibility to "public", which publishes its summary, description, attendees, and time to anyone. Set visibility to "private" or "default" before creating or updating the event. Contact your security team if a public event is genuinely required.'
+
+# --- Red-team regression cases (standards §10) --------------------------------
+
+- description: 'Red-team (claim check): boolean flag sent as uppercase string "TRUE"
+    — description claims case-insensitive string coercion, so it must still deny.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-calendar-mcp-create-event
+      uri: null
+    payload:
+      name: google-calendar-mcp-create-event
+      args:
+        summary: Deal team
+        guestsCanModify: "TRUE"
+  output:
+    expectedResult: deny
+    expectedReason: 'This event sets guestsCanModify to true, granting every guest — including any external attendees — edit rights over the event. Remove guestsCanModify (or set it to false) before creating or updating the event. Contact your security team if delegated edit access is genuinely required.'
+
+- description: 'Red-team (documented residual, Known limitations "Argument-key
+    assumptions"): a server that renames the flag to snake_case (guests_can_modify)
+    is NOT matched, so the call is allowed. Pins the documented bypass surface —
+    if a real in-scope server ever ships snake_case keys, add them to the flag list.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-calendar-mcp-create-event
+      uri: null
+    payload:
+      name: google-calendar-mcp-create-event
+      args:
+        summary: Deal team
+        guests_can_modify: true
+  output:
+    expectedResult: allow
+
+- description: 'Red-team (fixed): guestsCanModify sent as the number 1 (numeric-boolean
+    client) — treated as on, deny.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-calendar-mcp-create-event
+      uri: null
+    payload:
+      name: google-calendar-mcp-create-event
+      args:
+        summary: Deal team
+        guestsCanModify: 1
+  output:
+    expectedResult: deny
+    expectedReason: 'This event sets guestsCanModify to true, granting every guest — including any external attendees — edit rights over the event. Remove guestsCanModify (or set it to false) before creating or updating the event. Contact your security team if delegated edit access is genuinely required.'
+
+- description: 'Red-team (fixed): visibility padded with whitespace (" public ") —
+    trimmed before comparison, deny.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-calendar-mcp-create-event
+      uri: null
+    payload:
+      name: google-calendar-mcp-create-event
+      args:
+        summary: Board pre-read
+        visibility: " public "
+  output:
+    expectedResult: deny
+    expectedReason: 'This event sets visibility to "public", which publishes its summary, description, attendees, and time to anyone. Set visibility to "private" or "default" before creating or updating the event. Contact your security team if a public event is genuinely required.'
+
+- description: 'Red-team (fixed): string flag padded with whitespace (" TRUE ") —
+    trimmed and lowercased before comparison, deny.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-calendar-mcp-create-event
+      uri: null
+    payload:
+      name: google-calendar-mcp-create-event
+      args:
+        summary: Deal team
+        guestsCanModify: " TRUE "
+  output:
+    expectedResult: deny
+    expectedReason: 'This event sets guestsCanModify to true, granting every guest — including any external attendees — edit rights over the event. Remove guestsCanModify (or set it to false) before creating or updating the event. Contact your security team if delegated edit access is genuinely required.'
+
+- description: 'Red-team (fixed): resource.name absent but legacy payload.name says
+    create-event with public visibility — either name field matching triggers
+    inspection, deny.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    payload:
+      name: google-calendar-mcp-create-event
+      args:
+        summary: Roadmap
+        visibility: public
+  output:
+    expectedResult: deny
+    expectedReason: 'This event sets visibility to "public", which publishes its summary, description, attendees, and time to anyone. Set visibility to "private" or "default" before creating or updating the event. Contact your security team if a public event is genuinely required.'
+
+- description: 'Red-team (fixed): resource.name spoofed to a benign read tool while
+    payload.name carries the write — either name field matching triggers
+    inspection, deny.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-calendar-mcp-list-events
+      uri: null
+    payload:
+      name: google-calendar-mcp-create-event
+      args:
+        summary: Roadmap
+        visibility: public
+  output:
+    expectedResult: deny
+    expectedReason: 'This event sets visibility to "public", which publishes its summary, description, attendees, and time to anyone. Set visibility to "private" or "default" before creating or updating the event. Contact your security team if a public event is genuinely required.'
+
+- description: 'Red-team (fixed): args is a string, not an object, on a write-event
+    tool — the exposure checks cannot inspect it, fail closed, deny.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-calendar-mcp-create-event
+      uri: null
+    payload:
+      name: google-calendar-mcp-create-event
+      args: "visibility=public"
+  output:
+    expectedResult: deny
+    expectedReason: 'This event write''s arguments are not a JSON object, so the exposure checks cannot inspect them. Resend the call with a standard arguments object. Contact your security team if this keeps happening.'
+
+- description: 'Red-team (boundary): non-object args on a non-write tool
+    (list-events) — the malformed-args fail-closed check only applies to
+    write-event tools, allow.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-calendar-mcp-list-events
+      uri: null
+    payload:
+      name: google-calendar-mcp-list-events
+      args: "calendarId=primary"
+  output:
+    expectedResult: allow
+
+- description: 'Red-team (boundary): args explicitly null on a write-event tool —
+    treated like missing args (safe defaults), not as malformed, allow.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-calendar-mcp-create-event
+      uri: null
+    payload:
+      name: google-calendar-mcp-create-event
+      args: null
+  output:
+    expectedResult: allow
+
+- description: 'Red-team (documented residual, Known limitations "Top-level keys
+    only"): exposure flag nested under an event body object (args.event.visibility)
+    is not inspected — allowed. No in-scope server documents a nested event-body
+    shape; extend the detections if yours does.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-calendar-mcp-create-event
+      uri: null
+    payload:
+      name: google-calendar-mcp-create-event
+      args:
+        event:
+          summary: Roadmap
+          visibility: public
+  output:
+    expectedResult: allow
+
+- description: 'Red-team (fixed): guestsCanInviteOthers sent as the string "1"
+    (string-coerced numeric boolean) — treated as on, deny.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-calendar-mcp-update-event
+      uri: null
+    payload:
+      name: google-calendar-mcp-update-event
+      args:
+        eventId: abc123
+        guestsCanInviteOthers: "1"
+  output:
+    expectedResult: deny
+    expectedReason: 'This event sets guestsCanInviteOthers to true, letting guests invite others and widen who can see the event. Remove guestsCanInviteOthers (or set it to false) before creating or updating the event. Contact your security team if this is genuinely required.'

@@ -1,0 +1,595 @@
+- description: Single-message read (GongRzhe read_email) — not a batch or search
+    surface, passes through untouched.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gongrzhe-gmail-read_email
+      uri: null
+    payload:
+      name: gongrzhe-gmail-read_email
+      args:
+        messageId: "18d2f0a1b2c3"
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Official connector get_thread — single-thread read is the sanctioned
+    minimum-necessary path, never capped.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gmail-connector-get_thread
+      uri: null
+    payload:
+      name: gmail-connector-get_thread
+      args:
+        threadId: "t-42"
+        messageFormat: FULL_CONTENT
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Official connector search_threads — single-query search with no
+    maxResults surface, passes through with no transform.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gmail-connector-search_threads
+      uri: null
+    payload:
+      name: gmail-connector-search_threads
+      args:
+        query: "from:ceo@example.com"
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: get_gmail_messages_content_batch with 3 message_ids — within the
+    cap of 10, allowed with no transform.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gmail-workspace-get_gmail_messages_content_batch
+      uri: null
+    payload:
+      name: gmail-workspace-get_gmail_messages_content_batch
+      args:
+        user_google_email: user@example.com
+        message_ids:
+          - m-1
+          - m-2
+          - m-3
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: get_gmail_messages_content_batch with exactly 10 message_ids —
+    boundary value is allowed (deny only fires above the cap).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gmail-workspace-get_gmail_messages_content_batch
+      uri: null
+    payload:
+      name: gmail-workspace-get_gmail_messages_content_batch
+      args:
+        message_ids:
+          - m-1
+          - m-2
+          - m-3
+          - m-4
+          - m-5
+          - m-6
+          - m-7
+          - m-8
+          - m-9
+          - m-10
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: get_gmail_messages_content_batch with 12 message_ids — above the
+    cap, denied with the paging reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gmail-workspace-get_gmail_messages_content_batch
+      uri: null
+    payload:
+      name: gmail-workspace-get_gmail_messages_content_batch
+      args:
+        message_ids:
+          - m-1
+          - m-2
+          - m-3
+          - m-4
+          - m-5
+          - m-6
+          - m-7
+          - m-8
+          - m-9
+          - m-10
+          - m-11
+          - m-12
+  output:
+    expectedResult: deny
+    expectedReason: This Gmail batch read requests 12 message/thread IDs; the cap
+      is 10 per call. Page through the mailbox in batches of 10 IDs or fewer.
+      Contact your InfoSec team if a sanctioned workflow needs a larger batch.
+- description: get_gmail_threads_content_batch with 11 thread_ids — the thread
+    batch variant and the thread_ids key are capped the same way.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gmail-workspace-get_gmail_threads_content_batch
+      uri: null
+    payload:
+      name: gmail-workspace-get_gmail_threads_content_batch
+      args:
+        thread_ids:
+          - t-1
+          - t-2
+          - t-3
+          - t-4
+          - t-5
+          - t-6
+          - t-7
+          - t-8
+          - t-9
+          - t-10
+          - t-11
+  output:
+    expectedResult: deny
+    expectedReason: This Gmail batch read requests 11 message/thread IDs; the cap
+      is 10 per call. Page through the mailbox in batches of 10 IDs or fewer.
+      Contact your InfoSec team if a sanctioned workflow needs a larger batch.
+- description: Uppercase batch tool name with 11 message_ids — tool matching is
+    case-insensitive.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: GMAIL-WORKSPACE-GET_GMAIL_MESSAGES_CONTENT_BATCH
+      uri: null
+    payload:
+      name: GMAIL-WORKSPACE-GET_GMAIL_MESSAGES_CONTENT_BATCH
+      args:
+        message_ids:
+          - m-1
+          - m-2
+          - m-3
+          - m-4
+          - m-5
+          - m-6
+          - m-7
+          - m-8
+          - m-9
+          - m-10
+          - m-11
+  output:
+    expectedResult: deny
+    expectedReason: This Gmail batch read requests 11 message/thread IDs; the cap
+      is 10 per call. Page through the mailbox in batches of 10 IDs or fewer.
+      Contact your InfoSec team if a sanctioned workflow needs a larger batch.
+- description: 'Batch call with no ID argument at all — fails closed: denied
+    rather than passed through for the server to interpret.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gmail-workspace-get_gmail_messages_content_batch
+      uri: null
+    payload:
+      name: gmail-workspace-get_gmail_messages_content_batch
+      args:
+        user_google_email: user@example.com
+  output:
+    expectedResult: deny
+    expectedReason: This Gmail batch read is missing a valid ID array (message_ids
+      or thread_ids must be an array). Retry with an explicit array of 10 or fewer
+      IDs. Contact your InfoSec team if this was a false positive.
+- description: 'Batch call with message_ids as a comma-separated string instead of
+    an array — fails closed: not an array means deny.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gmail-workspace-get_gmail_messages_content_batch
+      uri: null
+    payload:
+      name: gmail-workspace-get_gmail_messages_content_batch
+      args:
+        message_ids: m-1,m-2,m-3,m-4,m-5,m-6,m-7,m-8,m-9,m-10,m-11,m-12
+  output:
+    expectedResult: deny
+    expectedReason: This Gmail batch read is missing a valid ID array (message_ids
+      or thread_ids must be an array). Retry with an explicit array of 10 or fewer
+      IDs. Contact your InfoSec team if this was a false positive.
+- description: Batch call with the args object missing entirely — fails closed
+    (object.get defaults, no error).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gmail-workspace-get_gmail_threads_content_batch
+      uri: null
+    payload:
+      name: gmail-workspace-get_gmail_threads_content_batch
+  output:
+    expectedResult: deny
+    expectedReason: This Gmail batch read is missing a valid ID array (message_ids
+      or thread_ids must be an array). Retry with an explicit array of 10 or fewer
+      IDs. Contact your InfoSec team if this was a false positive.
+- description: search_emails with maxResults 200 — clamped to 25; query preserved.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gongrzhe-gmail-search_emails
+      uri: null
+    payload:
+      name: gongrzhe-gmail-search_emails
+      args:
+        query: "from:finance has:attachment"
+        maxResults: 200
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    maxResults: 25
+    query: "from:finance has:attachment"
+- description: 'search_emails with no maxResults — maxResults: 25 is injected so
+    the server default cannot win.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gongrzhe-gmail-search_emails
+      uri: null
+    payload:
+      name: gongrzhe-gmail-search_emails
+      args:
+        query: "label:hr-confidential"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    maxResults: 25
+    query: "label:hr-confidential"
+- description: search_emails with maxResults 10 — within the cap, passes through
+    with no transform.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gongrzhe-gmail-search_emails
+      uri: null
+    payload:
+      name: gongrzhe-gmail-search_emails
+      args:
+        query: "is:unread"
+        maxResults: 10
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: search_emails with maxResults exactly 25 — boundary value is allowed
+    unchanged (clamp only fires above the cap).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gongrzhe-gmail-search_emails
+      uri: null
+    payload:
+      name: gongrzhe-gmail-search_emails
+      args:
+        query: "newer_than:7d"
+        maxResults: 25
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: 'search_emails with a non-numeric maxResults ("500" as a string) —
+    fail safe: replaced with 25 rather than letting the server parse it.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gongrzhe-gmail-search_emails
+      uri: null
+    payload:
+      name: gongrzhe-gmail-search_emails
+      args:
+        query: "has:attachment"
+        maxResults: "500"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    maxResults: 25
+    query: "has:attachment"
+- description: Uppercase SEARCH_EMAILS with maxResults 100 — search matching is
+    case-insensitive too.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: GONGRZHE-GMAIL-SEARCH_EMAILS
+      uri: null
+    payload:
+      name: GONGRZHE-GMAIL-SEARCH_EMAILS
+      args:
+        maxResults: 100
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    maxResults: 25
+- description: taylorwilsdon search_gmail_messages — page-size parameter name is
+    unverified, so it is documented rather than clamped; passes through untouched.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gmail-workspace-search_gmail_messages
+      uri: null
+    payload:
+      name: gmail-workspace-search_gmail_messages
+      args:
+        query: "from:payroll"
+        page_size: 500
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: 'Decoy-key bypass — threads batch with a 2-item message_ids decoy
+    plus a 12-item thread_ids array. Both keys are counted, so the oversized
+    thread_ids array trips the cap instead of the small decoy winning selection.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gmail-workspace-get_gmail_threads_content_batch
+      uri: null
+    payload:
+      name: gmail-workspace-get_gmail_threads_content_batch
+      args:
+        message_ids:
+          - m-1
+          - m-2
+        thread_ids:
+          - t-1
+          - t-2
+          - t-3
+          - t-4
+          - t-5
+          - t-6
+          - t-7
+          - t-8
+          - t-9
+          - t-10
+          - t-11
+          - t-12
+  output:
+    expectedResult: deny
+    expectedReason: This Gmail batch read requests 12 message/thread IDs; the cap
+      is 10 per call. Page through the mailbox in batches of 10 IDs or fewer.
+      Contact your InfoSec team if a sanctioned workflow needs a larger batch.
+- description: Both ID keys present and both within the cap — the max of the two
+    array lengths is under 10, so the call is allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gmail-workspace-get_gmail_messages_content_batch
+      uri: null
+    payload:
+      name: gmail-workspace-get_gmail_messages_content_batch
+      args:
+        message_ids:
+          - m-1
+          - m-2
+        thread_ids:
+          - t-1
+          - t-2
+          - t-3
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Non-array decoy in one key plus an oversized array in the other —
+    the string message_ids is ignored and the 11-item thread_ids trips the cap.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gmail-workspace-get_gmail_threads_content_batch
+      uri: null
+    payload:
+      name: gmail-workspace-get_gmail_threads_content_batch
+      args:
+        message_ids: "m-1,m-2"
+        thread_ids:
+          - t-1
+          - t-2
+          - t-3
+          - t-4
+          - t-5
+          - t-6
+          - t-7
+          - t-8
+          - t-9
+          - t-10
+          - t-11
+  output:
+    expectedResult: deny
+    expectedReason: This Gmail batch read requests 11 message/thread IDs; the cap
+      is 10 per call. Page through the mailbox in batches of 10 IDs or fewer.
+      Contact your InfoSec team if a sanctioned workflow needs a larger batch.
+- description: 'search_emails with maxResults 0 — non-positive page size is
+    clamped to 25 (0 must not read as the server default of 100/unbounded).'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gongrzhe-gmail-search_emails
+      uri: null
+    payload:
+      name: gongrzhe-gmail-search_emails
+      args:
+        query: "in:anywhere"
+        maxResults: 0
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    maxResults: 25
+    query: "in:anywhere"
+- description: 'search_emails with a negative maxResults (-1) — clamped to 25 so a
+    "-1 means unbounded" server reading cannot slip the volume ceiling.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gongrzhe-gmail-search_emails
+      uri: null
+    payload:
+      name: gongrzhe-gmail-search_emails
+      args:
+        query: "has:attachment"
+        maxResults: -1
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    maxResults: 25
+    query: "has:attachment"
+- description: 'search_emails with maxResults 1 — the low boundary of the valid
+    range is passed through unchanged (clamp only fires outside [1, 25]).'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gongrzhe-gmail-search_emails
+      uri: null
+    payload:
+      name: gongrzhe-gmail-search_emails
+      args:
+        query: "is:starred"
+        maxResults: 1
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: 'Batch tool with an alternate camelCase key (messageIds, 13 items)
+    and no snake_case key — the policy fails closed: the unrecognised key is not
+    an array under message_ids/thread_ids, so the call is denied rather than
+    passed through for the server to harvest.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gmail-workspace-get_gmail_messages_content_batch
+      uri: null
+    payload:
+      name: gmail-workspace-get_gmail_messages_content_batch
+      args:
+        messageIds:
+          - m-1
+          - m-2
+          - m-3
+          - m-4
+          - m-5
+          - m-6
+          - m-7
+          - m-8
+          - m-9
+          - m-10
+          - m-11
+          - m-12
+          - m-13
+  output:
+    expectedResult: deny
+    expectedReason: This Gmail batch read is missing a valid ID array (message_ids
+      or thread_ids must be an array). Retry with an explicit array of 10 or fewer
+      IDs. Contact your InfoSec team if this was a false positive.
+- description: 'Batch tool with the payload key entirely absent — object.get
+    defaults keep evaluation error-free and the call fails closed to deny.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gmail-workspace-get_gmail_messages_content_batch
+      uri: null
+  output:
+    expectedResult: deny
+    expectedReason: This Gmail batch read is missing a valid ID array (message_ids
+      or thread_ids must be an array). Retry with an explicit array of 10 or fewer
+      IDs. Contact your InfoSec team if this was a false positive.
+- description: Egress hook (tool_post_invoke) on a batch tool name — the action
+    guard keeps the ingress cap from denying the output path.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: gmail-workspace-get_gmail_messages_content_batch
+      uri: null
+    payload:
+      name: gmail-workspace-get_gmail_messages_content_batch
+      text:
+        - '{"messages": []}'
+  output:
+    expectedResult: allow
+  transformApplied: false

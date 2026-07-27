@@ -1,0 +1,444 @@
+- description: Read tool (search_emails) is outside the destruction surface.
+    Policy should allow (pass-through branch).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gmail-search_emails
+      uri: null
+    payload:
+      name: gmail-search_emails
+      args:
+        query: from:billing@example.com
+        maxResults: 10
+  output:
+    expectedResult: allow
+- description: modify_email (the recommended archive-via-labels alternative) is
+    not gated. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gmail-modify_email
+      uri: null
+    payload:
+      name: gmail-modify_email
+      args:
+        messageId: 18f3a2b1c9d
+        removeLabelIds:
+          - INBOX
+  output:
+    expectedResult: allow
+- description: batch_modify_gmail_message_labels (taylorwilsdon archive
+    alternative) contains "labels" but no delete suffix. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gmail-batch_modify_gmail_message_labels
+      uri: null
+    payload:
+      name: gmail-batch_modify_gmail_message_labels
+      args:
+        message_ids:
+          - 18f3a2b1c9d
+          - 18f3a2b1c9e
+        add_label_ids:
+          - Label_42
+        remove_label_ids:
+          - INBOX
+  output:
+    expectedResult: allow
+- description: GongRzhe delete_email — permanent, bypasses trash. Deny with the
+    message-deletion reason regardless of identity.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gmail-delete_email
+      uri: null
+    subject:
+      sub: google-apps|admin@example.com
+      claims:
+        groups:
+          - infosec
+    payload:
+      name: gmail-delete_email
+      args:
+        messageId: 18f3a2b1c9d
+  output:
+    expectedResult: deny
+    expectedReason: "Permanent email deletion is blocked: delete_email and batch_delete_emails bypass the trash and cannot be undone, and records must survive agent error and prompt injection. Archive by modifying labels (modify_email / batch_modify_gmail_message_labels) or move the message to trash instead. Contact your InfoSec team if a record legitimately must be destroyed."
+- description: GongRzhe batch_delete_emails — up to 50 permanent deletions per
+    call. Deny with the message-deletion reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gmail-batch_delete_emails
+      uri: null
+    payload:
+      name: gmail-batch_delete_emails
+      args:
+        messageIds:
+          - 18f3a2b1c9d
+          - 18f3a2b1c9e
+        batchSize: 50
+  output:
+    expectedResult: deny
+    expectedReason: "Permanent email deletion is blocked: delete_email and batch_delete_emails bypass the trash and cannot be undone, and records must survive agent error and prompt injection. Archive by modifying labels (modify_email / batch_modify_gmail_message_labels) or move the message to trash instead. Contact your InfoSec team if a record legitimately must be destroyed."
+- description: Unprefixed deployment — bare delete_email with no gateway
+    server-name prefix still matches the suffix. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: delete_email
+      uri: null
+    payload:
+      name: delete_email
+      args:
+        messageId: 18f3a2b1c9d
+  output:
+    expectedResult: deny
+    expectedReason: "Permanent email deletion is blocked: delete_email and batch_delete_emails bypass the trash and cannot be undone, and records must survive agent error and prompt injection. Archive by modifying labels (modify_email / batch_modify_gmail_message_labels) or move the message to trash instead. Contact your InfoSec team if a record legitimately must be destroyed."
+- description: Mixed-case tool name (Gmail-Batch_Delete_Emails) must still
+    match — tool matching is case-insensitive. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: Gmail-Batch_Delete_Emails
+      uri: null
+    payload:
+      name: Gmail-Batch_Delete_Emails
+      args:
+        messageIds:
+          - 18f3a2b1c9d
+  output:
+    expectedResult: deny
+    expectedReason: "Permanent email deletion is blocked: delete_email and batch_delete_emails bypass the trash and cannot be undone, and records must survive agent error and prompt injection. Archive by modifying labels (modify_email / batch_modify_gmail_message_labels) or move the message to trash instead. Contact your InfoSec team if a record legitimately must be destroyed."
+- description: GongRzhe delete_label. Deny with the label-deletion reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gmail-delete_label
+      uri: null
+    payload:
+      name: gmail-delete_label
+      args:
+        labelId: Label_42
+  output:
+    expectedResult: deny
+    expectedReason: "Deleting Gmail labels is blocked: removing a label silently strips it from every message that carries it and breaks retention and archiving workflows. Keep the label; create/update/list label actions remain available. Contact your InfoSec team if a label legitimately must be removed."
+- description: GongRzhe delete_filter. Deny with the filter-deletion reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gmail-delete_filter
+      uri: null
+    payload:
+      name: gmail-delete_filter
+      args:
+        filterId: ANe1Bmj7
+  output:
+    expectedResult: deny
+    expectedReason: "Deleting Gmail filters is blocked: filters control mail routing and their removal is silent and hard to audit. Leave the filter in place; list/get/create/update filter actions remain available. Contact your InfoSec team if a filter legitimately must be removed."
+- description: taylorwilsdon manage_gmail_label with action delete. Deny with
+    the label-deletion reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gmail-manage_gmail_label
+      uri: null
+    payload:
+      name: gmail-manage_gmail_label
+      args:
+        action: delete
+        label_id: Label_42
+        user_google_email: user@example.com
+  output:
+    expectedResult: deny
+    expectedReason: "Deleting Gmail labels is blocked: removing a label silently strips it from every message that carries it and breaks retention and archiving workflows. Keep the label; create/update/list label actions remain available. Contact your InfoSec team if a label legitimately must be removed."
+- description: manage_gmail_label with a capitalized action ("Delete") — the
+    action value is lowercased before comparison. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gmail-manage_gmail_label
+      uri: null
+    payload:
+      name: gmail-manage_gmail_label
+      args:
+        action: Delete
+        label_id: Label_42
+  output:
+    expectedResult: deny
+    expectedReason: "Deleting Gmail labels is blocked: removing a label silently strips it from every message that carries it and breaks retention and archiving workflows. Keep the label; create/update/list label actions remain available. Contact your InfoSec team if a label legitimately must be removed."
+- description: taylorwilsdon manage_gmail_filter with action delete. Deny with
+    the filter-deletion reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gmail-manage_gmail_filter
+      uri: null
+    payload:
+      name: gmail-manage_gmail_filter
+      args:
+        action: delete
+        filter_id: ANe1Bmj7
+  output:
+    expectedResult: deny
+    expectedReason: "Deleting Gmail filters is blocked: filters control mail routing and their removal is silent and hard to audit. Leave the filter in place; list/get/create/update filter actions remain available. Contact your InfoSec team if a filter legitimately must be removed."
+- description: manage_gmail_label with action create passes through — only the
+    delete action is frozen; other policies govern label creation.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gmail-manage_gmail_label
+      uri: null
+    payload:
+      name: gmail-manage_gmail_label
+      args:
+        action: create
+        name: audit-hold
+  output:
+    expectedResult: allow
+- description: manage_gmail_filter with action list passes through — read-only
+    action on the manage tool.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gmail-manage_gmail_filter
+      uri: null
+    payload:
+      name: gmail-manage_gmail_filter
+      args:
+        action: list
+  output:
+    expectedResult: allow
+- description: manage_gmail_label with args present but no action key —
+    object.get defaults to "" and the call is not treated as a delete. Allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gmail-manage_gmail_label
+      uri: null
+    payload:
+      name: gmail-manage_gmail_label
+      args:
+        label_id: Label_42
+  output:
+    expectedResult: allow
+- description: manage_gmail_filter with no args object at all — the nested
+    object.get chain defaults safely and the call is not treated as a delete.
+    Allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gmail-manage_gmail_filter
+      uri: null
+    payload:
+      name: gmail-manage_gmail_filter
+  output:
+    expectedResult: allow
+- description: manage_gmail_label with a non-string action (array) — the
+    string guard leaves requested_action undefined, so the call is not treated
+    as a delete; the server's own schema validation rejects it. Allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gmail-manage_gmail_label
+      uri: null
+    payload:
+      name: gmail-manage_gmail_label
+      args:
+        action:
+          - delete
+        label_id: Label_42
+  output:
+    expectedResult: allow
+- description: update_label ends with "_label" but not "delete_label" — the
+    near-miss suffix must not match. Allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gmail-update_label
+      uri: null
+    payload:
+      name: gmail-update_label
+      args:
+        labelId: Label_42
+        name: renamed-label
+  output:
+    expectedResult: allow
+- description: Official Google/Claude connector surface (list_labels) has no
+    delete tools — the policy is inert there by design. Allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gmail-list_labels
+      uri: null
+    payload:
+      name: gmail-list_labels
+      args: {}
+  output:
+    expectedResult: allow
+# --- Red-team cases (standards §10) ---
+- description: "Red-team: whitespace-padded action ' delete ' on manage_gmail_label.
+    trim_space normalizes the value before comparison so a server that strips the
+    action before dispatch cannot be used to slip a delete past the policy. Deny."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gmail-manage_gmail_label
+      uri: null
+    payload:
+      name: gmail-manage_gmail_label
+      args:
+        action: " delete "
+        label_id: Label_42
+  output:
+    expectedResult: deny
+    expectedReason: "Deleting Gmail labels is blocked: removing a label silently strips it from every message that carries it and breaks retention and archiving workflows. Keep the label; create/update/list label actions remain available. Contact your InfoSec team if a label legitimately must be removed."
+- description: "Red-team: newline-padded action 'delete\\n' on manage_gmail_filter.
+    trim_space strips the trailing newline, so the mixed case + trailing-whitespace
+    trick is defeated. Deny."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gmail-manage_gmail_filter
+      uri: null
+    payload:
+      name: gmail-manage_gmail_filter
+      args:
+        action: "Delete\n"
+        filter_id: ANe1Bmj7
+  output:
+    expectedResult: deny
+    expectedReason: "Deleting Gmail filters is blocked: filters control mail routing and their removal is silent and hard to audit. Leave the filter in place; list/get/create/update filter actions remain available. Contact your InfoSec team if a filter legitimately must be removed."
+- description: "Red-team: whitespace-padded NON-delete action ' create ' must still
+    pass through — trim_space normalization must not over-block legitimate
+    create/update/list actions. Allow."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gmail-manage_gmail_label
+      uri: null
+    payload:
+      name: gmail-manage_gmail_label
+      args:
+        action: " create "
+        name: audit-hold
+  output:
+    expectedResult: allow
+- description: "Red-team: fail-closed on missing args — a name-only hard-delete tool
+    (delete_email) with no payload/args at all is still denied on tool name alone;
+    absence of arguments does not open a bypass."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gmail-delete_email
+      uri: null
+  output:
+    expectedResult: deny
+    expectedReason: "Permanent email deletion is blocked: delete_email and batch_delete_emails bypass the trash and cannot be undone, and records must survive agent error and prompt injection. Archive by modifying labels (modify_email / batch_modify_gmail_message_labels) or move the message to trash instead. Contact your InfoSec team if a record legitimately must be destroyed."
+- description: "Red-team: interior-whitespace action 'de lete' is NOT normalized and
+    passes the policy — documented residual. It also fails the upstream server's
+    exact-string dispatch, so no deletion occurs. Allow (documents the boundary)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gmail-manage_gmail_label
+      uri: null
+    payload:
+      name: gmail-manage_gmail_label
+      args:
+        action: "de lete"
+        label_id: Label_42
+  output:
+    expectedResult: allow
+- description: "Red-team: camelCase batchDeleteEmails is NOT caught by the snake_case
+    suffix matcher — documented portability residual (all three verified servers use
+    snake_case). Add the suffix before relying on the policy against such a server.
+    Allow (documents the boundary)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gmail-batchDeleteEmails
+      uri: null
+    payload:
+      name: gmail-batchDeleteEmails
+      args:
+        messageIds:
+          - 18f3a2b1c9d
+  output:
+    expectedResult: allow

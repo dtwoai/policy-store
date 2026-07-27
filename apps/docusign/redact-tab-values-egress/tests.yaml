@@ -1,0 +1,589 @@
+# Transform-only policy: every case expects allow. Redaction behaviour is
+# asserted with the gate-only transformApplied / transformedArgsContain keys.
+- description: Out-of-scope Docusign tool (getUsers) — SSN in the response is
+    left alone because the tool is not an envelope/agreement data surface.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: docusign-mcp-getUsers
+      uri: null
+    subject:
+      sub: auth0|u1
+      claims:
+        groups: [legal]
+    payload:
+      name: docusign-mcp-getUsers
+      text:
+        - 'SSN 123-45-6789'
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: getEnvelope (contains match) — hyphenated SSN in free text is
+    redacted; surrounding text preserved.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: docusign-mcp-getEnvelope
+      uri: null
+    subject:
+      sub: auth0|u1
+      claims:
+        groups: [legal]
+    payload:
+      name: docusign-mcp-getEnvelope
+      text:
+        - 'Envelope 42 signer SSN 123-45-6789 completed'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - 'Envelope 42 signer SSN [REDACTED-SSN] completed'
+- description: getEnvelopes (plural, contains match) — label-anchored bare
+    9-digit SSN is redacted with the label and separator preserved.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: docusign-mcp-getEnvelopes
+      uri: null
+    subject:
+      sub: auth0|u1
+      claims:
+        groups: [legal]
+    payload:
+      name: docusign-mcp-getEnvelopes
+      text:
+        - 'applicant SSN: 123456789 status sent'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - 'applicant SSN: [REDACTED-SSN] status sent'
+- description: listRecipients — Docusign tab JSON (tabLabel SSN + value) is
+    redacted in place and a Luhn-valid card in the same block is masked to
+    BIN+last4 (the description's worked example).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: docusign-mcp-listRecipients
+      uri: null
+    subject:
+      sub: auth0|u1
+      claims:
+        groups: [legal]
+    payload:
+      name: docusign-mcp-listRecipients
+      text:
+        - '{"tabLabel":"SSN","value":"123456789"} card 4111 1111 1111 1111'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - '{"tabLabel":"SSN","value":"[REDACTED-SSN]"} card 411111******1111'
+- description: listRecipients — direct-deposit tab JSON pair (routing + account
+    labels with values) is redacted via the JSON-shape bank patterns.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: docusign-mcp-listRecipients
+      uri: null
+    subject:
+      sub: auth0|u1
+      claims:
+        groups: [legal]
+    payload:
+      name: docusign-mcp-listRecipients
+      text:
+        - '{"tabLabel":"Routing Number","value":"021000021"},{"tabLabel":"Account Number","value":"000123456789"}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - '{"tabLabel":"Routing Number","value":"[REDACTED-BANK-ROUTING]"},{"tabLabel":"Account Number","value":"[REDACTED-BANK-ACCOUNT]"}'
+- description: getAgreementDetails — plain-text routing + account pair in an
+    extracted provision is redacted (both classes present, so the bank pair
+    heuristic fires).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: docusign-mcp-getAgreementDetails
+      uri: null
+    subject:
+      sub: auth0|u1
+      claims:
+        groups: [legal]
+    payload:
+      name: docusign-mcp-getAgreementDetails
+      text:
+        - 'Direct deposit: routing number 021000021, account number 000123456789'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - 'Direct deposit: [REDACTED-BANK-ROUTING], [REDACTED-BANK-ACCOUNT]'
+- description: Routing number with no account number in the same block — the
+    conservative bank-pair heuristic leaves it untouched, so no transform is
+    emitted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: docusign-mcp-listRecipients
+      uri: null
+    subject:
+      sub: auth0|u1
+      claims:
+        groups: [legal]
+    payload:
+      name: docusign-mcp-listRecipients
+      text:
+        - 'ABA routing 021000021 for wire instructions'
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Luhn-valid 16-digit PAN (space-separated) is masked to BIN+last4
+    per PCI DSS 3.4.1 display format.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: docusign-mcp-getEnvelope
+      uri: null
+    subject:
+      sub: auth0|u1
+      claims:
+        groups: [legal]
+    payload:
+      name: docusign-mcp-getEnvelope
+      text:
+        - 'Payment card 4111 1111 1111 1111 on file'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - 'Payment card 411111******1111 on file'
+- description: Card-shaped but Luhn-invalid digit run (1234 5678 9012 3456) is
+    a reference number, not a PAN — left untouched, no transform.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: docusign-mcp-getEnvelope
+      uri: null
+    subject:
+      sub: auth0|u1
+      claims:
+        groups: [legal]
+    payload:
+      name: docusign-mcp-getEnvelope
+      text:
+        - 'Reference 1234 5678 9012 3456 for tracking'
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Exempt caller — groups array contains HR (case-insensitive
+    match on the placeholder group) — receives unredacted tab values.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: docusign-mcp-listRecipients
+      uri: null
+    subject:
+      sub: auth0|u2
+      claims:
+        groups: [Legal, HR]
+    payload:
+      name: docusign-mcp-listRecipients
+      text:
+        - '{"tabLabel":"SSN","value":"123456789"}'
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Exempt caller — IdP emits the groups claim as a bare string
+    ("finance") rather than an array; the string branch grants the exemption.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: docusign-mcp-listRecipients
+      uri: null
+    subject:
+      sub: auth0|u3
+      claims:
+        groups: finance
+    payload:
+      name: docusign-mcp-listRecipients
+      text:
+        - '{"tabLabel":"SSN","value":"123456789"}'
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Malformed groups claim (an object whose *value* is "finance") —
+    the is_array/is_string guards fail closed, so the caller is not exempt and
+    redaction applies.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: docusign-mcp-listRecipients
+      uri: null
+    subject:
+      sub: auth0|u4
+      claims:
+        groups:
+          department: finance
+    payload:
+      name: docusign-mcp-listRecipients
+      text:
+        - '{"tabLabel":"SSN","value":"123456789"}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - '{"tabLabel":"SSN","value":"[REDACTED-SSN]"}'
+- description: Caller with no subject at all — the exemption fails closed and
+    redaction still applies.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: docusign-mcp-listRecipients
+      uri: null
+    payload:
+      name: docusign-mcp-listRecipients
+      text:
+        - '{"tabLabel":"SSN","value":"123456789"}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - '{"tabLabel":"SSN","value":"[REDACTED-SSN]"}'
+- description: Ingress call (tool_pre_invoke, mode input) to an in-scope tool —
+    the policy is egress-only, so no transform fires.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: docusign-mcp-listRecipients
+      uri: null
+    subject:
+      sub: auth0|u1
+      claims:
+        groups: [legal]
+    payload:
+      name: docusign-mcp-listRecipients
+      text:
+        - 'SSN 123-45-6789'
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Community download_envelope_document (luthersystems) — plain-text
+    SSN alongside the base64 payload metadata is redacted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: docusign-community-download_envelope_document
+      uri: null
+    subject:
+      sub: auth0|u1
+      claims:
+        groups: [legal]
+    payload:
+      name: docusign-community-download_envelope_document
+      text:
+        - '{"document_id":"1","note":"SSN 123-45-6789"}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - '{"document_id":"1","note":"SSN [REDACTED-SSN]"}'
+- description: Tool name carried only by tool_metadata.name (resource.name and
+    payload.name are a non-matching value) — the multi-surface name collection
+    still puts the call in scope.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: docusign-mcp-tool
+      uri: null
+    tool_metadata:
+      name: docusign-mcp-listRecipients
+    subject:
+      sub: auth0|u1
+      claims:
+        groups: [legal]
+    payload:
+      name: docusign-mcp-tool
+      text:
+        - 'Recipient SSN 123-45-6789'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - 'Recipient SSN [REDACTED-SSN]'
+- description: Gateway build that populates action but not mode — the
+    action-based egress branch still fires; hyphen-separated Luhn-valid PAN is
+    masked to BIN+last4.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    resource:
+      type: tool
+      name: docusign-mcp-getEnvelope
+      uri: null
+    subject:
+      sub: auth0|u1
+      claims:
+        groups: [legal]
+    payload:
+      name: docusign-mcp-getEnvelope
+      text:
+        - 'Card 4111-1111-1111-1111 charged'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - 'Card 411111******1111 charged'
+- description: Mixed content blocks — a non-string (structured) block passes
+    through unmodified while the string block is redacted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: docusign-mcp-listRecipients
+      uri: null
+    subject:
+      sub: auth0|u1
+      claims:
+        groups: [legal]
+    payload:
+      name: docusign-mcp-listRecipients
+      text:
+        - kind: meta
+        - 'Signer SSN 123-45-6789'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - kind: meta
+      - 'Signer SSN [REDACTED-SSN]'
+- description: Clean in-scope response (dates, email, no regulated identifiers)
+    passes through byte-identical — no transform emitted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: docusign-mcp-getEnvelope
+      uri: null
+    subject:
+      sub: auth0|u1
+      claims:
+        groups: [legal]
+    payload:
+      name: docusign-mcp-getEnvelope
+      text:
+        - 'Envelope completed by alice@example.com on 2026-07-01'
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Red-team — realistic Docusign SSN tab with an intervening tabId
+    between tabLabel and value. The JSON pattern skips intra-object members, so
+    the SSN value is still redacted (previously leaked when non-adjacent).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: docusign-mcp-listRecipients
+      uri: null
+    subject:
+      sub: auth0|u1
+      claims:
+        groups: [legal]
+    payload:
+      name: docusign-mcp-listRecipients
+      text:
+        - '{"tabLabel":"SSN","tabId":"abc123","value":"123456789"}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - '{"tabLabel":"SSN","tabId":"abc123","value":"[REDACTED-SSN]"}'
+- description: Red-team — direct-deposit tabs with intervening tabId fields
+    between each label and value. Both routing and account are redacted (bank
+    pair still fires through the intra-object skip; previously leaked).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: docusign-mcp-listRecipients
+      uri: null
+    subject:
+      sub: auth0|u1
+      claims:
+        groups: [legal]
+    payload:
+      name: docusign-mcp-listRecipients
+      text:
+        - '{"tabLabel":"Routing Number","tabId":"r1","value":"021000021"},{"tabLabel":"Account Number","tabId":"a1","value":"000123456789"}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - '{"tabLabel":"Routing Number","tabId":"r1","value":"[REDACTED-BANK-ROUTING]"},{"tabLabel":"Account Number","tabId":"a1","value":"[REDACTED-BANK-ACCOUNT]"}'
+- description: Red-team — the intra-object skip must not cross an object
+    boundary. An SSN tab with a non-numeric value sits next to a Phone tab whose
+    value is a 9-digit number; the SSN label must NOT pair with the phone value,
+    so nothing is redacted and no transform is emitted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: docusign-mcp-listRecipients
+      uri: null
+    subject:
+      sub: auth0|u1
+      claims:
+        groups: [legal]
+    payload:
+      name: docusign-mcp-listRecipients
+      text:
+        - '{"tabLabel":"SSN","value":"n/a"},{"tabLabel":"Phone","value":"415123456"}'
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Red-team — getAllAgreements (Navigator list variant) egresses the
+    same extracted provisions as getAgreementDetails; a hyphenated SSN in a
+    party provision is redacted now that the tool is in scope (previously the
+    tool was unmatched and the value leaked).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: docusign-mcp-getAllAgreements
+      uri: null
+    subject:
+      sub: auth0|u1
+      claims:
+        groups: [legal]
+    payload:
+      name: docusign-mcp-getAllAgreements
+      text:
+        - 'Party SSN 123-45-6789 in agreement'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - 'Party SSN [REDACTED-SSN] in agreement'
+- description: Red-team — value-before-label ordering (documented limitation).
+    The SSN tab serializes value before the label, and the value is a bare
+    9-digit run, so it is deliberately left alone (no preceding label to anchor,
+    bare 9-digit not matched unlabeled). No transform.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: docusign-mcp-listRecipients
+      uri: null
+    subject:
+      sub: auth0|u1
+      claims:
+        groups: [legal]
+    payload:
+      name: docusign-mcp-listRecipients
+      text:
+        - '{"value":"123456789","tabLabel":"SSN"}'
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Ordering — a labeled 16-digit bank account paired with a routing
+    number is classified as a bank account (label wins), not masked as a card.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: docusign-mcp-listRecipients
+      uri: null
+    subject:
+      sub: auth0|u1
+      claims:
+        groups: [legal]
+    payload:
+      name: docusign-mcp-listRecipients
+      text:
+        - 'routing: 021000021 account: 4111111111111111'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - '[REDACTED-BANK-ROUTING] [REDACTED-BANK-ACCOUNT]'

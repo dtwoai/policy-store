@@ -1,0 +1,424 @@
+- description: Read tool (getConfluencePage) is not a write we inspect. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-getconfluencepage
+      uri: null
+    payload:
+      name: atlassian-getconfluencepage
+      args:
+        pageId: "5678"
+  output:
+    expectedResult: allow
+
+- description: Normal page create with a clean body. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-createconfluencepage
+      uri: null
+    payload:
+      name: atlassian-createconfluencepage
+      args:
+        spaceId: "1234"
+        title: Sprint retro notes
+        body: We shipped the ingress policies and closed 12 issues.
+  output:
+    expectedResult: allow
+
+- description: Page create whose body embeds an AWS access key ID. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-createconfluencepage
+      uri: null
+    payload:
+      name: atlassian-createconfluencepage
+      args:
+        spaceId: "1234"
+        title: Deploy runbook
+        body: Export AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE before running.
+  output:
+    expectedResult: deny
+    expectedReason: "This Confluence write looks like it contains a secret (API key, password, token, or private key). A created or updated page or comment is visible org-wide immediately and cannot be un-published, so it is blocked before it reaches Confluence. Store credentials in your secret manager and reference them instead. Contact your InfoSec team if this was a false positive."
+
+- description: Page update whose body contains a generic password key:value pair. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-updateconfluencepage
+      uri: null
+    payload:
+      name: atlassian-updateconfluencepage
+      args:
+        pageId: "5678"
+        title: DB credentials
+        body: "The staging DB password: hunter2-super-secret-value"
+  output:
+    expectedResult: deny
+    expectedReason: "This Confluence write looks like it contains a secret (API key, password, token, or private key). A created or updated page or comment is visible org-wide immediately and cannot be un-published, so it is blocked before it reaches Confluence. Store credentials in your secret manager and reference them instead. Contact your InfoSec team if this was a false positive."
+
+- description: Page update with a structured ADF body object embedding a GitHub token as a leaf value. Policy should deny (marshaled-object branch).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-updateconfluencepage
+      uri: null
+    payload:
+      name: atlassian-updateconfluencepage
+      args:
+        pageId: "5678"
+        title: Onboarding
+        body:
+          representation: storage
+          value: "Use this PAT: ghp_abcdefghijklmnopqrstuvwxyz0123456789"
+  output:
+    expectedResult: deny
+    expectedReason: "This Confluence write looks like it contains a secret (API key, password, token, or private key). A created or updated page or comment is visible org-wide immediately and cannot be un-published, so it is blocked before it reaches Confluence. Store credentials in your secret manager and reference them instead. Contact your InfoSec team if this was a false positive."
+
+- description: Footer comment whose commentBody contains a GitHub token. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-createconfluencefootercomment
+      uri: null
+    payload:
+      name: atlassian-createconfluencefootercomment
+      args:
+        pageId: "5678"
+        commentBody: "here's the token: ghp_abcdefghijklmnopqrstuvwxyz0123456789"
+  output:
+    expectedResult: deny
+    expectedReason: "This Confluence write looks like it contains a secret (API key, password, token, or private key). A created or updated page or comment is visible org-wide immediately and cannot be un-published, so it is blocked before it reaches Confluence. Store credentials in your secret manager and reference them instead. Contact your InfoSec team if this was a false positive."
+
+- description: Inline comment whose commentBody contains an OpenAI-shaped key. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-createconfluenceinlinecomment
+      uri: null
+    payload:
+      name: atlassian-createconfluenceinlinecomment
+      args:
+        pageId: "5678"
+        commentBody: "api key sk-abcdef0123456789abcdef0123456789"
+  output:
+    expectedResult: deny
+    expectedReason: "This Confluence write looks like it contains a secret (API key, password, token, or private key). A created or updated page or comment is visible org-wide immediately and cannot be un-published, so it is blocked before it reaches Confluence. Store credentials in your secret manager and reference them instead. Contact your InfoSec team if this was a false positive."
+
+- description: Community server page create (snake_case) with a Stripe live secret key in the body. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: mcp-atlassian-confluence_create_page
+      uri: null
+    payload:
+      name: mcp-atlassian-confluence_create_page
+      args:
+        space_key: ENG
+        title: Billing setup
+        body: "STRIPE_KEY=sk_live_abcdefghijklmnopqrstuvwx1234"
+  output:
+    expectedResult: deny
+    expectedReason: "This Confluence write looks like it contains a secret (API key, password, token, or private key). A created or updated page or comment is visible org-wide immediately and cannot be un-published, so it is blocked before it reaches Confluence. Store credentials in your secret manager and reference them instead. Contact your InfoSec team if this was a false positive."
+
+- description: Community server comment (snake_case) with a PEM private key header in the body. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: mcp-atlassian-confluence_add_comment
+      uri: null
+    payload:
+      name: mcp-atlassian-confluence_add_comment
+      args:
+        page_id: "5678"
+        body: |
+          Deploy key below:
+          -----BEGIN OPENSSH PRIVATE KEY-----
+          b3BlbnNzaC1rZXktdjEAAAAABG5vbmU
+  output:
+    expectedResult: deny
+    expectedReason: "This Confluence write looks like it contains a secret (API key, password, token, or private key). A created or updated page or comment is visible org-wide immediately and cannot be un-published, so it is blocked before it reaches Confluence. Store credentials in your secret manager and reference them instead. Contact your InfoSec team if this was a false positive."
+
+- description: Community server page update (snake_case) with a clean body. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: mcp-atlassian-confluence_update_page
+      uri: null
+    payload:
+      name: mcp-atlassian-confluence_update_page
+      args:
+        page_id: "5678"
+        title: Team charter
+        body: Our team owns the ingress pipeline and reviews policies weekly.
+  output:
+    expectedResult: allow
+
+- description: Write tool with an empty body — nothing to leak. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-createconfluencepage
+      uri: null
+    payload:
+      name: atlassian-createconfluencepage
+      args:
+        spaceId: "1234"
+        title: Placeholder
+        body: ""
+  output:
+    expectedResult: allow
+
+- description: Write tool with no args object at all — fails closed to allow (no inspectable content). Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-createconfluencepage
+      uri: null
+    payload:
+      name: atlassian-createconfluencepage
+  output:
+    expectedResult: allow
+
+- description: Secret placed in the title (not an inspected field) — documented residual bypass. Policy allows.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-createconfluencepage
+      uri: null
+    payload:
+      name: atlassian-createconfluencepage
+      args:
+        spaceId: "1234"
+        title: "AKIAIOSFODNN7EXAMPLE"
+        body: See title.
+  output:
+    expectedResult: allow
+
+- description: "Red-team fix — community confluence_update_page_section (a body-bearing write) with an AWS key. Previously bypassed; now denied."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: mcp-atlassian-confluence_update_page_section
+      uri: null
+    payload:
+      name: mcp-atlassian-confluence_update_page_section
+      args:
+        page_id: "5678"
+        body: "STRIPE_KEY=sk_live_abcdefghijklmnopqrstuvwx1234"
+  output:
+    expectedResult: deny
+    expectedReason: "This Confluence write looks like it contains a secret (API key, password, token, or private key). A created or updated page or comment is visible org-wide immediately and cannot be un-published, so it is blocked before it reaches Confluence. Store credentials in your secret manager and reference them instead. Contact your InfoSec team if this was a false positive."
+
+- description: "Red-team documented residual — confluence_add_label is not an inspected body-bearing write; a secret in its `name` field is not scanned. Policy allows (documented limitation)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: mcp-atlassian-confluence_add_label
+      uri: null
+    payload:
+      name: mcp-atlassian-confluence_add_label
+      args:
+        page_id: "5678"
+        name: "api_key=AKIAIOSFODNN7EXAMPLE"
+  output:
+    expectedResult: allow
+
+- description: "Red-team documented residual — a zero-width character splitting an AWS key ID defeats the regex (encoding/obfuscation limitation). Policy allows."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-createconfluencepage
+      uri: null
+    payload:
+      name: atlassian-createconfluencepage
+      args:
+        spaceId: "1234"
+        title: Notes
+        body: "AKIA​IOSFODNN7EXAMPLE"
+  output:
+    expectedResult: allow
+
+- description: "Red-team — mixed-case tool name (createConfluencePage) with an AWS key. lower() normalization must still match; policy denies."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-createConfluencePage
+      uri: null
+    payload:
+      name: atlassian-createConfluencePage
+      args:
+        spaceId: "1234"
+        title: Runbook
+        body: "Export AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE before running."
+  output:
+    expectedResult: deny
+    expectedReason: "This Confluence write looks like it contains a secret (API key, password, token, or private key). A created or updated page or comment is visible org-wide immediately and cannot be un-published, so it is blocked before it reaches Confluence. Store credentials in your secret manager and reference them instead. Contact your InfoSec team if this was a false positive."
+
+- description: "Red-team — body argument key sent capitalized (Body). body_arg_keys lowercases the key, so the secret is still scanned; policy denies."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-createconfluencepage
+      uri: null
+    payload:
+      name: atlassian-createconfluencepage
+      args:
+        spaceId: "1234"
+        title: Runbook
+        Body: "here is the key AKIAIOSFODNN7EXAMPLE"
+  output:
+    expectedResult: deny
+    expectedReason: "This Confluence write looks like it contains a secret (API key, password, token, or private key). A created or updated page or comment is visible org-wide immediately and cannot be un-published, so it is blocked before it reaches Confluence. Store credentials in your secret manager and reference them instead. Contact your InfoSec team if this was a false positive."
+
+- description: "Red-team — provider-shaped token (ghp_) hidden in a structured ARRAY body (ADF node list). Marshaled-branch must serialize the array and match; policy denies."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-createconfluencepage
+      uri: null
+    payload:
+      name: atlassian-createconfluencepage
+      args:
+        spaceId: "1234"
+        title: Notes
+        body:
+          - "Intro paragraph."
+          - "ghp_abcdefghijklmnopqrstuvwxyz0123456789"
+  output:
+    expectedResult: deny
+    expectedReason: "This Confluence write looks like it contains a secret (API key, password, token, or private key). A created or updated page or comment is visible org-wide immediately and cannot be un-published, so it is blocked before it reaches Confluence. Store credentials in your secret manager and reference them instead. Contact your InfoSec team if this was a false positive."
+
+- description: "Red-team — provider-shaped token (AWS AKIA) nested deep in a structured object leaf value. Marshaled-branch catches it; policy denies."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-updateconfluencepage
+      uri: null
+    payload:
+      name: atlassian-updateconfluencepage
+      args:
+        pageId: "5678"
+        body:
+          representation: storage
+          value:
+            note: "AKIAIOSFODNN7EXAMPLE"
+  output:
+    expectedResult: deny
+    expectedReason: "This Confluence write looks like it contains a secret (API key, password, token, or private key). A created or updated page or comment is visible org-wide immediately and cannot be un-published, so it is blocked before it reaches Confluence. Store credentials in your secret manager and reference them instead. Contact your InfoSec team if this was a false positive."
+
+- description: "Red-team documented residual — a GENERIC secret expressed as a JSON field value ({\"password\": \"...\"}) in a structured body. Marshaling separates the field name from the value with JSON punctuation, so the key:value regex misses it and the bare value has no provider shape. Policy allows (documented structured-body limitation)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-createconfluencepage
+      uri: null
+    payload:
+      name: atlassian-createconfluencepage
+      args:
+        spaceId: "1234"
+        title: Notes
+        body:
+          representation: storage
+          value:
+            password: "hunter2plaintextvalue"
+  output:
+    expectedResult: allow
+
+- description: "Red-team documented residual — confluence_upload_attachment is not in write_tool_suffixes, so the tool is never recognized as an inspected write. Even a provider secret staged in its text `comment` metadata field (a key that IS in body_arg_keys) is not scanned, because body extraction only runs for recognized write tools. Policy allows (documented non-inspected-write limitation)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: mcp-atlassian-confluence_upload_attachment
+      uri: null
+    payload:
+      name: mcp-atlassian-confluence_upload_attachment
+      args:
+        page_id: "5678"
+        comment: "backup key ghp_abcdefghijklmnopqrstuvwxyz0123456789"
+  output:
+    expectedResult: allow
+
+- description: "Red-team documented residual — confluence_move_page (community relocation tool) carries no content body; a secret placed in target_title is not inspected. Policy allows (documented non-body-bearing-write limitation)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: mcp-atlassian-confluence_move_page
+      uri: null
+    payload:
+      name: mcp-atlassian-confluence_move_page
+      args:
+        page_id: "5678"
+        target_title: "AKIAIOSFODNN7EXAMPLE"
+  output:
+    expectedResult: allow

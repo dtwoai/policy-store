@@ -1,0 +1,501 @@
+- description: Read tool (ns_getRecord) is not a financial write — allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_getRecord
+      uri: null
+    subject:
+      claims:
+        groups:
+          - sales
+    payload:
+      name: netsuite-mcp-ns_getRecord
+      args:
+        recordType: journalentry
+        id: "42"
+  output:
+    expectedResult: allow
+
+- description: Create of a non-gated record type (customer) by a non-finance caller — allowed (out of scope).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_createRecord
+      uri: null
+    subject:
+      claims:
+        groups:
+          - sales
+    payload:
+      name: netsuite-mcp-ns_createRecord
+      args:
+        recordType: customer
+        data: '{"companyName":"Acme"}'
+  output:
+    expectedResult: allow
+
+- description: Update of a vendor record (banking) is deliberately out of PF-11 scope — allowed here (PF-10 guard-vendor-banking handles it).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_updateRecord
+      uri: null
+    subject:
+      claims:
+        groups:
+          - sales
+    payload:
+      name: netsuite-mcp-ns_updateRecord
+      args:
+        recordType: vendor
+        id: "7"
+        data: '{"bankAccountNumber":"123"}'
+  output:
+    expectedResult: allow
+
+- description: Create a journal entry with no subject/claims at all — fails closed, denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_createRecord
+      uri: null
+    payload:
+      name: netsuite-mcp-ns_createRecord
+      args:
+        recordType: journalentry
+        data: '{"memo":"accrual"}'
+  output:
+    expectedResult: deny
+    expectedReason: "NetSuite financial-transaction writes (recordType 'journalentry') are restricted to finance and controller roles. Posting or altering ledger transactions — especially in a closed accounting period — is a restatement risk, so segregation-of-duties controls gate this action. Ask a finance or controller colleague to make the change, or request the appropriate group membership from your finance systems administrator if you believe this is a false positive."
+
+- description: Update a vendor bill as a non-finance group (sales) — denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_updateRecord
+      uri: null
+    subject:
+      claims:
+        groups:
+          - sales
+    payload:
+      name: netsuite-mcp-ns_updateRecord
+      args:
+        recordType: vendorbill
+        id: "301"
+        data: '{"amount":9000}'
+  output:
+    expectedResult: deny
+    expectedReason: "NetSuite financial-transaction writes (recordType 'vendorbill') are restricted to finance and controller roles. Posting or altering ledger transactions — especially in a closed accounting period — is a restatement risk, so segregation-of-duties controls gate this action. Ask a finance or controller colleague to make the change, or request the appropriate group membership from your finance systems administrator if you believe this is a false positive."
+
+- description: Finance group creates a journal entry — allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_createRecord
+      uri: null
+    subject:
+      claims:
+        groups:
+          - finance
+    payload:
+      name: netsuite-mcp-ns_createRecord
+      args:
+        recordType: journalentry
+        data: '{"memo":"accrual"}'
+  output:
+    expectedResult: allow
+
+- description: Controller group updates a check — allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_updateRecord
+      uri: null
+    subject:
+      claims:
+        groups:
+          - controller
+    payload:
+      name: netsuite-mcp-ns_updateRecord
+      args:
+        recordType: check
+        id: "55"
+        data: '{"memo":"reissue"}'
+  output:
+    expectedResult: allow
+
+- description: recordType supplied with mixed case (JournalEntry) by a non-finance caller — matched case-insensitively, denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_createRecord
+      uri: null
+    subject:
+      claims:
+        groups:
+          - sales
+    payload:
+      name: netsuite-mcp-ns_createRecord
+      args:
+        recordType: JournalEntry
+        data: '{"memo":"x"}'
+  output:
+    expectedResult: deny
+    expectedReason: "NetSuite financial-transaction writes (recordType 'journalentry') are restricted to finance and controller roles. Posting or altering ledger transactions — especially in a closed accounting period — is a restatement risk, so segregation-of-duties controls gate this action. Ask a finance or controller colleague to make the change, or request the appropriate group membership from your finance systems administrator if you believe this is a false positive."
+
+- description: Mixed-case tool name (NetSuite-MCP-ns_createRecord) creating a credit memo, no groups — suffix matched case-insensitively, denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: NetSuite-MCP-ns_createRecord
+      uri: null
+    subject:
+      claims:
+        groups: []
+    payload:
+      name: NetSuite-MCP-ns_createRecord
+      args:
+        recordType: creditmemo
+        data: '{"amount":100}'
+  output:
+    expectedResult: deny
+    expectedReason: "NetSuite financial-transaction writes (recordType 'creditmemo') are restricted to finance and controller roles. Posting or altering ledger transactions — especially in a closed accounting period — is a restatement risk, so segregation-of-duties controls gate this action. Ask a finance or controller colleague to make the change, or request the appropriate group membership from your finance systems administrator if you believe this is a false positive."
+
+- description: Finance group name in mixed case (Finance) — matched case-insensitively, allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_createRecord
+      uri: null
+    subject:
+      claims:
+        groups:
+          - Finance
+    payload:
+      name: netsuite-mcp-ns_createRecord
+      args:
+        recordType: journalentry
+        data: '{"memo":"accrual"}'
+  output:
+    expectedResult: allow
+
+- description: Near-miss group name (financeadmin) must not satisfy the exact finance/controller membership — denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_createRecord
+      uri: null
+    subject:
+      claims:
+        groups:
+          - financeadmin
+    payload:
+      name: netsuite-mcp-ns_createRecord
+      args:
+        recordType: customerpayment
+        data: '{"amount":500}'
+  output:
+    expectedResult: deny
+    expectedReason: "NetSuite financial-transaction writes (recordType 'customerpayment') are restricted to finance and controller roles. Posting or altering ledger transactions — especially in a closed accounting period — is a restatement risk, so segregation-of-duties controls gate this action. Ask a finance or controller colleague to make the change, or request the appropriate group membership from your finance systems administrator if you believe this is a false positive."
+
+- description: Red-team — ns_createRecord with recordType omitted entirely by a non-finance caller. Cannot create a gated record without it, so allowed (documented residual).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_createRecord
+      uri: null
+    subject:
+      claims:
+        groups:
+          - sales
+    payload:
+      name: netsuite-mcp-ns_createRecord
+      args:
+        data: '{"memo":"x"}'
+  output:
+    expectedResult: allow
+
+- description: Red-team — non-finance caller reroutes a GL journal entry through the intercompanyjournalentry variant record type. Now gated, denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_createRecord
+      uri: null
+    subject:
+      claims:
+        groups:
+          - sales
+    payload:
+      name: netsuite-mcp-ns_createRecord
+      args:
+        recordType: intercompanyjournalentry
+        data: '{"memo":"x"}'
+  output:
+    expectedResult: deny
+    expectedReason: "NetSuite financial-transaction writes (recordType 'intercompanyjournalentry') are restricted to finance and controller roles. Posting or altering ledger transactions — especially in a closed accounting period — is a restatement risk, so segregation-of-duties controls gate this action. Ask a finance or controller colleague to make the change, or request the appropriate group membership from your finance systems administrator if you believe this is a false positive."
+
+- description: Red-team — statistical journal entry variant by a non-finance caller. Gated, denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_updateRecord
+      uri: null
+    subject:
+      claims:
+        groups:
+          - sales
+    payload:
+      name: netsuite-mcp-ns_updateRecord
+      args:
+        recordType: statisticaljournalentry
+        id: "9"
+        data: '{"memo":"x"}'
+  output:
+    expectedResult: deny
+
+- description: Red-team — whitespace-padded recordType (" journalentry") by a non-finance caller. Trimmed before the gated-set lookup, denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_createRecord
+      uri: null
+    subject:
+      claims:
+        groups:
+          - sales
+    payload:
+      name: netsuite-mcp-ns_createRecord
+      args:
+        recordType: " journalentry "
+        data: '{"memo":"x"}'
+  output:
+    expectedResult: deny
+    expectedReason: "NetSuite financial-transaction writes (recordType 'journalentry') are restricted to finance and controller roles. Posting or altering ledger transactions — especially in a closed accounting period — is a restatement risk, so segregation-of-duties controls gate this action. Ask a finance or controller colleague to make the change, or request the appropriate group membership from your finance systems administrator if you believe this is a false positive."
+
+- description: Red-team — recordType supplied under the `arguments` container (NetSuite landscape-note key) instead of `args`, by a non-finance caller. Merged container still reads it — denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_createRecord
+      uri: null
+    subject:
+      claims:
+        groups:
+          - sales
+    payload:
+      name: netsuite-mcp-ns_createRecord
+      arguments:
+        recordType: vendorpayment
+        data: '{"amount":9000}'
+  output:
+    expectedResult: deny
+    expectedReason: "NetSuite financial-transaction writes (recordType 'vendorpayment') are restricted to finance and controller roles. Posting or altering ledger transactions — especially in a closed accounting period — is a restatement risk, so segregation-of-duties controls gate this action. Ask a finance or controller colleague to make the change, or request the appropriate group membership from your finance systems administrator if you believe this is a false positive."
+
+- description: Finance caller posts a journal entry with recordType under the `arguments` container — merged read finds the finance group and the type, allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_createRecord
+      uri: null
+    subject:
+      claims:
+        groups:
+          - finance
+    payload:
+      name: netsuite-mcp-ns_createRecord
+      arguments:
+        recordType: journalentry
+        data: '{"memo":"accrual"}'
+  output:
+    expectedResult: allow
+
+- description: Red-team — non-finance caller creates an invoice (a posting transaction deliberately out of PF-11 scope). Allowed here (documented residual; use PF-12/PF-09).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_createRecord
+      uri: null
+    subject:
+      claims:
+        groups:
+          - sales
+    payload:
+      name: netsuite-mcp-ns_createRecord
+      args:
+        recordType: invoice
+        data: '{"amount":9000}'
+  output:
+    expectedResult: allow
+
+- description: Red-team (fixed) — decoy merge. Gated journalentry in `args`, non-gated `customer` decoy in `arguments`. Both containers inspected independently, so the decoy cannot suppress the gated type — denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_createRecord
+      uri: null
+    subject:
+      claims:
+        groups:
+          - sales
+    payload:
+      name: netsuite-mcp-ns_createRecord
+      args:
+        recordType: journalentry
+        data: '{"memo":"x"}'
+      arguments:
+        recordType: customer
+        data: '{"companyName":"decoy"}'
+  output:
+    expectedResult: deny
+    expectedReason: "NetSuite financial-transaction writes (recordType 'journalentry') are restricted to finance and controller roles. Posting or altering ledger transactions — especially in a closed accounting period — is a restatement risk, so segregation-of-duties controls gate this action. Ask a finance or controller colleague to make the change, or request the appropriate group membership from your finance systems administrator if you believe this is a false positive."
+
+- description: Red-team (fixed) — decoy merge, reverse direction. Non-gated `customer` decoy in `args`, gated `vendorbill` in `arguments`. Still denied — the gated value in either container fires the gate.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_createRecord
+      uri: null
+    subject:
+      claims:
+        groups:
+          - sales
+    payload:
+      name: netsuite-mcp-ns_createRecord
+      args:
+        recordType: customer
+        data: '{"companyName":"decoy"}'
+      arguments:
+        recordType: vendorbill
+        data: '{"amount":9000}'
+  output:
+    expectedResult: deny
+    expectedReason: "NetSuite financial-transaction writes (recordType 'vendorbill') are restricted to finance and controller roles. Posting or altering ledger transactions — especially in a closed accounting period — is a restatement risk, so segregation-of-duties controls gate this action. Ask a finance or controller colleague to make the change, or request the appropriate group membership from your finance systems administrator if you believe this is a false positive."
+
+- description: Red-team (fixed) — two different gated types across the two containers (journalentry in args, vendorbill in arguments). Both are named in the denial reason, sorted.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_createRecord
+      uri: null
+    subject:
+      claims:
+        groups:
+          - sales
+    payload:
+      name: netsuite-mcp-ns_createRecord
+      args:
+        recordType: journalentry
+        data: '{"memo":"x"}'
+      arguments:
+        recordType: vendorbill
+        data: '{"amount":9000}'
+  output:
+    expectedResult: deny
+    expectedReason: "NetSuite financial-transaction writes (recordType 'journalentry, vendorbill') are restricted to finance and controller roles. Posting or altering ledger transactions — especially in a closed accounting period — is a restatement risk, so segregation-of-duties controls gate this action. Ask a finance or controller colleague to make the change, or request the appropriate group membership from your finance systems administrator if you believe this is a false positive."
+
+- description: Red-team — recordType supplied as an array (["journalentry"]) by a non-finance caller. Stringifies to a value outside the gated set; NetSuite rejects a non-string recordType server-side, so allowed (documented malformed-recordType residual).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_createRecord
+      uri: null
+    subject:
+      claims:
+        groups:
+          - sales
+    payload:
+      name: netsuite-mcp-ns_createRecord
+      args:
+        recordType:
+          - journalentry
+        data: '{"memo":"x"}'
+  output:
+    expectedResult: allow
+
+- description: Red-team — groups claim emitted as a bare scalar string ("finance") instead of an array, posting a journalentry. `some group in` matches nothing, so the caller is not exempt and the gated write is denied (fail-closed).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: netsuite-mcp-ns_createRecord
+      uri: null
+    subject:
+      claims:
+        groups: finance
+    payload:
+      name: netsuite-mcp-ns_createRecord
+      args:
+        recordType: journalentry
+        data: '{"memo":"accrual"}'
+  output:
+    expectedResult: deny
+    expectedReason: "NetSuite financial-transaction writes (recordType 'journalentry') are restricted to finance and controller roles. Posting or altering ledger transactions — especially in a closed accounting period — is a restatement risk, so segregation-of-duties controls gate this action. Ask a finance or controller colleague to make the change, or request the appropriate group membership from your finance systems administrator if you believe this is a false positive."

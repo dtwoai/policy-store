@@ -1,0 +1,390 @@
+- description: Non-fenced read (employee directory list) passes through even with no groups claim.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gusto-mcp-list_company_employees
+      uri: null
+    payload:
+      name: gusto-mcp-list_company_employees
+      args:
+        per: 25
+    subject:
+      claims:
+        groups:
+          - engineering
+  output:
+    expectedResult: allow
+
+- description: Utility tool (get_token_info) is not fenced and passes through.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gusto-mcp-get_token_info
+      uri: null
+    payload:
+      name: gusto-mcp-get_token_info
+      args: {}
+  output:
+    expectedResult: allow
+
+- description: Fenced salary read (get_compensation) with empty claims -> deny (fail closed).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gusto-mcp-get_compensation
+      uri: null
+    payload:
+      name: gusto-mcp-get_compensation
+      args:
+        employee_uuid: e1
+    subject:
+      claims: {}
+  output:
+    expectedResult: deny
+    expectedReason: &deny_reason "This Gusto tool exposes compensation, payroll, or employment-action data and is limited to members of the 'hr-payroll-admins' group. Route salary and pay-register questions through an HR-scoped pipeline instead. If your role should already carry this access, ask your IdP administrator to add you to the 'hr-payroll-admins' group."
+
+- description: Fenced salary read (get_compensation) by an hr-payroll-admins member -> allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gusto-mcp-get_compensation
+      uri: null
+    payload:
+      name: gusto-mcp-get_compensation
+      args:
+        employee_uuid: e1
+    subject:
+      claims:
+        groups:
+          - hr-payroll-admins
+  output:
+    expectedResult: allow
+
+- description: Fenced read (list_job_compensations) with a non-empty but wrong group -> deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gusto-mcp-list_job_compensations
+      uri: null
+    payload:
+      name: gusto-mcp-list_job_compensations
+      args:
+        employee_uuid: e1
+    subject:
+      claims:
+        groups:
+          - hr-viewers
+          - engineering
+  output:
+    expectedResult: deny
+    expectedReason: *deny_reason
+
+- description: Pay-register read (get_payroll), uppercased tool name, no group -> deny (case-insensitive match).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: GUSTO-MCP-GET_PAYROLL
+      uri: null
+    payload:
+      name: GUSTO-MCP-GET_PAYROLL
+      args:
+        payroll_uuid: p1
+    subject:
+      claims:
+        groups: []
+  output:
+    expectedResult: deny
+    expectedReason: *deny_reason
+
+- description: Pay-register list (list_company_payrolls) behind a server prefix that itself contains 'gusto' mid-name -> deny (suffix survives the prefix).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: my-gusto-connector-list_company_payrolls
+      uri: null
+    payload:
+      name: my-gusto-connector-list_company_payrolls
+      args: {}
+    subject:
+      claims:
+        groups:
+          - finance
+  output:
+    expectedResult: deny
+    expectedReason: *deny_reason
+
+- description: Contractor payments list (list_company_contractor_payments) with no group -> deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gusto-mcp-list_company_contractor_payments
+      uri: null
+    payload:
+      name: gusto-mcp-list_company_contractor_payments
+      args: {}
+    subject:
+      claims:
+        groups:
+          - engineering
+  output:
+    expectedResult: deny
+    expectedReason: *deny_reason
+
+- description: Single contractor payment (get_contractor_payment) with empty claims -> deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gusto-mcp-get_contractor_payment
+      uri: null
+    payload:
+      name: gusto-mcp-get_contractor_payment
+      args:
+        contractor_payment_uuid: cp1
+    subject:
+      claims: {}
+  output:
+    expectedResult: deny
+    expectedReason: *deny_reason
+
+- description: Contractor payment group (get_contractor_payment_group) with empty claims -> deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gusto-mcp-get_contractor_payment_group
+      uri: null
+    payload:
+      name: gusto-mcp-get_contractor_payment_group
+      args: {}
+    subject:
+      claims: {}
+  output:
+    expectedResult: deny
+    expectedReason: *deny_reason
+
+- description: Contractor payment groups list (list_company_contractor_payment_groups) by an hr-payroll-admins member -> allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gusto-mcp-list_company_contractor_payment_groups
+      uri: null
+    payload:
+      name: gusto-mcp-list_company_contractor_payment_groups
+      args: {}
+    subject:
+      claims:
+        groups:
+          - hr-payroll-admins
+  output:
+    expectedResult: allow
+
+- description: Employment-action read (list_employee_terminations) with no group -> deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gusto-mcp-list_employee_terminations
+      uri: null
+    payload:
+      name: gusto-mcp-list_employee_terminations
+      args:
+        employee_uuid: e1
+    subject:
+      claims:
+        groups:
+          - engineering
+  output:
+    expectedResult: deny
+    expectedReason: *deny_reason
+
+- description: Rehire read (get_employee_rehire) by an hr-payroll-admins member -> allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gusto-mcp-get_employee_rehire
+      uri: null
+    payload:
+      name: gusto-mcp-get_employee_rehire
+      args:
+        employee_uuid: e1
+    subject:
+      claims:
+        groups:
+          - hr-payroll-admins
+  output:
+    expectedResult: allow
+
+- description: Fenced read (get_payroll) with no subject block at all -> deny (fail closed).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gusto-mcp-get_payroll
+      uri: null
+    payload:
+      name: gusto-mcp-get_payroll
+      args:
+        payroll_uuid: p1
+  output:
+    expectedResult: deny
+    expectedReason: *deny_reason
+
+- description: Look-alike non-fenced tool (list_company_pay_schedules ends in schedules, not a fenced suffix) passes through.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gusto-mcp-list_company_pay_schedules
+      uri: null
+    payload:
+      name: gusto-mcp-list_company_pay_schedules
+      args: {}
+  output:
+    expectedResult: allow
+
+# --- Red-team: documented residual bypasses (Known limitations) ---
+
+- description: 'RED-TEAM (documented): community kebab-case name (get-payroll) is NOT the snake_case fenced suffix, so it passes through even with no group. Locks the "Official-server names only" limitation — pin a per-server name list for community servers.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gusto-community-get-payroll
+      uri: null
+    payload:
+      name: gusto-community-get-payroll
+      args:
+        payrollId: p1
+    subject:
+      claims:
+        groups:
+          - engineering
+  output:
+    expectedResult: allow
+
+- description: 'RED-TEAM (documented): suffix-extension evasion. A versioned/renamed variant (get_payroll_v2) appends text after the fenced base, so endswith does not match and the sensitive read passes through with no group. Locks the "Suffix-extension evasion" limitation.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gusto-mcp-get_payroll_v2
+      uri: null
+    payload:
+      name: gusto-mcp-get_payroll_v2
+      args:
+        payroll_uuid: p1
+    subject:
+      claims: {}
+  output:
+    expectedResult: allow
+
+- description: 'RED-TEAM (documented): aggregator verb (get_employee_compensation) does not end in the fenced get_compensation suffix (preceded by employee_, not get_), so it passes through. Reinforces the suffix-extension / per-server-name-list limitation.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: stackone-hris-get_employee_compensation
+      uri: null
+    payload:
+      name: stackone-hris-get_employee_compensation
+      args: {}
+    subject:
+      claims:
+        groups:
+          - engineering
+  output:
+    expectedResult: allow
+
+- description: 'RED-TEAM: missing-args probe. No resource.name/payload at all -> is_fenced_read cannot fire, so allow (benign: no tool is being invoked). Confirms the policy does not error on absent fields.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+  output:
+    expectedResult: allow
+
+- description: 'RED-TEAM: very long server prefix (200+ chars) ending in the fenced get_payroll suffix, no group -> deny. endswith stays correct regardless of prefix length; a long name cannot slip past the fence.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-gusto-mcp-get_payroll
+      uri: null
+    payload:
+      name: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-gusto-mcp-get_payroll
+      args:
+        payroll_uuid: p1
+    subject:
+      claims:
+        groups:
+          - engineering
+  output:
+    expectedResult: deny
+    expectedReason: *deny_reason
+
+- description: 'RED-TEAM (documented): trailing-newline suffix edge. get_payroll\n has appended whitespace, so endswith("...get_payroll\n", "get_payroll") is false and it passes through. Documented degenerate case of the suffix-extension limitation; not routable on a real gateway (exact-name dispatch), but locked so a refactor cannot regress silently.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "gusto-mcp-get_payroll\n"
+      uri: null
+    payload:
+      name: "gusto-mcp-get_payroll\n"
+      args:
+        payroll_uuid: p1
+    subject:
+      claims: {}
+  output:
+    expectedResult: allow

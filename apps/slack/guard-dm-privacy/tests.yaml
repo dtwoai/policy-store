@@ -1,0 +1,576 @@
+- description: Public-channel search (slack_search_public) touches no private scope.
+    Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-slack_search_public
+      uri: null
+    payload:
+      name: slack-mcp-slack_search_public
+      args:
+        query: deploy schedule
+  output:
+    expectedResult: allow
+- description: Channel-directory search (slack_search_channels) is metadata-only.
+    Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-slack_search_channels
+      uri: null
+    payload:
+      name: slack-mcp-slack_search_channels
+      args:
+        query: engineering
+  output:
+    expectedResult: allow
+- description: Official private-scope search tool (name ends with
+    _search_public_and_private). Branch 1 should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-slack_search_public_and_private
+      uri: null
+    payload:
+      name: slack-mcp-slack_search_public_and_private
+      args:
+        query: salary review
+  output:
+    expectedResult: deny
+    expectedReason: Searching Slack DMs and private conversations is not permitted through this gateway. Use the public-channel search tool instead, or ask your InfoSec team for the slack-private-ok group if your role requires private-scope access.
+- description: Private-scope search with mixed-case tool name. Matching is
+    case-insensitive, so branch 1 should still deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-Slack_Search_Public_And_Private
+      uri: null
+    payload:
+      name: slack-mcp-Slack_Search_Public_And_Private
+      args:
+        query: reorg
+  output:
+    expectedResult: deny
+    expectedReason: Searching Slack DMs and private conversations is not permitted through this gateway. Use the public-channel search tool instead, or ask your InfoSec team for the slack-private-ok group if your role requires private-scope access.
+- description: korotovsky conversations_search_messages with the DM filter set as
+    boolean true. Branch 2 should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-conversations_search_messages
+      uri: null
+    payload:
+      name: slack-mcp-conversations_search_messages
+      args:
+        search_query: offer letter
+        filter_in_im_or_mpim: true
+  output:
+    expectedResult: deny
+    expectedReason: Slack message search scoped to DMs and group DMs (filter_in_im_or_mpim) is not permitted through this gateway. Re-run the search without the DM filter, or ask your InfoSec team for the slack-private-ok group if your role requires it.
+- description: korotovsky conversations_search_messages with the DM filter
+    serialized as the string "true". Branch 2 should still deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-conversations_search_messages
+      uri: null
+    payload:
+      name: slack-mcp-conversations_search_messages
+      args:
+        search_query: offer letter
+        filter_in_im_or_mpim: "true"
+  output:
+    expectedResult: deny
+    expectedReason: Slack message search scoped to DMs and group DMs (filter_in_im_or_mpim) is not permitted through this gateway. Re-run the search without the DM filter, or ask your InfoSec team for the slack-private-ok group if your role requires it.
+- description: korotovsky conversations_search_messages with the DM filter
+    serialized as the string "1". Branch 2 should still deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-conversations_search_messages
+      uri: null
+    payload:
+      name: slack-mcp-conversations_search_messages
+      args:
+        search_query: bonus
+        filter_in_im_or_mpim: "1"
+  output:
+    expectedResult: deny
+    expectedReason: Slack message search scoped to DMs and group DMs (filter_in_im_or_mpim) is not permitted through this gateway. Re-run the search without the DM filter, or ask your InfoSec team for the slack-private-ok group if your role requires it.
+- description: korotovsky conversations_search_messages without the DM filter —
+    public-scope message search. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-conversations_search_messages
+      uri: null
+    payload:
+      name: slack-mcp-conversations_search_messages
+      args:
+        search_query: deploy schedule
+  output:
+    expectedResult: allow
+- description: korotovsky conversations_search_messages with the DM filter
+    explicitly false. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-conversations_search_messages
+      uri: null
+    payload:
+      name: slack-mcp-conversations_search_messages
+      args:
+        search_query: deploy schedule
+        filter_in_im_or_mpim: false
+  output:
+    expectedResult: allow
+- description: Official slack_read_channel on a D-prefixed (1:1 DM) channel ID.
+    Branch 3 should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-slack_read_channel
+      uri: null
+    payload:
+      name: slack-mcp-slack_read_channel
+      args:
+        channel_id: D0123456789
+        limit: 50
+  output:
+    expectedResult: deny
+    expectedReason: Reading Slack DM and private-conversation history is not permitted through this gateway. Read public channels instead, or ask your InfoSec team for the slack-private-ok group if your role requires DM access. Contact your InfoSec team if this block is a false positive.
+- description: Official slack_read_thread on a D-prefixed channel ID. Branch 3
+    should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-slack_read_thread
+      uri: null
+    payload:
+      name: slack-mcp-slack_read_thread
+      args:
+        channel_id: D0123456789
+        message_ts: "1720000000.000100"
+  output:
+    expectedResult: deny
+    expectedReason: Reading Slack DM and private-conversation history is not permitted through this gateway. Read public channels instead, or ask your InfoSec team for the slack-private-ok group if your role requires DM access. Contact your InfoSec team if this block is a false positive.
+- description: korotovsky conversations_history using the "@username_dm" DM alias
+    as channel_id. Branch 3 should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-conversations_history
+      uri: null
+    payload:
+      name: slack-mcp-conversations_history
+      args:
+        channel_id: "@denis_dm"
+  output:
+    expectedResult: deny
+    expectedReason: Reading Slack DM and private-conversation history is not permitted through this gateway. Read public channels instead, or ask your InfoSec team for the slack-private-ok group if your role requires DM access. Contact your InfoSec team if this block is a false positive.
+- description: korotovsky conversations_replies on a D-prefixed channel ID.
+    Branch 3 should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-conversations_replies
+      uri: null
+    payload:
+      name: slack-mcp-conversations_replies
+      args:
+        channel_id: D0123456789
+        thread_ts: "1720000000.000100"
+  output:
+    expectedResult: deny
+    expectedReason: Reading Slack DM and private-conversation history is not permitted through this gateway. Read public channels instead, or ask your InfoSec team for the slack-private-ok group if your role requires DM access. Contact your InfoSec team if this block is a false positive.
+- description: Archived reference server slack_get_channel_history on a
+    D-prefixed channel ID. Branch 3 should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-slack_get_channel_history
+      uri: null
+    payload:
+      name: slack-mcp-slack_get_channel_history
+      args:
+        channel_id: D0123456789
+  output:
+    expectedResult: deny
+    expectedReason: Reading Slack DM and private-conversation history is not permitted through this gateway. Read public channels instead, or ask your InfoSec team for the slack-private-ok group if your role requires DM access. Contact your InfoSec team if this block is a false positive.
+- description: Archived reference server slack_get_thread_replies using the
+    "@username_dm" alias. Branch 3 should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-slack_get_thread_replies
+      uri: null
+    payload:
+      name: slack-mcp-slack_get_thread_replies
+      args:
+        channel_id: "@denis_dm"
+        thread_ts: "1720000000.000100"
+  output:
+    expectedResult: deny
+    expectedReason: Reading Slack DM and private-conversation history is not permitted through this gateway. Read public channels instead, or ask your InfoSec team for the slack-private-ok group if your role requires DM access. Contact your InfoSec team if this block is a false positive.
+- description: Official slack_read_channel on a C-prefixed (public) channel ID.
+    Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-slack_read_channel
+      uri: null
+    payload:
+      name: slack-mcp-slack_read_channel
+      args:
+        channel_id: C0123456789
+        limit: 50
+  output:
+    expectedResult: allow
+- description: History tool called with no channel_id at all — documented
+    fail-open on branch 3. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-slack_read_channel
+      uri: null
+    payload:
+      name: slack-mcp-slack_read_channel
+      args:
+        limit: 50
+  output:
+    expectedResult: allow
+- description: Unrelated Slack write tool (slack_send_message) is outside this
+    policy's scope. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-slack_send_message
+      uri: null
+    payload:
+      name: slack-mcp-slack_send_message
+      args:
+        channel_id: C0123456789
+        message: lunch in 5
+  output:
+    expectedResult: allow
+- description: Caller in the slack-private-ok IdP group runs the private-scope
+    search. Exemption should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    subject:
+      sub: google-apps|denis@dtwo.ai
+      claims:
+        sub: google-apps|denis@dtwo.ai
+        groups:
+          - hr
+          - slack-private-ok
+    resource:
+      type: tool
+      name: slack-mcp-slack_search_public_and_private
+      uri: null
+    payload:
+      name: slack-mcp-slack_search_public_and_private
+      args:
+        query: salary review
+  output:
+    expectedResult: allow
+- description: Caller in the slack-private-ok IdP group reads DM history.
+    Exemption should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    subject:
+      sub: google-apps|denis@dtwo.ai
+      claims:
+        sub: google-apps|denis@dtwo.ai
+        groups:
+          - slack-private-ok
+    resource:
+      type: tool
+      name: slack-mcp-slack_read_channel
+      uri: null
+    payload:
+      name: slack-mcp-slack_read_channel
+      args:
+        channel_id: D0123456789
+  output:
+    expectedResult: allow
+- description: Caller with groups that do not include slack-private-ok gets no
+    exemption. Branch 1 should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    subject:
+      sub: google-apps|denis@dtwo.ai
+      claims:
+        sub: google-apps|denis@dtwo.ai
+        groups:
+          - engineering
+          - hr
+    resource:
+      type: tool
+      name: slack-mcp-slack_search_public_and_private
+      uri: null
+    payload:
+      name: slack-mcp-slack_search_public_and_private
+      args:
+        query: salary review
+  output:
+    expectedResult: deny
+    expectedReason: Searching Slack DMs and private conversations is not permitted through this gateway. Use the public-channel search tool instead, or ask your InfoSec team for the slack-private-ok group if your role requires private-scope access.
+- description: Caller with claims present but no groups claim at all — exemption
+    fails closed. Branch 3 should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    subject:
+      sub: google-apps|denis@dtwo.ai
+      claims:
+        sub: google-apps|denis@dtwo.ai
+        scope: openid profile email
+    resource:
+      type: tool
+      name: slack-mcp-conversations_history
+      uri: null
+    payload:
+      name: slack-mcp-conversations_history
+      args:
+        channel_id: D0123456789
+  output:
+    expectedResult: deny
+    expectedReason: Reading Slack DM and private-conversation history is not permitted through this gateway. Read public channels instead, or ask your InfoSec team for the slack-private-ok group if your role requires DM access. Contact your InfoSec team if this block is a false positive.
+- description: No subject block at all (no IdP configured) — exemption fails
+    closed. Branch 2 should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-conversations_search_messages
+      uri: null
+    payload:
+      name: slack-mcp-conversations_search_messages
+      args:
+        search_query: credentials
+        filter_in_im_or_mpim: true
+  output:
+    expectedResult: deny
+    expectedReason: Slack message search scoped to DMs and group DMs (filter_in_im_or_mpim) is not permitted through this gateway. Re-run the search without the DM filter, or ask your InfoSec team for the slack-private-ok group if your role requires it.
+- description: "Red-team residual (documented): a group-DM / legacy-private-channel
+    history read on a G-prefixed channel_id is NOT caught by branch 3, which by
+    spec matches only D and @. Policy allows by design; pin such IDs with the
+    sensitive-channels companion. See Known limitations."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-conversations_history
+      uri: null
+    payload:
+      name: slack-mcp-conversations_history
+      args:
+        channel_id: G0123456789
+  output:
+    expectedResult: allow
+- description: "Red-team: DM filter serialized as the JSON number 1 (not a
+    string). Branch 2 must still deny — numeric coercion must not bypass."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-conversations_search_messages
+      uri: null
+    payload:
+      name: slack-mcp-conversations_search_messages
+      args:
+        search_query: salary review
+        filter_in_im_or_mpim: 1
+  output:
+    expectedResult: deny
+    expectedReason: Slack message search scoped to DMs and group DMs (filter_in_im_or_mpim) is not permitted through this gateway. Re-run the search without the DM filter, or ask your InfoSec team for the slack-private-ok group if your role requires it.
+- description: "Red-team residual (documented): unfiltered korotovsky
+    conversations_search_messages is allowed even though a browser-token
+    deployment may surface DM matches server-side. Policy allows by design;
+    see Known limitations."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-conversations_search_messages
+      uri: null
+    payload:
+      name: slack-mcp-conversations_search_messages
+      args:
+        search_query: performance review
+  output:
+    expectedResult: allow
+- description: "Red-team residual (documented): korotovsky conversations_unreads
+    surfaces DM/mpim content under a browser-token deployment but is not one of
+    the six branch-3 history readers and takes no DM-shaped channel_id. Policy
+    allows by design; see Known limitations (read surfaces beyond the six)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-conversations_unreads
+      uri: null
+    payload:
+      name: slack-mcp-conversations_unreads
+      args: {}
+  output:
+    expectedResult: allow
+- description: "Red-team residual (documented): official slack_read_canvas can read
+    a canvas living in a private channel or DM but is a distinct surface outside
+    branch 3. Policy allows by design; see Known limitations."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-slack_read_canvas
+      uri: null
+    payload:
+      name: slack-mcp-slack_read_canvas
+      args:
+        canvas_id: F0123456789
+  output:
+    expectedResult: allow
+- description: "Red-team residual (documented): korotovsky saved_list may return
+    saved DM messages but is not a branch-3 history reader. Policy allows by
+    design; see Known limitations."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-saved_list
+      uri: null
+    payload:
+      name: slack-mcp-saved_list
+      args: {}
+  output:
+    expectedResult: allow
+- description: "Red-team residual (documented): korotovsky #channel-name alias for
+    a private channel is not caught by branch 3's D/@ shape check. Policy allows
+    by design; pin such channels with the sensitive-channels companion. See Known
+    limitations."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-conversations_history
+      uri: null
+    payload:
+      name: slack-mcp-conversations_history
+      args:
+        channel_id: "#secret-hr"
+  output:
+    expectedResult: allow
+- description: "Red-team residual (documented): a lowercase d-prefixed channel_id is
+    not a valid Slack ID and is not matched by branch 3's exact-case D check.
+    Policy allows by design; see Known limitations (ID matching is exact-case)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-slack_read_channel
+      uri: null
+    payload:
+      name: slack-mcp-slack_read_channel
+      args:
+        channel_id: d0123456789
+  output:
+    expectedResult: allow
+- description: "Red-team: DM filter serialized as the JSON float 1.0 (distinct wire
+    type from integer 1). Rego numeric equality treats 1.0 == 1, so branch 2 must
+    still deny — float coercion must not bypass."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-conversations_search_messages
+      uri: null
+    payload:
+      name: slack-mcp-conversations_search_messages
+      args:
+        search_query: salary review
+        filter_in_im_or_mpim: 1.0
+  output:
+    expectedResult: deny
+    expectedReason: Slack message search scoped to DMs and group DMs (filter_in_im_or_mpim) is not permitted through this gateway. Re-run the search without the DM filter, or ask your InfoSec team for the slack-private-ok group if your role requires it.

@@ -1,0 +1,540 @@
+# Tests for slack.egress.mask_pan — transform-only PAN masking on Slack
+# read/search/history responses. The policy never denies, so every case
+# expects allow; the interesting assertions are the transform ones.
+
+- description: Contiguous Luhn-valid 16-digit PAN in a channel read (official
+    server, underscore tool name) is masked to BIN+last4 for a non-exempt caller.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: slack-mcp-slack_read_channel
+      uri: null
+    payload:
+      name: slack-mcp-slack_read_channel
+      text:
+        - "customer: my card is 4111111111111111 thanks"
+    subject:
+      sub: google-apps|casey@acme.com
+      claims:
+        groups:
+          - support
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "customer: my card is 411111******1111 thanks"
+
+- description: Space-separated 4-4-4-4 PAN in a search response is masked; the
+    masked form drops separators and keeps first six + last four.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: slack-mcp-slack_search_public
+      uri: null
+    payload:
+      name: slack-mcp-slack_search_public
+      text:
+        - "match in #orders: Card: 4111 1111 1111 1111, exp 12/27"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "match in #orders: Card: 411111******1111, exp 12/27"
+
+- description: Amex 4-6-5 grouped PAN (15 digits, 37 IIN) in a canvas read is
+    masked with five masked middle digits.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: slack-mcp-slack_read_canvas
+      uri: null
+    payload:
+      name: slack-mcp-slack_read_canvas
+      text:
+        - "## Billing\ncorporate amex: 3782 822463 10005"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "## Billing\ncorporate amex: 378282*****0005"
+
+- description: 13-digit Luhn-valid PAN (short Visa range) via the legacy
+    reference server's history tool is masked with three masked middle digits.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: slack-legacy-slack_get_channel_history
+      uri: null
+    payload:
+      name: slack-legacy-slack_get_channel_history
+      text:
+        - "old thread: card on file 4222222222222"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "old thread: card on file 422222***2222"
+
+- description: Luhn-invalid 16-digit lookalike is left untouched — no transform
+    is emitted and the response passes through byte-identical.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: slack-mcp-slack_read_thread
+      uri: null
+    payload:
+      name: slack-mcp-slack_read_thread
+      text:
+        - "tracking number 4111111111111112 shipped today"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Slack timestamps (10-digit epoch with 6-digit suffix, 13-digit
+    millisecond epoch failing Luhn) do not trigger masking.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: slack-korotovsky-conversations_history
+      uri: null
+    payload:
+      name: slack-korotovsky-conversations_history
+      text:
+        - "{\"ts\":\"1721947200.000123\",\"event_ms\":1721947200123,\"text\":\"deploy done\"}"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Caller in the placeholder pci-full-pan group receives the
+    unmasked response — exemption branch.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: slack-mcp-slack_search_public_and_private
+      uri: null
+    payload:
+      name: slack-mcp-slack_search_public_and_private
+      text:
+        - "DM match: refund card 4111111111111111"
+    subject:
+      sub: google-apps|pci-analyst@acme.com
+      claims:
+        groups:
+          - pci-full-pan
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Caller in a different group (finance) is not exempt — masking
+    still applies.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: slack-korotovsky-conversations_replies
+      uri: null
+    payload:
+      name: slack-korotovsky-conversations_replies
+      text:
+        - "reply: use 5555555555554444 for the test charge"
+    subject:
+      sub: google-apps|casey@acme.com
+      claims:
+        groups:
+          - finance
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "reply: use 555555******4444 for the test charge"
+
+- description: Missing subject/claims fails closed — with no identity at all
+    the caller is never exempt and masking applies.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: slack-legacy-slack_get_thread_replies
+      uri: null
+    payload:
+      name: slack-legacy-slack_get_thread_replies
+      text:
+        - "thread: card 4111111111111111"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "thread: card 411111******1111"
+
+- description: Malformed groups claim (string instead of array) fails closed —
+    caller is not exempt and masking applies.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: slack-mcp-slack_read_channel
+      uri: null
+    payload:
+      name: slack-mcp-slack_read_channel
+      text:
+        - "card 4111111111111111"
+    subject:
+      sub: google-apps|casey@acme.com
+      claims:
+        groups: pci-full-pan
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "card 411111******1111"
+
+- description: "Object-shaped groups claim (role: pci-full-pan as an object)
+    fails closed — the is_array guard prevents iterating object values, so the
+    caller is not exempt and masking applies."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: slack-mcp-slack_read_channel
+      uri: null
+    payload:
+      name: slack-mcp-slack_read_channel
+      text:
+        - "card 4111111111111111"
+    subject:
+      sub: google-apps|casey@acme.com
+      claims:
+        groups:
+          role: pci-full-pan
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "card 411111******1111"
+
+- description: Out-of-scope tool (send-message echo response) is never
+    transformed even when the response contains a PAN.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: slack-mcp-slack_send_message
+      uri: null
+    payload:
+      name: slack-mcp-slack_send_message
+      text:
+        - "sent: card 4111111111111111"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: A 20-digit run never matches (no word boundary inside a digit
+    run), so longer identifiers are not partially masked.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: slack-mcp-slack_read_channel
+      uri: null
+    payload:
+      name: slack-mcp-slack_read_channel
+      text:
+        - "account ref 41111111111111111115 confirmed"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Multiple distinct PANs in one content block are each masked to
+    their own BIN+last4 form.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: slack-korotovsky-conversations_search_messages
+      uri: null
+    payload:
+      name: slack-korotovsky-conversations_search_messages
+      text:
+        - "cards 4111111111111111 and 5555555555554444 on file"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "cards 411111******1111 and 555555******4444 on file"
+
+- description: Multiple content blocks — clean blocks pass through unchanged
+    while the block containing a PAN is masked.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: slack-mcp-slack_read_thread
+      uri: null
+    payload:
+      name: slack-mcp-slack_read_thread
+      text:
+        - "no cards here"
+        - "PAN 378282246310005 on file"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "no cards here"
+      - "PAN 378282*****0005 on file"
+
+- description: Empty text array — nothing to mask, no transform emitted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: slack-mcp-slack_read_channel
+      uri: null
+    payload:
+      name: slack-mcp-slack_read_channel
+      text: []
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Red-team fix: korotovsky conversations_unreads returns message
+    bodies and is now in scope — a PAN in an unread message is masked."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: slack-korotovsky-conversations_unreads
+      uri: null
+    payload:
+      name: slack-korotovsky-conversations_unreads
+      text:
+        - "unread: card 4111111111111111"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "unread: card 411111******1111"
+
+- description: "Red-team fix: korotovsky saved_list returns saved message bodies
+    and is now in scope — a PAN in a saved item is masked."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: slack-korotovsky-saved_list
+      uri: null
+    payload:
+      name: slack-korotovsky-saved_list
+      text:
+        - "saved: card 4111111111111111"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "saved: card 411111******1111"
+
+- description: "Red-team documented limitation: a PAN glued to a word character
+    (underscore) in a serialized-JSON token value has no word boundary and is
+    NOT masked — pins the \\b-anchoring residual."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: slack-mcp-slack_read_channel
+      uri: null
+    payload:
+      name: slack-mcp-slack_read_channel
+      text:
+        - "{\"note\":\"acct_4111111111111111\"}"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Red-team claim-spoofing surface: exemption group is matched
+    case-sensitively, so an uppercased PCI-FULL-PAN group is NOT exempt and
+    masking still applies (fails closed)."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: slack-mcp-slack_read_channel
+      uri: null
+    payload:
+      name: slack-mcp-slack_read_channel
+      text:
+        - "card 4111111111111111"
+    subject:
+      sub: google-apps|casey@acme.com
+      claims:
+        groups:
+          - PCI-FULL-PAN
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "card 411111******1111"
+
+- description: "Red-team claim-spoofing surface: a nested-array groups claim
+    ([[pci-full-pan]]) is not a flat string member, so the caller is not exempt
+    and masking still applies (fails closed)."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: slack-mcp-slack_read_channel
+      uri: null
+    payload:
+      name: slack-mcp-slack_read_channel
+      text:
+        - "card 4111111111111111"
+    subject:
+      sub: google-apps|casey@acme.com
+      claims:
+        groups:
+          - - pci-full-pan
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "card 411111******1111"
+
+- description: Hyphenated tool-name delivery (slack-read-channel) matches via
+    underscore normalization and masking applies.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: slack-mcp-slack-read-channel
+      uri: null
+    payload:
+      name: slack-mcp-slack-read-channel
+      text:
+        - "card 6011111111111117"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "card 601111******1117"
+
+- description: "Red-team documented residual (fail-open): a PAN inside a
+    structured/object content block (MCP typed {type,text} shape) is NOT a
+    string, so mask_block passes it through unmodified and no transform is
+    emitted — the object-block leak is pinned here."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: slack-mcp-slack_read_channel
+      uri: null
+    payload:
+      name: slack-mcp-slack_read_channel
+      text:
+        - type: text
+          text: "customer card 4111111111111111 on file"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Red-team documented residual (fail-open): when payload.text is a
+    bare string instead of an array, the is_array guard leaves the transform
+    undefined and the PAN passes through byte-identical."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: slack-mcp-slack_read_channel
+      uri: null
+    payload:
+      name: slack-mcp-slack_read_channel
+      text: "customer card 4111111111111111 on file"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Red-team documented residual (encoding): a PAN typed with Unicode
+    fullwidth digits does not match the ASCII-only RE2 \\d class, so no transform
+    is emitted and the digits pass through unmasked."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: slack-mcp-slack_read_channel
+      uri: null
+    payload:
+      name: slack-mcp-slack_read_channel
+      text:
+        - "card ４１１１１１１１１１１１１１１１ on file"
+  output:
+    expectedResult: allow
+  transformApplied: false

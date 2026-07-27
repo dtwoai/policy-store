@@ -1,0 +1,819 @@
+- description: Remote search_crm_objects with limit 200 — numeric limit above the
+    cap is rewritten to 50; other args preserved.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: hubspot-remote-search_crm_objects
+      uri: null
+    payload:
+      name: hubspot-remote-search_crm_objects
+      args:
+        objectType: contacts
+        query: smith
+        limit: 200
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    limit: 50
+    objectType: contacts
+    query: smith
+- description: "Local-beta hubspot-list-objects with no limit argument — limit: 50
+    is injected (remote/servers otherwise default up to 200 per page)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: hubspot-mcp-hubspot-list-objects
+      uri: null
+    payload:
+      name: hubspot-mcp-hubspot-list-objects
+      args:
+        objectType: contacts
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    limit: 50
+    objectType: contacts
+- description: search_crm_objects with limit 25 — already within the cap, passes
+    through with no transform.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: hubspot-remote-search_crm_objects
+      uri: null
+    payload:
+      name: hubspot-remote-search_crm_objects
+      args:
+        objectType: deals
+        query: acme
+        limit: 25
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: hubspot-search-objects with limit exactly 50 — boundary value is
+    allowed unchanged (clamp only fires above the cap).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: hubspot-mcp-hubspot-search-objects
+      uri: null
+    payload:
+      name: hubspot-mcp-hubspot-search-objects
+      args:
+        objectType: companies
+        limit: 50
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: shinzo crm_search_contacts with limit 100 — community-server name
+    family is clamped too.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: shinzo-hubspot-crm_search_contacts
+      uri: null
+    payload:
+      name: shinzo-hubspot-crm_search_contacts
+      args:
+        query: gmail.com
+        limit: 100
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    limit: 50
+    query: gmail.com
+- description: Uppercase tool name CRM_SEARCH_COMPANIES with limit 120 — tool
+    matching is case-insensitive.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: SHINZO-HUBSPOT-CRM_SEARCH_COMPANIES
+      uri: null
+    payload:
+      name: SHINZO-HUBSPOT-CRM_SEARCH_COMPANIES
+      args:
+        limit: 120
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    limit: 50
+- description: "shinzo crm_list_objects with no limit — limit: 50 injected."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: shinzo-hubspot-crm_list_objects
+      uri: null
+    payload:
+      name: shinzo-hubspot-crm_list_objects
+      args:
+        objectType: contacts
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    limit: 50
+    objectType: contacts
+- description: 'crm_search_objects with a non-numeric limit ("200" as a string) —
+    fail safe: replaced with 50 rather than letting the server parse it.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: shinzo-hubspot-crm_search_objects
+      uri: null
+    payload:
+      name: shinzo-hubspot-crm_search_objects
+      args:
+        objectType: contacts
+        limit: "200"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    limit: 50
+    objectType: contacts
+- description: "search_crm_objects with the args object missing entirely —
+    transform still fires and injects limit: 50 (object.get defaults, no
+    error)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: hubspot-remote-search_crm_objects
+      uri: null
+    payload:
+      name: hubspot-remote-search_crm_objects
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    limit: 50
+- description: get_crm_objects with 60 entries in ids — truncated to the first 50;
+    objectType preserved.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: hubspot-remote-get_crm_objects
+      uri: null
+    payload:
+      name: hubspot-remote-get_crm_objects
+      args:
+        objectType: contacts
+        ids:
+          - id-1
+          - id-2
+          - id-3
+          - id-4
+          - id-5
+          - id-6
+          - id-7
+          - id-8
+          - id-9
+          - id-10
+          - id-11
+          - id-12
+          - id-13
+          - id-14
+          - id-15
+          - id-16
+          - id-17
+          - id-18
+          - id-19
+          - id-20
+          - id-21
+          - id-22
+          - id-23
+          - id-24
+          - id-25
+          - id-26
+          - id-27
+          - id-28
+          - id-29
+          - id-30
+          - id-31
+          - id-32
+          - id-33
+          - id-34
+          - id-35
+          - id-36
+          - id-37
+          - id-38
+          - id-39
+          - id-40
+          - id-41
+          - id-42
+          - id-43
+          - id-44
+          - id-45
+          - id-46
+          - id-47
+          - id-48
+          - id-49
+          - id-50
+          - id-51
+          - id-52
+          - id-53
+          - id-54
+          - id-55
+          - id-56
+          - id-57
+          - id-58
+          - id-59
+          - id-60
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    ids:
+      - id-1
+      - id-2
+      - id-3
+      - id-4
+      - id-5
+      - id-6
+      - id-7
+      - id-8
+      - id-9
+      - id-10
+      - id-11
+      - id-12
+      - id-13
+      - id-14
+      - id-15
+      - id-16
+      - id-17
+      - id-18
+      - id-19
+      - id-20
+      - id-21
+      - id-22
+      - id-23
+      - id-24
+      - id-25
+      - id-26
+      - id-27
+      - id-28
+      - id-29
+      - id-30
+      - id-31
+      - id-32
+      - id-33
+      - id-34
+      - id-35
+      - id-36
+      - id-37
+      - id-38
+      - id-39
+      - id-40
+      - id-41
+      - id-42
+      - id-43
+      - id-44
+      - id-45
+      - id-46
+      - id-47
+      - id-48
+      - id-49
+      - id-50
+    objectType: contacts
+- description: get_crm_objects with 55 entries under the alternate objectIds key —
+    truncated to the first 50.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: hubspot-remote-get_crm_objects
+      uri: null
+    payload:
+      name: hubspot-remote-get_crm_objects
+      args:
+        objectType: companies
+        objectIds:
+          - id-1
+          - id-2
+          - id-3
+          - id-4
+          - id-5
+          - id-6
+          - id-7
+          - id-8
+          - id-9
+          - id-10
+          - id-11
+          - id-12
+          - id-13
+          - id-14
+          - id-15
+          - id-16
+          - id-17
+          - id-18
+          - id-19
+          - id-20
+          - id-21
+          - id-22
+          - id-23
+          - id-24
+          - id-25
+          - id-26
+          - id-27
+          - id-28
+          - id-29
+          - id-30
+          - id-31
+          - id-32
+          - id-33
+          - id-34
+          - id-35
+          - id-36
+          - id-37
+          - id-38
+          - id-39
+          - id-40
+          - id-41
+          - id-42
+          - id-43
+          - id-44
+          - id-45
+          - id-46
+          - id-47
+          - id-48
+          - id-49
+          - id-50
+          - id-51
+          - id-52
+          - id-53
+          - id-54
+          - id-55
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    objectIds:
+      - id-1
+      - id-2
+      - id-3
+      - id-4
+      - id-5
+      - id-6
+      - id-7
+      - id-8
+      - id-9
+      - id-10
+      - id-11
+      - id-12
+      - id-13
+      - id-14
+      - id-15
+      - id-16
+      - id-17
+      - id-18
+      - id-19
+      - id-20
+      - id-21
+      - id-22
+      - id-23
+      - id-24
+      - id-25
+      - id-26
+      - id-27
+      - id-28
+      - id-29
+      - id-30
+      - id-31
+      - id-32
+      - id-33
+      - id-34
+      - id-35
+      - id-36
+      - id-37
+      - id-38
+      - id-39
+      - id-40
+      - id-41
+      - id-42
+      - id-43
+      - id-44
+      - id-45
+      - id-46
+      - id-47
+      - id-48
+      - id-49
+      - id-50
+    objectType: companies
+- description: get_crm_objects with 10 ids — within the cap, no transform.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: hubspot-remote-get_crm_objects
+      uri: null
+    payload:
+      name: hubspot-remote-get_crm_objects
+      args:
+        objectType: contacts
+        ids:
+          - id-1
+          - id-2
+          - id-3
+          - id-4
+          - id-5
+          - id-6
+          - id-7
+          - id-8
+          - id-9
+          - id-10
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: hubspot-batch-read-objects with 51 objects in inputs — truncated to
+    the first 50.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: hubspot-mcp-hubspot-batch-read-objects
+      uri: null
+    payload:
+      name: hubspot-mcp-hubspot-batch-read-objects
+      args:
+        objectType: contacts
+        inputs:
+          - id: rec-1
+          - id: rec-2
+          - id: rec-3
+          - id: rec-4
+          - id: rec-5
+          - id: rec-6
+          - id: rec-7
+          - id: rec-8
+          - id: rec-9
+          - id: rec-10
+          - id: rec-11
+          - id: rec-12
+          - id: rec-13
+          - id: rec-14
+          - id: rec-15
+          - id: rec-16
+          - id: rec-17
+          - id: rec-18
+          - id: rec-19
+          - id: rec-20
+          - id: rec-21
+          - id: rec-22
+          - id: rec-23
+          - id: rec-24
+          - id: rec-25
+          - id: rec-26
+          - id: rec-27
+          - id: rec-28
+          - id: rec-29
+          - id: rec-30
+          - id: rec-31
+          - id: rec-32
+          - id: rec-33
+          - id: rec-34
+          - id: rec-35
+          - id: rec-36
+          - id: rec-37
+          - id: rec-38
+          - id: rec-39
+          - id: rec-40
+          - id: rec-41
+          - id: rec-42
+          - id: rec-43
+          - id: rec-44
+          - id: rec-45
+          - id: rec-46
+          - id: rec-47
+          - id: rec-48
+          - id: rec-49
+          - id: rec-50
+          - id: rec-51
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    inputs:
+      - id: rec-1
+      - id: rec-2
+      - id: rec-3
+      - id: rec-4
+      - id: rec-5
+      - id: rec-6
+      - id: rec-7
+      - id: rec-8
+      - id: rec-9
+      - id: rec-10
+      - id: rec-11
+      - id: rec-12
+      - id: rec-13
+      - id: rec-14
+      - id: rec-15
+      - id: rec-16
+      - id: rec-17
+      - id: rec-18
+      - id: rec-19
+      - id: rec-20
+      - id: rec-21
+      - id: rec-22
+      - id: rec-23
+      - id: rec-24
+      - id: rec-25
+      - id: rec-26
+      - id: rec-27
+      - id: rec-28
+      - id: rec-29
+      - id: rec-30
+      - id: rec-31
+      - id: rec-32
+      - id: rec-33
+      - id: rec-34
+      - id: rec-35
+      - id: rec-36
+      - id: rec-37
+      - id: rec-38
+      - id: rec-39
+      - id: rec-40
+      - id: rec-41
+      - id: rec-42
+      - id: rec-43
+      - id: rec-44
+      - id: rec-45
+      - id: rec-46
+      - id: rec-47
+      - id: rec-48
+      - id: rec-49
+      - id: rec-50
+    objectType: contacts
+- description: hubspot-batch-read-objects with exactly 50 inputs — boundary value
+    passes through unchanged.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: hubspot-mcp-hubspot-batch-read-objects
+      uri: null
+    payload:
+      name: hubspot-mcp-hubspot-batch-read-objects
+      args:
+        objectType: contacts
+        inputs:
+          - id: rec-1
+          - id: rec-2
+          - id: rec-3
+          - id: rec-4
+          - id: rec-5
+          - id: rec-6
+          - id: rec-7
+          - id: rec-8
+          - id: rec-9
+          - id: rec-10
+          - id: rec-11
+          - id: rec-12
+          - id: rec-13
+          - id: rec-14
+          - id: rec-15
+          - id: rec-16
+          - id: rec-17
+          - id: rec-18
+          - id: rec-19
+          - id: rec-20
+          - id: rec-21
+          - id: rec-22
+          - id: rec-23
+          - id: rec-24
+          - id: rec-25
+          - id: rec-26
+          - id: rec-27
+          - id: rec-28
+          - id: rec-29
+          - id: rec-30
+          - id: rec-31
+          - id: rec-32
+          - id: rec-33
+          - id: rec-34
+          - id: rec-35
+          - id: rec-36
+          - id: rec-37
+          - id: rec-38
+          - id: rec-39
+          - id: rec-40
+          - id: rec-41
+          - id: rec-42
+          - id: rec-43
+          - id: rec-44
+          - id: rec-45
+          - id: rec-46
+          - id: rec-47
+          - id: rec-48
+          - id: rec-49
+          - id: rec-50
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: hubspot-batch-read-objects with no inputs key at all — nothing to
+    truncate, no transform.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: hubspot-mcp-hubspot-batch-read-objects
+      uri: null
+    payload:
+      name: hubspot-mcp-hubspot-batch-read-objects
+      args:
+        objectType: contacts
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: get_crm_objects with ids as a comma-separated string instead of an
+    array — is_array guard means no truncation, call passes through.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: hubspot-remote-get_crm_objects
+      uri: null
+    payload:
+      name: hubspot-remote-get_crm_objects
+      args:
+        objectType: contacts
+        ids: id-1,id-2,id-3
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Unrelated HubSpot tool (hubspot-get-user-details) with a stray
+    limit 500 — name does not match any clamped suffix, passes through
+    untouched.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: hubspot-mcp-hubspot-get-user-details
+      uri: null
+    payload:
+      name: hubspot-mcp-hubspot-get-user-details
+      args:
+        limit: 500
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Write tool manage_crm_objects — not a bulk-read surface, never clamped.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: hubspot-remote-manage_crm_objects
+      uri: null
+    payload:
+      name: hubspot-remote-manage_crm_objects
+      args:
+        objectType: contacts
+        properties:
+          email: a@b.com
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Egress hook (tool_post_invoke) on a matching tool name — action
+    guard keeps the ingress transform from firing on the output path.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: hubspot-remote-search_crm_objects
+      uri: null
+    payload:
+      name: hubspot-remote-search_crm_objects
+      text:
+        - '{"results": []}'
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: "Red-team: search_crm_objects with limit 0 — a non-positive limit
+    some servers read as unbounded is clamped to 50, not passed through."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: hubspot-remote-search_crm_objects
+      uri: null
+    payload:
+      name: hubspot-remote-search_crm_objects
+      args:
+        objectType: contacts
+        limit: 0
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    limit: 50
+    objectType: contacts
+- description: "Red-team: hubspot-search-objects with a negative limit (-5) — also
+    outside the 1-50 range, clamped to 50."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: hubspot-mcp-hubspot-search-objects
+      uri: null
+    payload:
+      name: hubspot-mcp-hubspot-search-objects
+      args:
+        objectType: contacts
+        limit: -5
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    limit: 50
+    objectType: contacts
+- description: "Red-team (documented gap): shinzo per-engagement emails_search with
+    limit 200 — engagement read tools are not in the suffix list, so the call
+    passes through unclamped. See Known limitations."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: shinzo-hubspot-emails_search
+      uri: null
+    payload:
+      name: shinzo-hubspot-emails_search
+      args:
+        query: acme.com
+        limit: 200
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: "Red-team (documented gap): baryhuang hubspot_get_active_contacts
+    with limit 500 — this server family is not covered, call passes through
+    unclamped. See Known limitations."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: hubspot_get_active_contacts
+      uri: null
+    payload:
+      name: hubspot_get_active_contacts
+      args:
+        limit: 500
+  output:
+    expectedResult: allow
+  transformApplied: false

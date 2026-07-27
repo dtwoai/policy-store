@@ -1,0 +1,1038 @@
+# Combined egress policy (default allow := true): a PII-redaction transform on
+# monday board/doc/update read responses PLUS a narrow deny of the account
+# directory tool for non-admins. Cases cover every rule branch: each detection
+# class independently (SSN, email, phone, national ID) and all together; every
+# in-scope read suffix (official + community); the resource.name /
+# tool_metadata.name / payload.name candidate surfaces; serialized-columnValues
+# JSON redaction; both group-claim forms (array + bare string) and
+# case-insensitivity for exemption and admin; fail-closed on missing/oddly-shaped
+# claims; the directory deny (non-admin) and admin passthrough; separator-anchored
+# matching (hyphen, underscore, prefix-less) and its over-match guard; out-of-scope
+# tools; non-string blocks; MCP {type,text} blocks; conservative-regex negatives;
+# the ingress guard; and documented residuals.
+
+# ---- Redaction: each class independently + combined ----
+
+- description: In-scope get_board_items_page, non-exempt caller — SSN, email, and phone inside serialized columnValues JSON are all redacted; structural JSON keys are kept.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: monday-get_board_items_page
+      uri: null
+    subject:
+      sub: auth0|u1
+      claims:
+        groups:
+          - recruiting
+    payload:
+      name: monday-get_board_items_page
+      text:
+        - '{"email_col":"jane@acme.com","phone_col":"206-555-0100","ssn":"123-45-6789"}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - '{"email_col":"[REDACTED-EMAIL]","phone_col":"[REDACTED-PHONE]","ssn":"[REDACTED-SSN]"}'
+
+- description: Lone SSN in a get_full_board_data response is redacted on its own — no pairing required.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: monday-get_full_board_data
+      uri: null
+    subject:
+      sub: auth0|u2
+      claims:
+        groups:
+          - sales
+    payload:
+      name: monday-get_full_board_data
+      text:
+        - "Candidate record SSN 078-05-1120 on file"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Candidate record SSN [REDACTED-SSN] on file"
+
+- description: Lone email in an item update (get_updates) is redacted independently.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: monday-get_updates
+      uri: null
+    subject:
+      sub: auth0|u3
+      claims:
+        groups:
+          - sales
+    payload:
+      name: monday-get_updates
+      text:
+        - "Update: ping ops.lead@example.co.uk for the runbook"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Update: ping [REDACTED-EMAIL] for the runbook"
+
+- description: Lone parenthesized phone in a workdoc (read_docs) is redacted independently.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: monday-read_docs
+      uri: null
+    subject:
+      sub: auth0|u4
+      claims:
+        groups:
+          - sales
+    payload:
+      name: monday-read_docs
+      text:
+        - "Call the desk at (206) 555-0100 before 5pm"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Call the desk at [REDACTED-PHONE] before 5pm"
+
+- description: Compact UK-NINO-shaped national ID in a search snippet is redacted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: monday-search
+      uri: null
+    subject:
+      sub: auth0|u5
+      claims:
+        groups:
+          - sales
+    payload:
+      name: monday-search
+      text:
+        - "Match in board 'People': NINO AB123456C"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Match in board 'People': NINO [REDACTED-NATIONAL-ID]"
+
+- description: Space-grouped national ID in attachment content (fetch_file_content) is redacted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: monday-fetch_file_content
+      uri: null
+    subject:
+      sub: auth0|u6
+      claims:
+        groups:
+          - sales
+    payload:
+      name: monday-fetch_file_content
+      text:
+        - "Contract signer NI AB 12 34 56 C confirmed"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Contract signer NI [REDACTED-NATIONAL-ID] confirmed"
+
+- description: All four classes together in one board read are each redacted in place.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: monday-get_board_items_page
+      uri: null
+    subject:
+      sub: auth0|u7
+      claims:
+        groups:
+          - recruiting
+    payload:
+      name: monday-get_board_items_page
+      text:
+        - "SSN 123-45-6789, jane@acme.com, 206-555-0100, NINO AB123456C"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "SSN [REDACTED-SSN], [REDACTED-EMAIL], [REDACTED-PHONE], NINO [REDACTED-NATIONAL-ID]"
+
+# ---- Community suffixes + candidate surfaces ----
+
+- description: Community sakce get_items_by_id (via resource.name) is in scope and redacted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: monday_get_items_by_id
+      uri: null
+    subject:
+      sub: auth0|u8
+      claims:
+        groups:
+          - eng
+    payload:
+      name: monday_get_items_by_id
+      text:
+        - "Employee record SSN 123-45-6789 on file"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Employee record SSN [REDACTED-SSN] on file"
+
+- description: Community get_item_updates suffix (via underscore-separated gateway prefix) is in scope.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: mcp_monday_get_item_updates
+      uri: null
+    subject:
+      sub: auth0|u9
+      claims:
+        groups:
+          - eng
+    payload:
+      name: mcp_monday_get_item_updates
+      text:
+        - "Comment: reach me at jane@acme.com"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Comment: reach me at [REDACTED-EMAIL]"
+
+- description: Community list_items_in_groups is in scope and redacted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: monday_list_items_in_groups
+      uri: null
+    subject:
+      sub: auth0|u10
+      claims:
+        groups:
+          - eng
+    payload:
+      name: monday_list_items_in_groups
+      text:
+        - "Group A phone 206-555-0100"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Group A phone [REDACTED-PHONE]"
+
+- description: Tool name only under tool_metadata.name (resource.name empty) — still matched via the candidate-surface union.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: ""
+      uri: null
+    tool_metadata:
+      name: monday-read_docs
+    subject:
+      sub: auth0|u11
+      claims:
+        groups:
+          - eng
+    payload:
+      name: monday-read_docs
+      text:
+        - "SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "SSN [REDACTED-SSN]"
+
+- description: Tool name present only under payload.name (resource.name empty, no tool_metadata) — payload.name is a candidate surface, so redaction fires.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: ""
+      uri: null
+    subject:
+      sub: auth0|u12
+      claims:
+        groups:
+          - eng
+    payload:
+      name: monday-get_board_items_page
+      text:
+        - "SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "SSN [REDACTED-SSN]"
+
+- description: Prefix-less official tool name (bare get_board_items_page, no server prefix) is in scope via the n==s branch.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: get_board_items_page
+      uri: null
+    subject:
+      sub: auth0|u13
+      claims:
+        groups:
+          - eng
+    payload:
+      name: get_board_items_page
+      text:
+        - "contact jane@acme.com"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "contact [REDACTED-EMAIL]"
+
+# ---- Block-level behavior ----
+
+- description: Only the block that contains PII is rewritten; clean blocks pass through unchanged.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: monday-get_full_board_data
+      uri: null
+    subject:
+      sub: auth0|u14
+      claims:
+        groups:
+          - eng
+    payload:
+      name: monday-get_full_board_data
+      text:
+        - "Board name: Roadmap v1.2.3"
+        - "Escalation contact: 206-555-0100"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Board name: Roadmap v1.2.3"
+      - "Escalation contact: [REDACTED-PHONE]"
+
+- description: MCP-standard structured text block {type:text, text:...} — the inner `text` is redacted and `type` preserved.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: monday-get_board_items_page
+      uri: null
+    subject:
+      sub: auth0|u15
+      claims:
+        groups:
+          - eng
+    payload:
+      name: monday-get_board_items_page
+      text:
+        - type: text
+          text: "Item owner jane@acme.com, SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - text: "Item owner [REDACTED-EMAIL], SSN [REDACTED-SSN]"
+        type: text
+
+# ---- Group exemption (redaction) branches ----
+
+- description: Exempt caller (groups array contains pii-full) — read passes through unredacted, no transform.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: monday-get_board_items_page
+      uri: null
+    subject:
+      sub: auth0|u16
+      claims:
+        groups:
+          - pii-full
+    payload:
+      name: monday-get_board_items_page
+      text:
+        - "SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Exempt caller with a bare-string groups claim (pii-full) — the string branch matches, no transform.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: monday-get_board_items_page
+      uri: null
+    subject:
+      sub: auth0|u17
+      claims:
+        groups: pii-full
+    payload:
+      name: monday-get_board_items_page
+      text:
+        - "SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Exemption match is case-insensitive — uppercase PII-FULL is exempt, no transform.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: monday-get_board_items_page
+      uri: null
+    subject:
+      sub: auth0|u18
+      claims:
+        groups:
+          - staff
+          - PII-FULL
+    payload:
+      name: monday-get_board_items_page
+      text:
+        - "SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Fail closed for the exemption grant — subject has no claims, so redaction applies.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: monday-get_board_items_page
+      uri: null
+    subject:
+      sub: auth0|u19
+    payload:
+      name: monday-get_board_items_page
+      text:
+        - "SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "SSN [REDACTED-SSN]"
+
+# ---- Directory deny branches ----
+
+- description: Directory tool (list_users_and_teams), non-admin caller — response denied with the exact reason.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: monday-list_users_and_teams
+      uri: null
+    subject:
+      sub: auth0|u20
+      claims:
+        groups:
+          - recruiting
+    payload:
+      name: monday-list_users_and_teams
+      text:
+        - "Alice <alice@acme.com>, Bob <bob@acme.com>"
+  output:
+    expectedResult: deny
+    expectedReason: "monday list_users_and_teams returns account-wide names and emails and is restricted to the placeholder 'monday-admins' group. Ask your workspace admin to add you to that group, or use a board-scoped read instead. Replace 'monday-admins' with your IdP's admin group name at import time."
+  transformApplied: false
+
+- description: Directory tool, admin caller (monday-admins in groups array) — response passes through, allowed, no transform.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: monday-list_users_and_teams
+      uri: null
+    subject:
+      sub: auth0|u21
+      claims:
+        groups:
+          - monday-admins
+    payload:
+      name: monday-list_users_and_teams
+      text:
+        - "Alice <alice@acme.com>, Bob <bob@acme.com>"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Directory tool, admin via bare-string groups claim and case-insensitive (MONDAY-ADMINS) — allowed.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: monday-list_users_and_teams
+      uri: null
+    subject:
+      sub: auth0|u22
+      claims:
+        groups: MONDAY-ADMINS
+    payload:
+      name: monday-list_users_and_teams
+      text:
+        - "Alice <alice@acme.com>"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Directory tool, fail closed for the admin grant — no claims present, so the caller is not admin and the response is denied.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: monday-list_users_and_teams
+      uri: null
+    subject:
+      sub: auth0|u23
+    payload:
+      name: monday-list_users_and_teams
+      text:
+        - "Alice <alice@acme.com>"
+  output:
+    expectedResult: deny
+    expectedReason: "monday list_users_and_teams returns account-wide names and emails and is restricted to the placeholder 'monday-admins' group. Ask your workspace admin to add you to that group, or use a board-scoped read instead. Replace 'monday-admins' with your IdP's admin group name at import time."
+
+- description: "Red-team: object-shaped groups claim {department: monday-admins} must NOT grant admin — the is_array guard fails it closed, so the directory response is denied."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: monday-list_users_and_teams
+      uri: null
+    subject:
+      sub: auth0|u24
+      claims:
+        groups:
+          department: monday-admins
+    payload:
+      name: monday-list_users_and_teams
+      text:
+        - "Alice <alice@acme.com>"
+  output:
+    expectedResult: deny
+
+# ---- Out-of-scope / negatives ----
+
+- description: Out-of-scope read (get_board_info returns board metadata, not item bodies) — no transform even with an SSN present.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: monday-get_board_info
+      uri: null
+    subject:
+      sub: auth0|u25
+      claims:
+        groups:
+          - eng
+    payload:
+      name: monday-get_board_info
+      text:
+        - "SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Red-team over-match guard: separator-anchored matching means `search` does NOT match a tool ending in `research` — out of scope, no transform."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: monday-market_research
+      uri: null
+    subject:
+      sub: auth0|u26
+      claims:
+        groups:
+          - eng
+    payload:
+      name: monday-market_research
+      text:
+        - "SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Conservative-regex negatives — a 9-digit item ID and a dotted version string are NOT redacted, so a clean board read passes through byte-identical.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: monday-get_board_items_page
+      uri: null
+    subject:
+      sub: auth0|u27
+      claims:
+        groups:
+          - eng
+    payload:
+      name: monday-get_board_items_page
+      text:
+        - "Item ID 123456789, board version 1.2.3, count 2026"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Non-string (structured/JSON) content block with PII under a non-`text` key passes through the redact_block guards unmodified — no transform.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: monday-get_board_items_page
+      uri: null
+    subject:
+      sub: auth0|u28
+      claims:
+        groups:
+          - eng
+    payload:
+      name: monday-get_board_items_page
+      text:
+        - field: ssn
+          value: "123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: In-scope tool but content carries no PII — response passes through byte-identical, no transform.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: monday-get_board_items_page
+      uri: null
+    subject:
+      sub: auth0|u29
+      claims:
+        groups:
+          - eng
+    payload:
+      name: monday-get_board_items_page
+      text:
+        - "The sprint board is ready for review."
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Ingress hook (mode input) is never in scope — the same read tool + SSN produces no transform on the pre-invoke path.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-get_board_items_page
+      uri: null
+    subject:
+      sub: auth0|u30
+      claims:
+        groups:
+          - eng
+    payload:
+      name: monday-get_board_items_page
+      text:
+        - "SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Ingress hook for the directory tool is out of egress scope — is_directory_tool requires is_egress, so a pre-invoke call is allowed (this policy governs the response, not the request).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-list_users_and_teams
+      uri: null
+    subject:
+      sub: auth0|u31
+      claims:
+        groups:
+          - recruiting
+    payload:
+      name: monday-list_users_and_teams
+      args: {}
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+# ---- Red-team regression cases (reviewer, standards §10) ----
+
+- description: "Red-team FIXED bypass: parenthesized area code with no separator before the prefix ((206)555-0100) is a mainstream US phone rendering and is now redacted (was previously leaking)."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: monday-get_board_items_page
+      uri: null
+    subject:
+      sub: auth0|u40
+      claims:
+        groups:
+          - recruiting
+    payload:
+      name: monday-get_board_items_page
+      text:
+        - "Reach the candidate at (206)555-0100 anytime"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Reach the candidate at [REDACTED-PHONE] anytime"
+
+
+- description: "Red-team: egress with action=tool_post_invoke but mode unset — is_egress still matches on action, so redaction fires (no fail-open leak)."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    resource:
+      type: tool
+      name: monday-get_board_items_page
+      uri: null
+    subject:
+      sub: auth0|u32
+      claims:
+        groups:
+          - eng
+    payload:
+      name: monday-get_board_items_page
+      text:
+        - "SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "SSN [REDACTED-SSN]"
+
+- description: "Red-team: object-shaped groups claim {department: pii-full} must NOT grant the redaction exemption — the is_array guard fails it closed, so redaction still applies."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: monday-get_board_items_page
+      uri: null
+    subject:
+      sub: auth0|u33
+      claims:
+        groups:
+          department: pii-full
+    payload:
+      name: monday-get_board_items_page
+      text:
+        - "SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "SSN [REDACTED-SSN]"
+
+- description: "Red-team: nested-array groups [[pii-full]] is not a flat array of strings — the is_string(g) guard fails it closed (not exempt), redaction applies."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: monday-get_board_items_page
+      uri: null
+    subject:
+      sub: auth0|u34
+      claims:
+        groups:
+          - - pii-full
+    payload:
+      name: monday-get_board_items_page
+      text:
+        - "SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "SSN [REDACTED-SSN]"
+
+- description: "Red-team: egress that leaks what the ingress board fence would block — a restricted HR-board item body with SSN + email + phone + national ID is still fully redacted, since this policy runs regardless of the ingress verdict."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: monday-get_full_board_data
+      uri: null
+    subject:
+      sub: auth0|u35
+      claims:
+        groups:
+          - eng
+    payload:
+      name: monday-get_full_board_data
+      text:
+        - "HR board leak: SSN 123-45-6789, jane@acme.com, 206-555-0100, NINO AB123456C"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "HR board leak: SSN [REDACTED-SSN], [REDACTED-EMAIL], [REDACTED-PHONE], NINO [REDACTED-NATIONAL-ID]"
+
+- description: "Red-team DOCUMENTED residual: the all_monday_api GraphQL escape hatch is NOT in pii_read_suffixes, so a board body returned through it (SSN+email) passes through unredacted. Must be denied at ingress (default-deny-unknown-tools)."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: monday-all_monday_api
+      uri: null
+    subject:
+      sub: auth0|u36
+      claims:
+        groups:
+          - eng
+    payload:
+      name: monday-all_monday_api
+      text:
+        - "GraphQL result: SSN 123-45-6789, jane@acme.com"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Red-team DOCUMENTED residual: off-spec scalar `text` (a bare string, not an array) fails the is_array transform guard — no transform fires and the SSN passes through (fail-open on a shape off the documented gateway contract)."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: monday-get_board_items_page
+      uri: null
+    subject:
+      sub: auth0|u37
+      claims:
+        groups:
+          - eng
+    payload:
+      name: monday-get_board_items_page
+      text: "Board item SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Red-team DOCUMENTED residual: full-width Unicode-digit SSN is not matched — RE2 `\\d` is ASCII-only, so the identifier streams through unredacted (no transform)."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: monday-get_board_items_page
+      uri: null
+    subject:
+      sub: auth0|u38
+      claims:
+        groups:
+          - eng
+    payload:
+      name: monday-get_board_items_page
+      text:
+        - "Full-width SSN １２３-４５-６７８９ on file"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Red-team DOCUMENTED residual (word-boundary adjacency): an SSN wrapped in Markdown italics underscores (_123-45-6789_) is NOT redacted — `_` is a regex word char, so the `\\b` anchor finds no boundary."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: monday-get_updates
+      uri: null
+    subject:
+      sub: auth0|u39
+      claims:
+        groups:
+          - eng
+    payload:
+      name: monday-get_updates
+      text:
+        - "contact _123-45-6789_ now"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Red-team DOCUMENTED residual (sibling-key leak): a structured text block carries a clean `text` string plus an email under a sibling `note` key — only `text` is in redaction scope, so the sibling email streams through verbatim (no transform)."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: monday-get_board_items_page
+      uri: null
+    subject:
+      sub: auth0|u41
+      claims:
+        groups:
+          - eng
+    payload:
+      name: monday-get_board_items_page
+      text:
+        - type: text
+          text: "all clean here"
+          note: "reach jane@acme.com"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Red-team DOCUMENTED residual (off-spec map text): payload.text is an object/map ({\"0\":\"…SSN…\"}) rather than a flat array — the is_array transform guard fails, so no transform fires and the SSN passes through (fail-open on an off-contract shape)."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: monday-get_board_items_page
+      uri: null
+    subject:
+      sub: auth0|u42
+      claims:
+        groups:
+          - eng
+    payload:
+      name: monday-get_board_items_page
+      text:
+        "0": "Board item SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Red-team coverage: the `+1`-prefixed, dot-separated US phone form (+1 206.555.0100) — the description claims this shape and the `\\+?1[-. ]` regex branch redacts it (previously untested)."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: monday-read_docs
+      uri: null
+    subject:
+      sub: auth0|u43
+      claims:
+        groups:
+          - sales
+    payload:
+      name: monday-read_docs
+      text:
+        - "Call +1 206.555.0100 today"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Call [REDACTED-PHONE] today"

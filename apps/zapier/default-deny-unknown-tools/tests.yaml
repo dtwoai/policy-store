@@ -1,0 +1,456 @@
+# Tests for zapier.ingress.default_deny_unknown_tools
+# Covers every rule branch: exact-match allow, prefixed (`-suffix`) allow,
+# default deny, fail-closed on missing/empty/non-string name, and the deny
+# reason string. Also covers the red-team bypasses the reviewer would attempt:
+# underscore-glued suffix collision, renamed-tool drift, Unicode case-fold and
+# homoglyph spoofing, and the documented hyphen-glue residual.
+
+# --- allow: exact match branch (bare, unprefixed tool name) ---
+- description: Bare allowlisted agentic meta-tool (no gateway prefix) matches the exact-match branch. Allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: execute_zapier_read_action
+      uri: null
+    payload:
+      name: execute_zapier_read_action
+      args:
+        instructions: Find my three most recent Gmail messages
+  output:
+    expectedResult: allow
+
+- description: Bare action-management meta-tool (list_enabled_zapier_actions) exact match. Allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: list_enabled_zapier_actions
+      uri: null
+    payload:
+      name: list_enabled_zapier_actions
+      args: {}
+  output:
+    expectedResult: allow
+
+# --- allow: prefixed match branch (`<server-name>-<suffix>`) ---
+- description: Gateway-prefixed write funnel (zapier-mcp-execute_zapier_write_action) matches the `-suffix` branch. Allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zapier-mcp-execute_zapier_write_action
+      uri: null
+    payload:
+      name: zapier-mcp-execute_zapier_write_action
+      args:
+        instructions: Send 'Hello team!' to the general channel
+  output:
+    expectedResult: allow
+
+- description: Gateway-prefixed skill read (zapier-mcp-get_zapier_skill) is on the shipped allowlist. Allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zapier-mcp-get_zapier_skill
+      uri: null
+    payload:
+      name: zapier-mcp-get_zapier_skill
+      args:
+        skill_id: sk-123
+  output:
+    expectedResult: allow
+
+- description: Gateway-prefixed send_feedback (lowest-risk meta-tool) is allowlisted. Allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zapier-mcp-send_feedback
+      uri: null
+    payload:
+      name: zapier-mcp-send_feedback
+      args:
+        feedback: works great
+  output:
+    expectedResult: allow
+
+# --- allow: case-insensitivity (lower() on the tool name) ---
+- description: Uppercased gateway-prefixed meta-tool still matches after lower(). Allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ZAPIER-MCP-DISCOVER_ZAPIER_ACTIONS
+      uri: null
+    payload:
+      name: ZAPIER-MCP-DISCOVER_ZAPIER_ACTIONS
+      args:
+        query: crm
+  output:
+    expectedResult: allow
+
+# --- deny: default (classic-mode tool against the agentic-mode allowlist) ---
+- description: Classic-mode per-account tool (gmail_send_email) is not on the shipped agentic allowlist. Deny with the drift-alert reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zapier-mcp-gmail_send_email
+      uri: null
+    payload:
+      name: zapier-mcp-gmail_send_email
+      args:
+        instructions: Email the Q3 forecast to my manager
+  output:
+    expectedResult: deny
+    expectedReason: "This Zapier tool is not on the audited allowlist pinned for this gateway, so it is denied by default. Zapier can add, rename, or newly enable tools on a running server with no client-visible change — treat this deny as a drift alert and report it to your security team for review. If the tool is expected, ask a gateway admin to audit it and add its name suffix to the allowlist."
+
+- description: Newly enabled classic-mode action (slack_send_message) appearing mid-session is upstream drift. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zapier-mcp-slack_send_message
+      uri: null
+    payload:
+      name: zapier-mcp-slack_send_message
+      args:
+        instructions: Post the standup summary
+  output:
+    expectedResult: deny
+
+# --- deny: renamed-tool drift (allowlisted name is a leading substring) ---
+- description: "Drift: renamed meta-tool variant (execute_zapier_read_action_v2) contains an allowlisted name as a leading substring but does not end with it. Deny."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zapier-mcp-execute_zapier_read_action_v2
+      uri: null
+    payload:
+      name: zapier-mcp-execute_zapier_read_action_v2
+      args:
+        instructions: read something
+  output:
+    expectedResult: deny
+
+# --- deny: red-team underscore-glued suffix collision WITHOUT the `-` separator ---
+- description: "Red-team: classic-shaped name gmail_execute_zapier_write_action ends with the allowlisted string but is underscore-glued, not `-` separated, and not exact. Deny (fails closed)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zapier-mcp-gmail_execute_zapier_write_action
+      uri: null
+    payload:
+      name: zapier-mcp-gmail_execute_zapier_write_action
+      args:
+        instructions: smuggle a write through suffix matching
+  output:
+    expectedResult: deny
+
+# --- deny: fail-closed on empty tool name ---
+- description: "Fail-closed: empty resource.name matches nothing. Deny."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ""
+      uri: null
+    payload:
+      name: ""
+      args: {}
+  output:
+    expectedResult: deny
+
+# --- deny: fail-closed on missing resource.name entirely ---
+- description: "Fail-closed: resource with no name key resolves to \"\" via object.get. Deny."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      uri: null
+    payload:
+      args: {}
+  output:
+    expectedResult: deny
+
+# --- deny: fail-closed on missing resource entirely ---
+- description: "Fail-closed: no resource object at all resolves to \"\" via nested object.get. Deny."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    payload:
+      args: {}
+  output:
+    expectedResult: deny
+
+# --- deny: red-team non-string name (number) must not error the decision ---
+# A numeric resource.name would make lower() raise a built-in type error,
+# leaving allow AND reason undefined (a deny with no surfaced reason). The
+# is_string guard coerces it to "" so the deny is clean and carries the reason.
+- description: "Red-team: numeric resource.name is coerced to \"\" (no lower() type error). Clean deny WITH reason."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: 123
+      uri: null
+    payload:
+      name: 123
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "This Zapier tool is not on the audited allowlist pinned for this gateway, so it is denied by default. Zapier can add, rename, or newly enable tools on a running server with no client-visible change — treat this deny as a drift alert and report it to your security team for review. If the tool is expected, ask a gateway admin to audit it and add its name suffix to the allowlist."
+
+# --- deny: red-team non-string name (null) ---
+- description: "Red-team: null resource.name is coerced to \"\" via the non-string branch. Deny with reason."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: null
+      uri: null
+    payload:
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "This Zapier tool is not on the audited allowlist pinned for this gateway, so it is denied by default. Zapier can add, rename, or newly enable tools on a running server with no client-visible change — treat this deny as a drift alert and report it to your security team for review. If the tool is expected, ask a gateway admin to audit it and add its name suffix to the allowlist."
+
+# --- deny: red-team non-string name (object) ---
+- description: "Red-team: object-valued resource.name is coerced to \"\" (not passed to lower()). Deny."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name:
+        nested: execute_zapier_read_action
+      uri: null
+    payload:
+      args: {}
+  output:
+    expectedResult: deny
+
+# --- allow: DOCUMENTED RESIDUAL (Known limitations: hyphen-glue) ---
+# A tool literally named `<anything>-<allowlisted-suffix>` (separator included)
+# matches the prefixed branch even though it is NOT the audited tool. This test
+# pins the documented residual bypass: suffix matching trusts the `-` prefix
+# convention for portability. Exact-name pinning closes it if a deployment
+# needs to. If this ever flips to deny, the suffix-matching contract changed.
+- description: "Red-team/documented residual: hyphen-glued name (evil_wrapper-send_feedback) rides the `-suffix` branch and is ALLOWED. Documents the Known-limitations hyphen-glue residual."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zapier-mcp-evil_wrapper-send_feedback
+      uri: null
+    payload:
+      name: zapier-mcp-evil_wrapper-send_feedback
+      args: {}
+  output:
+    expectedResult: allow
+
+# --- deny: red-team Unicode case-fold spoof (FIXED bypass) ---
+# The Kelvin sign U+212A lowercases to ASCII "k". Before the raw-name ASCII
+# guard, `send_feedbac<U+212A>` folded to the allowlisted `send_feedback` and
+# was ALLOWED. The guard checks the raw (pre-lower) name against
+# [A-Za-z0-9._-] and denies it. If this ever flips to allow, the Unicode-fold
+# protection has regressed.
+- description: "Red-team (fixed): Kelvin-sign U+212A in place of 'k' folds to the allowlisted send_feedback but the raw name is non-ASCII. Deny with reason."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "zapier-mcp-send_feedbacK"
+      uri: null
+    payload:
+      name: "zapier-mcp-send_feedbacK"
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "This Zapier tool is not on the audited allowlist pinned for this gateway, so it is denied by default. Zapier can add, rename, or newly enable tools on a running server with no client-visible change — treat this deny as a drift alert and report it to your security team for review. If the tool is expected, ask a gateway admin to audit it and add its name suffix to the allowlist."
+
+# --- deny: red-team Cyrillic homoglyph spoof of an allowlisted name ---
+# Cyrillic small 'е' (U+0435) visually mimics ASCII 'e'.
+# `еxecute_zapier_read_action` looks like execute_zapier_read_action but is a
+# different, non-ASCII string; the raw-name ASCII guard denies it.
+- description: "Red-team: Cyrillic homoglyph (U+0435) spoof of execute_zapier_read_action is non-ASCII. Deny."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "zapier-mcp-еxecute_zapier_read_action"
+      uri: null
+    payload:
+      name: "zapier-mcp-еxecute_zapier_read_action"
+      args:
+        instructions: homoglyph spoof
+  output:
+    expectedResult: deny
+
+# --- deny: red-team tab separator instead of hyphen ---
+# A tab (U+0009) before an allowlisted suffix is neither the `-` separator nor
+# an exact match, and is outside the ASCII name class. Deny.
+- description: "Red-team: tab-glued name (evil<TAB>send_feedback) is not a `-suffix` match and is denied."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "zapier-mcp-evil\tsend_feedback"
+      uri: null
+    payload:
+      name: "zapier-mcp-evil\tsend_feedback"
+      args: {}
+  output:
+    expectedResult: deny
+
+# --- deny: red-team trailing-newline regex edge ---
+# Go/RE2 `$` anchors to end of TEXT (not before a trailing newline), and \n is
+# outside the ASCII name class, so `send_feedback\n` must NOT sneak past the
+# anchored guard. If this ever flips to allow, the regex anchoring changed.
+- description: "Red-team: trailing newline (send_feedback\\n) fails the anchored ASCII guard. Deny."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "send_feedback\n"
+      uri: null
+    payload:
+      name: "send_feedback\n"
+      args: {}
+  output:
+    expectedResult: deny
+
+# --- allow: DOCUMENTED RESIDUAL (hyphen-glue with EMPTY prefix) ---
+# `<anything>-<suffix>` includes `<anything>` = "" — a name that is literally
+# `-send_feedback` (leading separator, no server prefix) rides the `-suffix`
+# branch even though no real gateway produces an empty server name. Pinned as
+# the degenerate form of the documented hyphen-glue residual; exact-name
+# pinning closes it. If this flips to deny, suffix matching gained a
+# non-empty-prefix requirement.
+- description: "Red-team/documented residual: bare `-send_feedback` (empty prefix before the separator) matches the `-suffix` branch and is ALLOWED."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "-send_feedback"
+      uri: null
+    payload:
+      name: "-send_feedback"
+      args: {}
+  output:
+    expectedResult: allow
+
+# --- deny: fail-closed on a resource that is not an object ---
+# A string-valued `resource` makes object.get's first operand a non-object;
+# the name lookup is undefined and the default deny holds — still with the
+# surfaced reason (reason only requires `not allow`).
+- description: "Red-team: resource is a string, not an object — name lookup undefined, clean deny WITH reason."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource: send_feedback
+    payload:
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "This Zapier tool is not on the audited allowlist pinned for this gateway, so it is denied by default. Zapier can add, rename, or newly enable tools on a running server with no client-visible change — treat this deny as a drift alert and report it to your security team for review. If the tool is expected, ask a gateway admin to audit it and add its name suffix to the allowlist."
+
+# --- deny: red-team payload.name spoof (resource.name is authoritative) ---
+# Only input.resource.name is consulted. An allowlisted name planted in the
+# legacy payload.name alongside an unlisted resource.name must not help.
+- description: "Red-team: allowlisted payload.name (send_feedback) cannot smuggle an unlisted resource.name (gmail_send_email) through. Deny."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zapier-mcp-gmail_send_email
+      uri: null
+    payload:
+      name: zapier-mcp-send_feedback
+      args: {}
+  output:
+    expectedResult: deny
+
+# --- DOCUMENTED LIMITATION: allowlist applies to every ingress hook ---
+# The policy does not scope to action == "tool_pre_invoke" / resource.type ==
+# "tool". A prompt fetch coincidentally named like an allowlisted suffix is
+# allowed; any other prompt/resource fetch is denied (fail closed). Both
+# directions pinned below — see Known limitations.
+- description: "Documented limitation: prompt_pre_fetch whose name coincides with an allowlisted suffix (send_feedback) is ALLOWED — the policy is name-scoped, not hook-scoped."
+  input:
+    action: prompt_pre_fetch
+    kind: prompt_pre_fetch
+    mode: input
+    resource:
+      type: prompt
+      name: send_feedback
+      uri: null
+    payload:
+      prompt_id: send_feedback
+      args: {}
+  output:
+    expectedResult: allow
+
+- description: "Documented limitation: any other prompt_pre_fetch (greeting) on the same pipeline is denied by the tool allowlist (fail closed)."
+  input:
+    action: prompt_pre_fetch
+    kind: prompt_pre_fetch
+    mode: input
+    resource:
+      type: prompt
+      name: greeting
+      uri: null
+    payload:
+      prompt_id: greeting
+      args: {}
+  output:
+    expectedResult: deny

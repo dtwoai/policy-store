@@ -1,0 +1,463 @@
+# Tests for bigquery/default-deny-unknown-tools.
+# Covers every branch of the allowlist gate:
+#   - allow: official/Toolbox snake_case names (bare + gateway-prefixed), the
+#     execute_sql vs execute_sql_readonly non-collision, metadata reads, the
+#     community query/execute-query/list-tables/describe-table names,
+#     case-insensitive match;
+#   - deny (fail closed): the deliberately-excluded MCP Toolbox AI-analytics
+#     tools (ask_data_insights, forecast, analyze_contribution, search_catalog),
+#     an unknown/renamed tool, missing/empty name, non-string name, non-ASCII
+#     homoglyph, spliced newline, whitespace padding;
+#   - documented residual: a prefix glued directly to an allowlisted suffix.
+
+- description: Official write-capable SQL tool (gateway-prefixed bigquery-mcp-execute_sql) ends with an allowlisted suffix and is allowed; its SQL text is governed by the companion guard-warehouse-sql policy.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql
+      uri: null
+    payload:
+      name: bigquery-mcp-execute_sql
+      args:
+        sql: SELECT id FROM ds.orders LIMIT 10
+  output:
+    expectedResult: allow
+
+- description: >-
+    The read-only tool execute_sql_readonly is a SEPARATE allowlist entry — it
+    does NOT end with execute_sql — and is allowed. Locks the execute_sql /
+    execute_sql_readonly non-collision.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute_sql_readonly
+      uri: null
+    payload:
+      name: bigquery-mcp-execute_sql_readonly
+      args:
+        sql: SELECT 1
+  output:
+    expectedResult: allow
+
+- description: Official metadata read list_dataset_ids (gateway-prefixed) is allowlisted and allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-list_dataset_ids
+      uri: null
+    payload:
+      name: bigquery-mcp-list_dataset_ids
+      args:
+        project_id: my-proj
+  output:
+    expectedResult: allow
+
+- description: Official metadata read get_table_info (gateway-prefixed) is allowlisted and allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-get_table_info
+      uri: null
+    payload:
+      name: bigquery-mcp-get_table_info
+      args:
+        dataset_id: ds
+        table_id: orders
+  output:
+    expectedResult: allow
+
+- description: Bare (unprefixed) allowlisted name list_table_ids matches the suffix even without a gateway prefix and is allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: list_table_ids
+      uri: null
+    payload:
+      name: list_table_ids
+      args:
+        dataset_id: ds
+  output:
+    expectedResult: allow
+
+- description: ergut/mcp-bigquery-server community single tool (bigquery-mcp-query) ends with the allowlisted query suffix and is allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-query
+      uri: null
+    payload:
+      name: bigquery-mcp-query
+      args:
+        sql: SELECT 1
+  output:
+    expectedResult: allow
+
+- description: LucasHild kebab-case community tool (bigquery-mcp-execute-query) is allowlisted and allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-execute-query
+      uri: null
+    payload:
+      name: bigquery-mcp-execute-query
+      args:
+        query: SELECT 1
+  output:
+    expectedResult: allow
+
+- description: LucasHild kebab-case metadata tool (bigquery-mcp-describe-table) is allowlisted and allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-describe-table
+      uri: null
+    payload:
+      name: bigquery-mcp-describe-table
+      args:
+        table_name: ds.orders
+  output:
+    expectedResult: allow
+
+- description: Matching is case-insensitive (BigQuery-MCP-EXECUTE_SQL) — an allowlisted suffix in mixed/upper case is allowed after normalization.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: BigQuery-MCP-EXECUTE_SQL
+      uri: null
+    payload:
+      name: BigQuery-MCP-EXECUTE_SQL
+      args:
+        sql: SELECT 1
+  output:
+    expectedResult: allow
+
+- description: >-
+    Deliberately-excluded MCP Toolbox AI-analytics tool ask_data_insights
+    (Conversational Analytics — ships table data to another Google API) does NOT
+    end with any allowlisted suffix and is denied by default with the drift
+    reason. This is the central reason default-deny is the right posture for the
+    self-expanding Toolbox toolset.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-ask_data_insights
+      uri: null
+    payload:
+      name: bigquery-mcp-ask_data_insights
+      args:
+        table: ds.customers
+        question: who are the top spenders?
+  output:
+    expectedResult: deny
+    expectedReason: "This BigQuery tool is not on the audited BigQuery allowlist, so the gateway denies it by default and surfaces the call as tool drift. The allowlist pins the verified official Google / MCP Toolbox tools (execute_sql, execute_sql_readonly, list_dataset_ids, list_table_ids, get_dataset_info, get_table_info) and the community server tools (query, execute-query, list-tables, describe-table); a newly added, renamed, or self-expanding upstream tool — including the MCP Toolbox AI-analytics tools (ask_data_insights, forecast, analyze_contribution, search_catalog) that move table data to other Google APIs — is not on it and must fail closed until it is reviewed. If this tool is legitimate, contact your gateway admin to introspect it live and add its verified name to the per-tenant allowlist in this policy after review."
+
+- description: Deliberately-excluded AI-analytics tool forecast is not allowlisted and is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-forecast
+      uri: null
+    payload:
+      name: bigquery-mcp-forecast
+      args:
+        table: ds.sales
+  output:
+    expectedResult: deny
+
+- description: Deliberately-excluded AI-analytics tool analyze_contribution is not allowlisted and is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-analyze_contribution
+      uri: null
+    payload:
+      name: bigquery-mcp-analyze_contribution
+      args:
+        table: ds.metrics
+  output:
+    expectedResult: deny
+
+- description: Deliberately-excluded AI-analytics tool search_catalog is not allowlisted and is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-search_catalog
+      uri: null
+    payload:
+      name: bigquery-mcp-search_catalog
+      args:
+        query: customers
+  output:
+    expectedResult: deny
+
+- description: >-
+    An unknown / renamed upstream tool (bigquery-mcp-run_sql — e.g. execute_sql
+    renamed after the audit) stops matching the allowlist and fails closed with
+    the drift reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-run_sql
+      uri: null
+    payload:
+      name: bigquery-mcp-run_sql
+      args:
+        sql: SELECT 1
+  output:
+    expectedResult: deny
+    expectedReason: "This BigQuery tool is not on the audited BigQuery allowlist, so the gateway denies it by default and surfaces the call as tool drift. The allowlist pins the verified official Google / MCP Toolbox tools (execute_sql, execute_sql_readonly, list_dataset_ids, list_table_ids, get_dataset_info, get_table_info) and the community server tools (query, execute-query, list-tables, describe-table); a newly added, renamed, or self-expanding upstream tool — including the MCP Toolbox AI-analytics tools (ask_data_insights, forecast, analyze_contribution, search_catalog) that move table data to other Google APIs — is not on it and must fail closed until it is reviewed. If this tool is legitimate, contact your gateway admin to introspect it live and add its verified name to the per-tenant allowlist in this policy after review."
+
+- description: Empty tool name matches nothing and is denied (fail closed), with a surfaced reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ""
+      uri: null
+    payload:
+      name: ""
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "This BigQuery tool is not on the audited BigQuery allowlist, so the gateway denies it by default and surfaces the call as tool drift. The allowlist pins the verified official Google / MCP Toolbox tools (execute_sql, execute_sql_readonly, list_dataset_ids, list_table_ids, get_dataset_info, get_table_info) and the community server tools (query, execute-query, list-tables, describe-table); a newly added, renamed, or self-expanding upstream tool — including the MCP Toolbox AI-analytics tools (ask_data_insights, forecast, analyze_contribution, search_catalog) that move table data to other Google APIs — is not on it and must fail closed until it is reviewed. If this tool is legitimate, contact your gateway admin to introspect it live and add its verified name to the per-tenant allowlist in this policy after review."
+
+- description: Non-string tool name (number) is coerced to "" instead of raising a lower() type error — clean, reasoned deny (fail closed).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: 12345
+      uri: null
+    payload:
+      name: 12345
+      args: {}
+  output:
+    expectedResult: deny
+
+- description: >-
+    Red-team regression — homoglyph of an allowlisted suffix (Cyrillic
+    "еxecute_sql", leading Cyrillic е U+0435) fails the raw ASCII guard before
+    lower() runs and is denied — closes the Unicode case-fold / spoof evasion.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "bigquery-mcp-еxecute_sql"
+      uri: null
+    payload:
+      name: "bigquery-mcp-еxecute_sql"
+      args: {}
+  output:
+    expectedResult: deny
+
+- description: >-
+    Red-team regression — an embedded newline splicing a denied tool onto an
+    allowlisted suffix ("forecast\nexecute_sql") is denied. The raw ASCII guard
+    regex (^[A-Za-z0-9._-]+$) is NOT multiline in OPA/Go, so $ anchors to
+    end-of-text and the newline breaks the whole-string match before endswith
+    ever sees "execute_sql". Locks the non-multiline anchoring assumption.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "forecast\nexecute_sql"
+      uri: null
+    payload:
+      name: "forecast\nexecute_sql"
+      args: {}
+  output:
+    expectedResult: deny
+
+- description: >-
+    Red-team regression — leading/trailing whitespace padding around an
+    allowlisted suffix ("  execute_sql ") fails the raw ASCII character-class
+    guard (space is outside [A-Za-z0-9._-]) and is denied. Locks the guard's
+    strictness against whitespace-smuggled names.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "  execute_sql "
+      uri: null
+    payload:
+      name: "  execute_sql "
+      args: {}
+  output:
+    expectedResult: deny
+
+- description: >-
+    Documented endswith residual — a prefix glued directly to an allowlisted
+    suffix (xexecute_sql, no separator) still matches and is allowed. Recorded in
+    Known limitations; use full gateway tool names if stricter matching is
+    required.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: xexecute_sql
+      uri: null
+    payload:
+      name: xexecute_sql
+      args:
+        sql: SELECT 1
+  output:
+    expectedResult: allow
+
+- description: >-
+    Red-team residual (realistic drift) — a NEW/unaudited upstream tool whose
+    bare name ends in an allowlisted suffix (batch_execute_sql, gateway-prefixed)
+    is ADMITTED, not caught as drift, because endswith requires no separator.
+    Locks the concrete limitation the "What it does" section now qualifies; close
+    it with exact full gateway tool names if your deployment needs strict drift
+    detection.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: bigquery-mcp-batch_execute_sql
+      uri: null
+    payload:
+      name: bigquery-mcp-batch_execute_sql
+      args:
+        sql: SELECT 1
+  output:
+    expectedResult: allow
+
+- description: >-
+    Red-team residual (loosest suffix) — the one-word community suffix `query`
+    matches ANY name ending in "query", so an unaudited/foreign tool such as
+    `run_arbitrary_query` (here gateway-prefixed from another server on a shared
+    pipeline) is ADMITTED, not caught as drift. Documented under Known
+    limitations (loose `query` suffix + attach-to-BigQuery-pipeline); close it by
+    attaching only to the BigQuery server's pipeline and/or replacing `query`
+    with the exact full gateway tool name.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: otherserver-run_arbitrary_query
+      uri: null
+    payload:
+      name: otherserver-run_arbitrary_query
+      args:
+        sql: SELECT 1
+  output:
+    expectedResult: allow
+
+- description: >-
+    Fail-closed on a fully missing resource/name — the request carries no
+    resource object at all, so raw_tool_name falls back to "" via object.get's
+    default, matches nothing, and is denied. Exercises the default-fallback
+    branch (distinct from a present empty-string name).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    payload:
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "This BigQuery tool is not on the audited BigQuery allowlist, so the gateway denies it by default and surfaces the call as tool drift. The allowlist pins the verified official Google / MCP Toolbox tools (execute_sql, execute_sql_readonly, list_dataset_ids, list_table_ids, get_dataset_info, get_table_info) and the community server tools (query, execute-query, list-tables, describe-table); a newly added, renamed, or self-expanding upstream tool — including the MCP Toolbox AI-analytics tools (ask_data_insights, forecast, analyze_contribution, search_catalog) that move table data to other Google APIs — is not on it and must fail closed until it is reviewed. If this tool is legitimate, contact your gateway admin to introspect it live and add its verified name to the per-tenant allowlist in this policy after review."
+
+- description: >-
+    Red-team regression (\z anchoring) — a TRAILING newline glued after an
+    allowlisted suffix ("execute_sql\n") is denied. This is the case that
+    actually distinguishes RE2/Go `$` (end-of-text, \z) from Perl `$`
+    (\Z, matches before a final newline): under Perl semantics the ASCII guard
+    ^[A-Za-z0-9._-]+$ would match "execute_sql\n" and the name would be ALLOWED —
+    a real bypass. OPA uses \z, so the trailing newline breaks the whole-string
+    match and it fails closed. Locks the "$ anchors to end-of-text" assumption the
+    policy comment relies on (the existing mid-string-newline test does not — that
+    one is denied regardless of \z vs \Z because the char class cannot span \n).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "execute_sql\n"
+      uri: null
+    payload:
+      name: "execute_sql\n"
+      args:
+        sql: SELECT 1
+  output:
+    expectedResult: deny
+
+- description: >-
+    Red-team regression (\z anchoring, CR variant) — a trailing carriage return
+    after an allowlisted suffix ("execute_sql\r") is likewise denied. CR is
+    outside [A-Za-z0-9._-] and, like the LF variant, only slips through if `$`
+    matched before a final line terminator; OPA's \z semantics fail it closed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "execute_sql\r"
+      uri: null
+    payload:
+      name: "execute_sql\r"
+      args:
+        sql: SELECT 1
+  output:
+    expectedResult: deny

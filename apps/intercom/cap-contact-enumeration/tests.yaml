@@ -1,0 +1,814 @@
+# Tests for intercom/cap-contact-enumeration.
+# Branches covered: enumeration deny (domain field, email~, name contains, nested
+# compound, generic-search alias, fail-closed identity), CRM-admin exemption,
+# page-size clamp (contacts limit+per_page, list_companies, list_articles),
+# and defensive non-matches (missing/free-text/reshaped query, object_type guard).
+#
+# Red-team additions (standards §10): broadening operators beyond contains/~ —
+# ends-with (`$`, the operator-form domain sweep), not-equals (`neq`, whole-base
+# return), and a range operator (`>`) — must all be denied; exact equality stays
+# allowed; and the documented clamp-only residuals (free-text `q` with a domain
+# keyword, and an unfiltered/empty-query list) stay allowed-but-clamped.
+
+- description: >-
+    Domain sweep on search_contacts (email ~ @domain) by a non-admin support
+    caller is the enumeration signature — deny with the stable reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: intercom-search_contacts
+      uri: null
+    subject:
+      claims:
+        groups:
+          - support
+    payload:
+      name: intercom-search_contacts
+      args:
+        query:
+          field: email
+          operator: "~"
+          value: "@acme.com"
+  output:
+    expectedResult: deny
+    expectedReason: "This Intercom contact search uses a bulk-enumeration filter (an email-domain match, or a contains/~ operator on email or name) that can exfiltrate the customer base. Look up a specific contact by exact email, phone, or ID instead. If you genuinely need bulk contact access, ask your CRM administrator to run it or to add you to the CRM-admin group."
+
+- description: >-
+    Broad-match on name (contains operator) is an enumeration signature — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: intercom-search_contacts
+      uri: null
+    subject:
+      claims:
+        groups:
+          - support
+    payload:
+      name: intercom-search_contacts
+      args:
+        query:
+          field: name
+          operator: contains
+          value: "a"
+  output:
+    expectedResult: deny
+
+- description: >-
+    A dedicated email-domain field (any operator) is the domain signature — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: intercom-search_contacts
+      uri: null
+    subject:
+      claims:
+        groups:
+          - support
+    payload:
+      name: intercom-search_contacts
+      args:
+        query:
+          field: email_domain
+          operator: "="
+          value: "acme.com"
+  output:
+    expectedResult: deny
+
+- description: >-
+    Enumeration via the generic search alias (object_type contacts, name contains)
+    is covered too, not just search_contacts.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: intercom-search
+      uri: null
+    subject:
+      claims:
+        groups:
+          - analytics
+    payload:
+      name: intercom-search
+      args:
+        object_type: contacts
+        query:
+          field: name
+          operator: contains
+          value: "a"
+  output:
+    expectedResult: deny
+
+- description: >-
+    Enumeration clause nested inside an AND compound is caught by the walk over
+    the query tree — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: intercom-search_contacts
+      uri: null
+    subject:
+      claims:
+        groups:
+          - support
+    payload:
+      name: intercom-search_contacts
+      args:
+        query:
+          operator: AND
+          value:
+            - field: phone
+              operator: "="
+              value: "+15550000000"
+            - field: email
+              operator: "~"
+              value: "@acme.com"
+  output:
+    expectedResult: deny
+
+- description: >-
+    Fail-closed identity: an enumeration search with no subject/claims at all has
+    an empty group list, is not a CRM admin, and is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: intercom-search_contacts
+      uri: null
+    payload:
+      name: intercom-search_contacts
+      args:
+        query:
+          field: email
+          operator: "~"
+          value: "@acme.com"
+  output:
+    expectedResult: deny
+
+- description: >-
+    CRM-admin exemption (case-insensitive group match) allows the same domain
+    sweep the non-admin was denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: intercom-search_contacts
+      uri: null
+    subject:
+      claims:
+        groups:
+          - CRM-Admins
+    payload:
+      name: intercom-search_contacts
+      args:
+        query:
+          field: email
+          operator: "~"
+          value: "@acme.com"
+  output:
+    expectedResult: allow
+
+- description: >-
+    CRM admin doing a domain sweep with an oversized page is allowed but still has
+    per_page clamped to the contacts ceiling.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: intercom-search_contacts
+      uri: null
+    subject:
+      claims:
+        groups:
+          - crm-admins
+    payload:
+      name: intercom-search_contacts
+      args:
+        query:
+          field: email
+          operator: "~"
+          value: "@acme.com"
+        per_page: 500
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    per_page: 50
+
+- description: >-
+    Exact email lookup (operator =) is not enumeration — allowed, and its oversized
+    limit and per_page are clamped to the contacts ceiling.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: intercom-search_contacts
+      uri: null
+    subject:
+      claims:
+        groups:
+          - support
+    payload:
+      name: intercom-search_contacts
+      args:
+        query:
+          field: email
+          operator: "="
+          value: "bob@acme.com"
+        limit: 999
+        per_page: 500
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    limit: 50
+    per_page: 50
+
+- description: >-
+    Exact match nested in an AND compound is allowed — walk does not false-positive
+    on non-enumeration clauses.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: intercom-search_contacts
+      uri: null
+    subject:
+      claims:
+        groups:
+          - support
+    payload:
+      name: intercom-search_contacts
+      args:
+        query:
+          operator: AND
+          value:
+            - field: email
+              operator: "="
+              value: "bob@acme.com"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: >-
+    Defensive: a free-text q with no query object is not the enumeration shape —
+    allowed, no clamp needed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: intercom-search_contacts
+      uri: null
+    subject:
+      claims:
+        groups:
+          - support
+    payload:
+      name: intercom-search_contacts
+      args:
+        q: "bob"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: >-
+    Defensive: a reshaped query (a bare string, not a DSL object) must not match
+    the enumeration branch — allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: intercom-search_contacts
+      uri: null
+    subject:
+      claims:
+        groups:
+          - support
+    payload:
+      name: intercom-search_contacts
+      args:
+        query: "email~@acme.com"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: >-
+    object_type guard: the generic search with object_type conversations and a
+    contains filter is NOT a contact search — allowed even though the operator is ~.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: intercom-search
+      uri: null
+    subject:
+      claims:
+        groups:
+          - analytics
+    payload:
+      name: intercom-search
+      args:
+        object_type: conversations
+        query:
+          field: email
+          operator: "~"
+          value: "@acme.com"
+  output:
+    expectedResult: allow
+
+- description: >-
+    list_companies per_page above the documented maximum is clamped to 60.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: intercom-list_companies
+      uri: null
+    payload:
+      name: intercom-list_companies
+      args:
+        per_page: 500
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    per_page: 60
+
+- description: >-
+    list_articles per_page above the documented maximum is clamped to 150.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: intercom-list_articles
+      uri: null
+    payload:
+      name: intercom-list_articles
+      args:
+        per_page: 999
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    per_page: 150
+
+- description: >-
+    list_companies with a page size already under the maximum is allowed with no
+    transform (clamp only fires when it would lower the value).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: intercom-list_companies
+      uri: null
+    payload:
+      name: intercom-list_companies
+      args:
+        per_page: 30
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: >-
+    Unrelated tool (single-record get_contact) passes through untouched.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: intercom-get_contact
+      uri: null
+    payload:
+      name: intercom-get_contact
+      args:
+        id: contact_123
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+# --- Red-team: broadening operators beyond contains/~ must also be denied -------
+
+- description: >-
+    Red-team: ends-with on email (email $ @acme.com) is the operator form of a
+    domain sweep — the exact vector this policy exists to block. Must deny with
+    the stable reason, not just clamp.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: intercom-search_contacts
+      uri: null
+    subject:
+      claims:
+        groups:
+          - support
+    payload:
+      name: intercom-search_contacts
+      args:
+        query:
+          field: email
+          operator: "$"
+          value: "@acme.com"
+  output:
+    expectedResult: deny
+    expectedReason: "This Intercom contact search uses a bulk-enumeration filter (an email-domain match, or a contains/~ operator on email or name) that can exfiltrate the customer base. Look up a specific contact by exact email, phone, or ID instead. If you genuinely need bulk contact access, ask your CRM administrator to run it or to add you to the CRM-admin group."
+
+- description: >-
+    Red-team: not-equals on email (email neq one throwaway address) returns the
+    entire customer base — a broad-match enumeration shape the contains-only
+    check used to miss. Must deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: intercom-search_contacts
+      uri: null
+    subject:
+      claims:
+        groups:
+          - support
+    payload:
+      name: intercom-search_contacts
+      args:
+        query:
+          field: email
+          operator: neq
+          value: "nobody@nowhere.invalid"
+  output:
+    expectedResult: deny
+
+- description: >-
+    Red-team: a range operator on name (name > "M") range-scans the directory.
+    Landscape note lists gt as a first-class operator — must deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: intercom-search_contacts
+      uri: null
+    subject:
+      claims:
+        groups:
+          - support
+    payload:
+      name: intercom-search_contacts
+      args:
+        query:
+          field: name
+          operator: ">"
+          value: "M"
+  output:
+    expectedResult: deny
+
+- description: >-
+    Red-team via the generic search alias: object_type contacts with an ends-with
+    email filter is enumeration on the alias path too — must deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: intercom-search
+      uri: null
+    subject:
+      claims:
+        groups:
+          - analytics
+    payload:
+      name: intercom-search
+      args:
+        object_type: contacts
+        query:
+          field: email
+          operator: ENDS_WITH
+          value: "@acme.com"
+  output:
+    expectedResult: deny
+
+- description: >-
+    Guard against over-blocking: set membership (email in [known addresses]) is a
+    bounded lookup of already-known contacts, not enumeration — must stay allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: intercom-search_contacts
+      uri: null
+    subject:
+      claims:
+        groups:
+          - support
+    payload:
+      name: intercom-search_contacts
+      args:
+        query:
+          field: email
+          operator: in
+          value:
+            - "bob@acme.com"
+            - "sue@acme.com"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: >-
+    Red-team placeholder-claim spoofing: a map-shaped groups claim
+    ({"role":"crm-admins"}) whose value equals the gated group must NOT grant the
+    exemption — the is_array guard fails it closed, so the domain sweep is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: intercom-search_contacts
+      uri: null
+    subject:
+      claims:
+        groups:
+          role: crm-admins
+    payload:
+      name: intercom-search_contacts
+      args:
+        query:
+          field: email
+          operator: "~"
+          value: "@acme.com"
+  output:
+    expectedResult: deny
+    expectedReason: "This Intercom contact search uses a bulk-enumeration filter (an email-domain match, or a contains/~ operator on email or name) that can exfiltrate the customer base. Look up a specific contact by exact email, phone, or ID instead. If you genuinely need bulk contact access, ask your CRM administrator to run it or to add you to the CRM-admin group."
+
+# --- Red-team: documented clamp-only residuals (allowed but bounded) ------------
+
+- description: >-
+    Documented residual: free-text q with a bare domain keyword (q "@acme.com")
+    is NOT the DSL enumeration shape and cannot be denied without breaking normal
+    keyword search — it is allowed but the oversized page is clamped to 50.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: intercom-search_contacts
+      uri: null
+    subject:
+      claims:
+        groups:
+          - support
+    payload:
+      name: intercom-search_contacts
+      args:
+        q: "@acme.com"
+        per_page: 500
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    per_page: 50
+
+- description: >-
+    Documented residual: an unfiltered search (empty query object) lists the whole
+    base but is bounded-paging, not the deny shape — allowed with the oversized
+    page clamped to 50.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: intercom-search_contacts
+      uri: null
+    subject:
+      claims:
+        groups:
+          - support
+    payload:
+      name: intercom-search_contacts
+      args:
+        query: {}
+        per_page: 500
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    per_page: 50
+
+# --- Red-team: generic `search` alias with object_type dropped ------------------
+
+- description: >-
+    Red-team bypass (fixed): a domain sweep on the generic search alias with
+    object_type OMITTED still hits contacts (universal search) — must deny, not
+    slip through because object_type != "contacts".
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: intercom-search
+      uri: null
+    subject:
+      claims:
+        groups:
+          - support
+    payload:
+      name: intercom-search
+      args:
+        query:
+          field: email
+          operator: "~"
+          value: "@acme.com"
+  output:
+    expectedResult: deny
+    expectedReason: "This Intercom contact search uses a bulk-enumeration filter (an email-domain match, or a contains/~ operator on email or name) that can exfiltrate the customer base. Look up a specific contact by exact email, phone, or ID instead. If you genuinely need bulk contact access, ask your CRM administrator to run it or to add you to the CRM-admin group."
+
+- description: >-
+    Red-team bypass (fixed): same evasion with an explicit empty object_type
+    string on the generic search alias — still a contacts-capable search, deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: intercom-search
+      uri: null
+    subject:
+      claims:
+        groups:
+          - support
+    payload:
+      name: intercom-search
+      args:
+        object_type: ""
+        query:
+          field: name
+          operator: contains
+          value: "a"
+  output:
+    expectedResult: deny
+
+- description: >-
+    Guard: an EXACT email lookup on the generic search alias with object_type
+    omitted is not enumeration — allowed, and its oversized page is clamped
+    (proves the omitted-object_type widening does not over-block lookups).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: intercom-search
+      uri: null
+    subject:
+      claims:
+        groups:
+          - support
+    payload:
+      name: intercom-search
+      args:
+        query:
+          field: email
+          operator: "="
+          value: "bob@acme.com"
+        limit: 999
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    limit: 50
+
+# --- Red-team: phone is an enumeration field too --------------------------------
+
+- description: >-
+    Red-team bypass (fixed): a broad-match on phone (phone ~ "555") sweeps the
+    contact base just like an email/name sweep — the note lists phone as a
+    search_contacts filter. Must deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: intercom-search_contacts
+      uri: null
+    subject:
+      claims:
+        groups:
+          - support
+    payload:
+      name: intercom-search_contacts
+      args:
+        query:
+          field: phone
+          operator: "~"
+          value: "555"
+  output:
+    expectedResult: deny
+
+- description: >-
+    Guard: an EXACT phone lookup (phone = +1555…) is a known-contact lookup, not
+    enumeration — must stay allowed even after phone was added as an enumeration
+    field.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: intercom-search_contacts
+      uri: null
+    subject:
+      claims:
+        groups:
+          - support
+    payload:
+      name: intercom-search_contacts
+      args:
+        query:
+          field: phone
+          operator: "="
+          value: "+15550000000"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+# --- Documented residual: non-identity fields are clamp-only, not denied --------
+
+- description: >-
+    Documented residual: a broadening filter on a custom attribute
+    (plan ~ enterprise) returns many contacts but custom-attribute names are
+    arbitrary, so it is NOT deny-gated — allowed with the oversized page clamped
+    to 50. Add such names to enumeration_fields to deny them.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: intercom-search_contacts
+      uri: null
+    subject:
+      claims:
+        groups:
+          - support
+    payload:
+      name: intercom-search_contacts
+      args:
+        query:
+          field: plan
+          operator: "~"
+          value: "enterprise"
+        per_page: 500
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    per_page: 50

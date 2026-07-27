@@ -1,0 +1,514 @@
+- description: Directory read (list-group-members) passes through — reads stay open
+    for recon-free operation, no identity required.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-list-group-members
+      uri: null
+    payload:
+      name: ms365-list-group-members
+      args:
+        groupId: g-123
+  output:
+    expectedResult: allow
+- description: delete-group is intentionally NOT matched here — destructive deletion
+    belongs to the companion freeze-destructive-ops policy (one policy, one job).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-delete-group
+      uri: null
+    payload:
+      name: ms365-delete-group
+      args:
+        groupId: g-123
+  output:
+    expectedResult: allow
+- description: Unrelated write tool (send-mail) passes through — this policy only
+    freezes the identity plane.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-send-mail
+      uri: null
+    payload:
+      name: ms365-send-mail
+      args:
+        body:
+          Message:
+            subject: hello
+  output:
+    expectedResult: allow
+- description: add-group-owner with no subject at all — identity reads fail closed,
+    mutation is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-add-group-owner
+      uri: null
+    payload:
+      name: ms365-add-group-owner
+      args:
+        groupId: g-123
+        userId: u-456
+  output:
+    expectedResult: deny
+    expectedReason: "M365 group and team membership changes are frozen on the agent path — group membership and ownership changes are made in the Microsoft Entra admin center by an identity administrator. If your role requires making these changes through the gateway, ask your identity admin to add you to the 'iam-admins' IdP group, or contact your InfoSec team if this looks like a false positive."
+- description: add-group-member by a caller whose groups claim lacks iam-admins —
+    denied (silent access-widening blocked).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-add-group-member
+      uri: null
+    subject:
+      sub: auth0|agent-user
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: ms365-add-group-member
+      args:
+        groupId: g-123
+        userId: u-456
+  output:
+    expectedResult: deny
+    expectedReason: "M365 group and team membership changes are frozen on the agent path — group membership and ownership changes are made in the Microsoft Entra admin center by an identity administrator. If your role requires making these changes through the gateway, ask your identity admin to add you to the 'iam-admins' IdP group, or contact your InfoSec team if this looks like a false positive."
+- description: add-group-owner by an iam-admins member — the admin exemption fires
+    and the call is allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-add-group-owner
+      uri: null
+    subject:
+      sub: auth0|iam-operator
+      claims:
+        groups:
+          - engineering
+          - iam-admins
+    payload:
+      name: ms365-add-group-owner
+      args:
+        groupId: g-123
+        userId: u-456
+  output:
+    expectedResult: allow
+- description: create-group with claims present but no groups key — object.get
+    default yields an empty list, mutation is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-create-group
+      uri: null
+    subject:
+      sub: auth0|agent-user
+      claims:
+        org_id: org_123
+    payload:
+      name: ms365-create-group
+      args:
+        body:
+          displayName: shadow-group
+  output:
+    expectedResult: deny
+    expectedReason: "M365 group and team membership changes are frozen on the agent path — group membership and ownership changes are made in the Microsoft Entra admin center by an identity administrator. If your role requires making these changes through the gateway, ask your identity admin to add you to the 'iam-admins' IdP group, or contact your InfoSec team if this looks like a false positive."
+- description: update-group with an empty groups claim — denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-update-group
+      uri: null
+    subject:
+      sub: auth0|agent-user
+      claims:
+        groups: []
+    payload:
+      name: ms365-update-group
+      args:
+        groupId: g-123
+        body:
+          displayName: renamed
+  output:
+    expectedResult: deny
+    expectedReason: "M365 group and team membership changes are frozen on the agent path — group membership and ownership changes are made in the Microsoft Entra admin center by an identity administrator. If your role requires making these changes through the gateway, ask your identity admin to add you to the 'iam-admins' IdP group, or contact your InfoSec team if this looks like a false positive."
+- description: remove-group-member with a groups claim that is a string, not an
+    array — non-array claim shapes fail closed and the mutation is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-remove-group-member
+      uri: null
+    subject:
+      sub: auth0|agent-user
+      claims:
+        groups: iam-admins
+    payload:
+      name: ms365-remove-group-member
+      args:
+        groupId: g-123
+        userId: u-456
+  output:
+    expectedResult: deny
+    expectedReason: "M365 group and team membership changes are frozen on the agent path — group membership and ownership changes are made in the Microsoft Entra admin center by an identity administrator. If your role requires making these changes through the gateway, ask your identity admin to add you to the 'iam-admins' IdP group, or contact your InfoSec team if this looks like a false positive."
+- description: remove-group-owner with a case-mismatched group name (IAM-Admins) —
+    group comparison is exact and case-sensitive, so the caller is not exempt.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-remove-group-owner
+      uri: null
+    subject:
+      sub: auth0|agent-user
+      claims:
+        groups:
+          - IAM-Admins
+    payload:
+      name: ms365-remove-group-owner
+      args:
+        groupId: g-123
+        userId: u-456
+  output:
+    expectedResult: deny
+    expectedReason: "M365 group and team membership changes are frozen on the agent path — group membership and ownership changes are made in the Microsoft Entra admin center by an identity administrator. If your role requires making these changes through the gateway, ask your identity admin to add you to the 'iam-admins' IdP group, or contact your InfoSec team if this looks like a false positive."
+- description: add-team-member by a non-admin — Teams membership mutations are
+    frozen too.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-add-team-member
+      uri: null
+    subject:
+      sub: auth0|agent-user
+      claims:
+        groups:
+          - support
+    payload:
+      name: ms365-add-team-member
+      args:
+        teamId: t-123
+        userId: u-456
+  output:
+    expectedResult: deny
+    expectedReason: "M365 group and team membership changes are frozen on the agent path — group membership and ownership changes are made in the Microsoft Entra admin center by an identity administrator. If your role requires making these changes through the gateway, ask your identity admin to add you to the 'iam-admins' IdP group, or contact your InfoSec team if this looks like a false positive."
+- description: Uppercase tool name (MS365-Remove-Team-Member) still matches — tool
+    matching is case-insensitive.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: MS365-Remove-Team-Member
+      uri: null
+    payload:
+      name: MS365-Remove-Team-Member
+      args:
+        teamId: t-123
+        userId: u-456
+  output:
+    expectedResult: deny
+    expectedReason: "M365 group and team membership changes are frozen on the agent path — group membership and ownership changes are made in the Microsoft Entra admin center by an identity administrator. If your role requires making these changes through the gateway, ask your identity admin to add you to the 'iam-admins' IdP group, or contact your InfoSec team if this looks like a false positive."
+- description: remove-team-member by an iam-admins member — the exemption covers
+    Teams membership tools as well.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-remove-team-member
+      uri: null
+    subject:
+      sub: auth0|iam-operator
+      claims:
+        groups:
+          - iam-admins
+    payload:
+      name: ms365-remove-team-member
+      args:
+        teamId: t-123
+        userId: u-456
+  output:
+    expectedResult: allow
+- description: "Red-team (fixed): bare unprefixed tool name (create-group, no gateway
+    server-name prefix) has no leading hyphen and used to slip past the suffix match —
+    now matched exactly and denied."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: create-group
+      uri: null
+    subject:
+      sub: auth0|agent-user
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: create-group
+      args:
+        body:
+          displayName: shadow-group
+  output:
+    expectedResult: deny
+    expectedReason: "M365 group and team membership changes are frozen on the agent path — group membership and ownership changes are made in the Microsoft Entra admin center by an identity administrator. If your role requires making these changes through the gateway, ask your identity admin to add you to the 'iam-admins' IdP group, or contact your InfoSec team if this looks like a false positive."
+- description: "Red-team (fixed): bare uppercase unprefixed name (Add-Group-Owner)
+    is lowercased and exact-matched — denied."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: Add-Group-Owner
+      uri: null
+    payload:
+      name: Add-Group-Owner
+      args:
+        groupId: g-123
+        userId: u-456
+  output:
+    expectedResult: deny
+    expectedReason: "M365 group and team membership changes are frozen on the agent path — group membership and ownership changes are made in the Microsoft Entra admin center by an identity administrator. If your role requires making these changes through the gateway, ask your identity admin to add you to the 'iam-admins' IdP group, or contact your InfoSec team if this looks like a false positive."
+- description: "Red-team (documented limitation): graph-batch can issue the same
+    membership mutation as raw Graph requests and passes through this policy —
+    deploy a PF-22 escape-hatch deny alongside it."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-graph-batch
+      uri: null
+    subject:
+      sub: auth0|agent-user
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: ms365-graph-batch
+      args:
+        body:
+          requests:
+            - id: "1"
+              method: POST
+              url: /groups/g-123/members/$ref
+              body:
+                "@odata.id": https://graph.microsoft.com/v1.0/directoryObjects/u-456
+  output:
+    expectedResult: allow
+- description: "Red-team (documented limitation): Lokka's single Lokka-Microsoft
+    passthrough tool reaches the same Graph membership endpoints without matching
+    any suffix — name-based matching cannot gate it; a Lokka-specific policy must
+    inspect method/path arguments."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: Lokka-Microsoft
+      uri: null
+    subject:
+      sub: auth0|agent-user
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: Lokka-Microsoft
+      args:
+        apiType: graph
+        method: post
+        path: /groups/g-123/members/$ref
+        body:
+          "@odata.id": https://graph.microsoft.com/v1.0/directoryObjects/u-456
+  output:
+    expectedResult: allow
+- description: "Red-team (documented limitation): missing/empty tool name matches no
+    suffix and passes through — inherent blocklist semantics; the gateway reliably
+    populates resource.name on tool_pre_invoke."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ""
+      uri: null
+    payload:
+      name: ""
+      args: {}
+  output:
+    expectedResult: allow
+- description: "Red-team (robustness): subject explicitly null — object.get chain
+    errors out to undefined, caller is not exempt, mutation denied (fail closed)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-add-group-member
+      uri: null
+    subject: null
+    payload:
+      name: ms365-add-group-member
+      args:
+        groupId: g-123
+        userId: u-456
+  output:
+    expectedResult: deny
+    expectedReason: "M365 group and team membership changes are frozen on the agent path — group membership and ownership changes are made in the Microsoft Entra admin center by an identity administrator. If your role requires making these changes through the gateway, ask your identity admin to add you to the 'iam-admins' IdP group, or contact your InfoSec team if this looks like a false positive."
+- description: "Red-team (fixed): object-shaped groups claim whose VALUE is iam-admins
+    ({\"role\":\"iam-admins\"}) used to fail OPEN because `some group in caller_groups`
+    iterated object values — now guarded by is_array, so the non-array shape fails
+    closed and the mutation is denied."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-add-group-owner
+      uri: null
+    subject:
+      sub: auth0|agent-user
+      claims:
+        groups:
+          role: iam-admins
+    payload:
+      name: ms365-add-group-owner
+      args:
+        groupId: g-123
+        userId: u-456
+  output:
+    expectedResult: deny
+    expectedReason: "M365 group and team membership changes are frozen on the agent path — group membership and ownership changes are made in the Microsoft Entra admin center by an identity administrator. If your role requires making these changes through the gateway, ask your identity admin to add you to the 'iam-admins' IdP group, or contact your InfoSec team if this looks like a false positive."
+- description: "Red-team (fixed): trailing-newline tool name (ms365-add-group-owner\\n)
+    used to defeat the endswith suffix match and slip through — now trim_space'd
+    before matching, so it is denied."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "ms365-add-group-owner\n"
+      uri: null
+    subject:
+      sub: auth0|agent-user
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: "ms365-add-group-owner\n"
+      args:
+        groupId: g-123
+        userId: u-456
+  output:
+    expectedResult: deny
+    expectedReason: "M365 group and team membership changes are frozen on the agent path — group membership and ownership changes are made in the Microsoft Entra admin center by an identity administrator. If your role requires making these changes through the gateway, ask your identity admin to add you to the 'iam-admins' IdP group, or contact your InfoSec team if this looks like a false positive."
+- description: "Red-team (fixed): trailing-space tool name still matches after
+    trim_space and is denied."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "ms365-remove-group-owner "
+      uri: null
+    payload:
+      name: "ms365-remove-group-owner "
+      args:
+        groupId: g-123
+        userId: u-456
+  output:
+    expectedResult: deny
+    expectedReason: "M365 group and team membership changes are frozen on the agent path — group membership and ownership changes are made in the Microsoft Entra admin center by an identity administrator. If your role requires making these changes through the gateway, ask your identity admin to add you to the 'iam-admins' IdP group, or contact your InfoSec team if this looks like a false positive."
+- description: "Red-team (documented limitation): a gateway that joins the server-name
+    prefix with an underscore (ms365_add-group-owner) instead of a hyphen produces no
+    hyphen-led suffix match and passes through — documented separator assumption, not
+    the DTwo gateway's behavior (it uses a hyphen)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365_add-group-owner
+      uri: null
+    subject:
+      sub: auth0|agent-user
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: ms365_add-group-owner
+      args:
+        groupId: g-123
+        userId: u-456
+  output:
+    expectedResult: allow
+- description: "Red-team (claim-spoofing, confirmed safe): a lookalike group name
+    (iam-admins-viewers) that merely contains the admin group as a substring does NOT
+    grant the exemption — the match is exact `==`, not substring/prefix, so the
+    mutation is denied."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-add-group-owner
+      uri: null
+    subject:
+      sub: auth0|agent-user
+      claims:
+        groups:
+          - iam-admins-viewers
+    payload:
+      name: ms365-add-group-owner
+      args:
+        groupId: g-123
+        userId: u-456
+  output:
+    expectedResult: deny
+    expectedReason: "M365 group and team membership changes are frozen on the agent path — group membership and ownership changes are made in the Microsoft Entra admin center by an identity administrator. If your role requires making these changes through the gateway, ask your identity admin to add you to the 'iam-admins' IdP group, or contact your InfoSec team if this looks like a false positive."

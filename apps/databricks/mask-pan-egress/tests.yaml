@@ -1,0 +1,609 @@
+# Every case feeds ONLY the object under `input` to OPA as the input document.
+# expectedResult asserts data.<pkg>.allow; transformApplied / transformedArgsContain
+# assert the transform behaviour that expectedResult cannot express.
+
+# --- poll_sql_result: unseparated 16-digit PAN in a JSON result block → masked
+- description: >
+    poll_sql_result returns a lakehouse row containing a Luhn-valid unseparated
+    16-digit PAN. In scope, caller not exempt → masked to BIN+last4.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: databricks-sql-poll_sql_result
+      uri: null
+    payload:
+      name: databricks-sql-poll_sql_result
+      text:
+        - '{"rows":[["acct-889","4111111111111111"]]}'
+    subject:
+      sub: google-apps|casey@acme.com
+      claims:
+        groups:
+          - support
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - '{"rows":[["acct-889","411111******1111"]]}'
+
+# --- genie_poll_response: grouped 4-4-4-4 PAN in NL answer → masked, separators dropped
+- description: >
+    genie_poll_response prose contains a grouped 4-4-4-4 PAN. Masked form drops
+    the separators and keeps BIN+last4.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: databricks-genie-genie_poll_response
+      uri: null
+    payload:
+      name: databricks-genie-genie_poll_response
+      text:
+        - "The top account used card 4111 1111 1111 1111 last month."
+    subject:
+      sub: google-apps|casey@acme.com
+      claims:
+        groups:
+          - analyst
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "The top account used card 411111******1111 last month."
+
+# --- community execute_sql_query: 15-digit Amex grouped 4-6-5 → masked
+- description: >
+    Community execute_sql_query returns an Amex-shaped 15-digit PAN grouped
+    4-6-5 (34/37 IIN). Masked to BIN+last4.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: rafael-databricks-execute_sql_query
+      uri: null
+    payload:
+      name: rafael-databricks-execute_sql_query
+      text:
+        - "card on file: 3782 822463 10005"
+    subject:
+      sub: google-apps|casey@acme.com
+      claims:
+        groups:
+          - support
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "card on file: 378282*****0005"
+
+# --- AI Search dynamic {cat}__{schema}__{index} tool: 13-digit unseparated PAN
+- description: >
+    AI Search index tool with a dynamic double-underscore name returns a free-text
+    document snippet with a Luhn-valid 13-digit PAN. The `__` signature puts it
+    in scope; it is masked.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: databricks-ai-search-prod__support__tickets_index
+      uri: null
+    payload:
+      name: databricks-ai-search-prod__support__tickets_index
+      text:
+        - "ticket 5521: customer card 4222222222222 declined"
+    subject:
+      sub: google-apps|casey@acme.com
+      claims:
+        groups:
+          - support
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "ticket 5521: customer card 422222***2222 declined"
+
+# --- Exempt group: pci-full-pan sees unmasked output, no transform
+- description: >
+    Caller is in the placeholder pci-full-pan group. Response passes through
+    unmasked — the transform rule is undefined.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: databricks-sql-poll_sql_result
+      uri: null
+    payload:
+      name: databricks-sql-poll_sql_result
+      text:
+        - '{"rows":[["acct-889","4111111111111111"]]}'
+    subject:
+      sub: google-apps|pci-analyst@acme.com
+      claims:
+        groups:
+          - pci-full-pan
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+# --- Luhn-invalid digit run: passthrough, no transform
+- description: >
+    A Luhn-invalid 16-digit run (bad check digit) is not a PAN. No transform;
+    response returned byte-identical.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: databricks-sql-poll_sql_result
+      uri: null
+    payload:
+      name: databricks-sql-poll_sql_result
+      text:
+        - '{"rows":[["acct-889","4111111111111112"]]}'
+    subject:
+      sub: google-apps|casey@acme.com
+      claims:
+        groups:
+          - support
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+# --- Out-of-scope tool: managed execute_sql (returns a handle) not masked
+- description: >
+    Managed execute_sql submit tool is out of scope (it returns a statement
+    handle, not data). Even with a PAN-shaped string present, no transform fires.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: databricks-sql-execute_sql
+      uri: null
+    payload:
+      name: databricks-sql-execute_sql
+      text:
+        - '{"statement_handle":"4111111111111111"}'
+    subject:
+      sub: google-apps|casey@acme.com
+      claims:
+        groups:
+          - support
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+# --- Out-of-scope metadata tool: list_clusters not masked
+- description: >
+    A metadata tool (list_clusters) is out of scope. No transform even if a
+    Luhn-valid digit run appears in the response.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: justtryai-databricks-list_clusters
+      uri: null
+    payload:
+      name: justtryai-databricks-list_clusters
+      text:
+        - '{"clusters":["4111111111111111"]}'
+    subject:
+      sub: google-apps|casey@acme.com
+      claims:
+        groups:
+          - support
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+# --- Fail-closed: no subject at all → still masked
+- description: >
+    Response with no subject block. The exemption is fail-closed, so a PAN is
+    still masked.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: databricks-sql-poll_sql_result
+      uri: null
+    payload:
+      name: databricks-sql-poll_sql_result
+      text:
+        - "PAN 4111111111111111 in row 1"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "PAN 411111******1111 in row 1"
+
+# --- Fail-closed: malformed groups claim (object, not array) → still masked
+- description: >
+    groups claim is an object, not an array. The is_array guard keeps the
+    exemption fail-closed, so the PAN is masked.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: databricks-sql-poll_sql_result
+      uri: null
+    payload:
+      name: databricks-sql-poll_sql_result
+      text:
+        - "PAN 4111111111111111 seen"
+    subject:
+      sub: google-apps|casey@acme.com
+      claims:
+        groups:
+          role: pci-full-pan
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "PAN 411111******1111 seen"
+
+# --- 20+ digit run: no word boundary inside → not partially masked, passthrough
+- description: >
+    A 20-digit run has no internal word boundary, so the 13-19 pattern cannot
+    match it. No transform — a long identifier is never partially masked.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: databricks-sql-poll_sql_result
+      uri: null
+    payload:
+      name: databricks-sql-poll_sql_result
+      text:
+        - "trace id 41111111111111114567"
+    subject:
+      sub: google-apps|casey@acme.com
+      claims:
+        groups:
+          - support
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+# --- Non-array text (bare string) → fail-open, no transform
+- description: >
+    payload.text delivered as a bare string rather than an array. The transform
+    requires is_array(text_blocks), so it does not fire (documented fail-open).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: databricks-sql-poll_sql_result
+      uri: null
+    payload:
+      name: databricks-sql-poll_sql_result
+      text: "PAN 4111111111111111 in a bare string"
+    subject:
+      sub: google-apps|casey@acme.com
+      claims:
+        groups:
+          - support
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+# --- Multiple PANs across blocks + a non-string block preserved
+- description: >
+    Two blocks each carry a distinct Luhn-valid PAN; both are masked. A trailing
+    non-string (object) block passes through unmodified.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: databricks-sql-poll_sql_result
+      uri: null
+    payload:
+      name: databricks-sql-poll_sql_result
+      text:
+        - "primary 4111111111111111"
+        - "amex 378282246310005"
+        - meta:
+            row_count: 2
+    subject:
+      sub: google-apps|casey@acme.com
+      claims:
+        groups:
+          - support
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "primary 411111******1111"
+      - "amex 378282*****0005"
+      - meta:
+          row_count: 2
+
+# --- RED-TEAM: Genie Space (GA) single-invoke tool is out of scope → PAN leaks
+- description: >
+    Genie Space (GA) single-invoke tool (name unpublished, no known suffix, no
+    `__`) returns a UC-grounded answer containing a Luhn-valid PAN. It is NOT in
+    scope, so no transform fires and the PAN passes through unmasked. Documented
+    coverage gap — pair with default-deny-unknown-tools (PF-28) and pin the
+    concrete name once known.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: databricks-genie-01ef9a
+      uri: null
+    payload:
+      name: databricks-genie-01ef9a
+      text:
+        - "Customer card 4111111111111111 was charged last month."
+    subject:
+      sub: google-apps|casey@acme.com
+      claims:
+        groups:
+          - support
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+# --- RED-TEAM: adjacent digit groups shadow a grouped PAN (documented residual)
+- description: >
+    Pathological sequence where a leading 4-4-4-4 window (1234 5678 4111 1111)
+    is consumed first and fails Luhn, so the real grouped PAN inside the run is
+    never matched. Documented "adjacent digit groups shadow" residual — no
+    transform.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: databricks-sql-poll_sql_result
+      uri: null
+    payload:
+      name: databricks-sql-poll_sql_result
+      text:
+        - "1234 5678 4111 1111 1111 1111"
+    subject:
+      sub: google-apps|casey@acme.com
+      claims:
+        groups:
+          - support
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+# --- RED-TEAM: PAN glued to a word character (underscore) is missed (documented)
+- description: >
+    A PAN immediately preceded by an underscore (a word char in RE2) has no
+    leading word boundary, so no pattern matches. Documented glued-to-word-char
+    residual — no transform. This is the deliberate cost of \b anchoring.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: databricks-sql-poll_sql_result
+      uri: null
+    payload:
+      name: databricks-sql-poll_sql_result
+      text:
+        - "acct_4111111111111111"
+    subject:
+      sub: google-apps|casey@acme.com
+      claims:
+        groups:
+          - support
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+# --- RED-TEAM: JustTryAI synchronous execute_sql returns rows but is out of scope
+- description: >
+    The JustTryAI community server's synchronous execute_sql returns rows
+    directly, but is deliberately NOT matched (only execute_sql_query is) to
+    avoid colliding with the managed execute_sql handle-only submit tool.
+    Documented residual — no transform; add its suffix to content_tool_suffixes
+    if you run that server.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: justtryai-databricks-execute_sql
+      uri: null
+    payload:
+      name: justtryai-databricks-execute_sql
+      text:
+        - '{"rows":[["4111111111111111"]]}'
+    subject:
+      sub: google-apps|casey@acme.com
+      claims:
+        groups:
+          - support
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+# --- RED-TEAM (FIXED): tool name only under tool_metadata.name, no resource.name
+- description: >
+    Legacy/pre-PARC egress delivery where the tool name arrives under
+    tool_metadata.name (and payload.name) but resource.name is absent. Before the
+    fix the scope check read only resource.name and failed open (no mask = PAN
+    leak). The name is now resolved from resource.name -> tool_metadata.name ->
+    payload.name, so poll_sql_result is in scope and the PAN is masked.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    tool_metadata:
+      name: databricks-sql-poll_sql_result
+    payload:
+      name: databricks-sql-poll_sql_result
+      text:
+        - '{"rows":[["acct-889","4111111111111111"]]}'
+    subject:
+      sub: google-apps|casey@acme.com
+      claims:
+        groups:
+          - support
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - '{"rows":[["acct-889","411111******1111"]]}'
+
+# --- RED-TEAM: grouped PAN with a digit glued to the last group is missed (documented)
+- description: >
+    A grouped 4-4-4-4 PAN with a stray fifth digit glued to the last group
+    ("4111 1111 1111 11110"). The grouped pattern's trailing \b fails and the
+    single-space separators break the run below the 13-contiguous-digit floor of
+    the unseparated pattern, so nothing matches. Documented glued-to-grouped
+    residual — no transform, PAN passes through unmasked.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: databricks-sql-poll_sql_result
+      uri: null
+    payload:
+      name: databricks-sql-poll_sql_result
+      text:
+        - "card 4111 1111 1111 11110 on file"
+    subject:
+      sub: google-apps|casey@acme.com
+      claims:
+        groups:
+          - support
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+# --- RED-TEAM: encoding/obfuscation — dot-separated PAN evades the space/dash patterns
+- description: >
+    A Luhn-valid 16-digit PAN written with dot separators ("4111.1111.1111.1111").
+    The grouped pattern only accepts space/dash separators and the dots break the
+    run below the 13-contiguous-digit floor of the unseparated pattern, so nothing
+    matches. Documented encoding/obfuscation residual (§ Known limitations:
+    "separators other than space/dash ... do not match") — no transform, PAN
+    passes through unmasked. Pair with default-deny-unknown-tools / upstream DLP.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: databricks-sql-poll_sql_result
+      uri: null
+    payload:
+      name: databricks-sql-poll_sql_result
+      text:
+        - "card 4111.1111.1111.1111 on file"
+    subject:
+      sub: google-apps|casey@acme.com
+      claims:
+        groups:
+          - support
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+# --- RED-TEAM: substring-collision — a shorter PAN is a literal substring of a longer PAN
+- description: >
+    Two distinct Luhn-valid PANs in one block where the 16-digit one
+    ("4444444444444448") is a literal string prefix of the 17-digit one
+    ("44444444444444485"). strings.replace_n applies the shorter key inside the
+    longer run, so the longer PAN masks to "444444******44485" — middle digits
+    are still masked, but five trailing chars remain visible instead of four.
+    Documented substring-collision residual (§ Known limitations) — over-exposure
+    of one extra digit, never an unmasked middle. Confirms the doc claim.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: databricks-sql-poll_sql_result
+      uri: null
+    payload:
+      name: databricks-sql-poll_sql_result
+      text:
+        - "S 4444444444444448 L 44444444444444485"
+    subject:
+      sub: google-apps|casey@acme.com
+      claims:
+        groups:
+          - support
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "S 444444******4448 L 444444******44485"
+
+# --- RED-TEAM: `__` signature pulls a non-index tool into scope (over-masking, documented)
+- description: >
+    A metadata tool (list_clusters) on a gateway server whose configured name
+    contains a double underscore ("my__srv"). The `__` AI-Search heuristic puts it
+    in scope, so its response IS scanned and the Luhn-valid PAN masked. Documented
+    over-masking (not a leak — transform-only, card shapes only). Avoid `__` in
+    server names if this collateral scanning is unwanted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: my__srv-list_clusters
+      uri: null
+    payload:
+      name: my__srv-list_clusters
+      text:
+        - '{"clusters":["4111111111111111"]}'
+    subject:
+      sub: google-apps|casey@acme.com
+      claims:
+        groups:
+          - support
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - '{"clusters":["411111******1111"]}'

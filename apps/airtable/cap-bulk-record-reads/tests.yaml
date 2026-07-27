@@ -1,0 +1,610 @@
+# Tests for airtable/cap-bulk-record-reads.
+#
+# This is a transform-only ingress policy: it never denies, so every case expects
+# allow=true and asserts transform behaviour via transformApplied /
+# transformedArgsContain.
+#
+# Branches covered:
+#   - is_bulk_list_tool: all three suffixes (list_records, list_records_for_table,
+#     list_records_for_page) + case-insensitive matching.
+#   - clamp_max_records: above-ceiling (clamp), absent (inject), non-numeric string
+#     (clamp), non-positive 0 / negative (clamp — server may read as unset),
+#     already within ceiling (no-op).
+#   - strip_formula: non-analyst removes filterByFormula; analyst keeps it.
+#   - is_formula_privileged: array-with-match (incl. uppercase), non-array/map
+#     spoof (fail closed), missing subject (fail closed).
+#   - transform-fires-only-on-change (narrowed != call_args).
+#   - out-of-scope tools left untouched: search_records, get_record.
+#
+# Formula-strip is proven order-independently: in the within-ceiling cases the
+# ONLY possible mutation is removing filterByFormula, so transformApplied=true
+# there means the strip happened, and transformApplied=false means it did not.
+
+# --- Row-count clamp ------------------------------------------------------------
+
+- description: >-
+    Non-analyst list_records_for_table (official verbose name) with an oversized
+    maxRecords is clamped down to the 50 ceiling.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-list_records_for_table
+      uri: null
+    subject:
+      claims:
+        groups:
+          - support
+    payload:
+      name: airtable-list_records_for_table
+      args:
+        baseId: appABC123
+        tableId: tblXYZ789
+        maxRecords: 100
+        filterByFormula: "{SSN}!=''"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    maxRecords: 50
+
+- description: >-
+    Bulk list with maxRecords absent injects the ceiling (an unbounded read is
+    never the default). No subject present — fail-closed identity is harmless here.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-list_records
+      uri: null
+    payload:
+      name: airtable-list_records
+      args:
+        baseId: appABC123
+        tableId: tblXYZ789
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    maxRecords: 50
+
+- description: >-
+    list_records_for_page (official page-read name) with maxRecords absent injects
+    the ceiling and (non-analyst) also strips the raw formula.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-list_records_for_page
+      uri: null
+    subject:
+      claims:
+        groups:
+          - support
+    payload:
+      name: airtable-list_records_for_page
+      args:
+        baseId: appABC123
+        pageId: pagFOO
+        filterByFormula: "{Email}!=''"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    maxRecords: 50
+
+- description: >-
+    maxRecords supplied as a non-numeric string ("500") does not satisfy the
+    within-ceiling guard, so it is replaced with the numeric ceiling — closes the
+    "pass maxRecords as a string to dodge the numeric clamp" bypass.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-list_records
+      uri: null
+    subject:
+      claims:
+        groups:
+          - support
+    payload:
+      name: airtable-list_records
+      args:
+        baseId: appABC123
+        tableId: tblXYZ789
+        maxRecords: "500"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    maxRecords: 50
+
+- description: >-
+    Red-team (fix) — maxRecords: 0 is a number and <= the ceiling, but a
+    non-positive value is NOT a smaller read: a server that reads it as unset
+    would fall back to its default page (up to 100 rows). The value >= 1 lower
+    bound forces it to the ceiling. Closes the "pass maxRecords: 0 to dodge the
+    clamp" bypass.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-list_records
+      uri: null
+    subject:
+      claims:
+        groups:
+          - support
+    payload:
+      name: airtable-list_records
+      args:
+        baseId: appABC123
+        tableId: tblXYZ789
+        maxRecords: 0
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    maxRecords: 50
+
+- description: >-
+    Red-team (fix) — a negative maxRecords (-1) likewise passes a bare <= ceiling
+    check but is not a bounded read; the value >= 1 lower bound forces it to the
+    ceiling. An analyst is clamped the same way (the clamp is unconditional).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-list_records
+      uri: null
+    subject:
+      claims:
+        groups:
+          - analyst
+    payload:
+      name: airtable-list_records
+      args:
+        baseId: appABC123
+        tableId: tblXYZ789
+        maxRecords: -1
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    maxRecords: 50
+
+- description: >-
+    Case-insensitive tool matching: an upper-cased tool name is still recognised
+    as a bulk list and clamped.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: AIRTABLE-LIST_RECORDS
+      uri: null
+    payload:
+      name: AIRTABLE-LIST_RECORDS
+      args:
+        baseId: appABC123
+        tableId: tblXYZ789
+        maxRecords: 100
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    maxRecords: 50
+
+- description: >-
+    A bulk list whose maxRecords is already at/under the ceiling and carries no
+    formula needs no narrowing — no transform is emitted.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-list_records
+      uri: null
+    subject:
+      claims:
+        groups:
+          - support
+    payload:
+      name: airtable-list_records
+      args:
+        baseId: appABC123
+        tableId: tblXYZ789
+        maxRecords: 25
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+# --- filterByFormula strip (group-gated) ----------------------------------------
+
+- description: >-
+    Formula-strip proof — non-analyst, maxRecords already within the ceiling (25)
+    so no clamp fires; the only possible mutation is removing filterByFormula.
+    transformApplied=true therefore proves the strip happened; maxRecords survives
+    unchanged.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-list_records
+      uri: null
+    subject:
+      claims:
+        groups:
+          - support
+    payload:
+      name: airtable-list_records
+      args:
+        baseId: appABC123
+        tableId: tblXYZ789
+        maxRecords: 25
+        filterByFormula: "{Salary}>100000"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    maxRecords: 25
+
+- description: >-
+    Analyst keeps the raw formula — same within-ceiling args as the strip-proof
+    case, but the analyst grant means nothing changes, so no transform is emitted.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-list_records
+      uri: null
+    subject:
+      claims:
+        groups:
+          - analyst
+    payload:
+      name: airtable-list_records
+      args:
+        baseId: appABC123
+        tableId: tblXYZ789
+        maxRecords: 25
+        filterByFormula: "{Salary}>100000"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: >-
+    Analyst is still clamped: an analyst keeps filterByFormula but an oversized
+    maxRecords is lowered to 50 all the same (the clamp is unconditional).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-list_records
+      uri: null
+    subject:
+      claims:
+        groups:
+          - analyst
+    payload:
+      name: airtable-list_records
+      args:
+        baseId: appABC123
+        tableId: tblXYZ789
+        maxRecords: 100
+        filterByFormula: "{Stage}='Won'"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    maxRecords: 50
+
+- description: >-
+    Case-insensitive group grant: an "Analyst" claim (different casing) still
+    counts as the analyst group, so the within-ceiling formula call is unchanged.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-list_records
+      uri: null
+    subject:
+      claims:
+        groups:
+          - Analyst
+    payload:
+      name: airtable-list_records
+      args:
+        baseId: appABC123
+        tableId: tblXYZ789
+        maxRecords: 25
+        filterByFormula: "{Stage}='Won'"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+# --- Identity fail-closed (grant) -----------------------------------------------
+
+- description: >-
+    Fail-closed identity — no subject/claims at all. The caller is not an analyst,
+    so filterByFormula is stripped (within-ceiling maxRecords means the strip is
+    the only change).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-list_records
+      uri: null
+    payload:
+      name: airtable-list_records
+      args:
+        baseId: appABC123
+        tableId: tblXYZ789
+        maxRecords: 25
+        filterByFormula: "{SSN}!=''"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    maxRecords: 25
+
+- description: >-
+    Red-team placeholder-claim spoofing — a map-shaped groups claim
+    ({"role":"analyst"}) whose value equals the gated group must NOT grant the
+    exemption. The is_array guard fails it closed, so filterByFormula is stripped
+    (within-ceiling maxRecords means the strip is the only change).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-list_records
+      uri: null
+    subject:
+      claims:
+        groups:
+          role: analyst
+    payload:
+      name: airtable-list_records
+      args:
+        baseId: appABC123
+        tableId: tblXYZ789
+        maxRecords: 25
+        filterByFormula: "{SSN}!=''"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    maxRecords: 25
+
+# --- Red-team: additional spoof / bypass surfaces -------------------------------
+
+- description: >-
+    Red-team claim-spoofing — a string-shaped groups claim ("analyst" as a bare
+    string, not an array) must NOT grant the formula exemption. The is_array guard
+    fails it closed, so filterByFormula is stripped (within-ceiling maxRecords means
+    the strip is the only change).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-list_records
+      uri: null
+    subject:
+      claims:
+        groups: analyst
+    payload:
+      name: airtable-list_records
+      args:
+        baseId: appABC123
+        tableId: tblXYZ789
+        maxRecords: 25
+        filterByFormula: "{SSN}!=''"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    maxRecords: 25
+
+- description: >-
+    Red-team residual (documented) — the official display_records_for_table widget
+    is a bulk-record read but is NOT one of the three matched list_records*
+    suffixes, so an oversized maxRecords passes through unclamped. Locks the
+    documented Known-limitation gap so a future rename/expansion is a conscious
+    choice.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-display_records_for_table
+      uri: null
+    payload:
+      name: airtable-display_records_for_table
+      args:
+        baseId: appABC123
+        tableId: tblXYZ789
+        maxRecords: 100
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: >-
+    Red-team malformed args (documented) — a matched bulk-list tool whose args is a
+    non-object (a bare string) does not fire the clamp; the transform is absent.
+    Such a call carries no usable maxRecords/filterByFormula and is rejected by the
+    Airtable server, so it is not an egress path. Locks the fail-open edge.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-list_records
+      uri: null
+    payload:
+      name: airtable-list_records
+      args: "not-an-object"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: >-
+    Red-team (fix) — resource.name absent, only the legacy payload.name carries the
+    tool name. The payload.name branch still recognises the bulk-list tool, so the
+    oversized maxRecords is clamped and the read is not left unclamped just because
+    the PARC resource.name was missing.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      uri: null
+    payload:
+      name: airtable-list_records_for_table
+      args:
+        baseId: appABC123
+        tableId: tblXYZ789
+        maxRecords: 100
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    maxRecords: 50
+
+- description: >-
+    Red-team residual (documented) — a saved `view` argument is a server-side
+    pre-filter (a targeted-extraction surface analogous to filterByFormula) that
+    this policy deliberately does NOT strip. A non-analyst oversized read has its
+    maxRecords clamped to 50 and filterByFormula removed, but `view` survives the
+    rewrite. Locks the Known-limitation gap so a future decision to strip `view`
+    is a conscious change, not a silent regression.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-list_records
+      uri: null
+    subject:
+      claims:
+        groups:
+          - support
+    payload:
+      name: airtable-list_records
+      args:
+        baseId: appABC123
+        tableId: tblXYZ789
+        maxRecords: 100
+        filterByFormula: "{SSN}!=''"
+        view: "PII rows"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    maxRecords: 50
+    view: "PII rows"
+
+# --- Out-of-scope tools left untouched ------------------------------------------
+
+- description: >-
+    search_records is scoped by an explicit searchTerm and is deliberately out of
+    scope — even an oversized maxRecords passes through untouched.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-search_records
+      uri: null
+    subject:
+      claims:
+        groups:
+          - support
+    payload:
+      name: airtable-search_records
+      args:
+        baseId: appABC123
+        tableId: tblXYZ789
+        searchTerm: "acme"
+        maxRecords: 100
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: >-
+    Single-record get_record is not a bulk surface — passes through with no
+    transform, even for a non-analyst.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-get_record
+      uri: null
+    subject:
+      claims:
+        groups:
+          - support
+    payload:
+      name: airtable-get_record
+      args:
+        baseId: appABC123
+        tableId: tblXYZ789
+        recordId: recFOO
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: >-
+    get_record_for_page (official single-record page fetch) must not be caught by
+    the list_records_for_page suffix — it is left untouched.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-get_record_for_page
+      uri: null
+    payload:
+      name: airtable-get_record_for_page
+      args:
+        baseId: appABC123
+        pageId: pagFOO
+        recordId: recFOO
+  output:
+    expectedResult: allow
+  transformApplied: false

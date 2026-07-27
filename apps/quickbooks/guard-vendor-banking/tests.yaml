@@ -1,0 +1,451 @@
+# Tests for quickbooks.ingress.guard_vendor_banking
+# Covers: non-vendor pass-through, benign vendor edits, banking-field deny
+# (snake_case + PascalCase, nested), tax-field deny, tax-ID-value deny, and the
+# red-team bypasses (vendor_credit exclusion, delete pass-through, gateway
+# prefix, missing args, free-text shapeless account-number residual).
+
+- description: Non-vendor tool (create_invoice) — not a vendor write. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: qbo-mcp-create_invoice
+      uri: null
+    payload:
+      name: qbo-mcp-create_invoice
+      args:
+        customer_ref: "12"
+        line_items:
+          - item_ref: "5"
+            qty: 1
+            unit_price: 100
+  output:
+    expectedResult: allow
+
+- description: Read vendor (get_vendor) — reads are out of scope. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: qbo-mcp-get_vendor
+      uri: null
+    payload:
+      name: qbo-mcp-get_vendor
+      args:
+        id: "56"
+  output:
+    expectedResult: allow
+
+- description: Vendor update touching only display name / terms — non-banking edit. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: qbo-mcp-update_vendor
+      uri: null
+    payload:
+      name: qbo-mcp-update_vendor
+      args:
+        id: "56"
+        display_name: Acme Supplies
+        terms_ref: NET30
+        primary_email_addr: ap@acme.example
+  output:
+    expectedResult: allow
+
+- description: Vendor create with snake_case bank_account_number + routing_number. Policy should deny (banking-field branch).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: qbo-mcp-create_vendor
+      uri: null
+    payload:
+      name: qbo-mcp-create_vendor
+      args:
+        display_name: New Vendor LLC
+        bank_account_number: "000123456789"
+        routing_number: "021000021"
+  output:
+    expectedResult: deny
+    expectedReason: "Creating or updating a vendor with bank-account, routing/ACH, or tax-identity (EIN/SSN) fields is blocked at the gateway. Silently repointing a vendor's payment coordinates is the primary business-email-compromise (BEC) vector: a rerouted bank account diverts every future ACH payment. Change vendor banking or tax-ID details directly in QuickBooks under dual approval, or ask your finance/AP administrator to make the change or grant an exception."
+
+- description: Vendor update with LibreChat PascalCase bank details nested under VendorPaymentBankDetail. Policy should deny (banking-field branch, nested + PascalCase).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: qbo-mcp-update_vendor
+      uri: null
+    payload:
+      name: qbo-mcp-update_vendor
+      args:
+        Id: "56"
+        VendorPaymentBankDetail:
+          BankAccountNumber: "000987654321"
+          BankBranchIdentifier: "026009593"
+  output:
+    expectedResult: deny
+    expectedReason: "Creating or updating a vendor with bank-account, routing/ACH, or tax-identity (EIN/SSN) fields is blocked at the gateway. Silently repointing a vendor's payment coordinates is the primary business-email-compromise (BEC) vector: a rerouted bank account diverts every future ACH payment. Change vendor banking or tax-ID details directly in QuickBooks under dual approval, or ask your finance/AP administrator to make the change or grant an exception."
+
+- description: Vendor update with snake_case tax_identifier field (non-tax-shaped placeholder value). Policy should deny (banking-field branch, tax identity).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: qbo-mcp-update_vendor
+      uri: null
+    payload:
+      name: qbo-mcp-update_vendor
+      args:
+        id: "56"
+        tax_identifier: ON_FILE
+  output:
+    expectedResult: deny
+    expectedReason: "Creating or updating a vendor with bank-account, routing/ACH, or tax-identity (EIN/SSN) fields is blocked at the gateway. Silently repointing a vendor's payment coordinates is the primary business-email-compromise (BEC) vector: a rerouted bank account diverts every future ACH payment. Change vendor banking or tax-ID details directly in QuickBooks under dual approval, or ask your finance/AP administrator to make the change or grant an exception."
+
+- description: Vendor create with PascalCase TaxIdentifier (non-tax-shaped placeholder value). Policy should deny (banking-field branch).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: qbo-mcp-create_vendor
+      uri: null
+    payload:
+      name: qbo-mcp-create_vendor
+      args:
+        DisplayName: Contractor Co
+        TaxIdentifier: PROVIDED
+  output:
+    expectedResult: deny
+    expectedReason: "Creating or updating a vendor with bank-account, routing/ACH, or tax-identity (EIN/SSN) fields is blocked at the gateway. Silently repointing a vendor's payment coordinates is the primary business-email-compromise (BEC) vector: a rerouted bank account diverts every future ACH payment. Change vendor banking or tax-ID details directly in QuickBooks under dual approval, or ask your finance/AP administrator to make the change or grant an exception."
+
+- description: Vendor update smuggling an SSN into a free-text notes field (no sensitive key name). Policy should deny (tax-ID-value branch).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: qbo-mcp-update_vendor
+      uri: null
+    payload:
+      name: qbo-mcp-update_vendor
+      args:
+        id: "56"
+        display_name: Contractor Co
+        notes: "1099 vendor, taxpayer 123-45-6789"
+  output:
+    expectedResult: deny
+    expectedReason: "This vendor create/update carries a value shaped like a US tax identifier (SSN or EIN). Tax IDs for 1099 vendors must be set in QuickBooks under finance review, not through the agent. Contact your finance/AP administrator if this change is legitimate."
+
+- description: Vendor create with an EIN-shaped value under a benign key. Policy should deny (tax-ID-value branch).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: qbo-mcp-create_vendor
+      uri: null
+    payload:
+      name: qbo-mcp-create_vendor
+      args:
+        display_name: Widgets Inc
+        company_name: "Widgets Inc 12-3456789"
+  output:
+    expectedResult: deny
+    expectedReason: "This vendor create/update carries a value shaped like a US tax identifier (SSN or EIN). Tax IDs for 1099 vendors must be set in QuickBooks under finance review, not through the agent. Contact your finance/AP administrator if this change is legitimate."
+
+- description: Bypass attempt — create_vendor_credit (different entity, ends in _credit) carrying bank details. Policy should allow (out of scope here).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: qbo-mcp-create_vendor_credit
+      uri: null
+    payload:
+      name: qbo-mcp-create_vendor_credit
+      args:
+        vendor_ref: "56"
+        bank_account_number: "000123456789"
+  output:
+    expectedResult: allow
+
+- description: delete_vendor (deactivation) — handled by freeze-destructive-ops, not here. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: qbo-mcp-delete_vendor
+      uri: null
+    payload:
+      name: qbo-mcp-delete_vendor
+      args:
+        id: "56"
+  output:
+    expectedResult: allow
+
+- description: Gateway-prefixed tool name with mixed case and a bank field. Suffix + case-insensitive match should still deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: My-QBO-Server-Create_Vendor
+      uri: null
+    payload:
+      name: My-QBO-Server-Create_Vendor
+      args:
+        display_name: Shell Vendor
+        bankAccountNumber: "000111222333"
+  output:
+    expectedResult: deny
+    expectedReason: "Creating or updating a vendor with bank-account, routing/ACH, or tax-identity (EIN/SSN) fields is blocked at the gateway. Silently repointing a vendor's payment coordinates is the primary business-email-compromise (BEC) vector: a rerouted bank account diverts every future ACH payment. Change vendor banking or tax-ID details directly in QuickBooks under dual approval, or ask your finance/AP administrator to make the change or grant an exception."
+
+- description: create_vendor with no args at all — fails safe (no banking data present). Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: qbo-mcp-create_vendor
+      uri: null
+    payload:
+      name: qbo-mcp-create_vendor
+  output:
+    expectedResult: allow
+
+- description: Documented residual — a shapeless bank account number in a free-text field with no sensitive key name is NOT caught. Policy allows (see Known limitations).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: qbo-mcp-update_vendor
+      uri: null
+    payload:
+      name: qbo-mcp-update_vendor
+      args:
+        id: "56"
+        print_on_check_name: "remit to 000123456789"
+  output:
+    expectedResult: allow
+
+- description: Red-team residual — parameterized mega-tool server (hvkshetry `party`, verb in argument) carrying bank details. Tool name matches neither suffix, so it passes. Policy allows (documented limitation — needs a companion arg-inspecting policy).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: qbo-mcp-party
+      uri: null
+    payload:
+      name: qbo-mcp-party
+      args:
+        operation: update
+        party_type: vendor
+        bank_account_number: "000123456789"
+        routing_number: "021000021"
+  output:
+    expectedResult: allow
+
+- description: Red-team residual — undashed 9-digit SSN in a free-text field with no sensitive key name. The dash-delimited value regex does not match, so it passes. Policy allows (documented limitation).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: qbo-mcp-update_vendor
+      uri: null
+    payload:
+      name: qbo-mcp-update_vendor
+      args:
+        id: "56"
+        notes: "1099 vendor taxpayer 123456789"
+  output:
+    expectedResult: allow
+
+- description: Red-team residual — space-separated SSN in a free-text field. The dash-delimited value regex does not match, so it passes. Policy allows (documented limitation).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: qbo-mcp-update_vendor
+      uri: null
+    payload:
+      name: qbo-mcp-update_vendor
+      args:
+        id: "56"
+        notes: "ssn 123 45 6789"
+  output:
+    expectedResult: allow
+
+- description: Robustness check — a banking field nested inside an array element must still be caught by the recursive walk. Policy should deny (banking-field branch).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: qbo-mcp-update_vendor
+      uri: null
+    payload:
+      name: qbo-mcp-update_vendor
+      args:
+        id: "56"
+        payment_methods:
+          - routing_number: "021000021"
+  output:
+    expectedResult: deny
+    expectedReason: "Creating or updating a vendor with bank-account, routing/ACH, or tax-identity (EIN/SSN) fields is blocked at the gateway. Silently repointing a vendor's payment coordinates is the primary business-email-compromise (BEC) vector: a rerouted bank account diverts every future ACH payment. Change vendor banking or tax-ID details directly in QuickBooks under dual approval, or ask your finance/AP administrator to make the change or grant an exception."
+
+- description: Robustness check — a numeric (non-string) SSN value under a sensitive key name is still caught by the field-name branch regardless of value type. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: qbo-mcp-update_vendor
+      uri: null
+    payload:
+      name: qbo-mcp-update_vendor
+      args:
+        id: "56"
+        ssn: 123456789
+  output:
+    expectedResult: deny
+    expectedReason: "Creating or updating a vendor with bank-account, routing/ACH, or tax-identity (EIN/SSN) fields is blocked at the gateway. Silently repointing a vendor's payment coordinates is the primary business-email-compromise (BEC) vector: a rerouted bank account diverts every future ACH payment. Change vendor banking or tax-ID details directly in QuickBooks under dual approval, or ask your finance/AP administrator to make the change or grant an exception."
+
+- description: Red-team fix — camelCase tool name (updateVendor, no underscore) carrying a bank field. Separator-normalized suffix match must still deny (was a fail-open bypass).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: qbo-mcp-updateVendor
+      uri: null
+    payload:
+      name: qbo-mcp-updateVendor
+      args:
+        bankAccountNumber: "000123456789"
+  output:
+    expectedResult: deny
+    expectedReason: "Creating or updating a vendor with bank-account, routing/ACH, or tax-identity (EIN/SSN) fields is blocked at the gateway. Silently repointing a vendor's payment coordinates is the primary business-email-compromise (BEC) vector: a rerouted bank account diverts every future ACH payment. Change vendor banking or tax-ID details directly in QuickBooks under dual approval, or ask your finance/AP administrator to make the change or grant an exception."
+
+- description: Red-team fix — hyphenated tool name (create-vendor) carrying a routing number. Separator-normalized suffix match must still deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: qbo-mcp-create-vendor
+      uri: null
+    payload:
+      name: qbo-mcp-create-vendor
+      args:
+        display_name: Shell Vendor
+        routing_number: "021000021"
+  output:
+    expectedResult: deny
+    expectedReason: "Creating or updating a vendor with bank-account, routing/ACH, or tax-identity (EIN/SSN) fields is blocked at the gateway. Silently repointing a vendor's payment coordinates is the primary business-email-compromise (BEC) vector: a rerouted bank account diverts every future ACH payment. Change vendor banking or tax-ID details directly in QuickBooks under dual approval, or ask your finance/AP administrator to make the change or grant an exception."
+
+- description: Regression guard — camelCase createVendorCredit (different entity) with bank details must still be OUT of scope after tool-name normalization. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: qbo-mcp-createVendorCredit
+      uri: null
+    payload:
+      name: qbo-mcp-createVendorCredit
+      args:
+        vendor_ref: "56"
+        bank_account_number: "000123456789"
+  output:
+    expectedResult: allow
+
+- description: Red-team fix — broadened synonym list. A vendor create carrying bank_account_no (abbreviated key, now in the allowlist) should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: qbo-mcp-create_vendor
+      uri: null
+    payload:
+      name: qbo-mcp-create_vendor
+      args:
+        display_name: New Vendor LLC
+        bank_account_no: "000123456789"
+  output:
+    expectedResult: deny
+    expectedReason: "Creating or updating a vendor with bank-account, routing/ACH, or tax-identity (EIN/SSN) fields is blocked at the gateway. Silently repointing a vendor's payment coordinates is the primary business-email-compromise (BEC) vector: a rerouted bank account diverts every future ACH payment. Change vendor banking or tax-ID details directly in QuickBooks under dual approval, or ask your finance/AP administrator to make the change or grant an exception."
+
+- description: Red-team fix — an international bank identifier (IBAN) key, now in the allowlist. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: qbo-mcp-update_vendor
+      uri: null
+    payload:
+      name: qbo-mcp-update_vendor
+      args:
+        id: "56"
+        IBAN: "GB29NWBK60161331926819"
+  output:
+    expectedResult: deny
+    expectedReason: "Creating or updating a vendor with bank-account, routing/ACH, or tax-identity (EIN/SSN) fields is blocked at the gateway. Silently repointing a vendor's payment coordinates is the primary business-email-compromise (BEC) vector: a rerouted bank account diverts every future ACH payment. Change vendor banking or tax-ID details directly in QuickBooks under dual approval, or ask your finance/AP administrator to make the change or grant an exception."
+
+- description: Red-team residual — a bank account number smuggled into a QBO CustomField StringValue (a free-text container; key names are Name/StringValue, value has no tax shape). Not caught. Policy allows (documented shapeless-value limitation).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: qbo-mcp-update_vendor
+      uri: null
+    payload:
+      name: qbo-mcp-update_vendor
+      args:
+        id: "56"
+        CustomField:
+          - Name: "Bank Account"
+            StringValue: "000123456789"
+  output:
+    expectedResult: allow

@@ -1,0 +1,355 @@
+- description: Granular Cortex Search tool (inspectable, not on the denylist). Policy
+    should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: snowflake-mcp-product-search
+      uri: null
+    payload:
+      name: snowflake-mcp-product-search
+      args:
+        query: wireless headphones
+        limit: 10
+  output:
+    expectedResult: allow
+- description: Granular SQL execution tool (governed by the SQL policy, not this one).
+    Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: snowflake-mcp-run-query
+      uri: null
+    payload:
+      name: snowflake-mcp-run-query
+      args:
+        query: SELECT id, name FROM sales.orders LIMIT 100
+  output:
+    expectedResult: allow
+- description: Non-Snowflake tool passes through untouched. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-slack-post-message
+      uri: null
+    payload:
+      name: slack-mcp-slack-post-message
+      args:
+        channel: C0123456789
+        text: lunch in 5
+  output:
+    expectedResult: allow
+- description: "Over-match guard: wholesales-agent ends with the pinned suffix
+    sales-agent but a letter (e) immediately precedes it, so the separator boundary
+    fails and it is not matched. Policy should allow."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: snowflake-mcp-wholesales-agent
+      uri: null
+    payload:
+      name: snowflake-mcp-wholesales-agent
+      args: {}
+  output:
+    expectedResult: allow
+- description: A composite-sounding but unpinned tool name (marketing-agent) is not
+    on this tenant's denylist, so it is allowed — demonstrating the denylist is
+    per-tenant and pinned, not a fuzzy "agent" match. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: snowflake-mcp-marketing-agent
+      uri: null
+    payload:
+      name: snowflake-mcp-marketing-agent
+      args:
+        message: draft a campaign summary
+  output:
+    expectedResult: allow
+- description: "Token-branch boundary guard: manage-agent-services uses dashes, not
+    the underscore token agent_services, so the Labs heuristic does not fire and it
+    is not pinned. Policy should allow."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: snowflake-mcp-manage-agent-services
+      uri: null
+    payload:
+      name: snowflake-mcp-manage-agent-services
+      args: {}
+  output:
+    expectedResult: allow
+- description: "Token-branch over-match guard: agent_serviceship embeds the token
+    but is immediately followed by a letter (h), so the trailing boundary fails.
+    Policy should allow."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: snowflake-mcp-agent_serviceship
+      uri: null
+    payload:
+      name: snowflake-mcp-agent_serviceship
+      args: {}
+  output:
+    expectedResult: allow
+- description: Pinned CORTEX_AGENT_RUN tool (run-cortex-agent) with the gateway's
+    dash-separated server prefix. Branch 1, separator-boundary suffix match. Policy
+    should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: snowflake-mcp-run-cortex-agent
+      uri: null
+    payload:
+      name: snowflake-mcp-run-cortex-agent
+      args:
+        message: reconcile Q2 revenue and email finance
+  output:
+    expectedResult: deny
+    expectedReason: This Snowflake tool is a composite or generic passthrough (a Cortex Agent / CORTEX_AGENT_RUN plan, a GENERIC UDF or stored-procedure wrapper, or a Labs agent-service) whose steps the gateway cannot inspect one SQL statement at a time, so it is disabled on this path. Route the agent through the granular Search, Analyst, and SQL tools instead, which the gateway's SQL, export, and schema-fencing policies can enforce. If a tool was misclassified, ask your Snowflake admin to review the composite/generic denylist pinned for this gateway.
+- description: Pinned GENERIC tool (invoke-refund-udf) wrapping an arbitrary UDF.
+    Branch 1. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: snowflake-mcp-invoke-refund-udf
+      uri: null
+    payload:
+      name: snowflake-mcp-invoke-refund-udf
+      args:
+        amount: 500
+  output:
+    expectedResult: deny
+    expectedReason: This Snowflake tool is a composite or generic passthrough (a Cortex Agent / CORTEX_AGENT_RUN plan, a GENERIC UDF or stored-procedure wrapper, or a Labs agent-service) whose steps the gateway cannot inspect one SQL statement at a time, so it is disabled on this path. Route the agent through the granular Search, Analyst, and SQL tools instead, which the gateway's SQL, export, and schema-fencing policies can enforce. If a tool was misclassified, ask your Snowflake admin to review the composite/generic denylist pinned for this gateway.
+- description: Pinned name as the bare, unprefixed tool name (server exposed without
+    a gateway prefix). Branch 1, exact whole-name match. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: run-cortex-agent
+      uri: null
+    payload:
+      name: run-cortex-agent
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: This Snowflake tool is a composite or generic passthrough (a Cortex Agent / CORTEX_AGENT_RUN plan, a GENERIC UDF or stored-procedure wrapper, or a Labs agent-service) whose steps the gateway cannot inspect one SQL statement at a time, so it is disabled on this path. Route the agent through the granular Search, Analyst, and SQL tools instead, which the gateway's SQL, export, and schema-fencing policies can enforce. If a tool was misclassified, ask your Snowflake admin to review the composite/generic denylist pinned for this gateway.
+- description: Mixed-case pinned name (Snowflake-MCP-Run-Cortex-Agent) still matches
+    case-insensitively. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: Snowflake-MCP-Run-Cortex-Agent
+      uri: null
+    payload:
+      name: Snowflake-MCP-Run-Cortex-Agent
+      args:
+        message: run the agent
+  output:
+    expectedResult: deny
+    expectedReason: This Snowflake tool is a composite or generic passthrough (a Cortex Agent / CORTEX_AGENT_RUN plan, a GENERIC UDF or stored-procedure wrapper, or a Labs agent-service) whose steps the gateway cannot inspect one SQL statement at a time, so it is disabled on this path. Route the agent through the granular Search, Analyst, and SQL tools instead, which the gateway's SQL, export, and schema-fencing policies can enforce. If a tool was misclassified, ask your Snowflake admin to review the composite/generic denylist pinned for this gateway.
+- description: Pinned name with an underscore server-prefix separator
+    (snowflake_mcp_run-stored-proc). Branch 1, separator boundary. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: snowflake_mcp_run-stored-proc
+      uri: null
+    payload:
+      name: snowflake_mcp_run-stored-proc
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: This Snowflake tool is a composite or generic passthrough (a Cortex Agent / CORTEX_AGENT_RUN plan, a GENERIC UDF or stored-procedure wrapper, or a Labs agent-service) whose steps the gateway cannot inspect one SQL statement at a time, so it is disabled on this path. Route the agent through the granular Search, Analyst, and SQL tools instead, which the gateway's SQL, export, and schema-fencing policies can enforce. If a tool was misclassified, ask your Snowflake admin to review the composite/generic denylist pinned for this gateway.
+- description: Snowflake-Labs agent_services token tool. Branch 2, heuristic token
+    match (token at end, preceded by a dash). Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: snowflake-labs-mcp-agent_services
+      uri: null
+    payload:
+      name: snowflake-labs-mcp-agent_services
+      args:
+        query: run the support agent
+  output:
+    expectedResult: deny
+    expectedReason: This Snowflake tool is a composite or generic passthrough (a Cortex Agent / CORTEX_AGENT_RUN plan, a GENERIC UDF or stored-procedure wrapper, or a Labs agent-service) whose steps the gateway cannot inspect one SQL statement at a time, so it is disabled on this path. Route the agent through the granular Search, Analyst, and SQL tools instead, which the gateway's SQL, export, and schema-fencing policies can enforce. If a tool was misclassified, ask your Snowflake admin to review the composite/generic denylist pinned for this gateway.
+- description: agent_services as the whole bare tool name. Branch 2, start-of-string
+    boundary. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: agent_services
+      uri: null
+    payload:
+      name: agent_services
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: This Snowflake tool is a composite or generic passthrough (a Cortex Agent / CORTEX_AGENT_RUN plan, a GENERIC UDF or stored-procedure wrapper, or a Labs agent-service) whose steps the gateway cannot inspect one SQL statement at a time, so it is disabled on this path. Route the agent through the granular Search, Analyst, and SQL tools instead, which the gateway's SQL, export, and schema-fencing policies can enforce. If a tool was misclassified, ask your Snowflake admin to review the composite/generic denylist pinned for this gateway.
+- description: Pinned Labs agent-service name (support_agent) with the gateway prefix
+    and no arguments — the decision is name-based, missing args must not fail open.
+    Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: snowflake-labs-mcp-support_agent
+      uri: null
+    payload:
+      name: snowflake-labs-mcp-support_agent
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: This Snowflake tool is a composite or generic passthrough (a Cortex Agent / CORTEX_AGENT_RUN plan, a GENERIC UDF or stored-procedure wrapper, or a Labs agent-service) whose steps the gateway cannot inspect one SQL statement at a time, so it is disabled on this path. Route the agent through the granular Search, Analyst, and SQL tools instead, which the gateway's SQL, export, and schema-fencing policies can enforce. If a tool was misclassified, ask your Snowflake admin to review the composite/generic denylist pinned for this gateway.
+- description: "Red-team regression: pinned name with a trailing newline
+    (run-cortex-agent\\n) must still deny — trim_space strips it before the match."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "snowflake-mcp-run-cortex-agent\n"
+      uri: null
+    payload:
+      name: "snowflake-mcp-run-cortex-agent\n"
+      args:
+        message: run
+  output:
+    expectedResult: deny
+    expectedReason: This Snowflake tool is a composite or generic passthrough (a Cortex Agent / CORTEX_AGENT_RUN plan, a GENERIC UDF or stored-procedure wrapper, or a Labs agent-service) whose steps the gateway cannot inspect one SQL statement at a time, so it is disabled on this path. Route the agent through the granular Search, Analyst, and SQL tools instead, which the gateway's SQL, export, and schema-fencing policies can enforce. If a tool was misclassified, ask your Snowflake admin to review the composite/generic denylist pinned for this gateway.
+- description: "Red-team regression: pinned name with a trailing space
+    (sales-agent + space) must still deny under trim_space normalization."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "snowflake-mcp-sales-agent "
+      uri: null
+    payload:
+      name: "snowflake-mcp-sales-agent "
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: This Snowflake tool is a composite or generic passthrough (a Cortex Agent / CORTEX_AGENT_RUN plan, a GENERIC UDF or stored-procedure wrapper, or a Labs agent-service) whose steps the gateway cannot inspect one SQL statement at a time, so it is disabled on this path. Route the agent through the granular Search, Analyst, and SQL tools instead, which the gateway's SQL, export, and schema-fencing policies can enforce. If a tool was misclassified, ask your Snowflake admin to review the composite/generic denylist pinned for this gateway.
+- description: Pinned tool with no payload object at all still denies (decision reads
+    only resource.name; a missing payload must not fail open).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: snowflake-mcp-run-cortex-agent
+      uri: null
+  output:
+    expectedResult: deny
+    expectedReason: This Snowflake tool is a composite or generic passthrough (a Cortex Agent / CORTEX_AGENT_RUN plan, a GENERIC UDF or stored-procedure wrapper, or a Labs agent-service) whose steps the gateway cannot inspect one SQL statement at a time, so it is disabled on this path. Route the agent through the granular Search, Analyst, and SQL tools instead, which the gateway's SQL, export, and schema-fencing policies can enforce. If a tool was misclassified, ask your Snowflake admin to review the composite/generic denylist pinned for this gateway.
+- description: "Documented behavior: a request with no tool name at all matches
+    nothing and is allowed (the gateway never routes a nameless tool call, so this
+    is not a reachable bypass)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      uri: null
+  output:
+    expectedResult: allow
+- description: "Red-team residual (documented, denylist-not-allowlist): a pinned
+    composite name with a version token appended (run-cortex-agent-v2) is no longer
+    a suffix of the pinned entry, so it evades and is allowed. Inherent to the
+    per-tenant denylist; pair with default-deny-unknown-tools (PF-28) to close it."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: snowflake-mcp-run-cortex-agent-v2
+      uri: null
+    payload:
+      name: snowflake-mcp-run-cortex-agent-v2
+      args:
+        message: run the plan
+  output:
+    expectedResult: allow
+- description: "Red-team residual (documented, names-only/rename): an all-underscore
+    rename of the dash-pinned run-cortex-agent (run_cortex_agent) is a different
+    string, does not match the pinned entry, and is allowed until the array is
+    re-pinned. Re-audit when the Snowflake MCP server object changes."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: snowflake_mcp_run_cortex_agent
+      uri: null
+    payload:
+      name: snowflake_mcp_run_cortex_agent
+      args: {}
+  output:
+    expectedResult: allow
+- description: "Red-team edge (documented): a non-string resource.name (numeric)
+    makes normalization undefined, both deny branches fail, and the request is
+    allowed — same fail-open class as nameless input; the gateway never sends a
+    non-string tool name."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: 123
+      uri: null
+  output:
+    expectedResult: allow

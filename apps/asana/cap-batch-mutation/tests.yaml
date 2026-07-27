@@ -1,0 +1,357 @@
+- description: Read tool (get_task) is not a batch tool — passes through.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: asana-mcp-get_task
+      uri: null
+    payload:
+      name: asana-mcp-get_task
+      args:
+        task_id: "12345"
+  output:
+    expectedResult: allow
+
+- description: Community singular create_task (no trailing "s") mutates one record — out of scope, allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: asana-mcp-asana_create_task
+      uri: null
+    payload:
+      name: asana-mcp-asana_create_task
+      args:
+        name: one task
+  output:
+    expectedResult: allow
+
+- description: Batch create within the ceiling (2 task objects) is allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: asana-mcp-create_tasks
+      uri: null
+    payload:
+      name: asana-mcp-create_tasks
+      args:
+        tasks:
+          - { name: a }
+          - { name: b }
+  output:
+    expectedResult: allow
+
+- description: Oversized create_tasks batch (11 objects, above the 10-task ceiling) is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: asana-mcp-create_tasks
+      uri: null
+    payload:
+      name: asana-mcp-create_tasks
+      args:
+        tasks:
+          - { name: t1 }
+          - { name: t2 }
+          - { name: t3 }
+          - { name: t4 }
+          - { name: t5 }
+          - { name: t6 }
+          - { name: t7 }
+          - { name: t8 }
+          - { name: t9 }
+          - { name: t10 }
+          - { name: t11 }
+  output:
+    expectedResult: deny
+    expectedReason: "This Asana batch call requests 11 task objects, above the 10-task ceiling. Split it into smaller batches of 10 or fewer tasks per call. If a larger batch is genuinely required, ask your workspace admin to raise the ceiling."
+
+- description: update_tasks marking 11 tasks completed in one call trips both the size and mass-completion guards.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: asana-mcp-update_tasks
+      uri: null
+    payload:
+      name: asana-mcp-update_tasks
+      args:
+        tasks:
+          - { completed: true }
+          - { completed: true }
+          - { completed: true }
+          - { completed: true }
+          - { completed: true }
+          - { completed: true }
+          - { completed: true }
+          - { completed: true }
+          - { completed: true }
+          - { completed: true }
+          - { completed: true }
+  output:
+    expectedResult: deny
+    expectedReason: "This Asana batch call requests 11 task objects, above the 10-task ceiling. Split it into smaller batches of 10 or fewer tasks per call. If a larger batch is genuinely required, ask your workspace admin to raise the ceiling.; This update_tasks call marks 11 tasks completed in a single call, above the 10-task bulk-completion ceiling. Complete tasks in smaller batches, or ask your workspace admin to raise the ceiling."
+
+- description: update_tasks within the ceiling (5 elements, 3 completed) is allowed — completion count is under the limit.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: asana-mcp-update_tasks
+      uri: null
+    payload:
+      name: asana-mcp-update_tasks
+      args:
+        tasks:
+          - { completed: true }
+          - { completed: true }
+          - { completed: true }
+          - { completed: false }
+          - { name: x }
+  output:
+    expectedResult: allow
+
+- description: Fail-closed — batch call whose array sits under an unrecognized key is denied because its size cannot be verified.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: asana-mcp-create_tasks
+      uri: null
+    payload:
+      name: asana-mcp-create_tasks
+      args:
+        payload:
+          - { name: a }
+          - { name: b }
+  output:
+    expectedResult: deny
+    expectedReason: "This Asana batch call did not expose a recognizable task array (checked keys: tasks, data, items), so its size cannot be verified; it is denied by default. Confirm the batch argument key for your Asana MCP deployment and add it to batch_keys in this policy. Contact your workspace admin if this blocks a legitimate call."
+
+- description: Robustness — tool name present only in payload.name (resource.name is non-string) still matches; oversized batch denied (fail-closed both-field hardening).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: null
+      uri: null
+    payload:
+      name: asana-mcp-create_tasks
+      args:
+        tasks:
+          - { name: t1 }
+          - { name: t2 }
+          - { name: t3 }
+          - { name: t4 }
+          - { name: t5 }
+          - { name: t6 }
+          - { name: t7 }
+          - { name: t8 }
+          - { name: t9 }
+          - { name: t10 }
+          - { name: t11 }
+  output:
+    expectedResult: deny
+    expectedReason: "This Asana batch call requests 11 task objects, above the 10-task ceiling. Split it into smaller batches of 10 or fewer tasks per call. If a larger batch is genuinely required, ask your workspace admin to raise the ceiling."
+
+- description: Robustness — trailing-newline suffix evasion (name padded with a newline) is trimmed before matching; oversized batch still denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "asana-mcp-create_tasks\n"
+      uri: null
+    payload:
+      name: "asana-mcp-create_tasks\n"
+      args:
+        tasks:
+          - { name: t1 }
+          - { name: t2 }
+          - { name: t3 }
+          - { name: t4 }
+          - { name: t5 }
+          - { name: t6 }
+          - { name: t7 }
+          - { name: t8 }
+          - { name: t9 }
+          - { name: t10 }
+          - { name: t11 }
+  output:
+    expectedResult: deny
+    expectedReason: "This Asana batch call requests 11 task objects, above the 10-task ceiling. Split it into smaller batches of 10 or fewer tasks per call. If a larger batch is genuinely required, ask your workspace admin to raise the ceiling."
+
+- description: Red-team — decoy smuggling. A 1-element decoy under recognized key "tasks" plus a 50-element real batch under unrecognized key "custom" is denied (decoy guard), not allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: asana-mcp-create_tasks
+      uri: null
+    payload:
+      name: asana-mcp-create_tasks
+      args:
+        tasks:
+          - { name: decoy }
+        custom:
+          - { name: r1 }
+          - { name: r2 }
+          - { name: r3 }
+          - { name: r4 }
+          - { name: r5 }
+          - { name: r6 }
+          - { name: r7 }
+          - { name: r8 }
+          - { name: r9 }
+          - { name: r10 }
+          - { name: r11 }
+  output:
+    expectedResult: deny
+    expectedReason: "This Asana batch call carries a task array under an unrecognized argument key alongside a recognized one (recognized keys: tasks, data, items), so its true batch size cannot be verified; it is denied to prevent a small decoy array masking a larger smuggled batch. Put the full task array under a single recognized key, or add the real key to batch_keys in this policy. Contact your workspace admin if this blocks a legitimate call."
+
+- description: Value-typed completion flag — 8 elements with string "true" completed (under the size ceiling) is allowed; the completion guard matches only boolean true, and 8 <= ceiling so the size cap is not tripped.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: asana-mcp-update_tasks
+      uri: null
+    payload:
+      name: asana-mcp-update_tasks
+      args:
+        tasks:
+          - { completed: "true" }
+          - { completed: "true" }
+          - { completed: "true" }
+          - { completed: "true" }
+          - { completed: "true" }
+          - { completed: "true" }
+          - { completed: "true" }
+          - { completed: "true" }
+  output:
+    expectedResult: allow
+
+- description: Robustness — non-object array elements (strings) do not crash the completion count; 11 elements still trip the size ceiling.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: asana-mcp-update_tasks
+      uri: null
+    payload:
+      name: asana-mcp-update_tasks
+      args:
+        tasks: ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k"]
+  output:
+    expectedResult: deny
+    expectedReason: "This Asana batch call requests 11 task objects, above the 10-task ceiling. Split it into smaller batches of 10 or fewer tasks per call. If a larger batch is genuinely required, ask your workspace admin to raise the ceiling."
+
+- description: Red-team (§10 missing-args) — batch tool invoked with NO args block at all fails closed (unrecognized_batch), not allowed through.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: asana-mcp-create_tasks
+      uri: null
+    payload:
+      name: asana-mcp-create_tasks
+  output:
+    expectedResult: deny
+    expectedReason: "This Asana batch call did not expose a recognizable task array (checked keys: tasks, data, items), so its size cannot be verified; it is denied by default. Confirm the batch argument key for your Asana MCP deployment and add it to batch_keys in this policy. Contact your workspace admin if this blocks a legitimate call."
+
+- description: Red-team (§10 missing-args) — batch tool with an empty args object fails closed (no recognizable array to size).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: asana-mcp-update_tasks
+      uri: null
+    payload:
+      name: asana-mcp-update_tasks
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "This Asana batch call did not expose a recognizable task array (checked keys: tasks, data, items), so its size cannot be verified; it is denied by default. Confirm the batch argument key for your Asana MCP deployment and add it to batch_keys in this policy. Contact your workspace admin if this blocks a legitimate call."
+
+- description: Red-team — oversized batch smuggled solely under an unrecognized key (no recognized decoy present) is denied by unrecognized_batch, not allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: asana-mcp-create_tasks
+      uri: null
+    payload:
+      name: asana-mcp-create_tasks
+      args:
+        custom:
+          - { name: r1 }
+          - { name: r2 }
+          - { name: r3 }
+          - { name: r4 }
+          - { name: r5 }
+          - { name: r6 }
+          - { name: r7 }
+          - { name: r8 }
+          - { name: r9 }
+          - { name: r10 }
+          - { name: r11 }
+  output:
+    expectedResult: deny
+    expectedReason: "This Asana batch call did not expose a recognizable task array (checked keys: tasks, data, items), so its size cannot be verified; it is denied by default. Confirm the batch argument key for your Asana MCP deployment and add it to batch_keys in this policy. Contact your workspace admin if this blocks a legitimate call."
+
+- description: Boundary — a batch of exactly the ceiling (10 task objects) is allowed; the deny is for strictly more than the ceiling.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: asana-mcp-create_tasks
+      uri: null
+    payload:
+      name: asana-mcp-create_tasks
+      args:
+        tasks:
+          - { name: t1 }
+          - { name: t2 }
+          - { name: t3 }
+          - { name: t4 }
+          - { name: t5 }
+          - { name: t6 }
+          - { name: t7 }
+          - { name: t8 }
+          - { name: t9 }
+          - { name: t10 }
+  output:
+    expectedResult: allow

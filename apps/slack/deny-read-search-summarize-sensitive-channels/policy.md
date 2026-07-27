@@ -5,7 +5,11 @@ tags:
   - access-control
   - data-protection
   - ingress
-publishedAt: 2026-06-16
+  - soc2
+  - hipaa
+  - gdpr-ccpa
+  - iso27001-nist
+publishedAt: 2026-07-12
 description: |
   # slack / deny-read-search-summarize-sensitive-channels
 
@@ -22,6 +26,23 @@ description: |
 
   The set of sensitive channel IDs is configured once at the top of the Rego
   (`sensitive_channel_ids`).
+
+  ## Compliance alignment
+
+  What the fence supports depends on what you put behind it — populate
+  `sensitive_channel_ids` with the channels that carry the regulated content.
+
+  - **HIPAA §164.502(b) / §164.514(d)** — supports minimum-necessary access when
+    PHI-bearing channels (care coordination, patient escalations) are in the set.
+  - **HIPAA §164.308(a)(4)** — supports information access management: a technical
+    restriction on which conversations the agent may read.
+  - **SOC 2 C1.1** — supports identification and protection of confidential
+    information (deal rooms, legal, incident channels).
+  - **PCI DSS 7.2.6** — supports restricting programmatic query access to cardholder
+    data when channels discussing CHD are in the set.
+  - **GDPR Art. 9 / CPRA §1798.121** — supports limiting access to special-category
+    data and sensitive personal information (HR, health, works-council channels).
+  - **ISO 27001 A.8.3** — information access restriction on the agent channel.
 
   ## Why ingress
 
@@ -116,12 +137,17 @@ description: |
   - **No identity-based exemptions.** All callers are treated the same. To allow a
     specific break-glass user, gate a separate `allow if` branch on
     `input.subject.claims`.
+
+  > **Compliance note.** This policy supports alignment with the cited framework controls **on the MCP path only**. No policy or bundle makes an organization compliant with any framework; web-UI, native-API, and in-app access are outside the gateway's reach by design. Validate against your own compliance program before relying on it.
 direction: ingress
 apps:
   - slack
 industries: []
 bundles:
   - slack
+  - soc2
+  - hipaa
+  - gdpr-ccpa
 schemaVersion: 1.0.0
 minimumGatewayVersion: 1.0.0b24
 ---

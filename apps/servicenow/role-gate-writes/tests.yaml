@@ -1,0 +1,645 @@
+# Deny reasons are kept in one place so expectedReason matches policy.md exactly:
+#  - group reason:   fired when a verified write is called by a non-writer
+#  - unknown reason: fired when a tool is neither a recognized read nor a
+#                    verified write (fail closed), including for writers
+
+# --- Reads pass for everyone (list_ prefix, no subject) ---
+- description: Read tool (list_incidents) with no subject at all — reads pass for everyone.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-list_incidents
+      uri: null
+    payload:
+      name: servicenow-mcp-list_incidents
+      args:
+        limit: 20
+  output:
+    expectedResult: allow
+
+# --- Reads pass regardless of identity (get_ prefix, unrelated group) ---
+- description: Read tool (get_user) for a caller with an unrelated group — reads are identity-independent.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-get_user
+      uri: null
+    subject:
+      sub: auth0|bob
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: servicenow-mcp-get_user
+      args:
+        user_id: abc123
+  output:
+    expectedResult: allow
+
+# --- Exact read suffix: search_records ---
+- description: Exact read tool (search_records) with empty claims — allowed via the read-suffix branch.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-search_records
+      uri: null
+    subject:
+      sub: auth0|carol
+      claims: {}
+    payload:
+      name: servicenow-mcp-search_records
+      args:
+        table: incident
+        query: active=true
+  output:
+    expectedResult: allow
+
+# --- Exact read suffix: perform_query ---
+- description: Exact read tool (perform_query) with no subject — allowed via the read-suffix branch.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-perform_query
+      uri: null
+    payload:
+      name: servicenow-mcp-perform_query
+      args:
+        table: sys_user
+  output:
+    expectedResult: allow
+
+# --- natural_language_search is a READ, not confused with natural_language_update ---
+- description: natural_language_search (read) for a non-writer — must NOT be misclassified as the natural_language_update write.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-natural_language_search
+      uri: null
+    subject:
+      sub: auth0|bob
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: servicenow-mcp-natural_language_search
+      args:
+        query: open P1 incidents assigned to me
+  output:
+    expectedResult: allow
+
+# --- Write allowed for a writer (create_incident) ---
+- description: Write tool (create_incident) by a member of servicenow-writers — allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-create_incident
+      uri: null
+    subject:
+      sub: auth0|alice
+      claims:
+        groups:
+          - servicenow-writers
+    payload:
+      name: servicenow-mcp-create_incident
+      args:
+        short_description: Printer down on 3rd floor
+  output:
+    expectedResult: allow
+
+# --- Write allowed for a writer, group is one of several ---
+- description: Changeset write (commit_changeset) when servicenow-writers is one of several groups — allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-commit_changeset
+      uri: null
+    subject:
+      sub: auth0|alice
+      claims:
+        groups:
+          - engineering
+          - servicenow-writers
+    payload:
+      name: servicenow-mcp-commit_changeset
+      args:
+        changeset_id: cs-1
+  output:
+    expectedResult: allow
+
+# --- natural_language_update is a gated WRITE; writer may call it ---
+- description: natural_language_update (free-text write) by a writer — allowed (stays in the writer grant).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-natural_language_update
+      uri: null
+    subject:
+      sub: auth0|alice
+      claims:
+        groups:
+          - servicenow-writers
+    payload:
+      name: servicenow-mcp-natural_language_update
+      args:
+        instruction: set incident INC0010 priority to 1
+  output:
+    expectedResult: allow
+
+# --- update_script is a gated WRITE; writer may call it ---
+- description: update_script (server-side code edit) by a writer — allowed (stays in the writer grant).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-update_script
+      uri: null
+    subject:
+      sub: auth0|alice
+      claims:
+        groups:
+          - servicenow-writers
+    payload:
+      name: servicenow-mcp-update_script
+      args:
+        sys_id: s1
+        script: gs.info('hi');
+  output:
+    expectedResult: allow
+
+# --- create_ui_policy allowed for writer (suffix distinct from _action variant) ---
+- description: create_ui_policy by a writer — allowed; exercises the suffix distinct from create_ui_policy_action.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-create_ui_policy
+      uri: null
+    subject:
+      sub: auth0|alice
+      claims:
+        groups:
+          - servicenow-writers
+    payload:
+      name: servicenow-mcp-create_ui_policy
+      args:
+        table: incident
+  output:
+    expectedResult: allow
+
+# --- Write denied for a non-writer (group reason) ---
+- description: Write tool (create_incident) by a caller whose groups do not include servicenow-writers — denied with the group reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-create_incident
+      uri: null
+    subject:
+      sub: auth0|bob
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: servicenow-mcp-create_incident
+      args:
+        short_description: Printer down on 3rd floor
+  output:
+    expectedResult: deny
+    expectedReason: ServiceNow write tools are restricted to members of the 'servicenow-writers' group — this account has read-only ServiceNow access through the gateway. Ask your gateway admin to map your IdP group to 'servicenow-writers', or hand this write to a teammate with ServiceNow write access. If this tool is actually read-only, contact your gateway admin to update the policy.
+
+# --- Changeset write denied for a non-writer ---
+- description: add_file_to_changeset by a non-writer — denied (deployment write suffix).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-add_file_to_changeset
+      uri: null
+    subject:
+      sub: auth0|bob
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: servicenow-mcp-add_file_to_changeset
+      args:
+        changeset_id: cs-1
+        file_path: x_app/script_include/Foo.js
+  output:
+    expectedResult: deny
+    expectedReason: ServiceNow write tools are restricted to members of the 'servicenow-writers' group — this account has read-only ServiceNow access through the gateway. Ask your gateway admin to map your IdP group to 'servicenow-writers', or hand this write to a teammate with ServiceNow write access. If this tool is actually read-only, contact your gateway admin to update the policy.
+
+# --- Portal-visible write denied for a non-writer ---
+- description: publish_article by a non-writer — denied (portal-visible knowledge write).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-publish_article
+      uri: null
+    subject:
+      sub: auth0|bob
+      claims:
+        groups:
+          - support
+    payload:
+      name: servicenow-mcp-publish_article
+      args:
+        article_id: KB0001
+  output:
+    expectedResult: deny
+
+# --- create_ui_policy_action denied for a non-writer (suffix distinct from create_ui_policy) ---
+- description: create_ui_policy_action by a non-writer — denied; confirms the _action suffix is gated independently of create_ui_policy.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-create_ui_policy_action
+      uri: null
+    subject:
+      sub: auth0|bob
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: servicenow-mcp-create_ui_policy_action
+      args:
+        ui_policy_id: p1
+  output:
+    expectedResult: deny
+
+# --- natural_language_update denied for a non-writer (group reason) ---
+- description: natural_language_update by a non-writer — denied; the uninspectable free-text write is still gated.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-natural_language_update
+      uri: null
+    subject:
+      sub: auth0|bob
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: servicenow-mcp-natural_language_update
+      args:
+        instruction: close all open incidents
+  output:
+    expectedResult: deny
+    expectedReason: ServiceNow write tools are restricted to members of the 'servicenow-writers' group — this account has read-only ServiceNow access through the gateway. Ask your gateway admin to map your IdP group to 'servicenow-writers', or hand this write to a teammate with ServiceNow write access. If this tool is actually read-only, contact your gateway admin to update the policy.
+
+# --- Write with no subject at all — identity fails closed ---
+- description: Write tool (update_incident) with no subject in the input — identity lookup fails closed, write denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-update_incident
+      uri: null
+    payload:
+      name: servicenow-mcp-update_incident
+      args:
+        incident_id: INC0010
+        state: 2
+  output:
+    expectedResult: deny
+    expectedReason: ServiceNow write tools are restricted to members of the 'servicenow-writers' group — this account has read-only ServiceNow access through the gateway. Ask your gateway admin to map your IdP group to 'servicenow-writers', or hand this write to a teammate with ServiceNow write access. If this tool is actually read-only, contact your gateway admin to update the policy.
+
+# --- groups claim is a plain string instead of an array — malformed shape fails closed ---
+- description: groups claim is a plain string ("servicenow-writers") instead of an array — is_array guard fails closed, write denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-create_change_request
+      uri: null
+    subject:
+      sub: auth0|mallory
+      claims:
+        groups: servicenow-writers
+    payload:
+      name: servicenow-mcp-create_change_request
+      args:
+        short_description: Deploy release 42
+  output:
+    expectedResult: deny
+
+# --- Empty groups array — write denied ---
+- description: Write tool (resolve_incident) with an empty groups array — denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-resolve_incident
+      uri: null
+    subject:
+      sub: auth0|bob
+      claims:
+        groups: []
+    payload:
+      name: servicenow-mcp-resolve_incident
+      args:
+        incident_id: INC0010
+        resolution_code: Solved (Permanently)
+        resolution_notes: Replaced toner
+  output:
+    expectedResult: deny
+
+# --- Uppercased write tool name — matching is case-insensitive ---
+- description: Uppercased write tool name (SERVICENOW-MCP-CREATE_INCIDENT) by a non-writer — case-insensitive match, still denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: SERVICENOW-MCP-CREATE_INCIDENT
+      uri: null
+    subject:
+      sub: auth0|bob
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: SERVICENOW-MCP-CREATE_INCIDENT
+      args:
+        short_description: Printer down
+  output:
+    expectedResult: deny
+
+# --- Unknown tool (create_user, covered by a sibling policy) — fail-closed unknown reason ---
+- description: Unknown tool (create_user) not in this policy's write set — denied by default (fail closed) with the unknown reason, even though it is a write elsewhere.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-create_user
+      uri: null
+    subject:
+      sub: auth0|bob
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: servicenow-mcp-create_user
+      args:
+        user_name: newhire
+  output:
+    expectedResult: deny
+    expectedReason: "This ServiceNow tool (\"servicenow-mcp-create_user\") is not on the gateway's read allowlist or verified write list, so it is denied by default (fail closed). ServiceNow tool names can be instance-defined; ask your gateway admin to classify this tool — add it to the read set, or to the gated write set for the 'servicenow-writers' group — in the policy."
+
+# --- Unknown tool even for a WRITER (create_story_dependency) — fail closed ---
+- description: Unknown write-ish tool (create_story_dependency) by a writer — still denied (fail closed); not in the verified write set.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-create_story_dependency
+      uri: null
+    subject:
+      sub: auth0|alice
+      claims:
+        groups:
+          - servicenow-writers
+    payload:
+      name: servicenow-mcp-create_story_dependency
+      args:
+        dependent_story: STRY0001
+        blocking_story: STRY0002
+  output:
+    expectedResult: deny
+    expectedReason: "This ServiceNow tool (\"servicenow-mcp-create_story_dependency\") is not on the gateway's read allowlist or verified write list, so it is denied by default (fail closed). ServiceNow tool names can be instance-defined; ask your gateway admin to classify this tool — add it to the read set, or to the gated write set for the 'servicenow-writers' group — in the policy."
+
+# --- Missing tool name entirely — fail closed ---
+- description: Missing resource.name entirely — tool name resolves to empty, neither read nor write, denied by default (fail closed).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      uri: null
+    payload:
+      args:
+        foo: bar
+  output:
+    expectedResult: deny
+    expectedReason: "This ServiceNow tool (\"\") is not on the gateway's read allowlist or verified write list, so it is denied by default (fail closed). ServiceNow tool names can be instance-defined; ask your gateway admin to classify this tool — add it to the read set, or to the gated write set for the 'servicenow-writers' group — in the policy."
+
+# === Red-team review cases (standards §10) ===
+
+# --- Closed bypass: write subflow embedding a `_get_` infix must NOT read as a read ---
+# Before the fix the `_get_`/`_list_` underscore-infix rule classified this
+# instance-defined write subflow as a read and allowed it for everyone. It now
+# fails closed as an unrecognized tool.
+- description: Write-ish subflow with a `_get_` infix (incident_get_and_resolve) — must NOT be misread as a read; denied fail-closed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-incident_get_and_resolve
+      uri: null
+    subject:
+      sub: auth0|bob
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: servicenow-mcp-incident_get_and_resolve
+      args:
+        incident_id: INC0010
+  output:
+    expectedResult: deny
+    expectedReason: "This ServiceNow tool (\"servicenow-mcp-incident_get_and_resolve\") is not on the gateway's read allowlist or verified write list, so it is denied by default (fail closed). ServiceNow tool names can be instance-defined; ask your gateway admin to classify this tool — add it to the read set, or to the gated write set for the 'servicenow-writers' group — in the policy."
+
+# --- Closed bypass: `_list_` infix, even for a writer, is not a read and not a verified write ---
+- description: Write-ish subflow with a `_list_` infix (case_list_and_close) by a writer — not a read verb, not a verified write; denied fail-closed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-case_list_and_close
+      uri: null
+    subject:
+      sub: auth0|alice
+      claims:
+        groups:
+          - servicenow-writers
+    payload:
+      name: servicenow-mcp-case_list_and_close
+      args:
+        case_id: CS0001
+  output:
+    expectedResult: deny
+    expectedReason: "This ServiceNow tool (\"servicenow-mcp-case_list_and_close\") is not on the gateway's read allowlist or verified write list, so it is denied by default (fail closed). ServiceNow tool names can be instance-defined; ask your gateway admin to classify this tool — add it to the read set, or to the gated write set for the 'servicenow-writers' group — in the policy."
+
+# --- Documented residual: a write whose name STARTS with a read verb reads as a read ---
+# The `list_`/`get_` heuristic cannot distinguish an admin-named write subflow
+# like get_and_close_incident from a genuine read. This asserts the KNOWN,
+# documented behavior (Known limitations) — not a desired posture. The companion
+# default-deny-unknown-tools (PF-28) policy is the mitigation.
+- description: KNOWN LIMITATION — write subflow whose name starts with get_ (get_and_close_incident) is classified as a read and allowed; mitigated by the PF-28 companion.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-get_and_close_incident
+      uri: null
+    subject:
+      sub: auth0|bob
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: servicenow-mcp-get_and_close_incident
+      args:
+        incident_id: INC0010
+  output:
+    expectedResult: allow
+
+# --- Closed bypass: instance-defined write-ish subflow ENDING in a read suffix ---
+# Before the fix, has_read_suffix used a bare `endswith`, so any tool whose name
+# merely ends with search_records/perform_query/natural_language_search was read
+# as a read and allowed for everyone. This admin-named write subflow ends with
+# `search_records`; the three exact reads are now anchored to a `-` boundary or
+# the bare name, so this fails closed as an unrecognized tool.
+- description: Write-ish subflow ending in a read suffix (incident_close_and_search_records) by a non-writer — must NOT be misread as search_records; denied fail-closed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-incident_close_and_search_records
+      uri: null
+    subject:
+      sub: auth0|bob
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: servicenow-mcp-incident_close_and_search_records
+      args:
+        incident_id: INC0010
+  output:
+    expectedResult: deny
+    expectedReason: "This ServiceNow tool (\"servicenow-mcp-incident_close_and_search_records\") is not on the gateway's read allowlist or verified write list, so it is denied by default (fail closed). ServiceNow tool names can be instance-defined; ask your gateway admin to classify this tool — add it to the read set, or to the gated write set for the 'servicenow-writers' group — in the policy."
+
+# --- Consistency: an exact read under a `_`-joined server prefix now fails closed ---
+# The description promises that a `_`-joined server prefix makes reads fail closed.
+# Before the fix, the bare endswith allowed `servicenow_mcp_search_records`; the
+# anchored match now denies it, matching the documented `_`-prefix behavior.
+- description: Exact read (search_records) reached under a `_`-joined server prefix (servicenow_mcp_search_records) — not recognized at a boundary, denied fail-closed per the documented `_`-prefix caveat.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow_mcp_search_records
+      uri: null
+    payload:
+      name: servicenow_mcp_search_records
+      args:
+        table: incident
+  output:
+    expectedResult: deny
+    expectedReason: "This ServiceNow tool (\"servicenow_mcp_search_records\") is not on the gateway's read allowlist or verified write list, so it is denied by default (fail closed). ServiceNow tool names can be instance-defined; ask your gateway admin to classify this tool — add it to the read set, or to the gated write set for the 'servicenow-writers' group — in the policy."
+
+# --- Boundary branch: bare (unprefixed) exact read is still recognized ---
+# Locks the `tool_name == suffix` branch: a raw community-server name with no
+# gateway prefix still passes as a read.
+- description: Bare exact read tool (perform_query) with no server prefix and no subject — allowed via the exact-name read branch.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: perform_query
+      uri: null
+    payload:
+      name: perform_query
+      args:
+        table: incident
+  output:
+    expectedResult: allow
+
+# --- Catalog write suffix distinction: update_catalog_item vs update_catalog_item_variable ---
+- description: update_catalog_item_variable by a writer — allowed; confirms the _variable suffix matches independently of update_catalog_item.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-update_catalog_item_variable
+      uri: null
+    subject:
+      sub: auth0|alice
+      claims:
+        groups:
+          - servicenow-writers
+    payload:
+      name: servicenow-mcp-update_catalog_item_variable
+      args:
+        variable_id: v1
+        value: 10
+  output:
+    expectedResult: allow

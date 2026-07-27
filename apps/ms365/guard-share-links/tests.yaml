@@ -1,0 +1,473 @@
+- description: Unrelated M365 tool (get-drive-item) — policy does not touch it. Allow, no transform.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-get-drive-item
+      uri: null
+    payload:
+      name: ms365-get-drive-item
+      args:
+        driveId: b!abc
+        driveItemId: 01XYZ
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Share-link call with no body at all — passes through untransformed (nothing to downgrade; documented behavior).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-create-drive-item-share-link
+      uri: null
+    payload:
+      name: ms365-create-drive-item-share-link
+      args:
+        driveId: b!abc
+        driveItemId: 01XYZ
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Anonymous view link with no expiry — scope downgraded to organization and a 7-day expiry injected (expiry value is time-dependent, so only presence is asserted).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-create-drive-item-share-link
+      uri: null
+    payload:
+      name: ms365-create-drive-item-share-link
+      args:
+        driveId: b!abc
+        driveItemId: 01XYZ
+        body:
+          type: view
+          scope: anonymous
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    driveId: b!abc
+    driveItemId: 01XYZ
+
+- description: Anonymous view link that already carries an expiry — scope downgraded, caller's expiry preserved (deterministic body asserted exactly).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-create-drive-item-share-link
+      uri: null
+    payload:
+      name: ms365-create-drive-item-share-link
+      args:
+        driveId: b!abc
+        driveItemId: 01XYZ
+        body:
+          type: view
+          scope: anonymous
+          expirationDateTime: "2026-08-01T00:00:00Z"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    body:
+      expirationDateTime: "2026-08-01T00:00:00Z"
+      scope: organization
+      type: view
+
+- description: Mixed-case scope value ("Anonymous") — comparison is case-insensitive, downgrade still applies.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-create-drive-item-share-link
+      uri: null
+    payload:
+      name: ms365-create-drive-item-share-link
+      args:
+        driveId: b!abc
+        driveItemId: 01XYZ
+        body:
+          type: embed
+          scope: Anonymous
+          expirationDateTime: "2026-08-01T00:00:00Z"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    body:
+      expirationDateTime: "2026-08-01T00:00:00Z"
+      scope: organization
+      type: embed
+
+- description: Organization-scoped link without an expiry — expiry injected, scope left alone.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-create-drive-item-share-link
+      uri: null
+    payload:
+      name: ms365-create-drive-item-share-link
+      args:
+        driveId: b!abc
+        driveItemId: 01XYZ
+        body:
+          type: view
+          scope: organization
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    driveId: b!abc
+    driveItemId: 01XYZ
+
+- description: Organization-scoped link that already has an expiry — nothing to fix, no transform.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-create-drive-item-share-link
+      uri: null
+    payload:
+      name: ms365-create-drive-item-share-link
+      args:
+        driveId: b!abc
+        driveItemId: 01XYZ
+        body:
+          type: view
+          scope: organization
+          expirationDateTime: "2026-08-01T00:00:00Z"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Anonymous EDIT link — denied outright (writable anonymous link), not transformed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-create-drive-item-share-link
+      uri: null
+    payload:
+      name: ms365-create-drive-item-share-link
+      args:
+        driveId: b!abc
+        driveItemId: 01XYZ
+        body:
+          type: edit
+          scope: anonymous
+  output:
+    expectedResult: deny
+    expectedReason: "Anonymous edit links are blocked: an anonymous edit link lets anyone on the internet modify this file without signing in, and Microsoft Graph creates it silently with no notification. Request the link with organization scope instead (anonymous view links are downgraded to organization scope automatically). Contact your InfoSec team if an external edit link is genuinely required."
+  transformApplied: false
+
+- description: Anonymous EDIT link from a collab-admins member — still denied; the edit+anonymous branch has no group exemption by design.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-create-drive-item-share-link
+      uri: null
+    subject:
+      sub: admin@example.com
+      claims:
+        groups:
+          - collab-admins
+    payload:
+      name: ms365-create-drive-item-share-link
+      args:
+        driveId: b!abc
+        driveItemId: 01XYZ
+        body:
+          type: EDIT
+          scope: ANONYMOUS
+  output:
+    expectedResult: deny
+    expectedReason: "Anonymous edit links are blocked: an anonymous edit link lets anyone on the internet modify this file without signing in, and Microsoft Graph creates it silently with no notification. Request the link with organization scope instead (anonymous view links are downgraded to organization scope automatically). Contact your InfoSec team if an external edit link is genuinely required."
+  transformApplied: false
+
+- description: Sharing invitation to corporate-domain recipients only (body.recipients) — allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-share-drive-item
+      uri: null
+    subject:
+      sub: alice@example.com
+      claims:
+        groups:
+          - staff
+    payload:
+      name: ms365-share-drive-item
+      args:
+        driveId: b!abc
+        driveItemId: 01XYZ
+        body:
+          recipients:
+            - email: alice@example.com
+            - email: Bob@EXAMPLE.COM
+  output:
+    expectedResult: allow
+
+- description: Sharing invitation with an external recipient under body.recipients, caller not in collab-admins — denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-share-drive-item
+      uri: null
+    subject:
+      sub: alice@example.com
+      claims:
+        groups:
+          - staff
+    payload:
+      name: ms365-share-drive-item
+      args:
+        driveId: b!abc
+        driveItemId: 01XYZ
+        body:
+          recipients:
+            - email: alice@example.com
+            - email: partner@vendor-b.example
+  output:
+    expectedResult: deny
+    expectedReason: "This sharing invitation includes recipients outside the corporate domain allowlist: partner@vendor-b.example. Share with organization members instead, or ask a member of the collab-admins group to send external invitations. Contact your InfoSec team if a domain should be added to the allowlist."
+
+- description: Same external invitation from a collab-admins member — exemption applies, allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-share-drive-item
+      uri: null
+    subject:
+      sub: admin@example.com
+      claims:
+        groups:
+          - collab-admins
+    payload:
+      name: ms365-share-drive-item
+      args:
+        driveId: b!abc
+        driveItemId: 01XYZ
+        body:
+          recipients:
+            - email: partner@vendor-b.example
+  output:
+    expectedResult: allow
+
+- description: External recipient passed as top-level recipients (not under body) — both locations are checked, denied. No subject claims at all — missing groups must fail closed (no exemption).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-share-drive-item
+      uri: null
+    payload:
+      name: ms365-share-drive-item
+      args:
+        driveId: b!abc
+        driveItemId: 01XYZ
+        recipients:
+          - email: partner@vendor-b.example
+  output:
+    expectedResult: deny
+    expectedReason: "This sharing invitation includes recipients outside the corporate domain allowlist: partner@vendor-b.example. Share with organization members instead, or ask a member of the collab-admins group to send external invitations. Contact your InfoSec team if a domain should be added to the allowlist."
+
+- description: Recipient with no email address (objectId-only driveRecipient) — domain cannot be verified, denied as unverifiable.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-share-drive-item
+      uri: null
+    subject:
+      sub: alice@example.com
+      claims:
+        groups:
+          - staff
+    payload:
+      name: ms365-share-drive-item
+      args:
+        driveId: b!abc
+        driveItemId: 01XYZ
+        body:
+          recipients:
+            - objectId: 9a2b3c4d-0000-0000-0000-000000000000
+  output:
+    expectedResult: deny
+    expectedReason: "This sharing invitation includes a recipient without an email address (such as an objectId or alias), so the corporate-domain check cannot verify it. Re-send the invitation using recipient email addresses, or ask a member of the collab-admins group to send it."
+
+- description: Malformed recipient address with no @ — fails closed as external, denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-share-drive-item
+      uri: null
+    payload:
+      name: ms365-share-drive-item
+      args:
+        driveId: b!abc
+        driveItemId: 01XYZ
+        body:
+          recipients:
+            - email: not-an-email-address
+  output:
+    expectedResult: deny
+    expectedReason: "This sharing invitation includes recipients outside the corporate domain allowlist: not-an-email-address. Share with organization members instead, or ask a member of the collab-admins group to send external invitations. Contact your InfoSec team if a domain should be added to the allowlist."
+
+- description: share-drive-item call with no recipients anywhere — nothing to verify, allowed (Graph rejects the call itself).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-share-drive-item
+      uri: null
+    payload:
+      name: ms365-share-drive-item
+      args:
+        driveId: b!abc
+        driveItemId: 01XYZ
+  output:
+    expectedResult: allow
+
+# --- Red-team regression cases (reviewer, standards §10) ---
+
+- description: "Red-team: whitespace-padded anonymous scope (\" anonymous \") — trimming must still downgrade to organization, not slip past as an unrecognized value. Caller expiry supplied so the body is deterministic."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-create-drive-item-share-link
+      uri: null
+    payload:
+      name: ms365-create-drive-item-share-link
+      args:
+        driveId: b!abc
+        driveItemId: 01XYZ
+        body:
+          type: view
+          scope: " anonymous "
+          expirationDateTime: "2026-08-01T00:00:00Z"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    body:
+      expirationDateTime: "2026-08-01T00:00:00Z"
+      scope: organization
+      type: view
+
+- description: "Red-team: whitespace-padded anonymous EDIT link (type \" edit \", scope \" anonymous \") — trimming must fire the anonymous-edit deny, not silently pass or downgrade."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-create-drive-item-share-link
+      uri: null
+    payload:
+      name: ms365-create-drive-item-share-link
+      args:
+        driveId: b!abc
+        driveItemId: 01XYZ
+        body:
+          type: " edit "
+          scope: " anonymous "
+  output:
+    expectedResult: deny
+    expectedReason: "Anonymous edit links are blocked: an anonymous edit link lets anyone on the internet modify this file without signing in, and Microsoft Graph creates it silently with no notification. Request the link with organization scope instead (anonymous view links are downgraded to organization scope automatically). Contact your InfoSec team if an external edit link is genuinely required."
+  transformApplied: false
+
+- description: "Red-team: whitespace-only scope (\"   \") is treated as omitted and forced to organization (not left to a possibly-public tenant default). Caller expiry supplied for a deterministic body."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-create-drive-item-share-link
+      uri: null
+    payload:
+      name: ms365-create-drive-item-share-link
+      args:
+        driveId: b!abc
+        driveItemId: 01XYZ
+        body:
+          type: view
+          scope: "   "
+          expirationDateTime: "2026-08-01T00:00:00Z"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    body:
+      expirationDateTime: "2026-08-01T00:00:00Z"
+      scope: organization
+      type: view
+
+- description: "Red-team: expirationDateTime explicitly null must NOT defeat expiry injection — Graph treats null as no-expiry, so the transform must fire and inject a default (value is time-dependent, so only transform presence is asserted)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ms365-create-drive-item-share-link
+      uri: null
+    payload:
+      name: ms365-create-drive-item-share-link
+      args:
+        driveId: b!abc
+        driveItemId: 01XYZ
+        body:
+          type: view
+          scope: organization
+          expirationDateTime: null
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    driveId: b!abc
+    driveItemId: 01XYZ

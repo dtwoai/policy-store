@@ -1,0 +1,391 @@
+- description: Read-class tool (Google official search_files) with no identity at
+    all. Reads pass through freely — allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gdrive-mcp-search_files
+      uri: null
+    payload:
+      name: gdrive-mcp-search_files
+      args:
+        query: quarterly report
+  output:
+    expectedResult: allow
+- description: Read-class tool (piotr-agier downloadFile) with no groups claim.
+    Regression guard — "downloadfile" must not be caught by the "uploadfile"
+    write suffix. Allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    subject:
+      sub: google-apps|bob@acme.com
+      claims:
+        email: bob@acme.com
+    resource:
+      type: tool
+      name: gdrive-mcp-downloadFile
+      uri: null
+    payload:
+      name: gdrive-mcp-downloadFile
+      args:
+        fileId: 1AbC
+  output:
+    expectedResult: allow
+- description: Write-class tool (Google official create_file) with caller in the
+    drive-writers group. Allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    subject:
+      sub: google-apps|ana@acme.com
+      claims:
+        groups:
+          - eng
+          - drive-writers
+    resource:
+      type: tool
+      name: gdrive-mcp-create_file
+      uri: null
+    payload:
+      name: gdrive-mcp-create_file
+      args:
+        name: notes.txt
+        content: hello
+  output:
+    expectedResult: allow
+- description: Write-class tool (isaacphi gsheets_update_cell) with caller in the
+    drive-writers group. Allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    subject:
+      sub: google-apps|ana@acme.com
+      claims:
+        groups:
+          - drive-writers
+    resource:
+      type: tool
+      name: gdrive-mcp-gsheets_update_cell
+      uri: null
+    payload:
+      name: gdrive-mcp-gsheets_update_cell
+      args:
+        fileId: 1AbC
+        range: Sheet1!A1
+        value: "42"
+  output:
+    expectedResult: allow
+- description: Write-class tool (piotr-agier createTextFile, mixed case) with
+    caller in the drive-writers group. Case-insensitive match still allows.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    subject:
+      sub: google-apps|ana@acme.com
+      claims:
+        groups:
+          - drive-writers
+    resource:
+      type: tool
+      name: gdrive-mcp-createTextFile
+      uri: null
+    payload:
+      name: gdrive-mcp-createTextFile
+      args:
+        name: notes.txt
+        content: hello
+  output:
+    expectedResult: allow
+- description: Write-class tool (create_file) with claims present but no groups
+    claim at all. Fails closed — deny with reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    subject:
+      sub: google-apps|bob@acme.com
+      claims:
+        email: bob@acme.com
+    resource:
+      type: tool
+      name: gdrive-mcp-create_file
+      uri: null
+    payload:
+      name: gdrive-mcp-create_file
+      args:
+        name: notes.txt
+  output:
+    expectedResult: deny
+    expectedReason: Google Drive write tools are restricted to members of the 'drive-writers' group. Ask a user who is in that group to make this change for you, or request 'drive-writers' membership from your identity administrator. If this tool call was wrongly classified as a write, ask your InfoSec team to review this policy's suffix list.
+- description: Write-class tool (copy_file) with no subject block at all (no IdP
+    identity). Fails closed — deny with reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gdrive-mcp-copy_file
+      uri: null
+    payload:
+      name: gdrive-mcp-copy_file
+      args:
+        fileId: 1AbC
+  output:
+    expectedResult: deny
+    expectedReason: Google Drive write tools are restricted to members of the 'drive-writers' group. Ask a user who is in that group to make this change for you, or request 'drive-writers' membership from your identity administrator. If this tool call was wrongly classified as a write, ask your InfoSec team to review this policy's suffix list.
+- description: Write-class tool (piotr-agier uploadFile, mixed case) with groups
+    present but not containing drive-writers. Deny with reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    subject:
+      sub: google-apps|bob@acme.com
+      claims:
+        groups:
+          - eng
+          - finance
+    resource:
+      type: tool
+      name: gdrive-mcp-uploadFile
+      uri: null
+    payload:
+      name: gdrive-mcp-uploadFile
+      args:
+        name: payload.html
+  output:
+    expectedResult: deny
+    expectedReason: Google Drive write tools are restricted to members of the 'drive-writers' group. Ask a user who is in that group to make this change for you, or request 'drive-writers' membership from your identity administrator. If this tool call was wrongly classified as a write, ask your InfoSec team to review this policy's suffix list.
+- description: Write-class comment tool (piotr-agier addComment — notifies
+    collaborators, externally visible) without group membership. Deny with reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    subject:
+      sub: google-apps|bob@acme.com
+      claims:
+        groups:
+          - eng
+    resource:
+      type: tool
+      name: gdrive-mcp-addComment
+      uri: null
+    payload:
+      name: gdrive-mcp-addComment
+      args:
+        fileId: 1AbC
+        content: please review
+  output:
+    expectedResult: deny
+    expectedReason: Google Drive write tools are restricted to members of the 'drive-writers' group. Ask a user who is in that group to make this change for you, or request 'drive-writers' membership from your identity administrator. If this tool call was wrongly classified as a write, ask your InfoSec team to review this policy's suffix list.
+- description: Write-class doc-edit tool (piotr-agier updateGoogleDoc) with an
+    empty groups array. Fails closed — deny with reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    subject:
+      sub: google-apps|bob@acme.com
+      claims:
+        groups: []
+    resource:
+      type: tool
+      name: gdrive-mcp-updateGoogleDoc
+      uri: null
+    payload:
+      name: gdrive-mcp-updateGoogleDoc
+      args:
+        documentId: 1AbC
+        content: injected text
+  output:
+    expectedResult: deny
+    expectedReason: Google Drive write tools are restricted to members of the 'drive-writers' group. Ask a user who is in that group to make this change for you, or request 'drive-writers' membership from your identity administrator. If this tool call was wrongly classified as a write, ask your InfoSec team to review this policy's suffix list.
+- description: RED-TEAM (blocklist residual, documented). createCalendarEvent is a
+    real write tool on the piotr-agier google-drive-mcp server but is not on the
+    Drive write-suffix list, so this policy does NOT gate it — it passes through even
+    with no drive-writers membership. Documents the residual; pair with PF-28
+    default-deny-unknown-tools to close it.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    subject:
+      sub: google-apps|bob@acme.com
+      claims:
+        groups:
+          - eng
+    resource:
+      type: tool
+      name: gdrive-mcp-createCalendarEvent
+      uri: null
+    payload:
+      name: gdrive-mcp-createCalendarEvent
+      args:
+        summary: staged event
+  output:
+    expectedResult: allow
+- description: RED-TEAM (renamed/unknown write, documented). A future or renamed
+    upstream write tool not yet in write_suffixes is unclassified and passes through
+    for a caller with no group. Regression lock on the blocklist behavior.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    subject:
+      sub: google-apps|bob@acme.com
+      claims:
+        groups:
+          - eng
+    resource:
+      type: tool
+      name: gdrive-mcp-writeGoogleSlide
+      uri: null
+    payload:
+      name: gdrive-mcp-writeGoogleSlide
+      args:
+        presentationId: 1AbC
+  output:
+    expectedResult: allow
+- description: RED-TEAM (fail-open on classification, documented). A tool call with
+    NEITHER resource.name NOR payload.name cannot be classified as a write and is
+    allowed. Not reachable by a normal caller (the gateway sets both fields);
+    documents the edge and locks the behavior.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    subject:
+      sub: google-apps|bob@acme.com
+      claims: {}
+    payload:
+      args: {}
+  output:
+    expectedResult: allow
+- description: RED-TEAM (payload.name fallback, FIXED). resource.name is absent but
+    the legacy alias payload.name carries a write tool (create_file) and the caller
+    is not in drive-writers. The classifier now reads both fields, so the write is
+    caught and denied — closes the resource.name-only fail-open.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    subject:
+      sub: google-apps|bob@acme.com
+      claims:
+        groups:
+          - eng
+    payload:
+      name: gdrive-mcp-create_file
+      args:
+        name: notes.txt
+  output:
+    expectedResult: deny
+    expectedReason: Google Drive write tools are restricted to members of the 'drive-writers' group. Ask a user who is in that group to make this change for you, or request 'drive-writers' membership from your identity administrator. If this tool call was wrongly classified as a write, ask your InfoSec team to review this policy's suffix list.
+- description: RED-TEAM (claim-shape spoof surface, documented). The groups claim is
+    a single string "drive-writers" (not an array), as some IdPs emit it. Iterating
+    a string yields no members, so membership fails and the write is denied
+    (fail closed). Locks the documented array-of-strings requirement.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    subject:
+      sub: google-apps|bob@acme.com
+      claims:
+        groups: drive-writers
+    resource:
+      type: tool
+      name: gdrive-mcp-create_file
+      uri: null
+    payload:
+      name: gdrive-mcp-create_file
+      args:
+        name: notes.txt
+  output:
+    expectedResult: deny
+    expectedReason: Google Drive write tools are restricted to members of the 'drive-writers' group. Ask a user who is in that group to make this change for you, or request 'drive-writers' membership from your identity administrator. If this tool call was wrongly classified as a write, ask your InfoSec team to review this policy's suffix list.
+- description: RED-TEAM (namespaced group claim, documented). The caller's groups
+    live under a namespaced key (https://acme.com/groups) instead of "groups", so
+    the plain "groups" lookup resolves empty and the write is denied (fail closed).
+    Documents claim-key portability.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    subject:
+      sub: google-apps|bob@acme.com
+      claims:
+        https://acme.com/groups:
+          - drive-writers
+    resource:
+      type: tool
+      name: gdrive-mcp-create_file
+      uri: null
+    payload:
+      name: gdrive-mcp-create_file
+      args:
+        name: notes.txt
+  output:
+    expectedResult: deny
+    expectedReason: Google Drive write tools are restricted to members of the 'drive-writers' group. Ask a user who is in that group to make this change for you, or request 'drive-writers' membership from your identity administrator. If this tool call was wrongly classified as a write, ask your InfoSec team to review this policy's suffix list.
+- description: RED-TEAM (object-map claim-shape spoof, FIXED). The groups claim is
+    an object map whose VALUE equals drive-writers ({"role":"drive-writers"}), a
+    shape the Known-limitations block promises is denied fail-closed. Rego's
+    `some x in obj` iterates object VALUES, so before the is_array guard this
+    granted the write (value collision). The is_array check now rejects the
+    non-array shape and the write is denied. Locks the fix and keeps the
+    description accurate.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    subject:
+      sub: google-apps|bob@acme.com
+      claims:
+        groups:
+          role: drive-writers
+    resource:
+      type: tool
+      name: gdrive-mcp-create_file
+      uri: null
+    payload:
+      name: gdrive-mcp-create_file
+      args:
+        name: notes.txt
+  output:
+    expectedResult: deny
+    expectedReason: Google Drive write tools are restricted to members of the 'drive-writers' group. Ask a user who is in that group to make this change for you, or request 'drive-writers' membership from your identity administrator. If this tool call was wrongly classified as a write, ask your InfoSec team to review this policy's suffix list.
+- description: RED-TEAM (unverified connector write suffix, documented). The
+    landscape note marks Claude "Google Drive" connector tool suffixes as
+    unverified; if the connector ships its create tool under a divergent suffix
+    (hypothetical `save_document` here, NOT a confirmed name) it is not on
+    write_suffixes and passes through ungated for a caller with no group. Locks the
+    documented connector/blocklist residual.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    subject:
+      sub: google-apps|bob@acme.com
+      claims:
+        groups:
+          - eng
+    resource:
+      type: tool
+      name: mcp__claude_ai_Google_Drive__save_document
+      uri: null
+    payload:
+      name: mcp__claude_ai_Google_Drive__save_document
+      args:
+        name: notes.txt
+  output:
+    expectedResult: allow

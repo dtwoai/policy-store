@@ -1,0 +1,750 @@
+# Fence configuration under test (placeholders in policy.md):
+#   fenced_folders: 1234567890->finance, 1234567891->hr, 1234567892->legal
+#   fenced_files:   9876543210->finance, 9876543211->hr
+# Reason strings must match the sprintf output in policy.md exactly.
+
+# --- Allow: tool this policy does not inspect ---------------------------------
+- description: Non-inspected read tool (who_am_i) with no subject — passes through
+    untouched (not a fenced-scope tool).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-remote-who_am_i
+      uri: null
+    payload:
+      name: box-remote-who_am_i
+      args: {}
+  output:
+    expectedResult: allow
+
+- description: Non-tool ingress hook (prompt_pre_fetch) — resource is not a fenced
+    tool, so it passes.
+  input:
+    action: prompt_pre_fetch
+    kind: prompt_pre_fetch
+    mode: input
+    resource:
+      type: prompt
+      name: greeting
+      uri: null
+    payload:
+      prompt_id: greeting
+      args:
+        user: alice
+  output:
+    expectedResult: allow
+
+# --- Allow: file tools ---------------------------------------------------------
+- description: File read (get_file_content) of an unfenced file_id — allowed for any
+    caller.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-remote-get_file_content
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: box-remote-get_file_content
+      args:
+        file_id: "5550001111"
+  output:
+    expectedResult: allow
+
+- description: File read (get_download_url) of a fenced finance file by a caller who
+    holds the finance group — allowed (has-group branch).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-remote-get_download_url
+      uri: null
+    subject:
+      sub: google-apps|cfo@example.com
+      claims:
+        groups:
+          - engineering
+          - finance
+    payload:
+      name: box-remote-get_download_url
+      args:
+        file_id: "9876543210"
+  output:
+    expectedResult: allow
+
+# --- Deny: file tools ----------------------------------------------------------
+- description: File read (get_file_content) of a fenced finance file by a caller
+    without the finance group — denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-remote-get_file_content
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: box-remote-get_file_content
+      args:
+        file_id: "9876543210"
+  output:
+    expectedResult: deny
+    expectedReason: Box file 9876543210 is fenced as sensitive and requires the 'finance' IdP group. Ask your Box administrator for access, or contact InfoSec if this fence looks wrong.
+
+- description: File preview (get_file_preview) with file_id supplied as a number —
+    normalized to a string, matched against the fenced finance file, denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-remote-get_file_preview
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: box-remote-get_file_preview
+      args:
+        file_id: 9876543210
+  output:
+    expectedResult: deny
+    expectedReason: Box file 9876543210 is fenced as sensitive and requires the 'finance' IdP group. Ask your Box administrator for access, or contact InfoSec if this fence looks wrong.
+
+- description: Multi-file AI Q&A (ai_qa_multi_file) referencing a fenced HR file via
+    items[].id — denied (items branch).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-remote-ai_qa_multi_file
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: box-remote-ai_qa_multi_file
+      args:
+        prompt: compare these files
+        items:
+          - id: "5550001111"
+          - id: "9876543211"
+  output:
+    expectedResult: deny
+    expectedReason: Box file 9876543211 is fenced as sensitive and requires the 'hr' IdP group. Ask your Box administrator for access, or contact InfoSec if this fence looks wrong.
+
+- description: Multi-file AI Q&A referencing a fenced HR file via a flat file_ids[]
+    array — denied (defensive file_ids branch).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-remote-ai_qa_multi_file
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: box-remote-ai_qa_multi_file
+      args:
+        prompt: compare these files
+        file_ids:
+          - "9876543211"
+  output:
+    expectedResult: deny
+    expectedReason: Box file 9876543211 is fenced as sensitive and requires the 'hr' IdP group. Ask your Box administrator for access, or contact InfoSec if this fence looks wrong.
+
+- description: AI extraction (ai_extract_structured — matched by the ai_extract_
+    substring) of a fenced finance file with empty claims — denied, fail-closed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-remote-ai_extract_structured
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims: {}
+    payload:
+      name: box-remote-ai_extract_structured
+      args:
+        file_id: "9876543210"
+  output:
+    expectedResult: deny
+    expectedReason: Box file 9876543210 is fenced as sensitive and requires the 'finance' IdP group. Ask your Box administrator for access, or contact InfoSec if this fence looks wrong.
+
+- description: File move (move_file) of a fenced finance file by a non-finance
+    caller — denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-remote-move_file
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: box-remote-move_file
+      args:
+        file_id: "9876543210"
+        parent_folder_id: "0"
+  output:
+    expectedResult: deny
+    expectedReason: Box file 9876543210 is fenced as sensitive and requires the 'finance' IdP group. Ask your Box administrator for access, or contact InfoSec if this fence looks wrong.
+
+- description: Community file download (box_file_download_tool) of a fenced HR file
+    by a caller holding only finance — denied (community dialect, file branch).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-community-box_file_download_tool
+      uri: null
+    subject:
+      sub: auth0|analyst
+      claims:
+        groups:
+          - finance
+    payload:
+      name: box-community-box_file_download_tool
+      args:
+        file_id: "9876543211"
+  output:
+    expectedResult: deny
+    expectedReason: Box file 9876543211 is fenced as sensitive and requires the 'hr' IdP group. Ask your Box administrator for access, or contact InfoSec if this fence looks wrong.
+
+- description: Community text extraction (box_file_text_extract_tool), uppercased
+    tool name — matching is case-insensitive, fenced finance file, denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: BOX-COMMUNITY-BOX_FILE_TEXT_EXTRACT_TOOL
+      uri: null
+    subject:
+      sub: auth0|analyst
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: BOX-COMMUNITY-BOX_FILE_TEXT_EXTRACT_TOOL
+      args:
+        file_id: "9876543210"
+  output:
+    expectedResult: deny
+    expectedReason: Box file 9876543210 is fenced as sensitive and requires the 'finance' IdP group. Ask your Box administrator for access, or contact InfoSec if this fence looks wrong.
+
+- description: File read of a fenced finance file where the groups claim is a plain
+    string instead of an array — malformed shape fails closed, denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-remote-get_file_content
+      uri: null
+    subject:
+      sub: auth0|mallory
+      claims:
+        groups: finance
+    payload:
+      name: box-remote-get_file_content
+      args:
+        file_id: "9876543210"
+  output:
+    expectedResult: deny
+    expectedReason: Box file 9876543210 is fenced as sensitive and requires the 'finance' IdP group. Ask your Box administrator for access, or contact InfoSec if this fence looks wrong.
+
+# --- Folder tools --------------------------------------------------------------
+- description: Folder listing (list_folder_content_by_folder_id) of an unfenced
+    folder — allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-remote-list_folder_content_by_folder_id
+      uri: null
+    subject:
+      sub: auth0|bob
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: box-remote-list_folder_content_by_folder_id
+      args:
+        folder_id: "9999"
+  output:
+    expectedResult: allow
+
+- description: Folder details (get_folder_details) of the fenced finance folder by a
+    caller holding finance — allowed (has-group branch).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-remote-get_folder_details
+      uri: null
+    subject:
+      sub: auth0|cfo
+      claims:
+        groups:
+          - finance
+    payload:
+      name: box-remote-get_folder_details
+      args:
+        folder_id: "1234567890"
+  output:
+    expectedResult: allow
+
+- description: Folder details (get_folder_details) of the fenced HR folder by a
+    non-HR caller — denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-remote-get_folder_details
+      uri: null
+    subject:
+      sub: auth0|bob
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: box-remote-get_folder_details
+      args:
+        folder_id: "1234567891"
+  output:
+    expectedResult: deny
+    expectedReason: Box folder 1234567891 is a fenced sensitive tree and requires the 'hr' IdP group. Ask your Box administrator for access, or contact InfoSec if this fence looks wrong.
+
+- description: Community folder listing (box_folder_items_list_tool) of the fenced
+    finance folder with no subject at all — identity fails closed, denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-community-box_folder_items_list_tool
+      uri: null
+    payload:
+      name: box-community-box_folder_items_list_tool
+      args:
+        folder_id: "1234567890"
+        is_recursive: true
+  output:
+    expectedResult: deny
+    expectedReason: Box folder 1234567890 is a fenced sensitive tree and requires the 'finance' IdP group. Ask your Box administrator for access, or contact InfoSec if this fence looks wrong.
+
+# --- Community search ----------------------------------------------------------
+- description: Community search (box_search_tool) scoped to an unfenced ancestor
+    folder — allowed (scoped, no fenced ID in scope).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-community-box_search_tool
+      uri: null
+    subject:
+      sub: auth0|bob
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: box-community-box_search_tool
+      args:
+        query: quarterly report
+        ancestor_folder_ids:
+          - "9999"
+  output:
+    expectedResult: allow
+
+- description: Community search scoped to a fenced legal folder by a non-legal
+    caller — denied (scoped, fenced ancestor without group).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-community-box_search_tool
+      uri: null
+    subject:
+      sub: auth0|bob
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: box-community-box_search_tool
+      args:
+        query: settlement
+        ancestor_folder_ids:
+          - "1234567892"
+  output:
+    expectedResult: deny
+    expectedReason: Searching inside Box folder 1234567892 requires the 'legal' IdP group. Remove it from ancestor_folder_ids, or ask your Box administrator for access.
+
+- description: Community search with ancestor_folder_ids as a comma-separated string
+    that includes the fenced finance folder — denied (string-split ancestor branch).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-community-box_search_tool
+      uri: null
+    subject:
+      sub: auth0|bob
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: box-community-box_search_tool
+      args:
+        query: invoices
+        ancestor_folder_ids: "9999, 1234567890"
+  output:
+    expectedResult: deny
+    expectedReason: Searching inside Box folder 1234567890 requires the 'finance' IdP group. Remove it from ancestor_folder_ids, or ask your Box administrator for access.
+
+- description: Unscoped community search by a caller who is not privileged (does not
+    hold every fenced group) — denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-community-box_search_tool
+      uri: null
+    subject:
+      sub: auth0|bob
+      claims:
+        groups:
+          - finance
+    payload:
+      name: box-community-box_search_tool
+      args:
+        query: everything
+  output:
+    expectedResult: deny
+    expectedReason: Unscoped Box search is restricted while sensitive folders are fenced. Re-run the search with ancestor_folder_ids scoped to folders you may access, or ask your Box administrator for the fenced groups.
+
+- description: Unscoped community search by a privileged caller holding every fenced
+    group (finance, hr, legal) — allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-community-box_search_tool
+      uri: null
+    subject:
+      sub: auth0|admin
+      claims:
+        groups:
+          - finance
+          - hr
+          - legal
+    payload:
+      name: box-community-box_search_tool
+      args:
+        query: everything
+  output:
+    expectedResult: allow
+
+# --- Official search -----------------------------------------------------------
+- description: Official keyword search (search_files_keyword) with no folder scoping
+    argument — allowed (documented residual — unscoped official search passes).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-remote-search_files_keyword
+      uri: null
+    subject:
+      sub: auth0|bob
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: box-remote-search_files_keyword
+      args:
+        query: budget
+  output:
+    expectedResult: allow
+
+- description: Official metadata search (search_files_metadata) scoped to the fenced
+    HR folder by a non-HR caller — denied (official scoping check).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-remote-search_files_metadata
+      uri: null
+    subject:
+      sub: auth0|bob
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: box-remote-search_files_metadata
+      args:
+        template_key: contract
+        ancestor_folder_ids:
+          - "1234567891"
+  output:
+    expectedResult: deny
+    expectedReason: Searching inside Box folder 1234567891 requires the 'hr' IdP group. Remove it from ancestor_folder_ids, or ask your Box administrator for access.
+
+- description: Official keyword search scoped to the fenced finance folder by a
+    caller holding finance — allowed (scoped, has group).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-remote-search_files_keyword
+      uri: null
+    subject:
+      sub: auth0|cfo
+      claims:
+        groups:
+          - finance
+    payload:
+      name: box-remote-search_files_keyword
+      args:
+        query: budget
+        ancestor_folder_ids:
+          - "1234567890"
+  output:
+    expectedResult: allow
+
+# --- Red-team: file copy exfil (fixed) ----------------------------------------
+- description: 'Red-team (fixed) — copy_file duplicates a fenced finance file into a
+    caller-chosen unfenced folder; a non-finance caller could then read the copy. Copy
+    is now fenced like move/read, so denied.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-remote-copy_file
+      uri: null
+    subject:
+      sub: google-apps|dev@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: box-remote-copy_file
+      args:
+        file_id: "9876543210"
+        parent_folder_id: "0"
+  output:
+    expectedResult: deny
+    expectedReason: Box file 9876543210 is fenced as sensitive and requires the 'finance' IdP group. Ask your Box administrator for access, or contact InfoSec if this fence looks wrong.
+
+- description: 'Red-team (fixed) — copy_file of the fenced finance file by a caller who
+    holds finance is still allowed (has-group branch survives the copy fence).'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-remote-copy_file
+      uri: null
+    subject:
+      sub: google-apps|cfo@example.com
+      claims:
+        groups:
+          - finance
+    payload:
+      name: box-remote-copy_file
+      args:
+        file_id: "9876543210"
+        parent_folder_id: "0"
+  output:
+    expectedResult: allow
+
+- description: 'Red-team (fixed) — community box_file_copy_tool of a fenced HR file by a
+    finance-only caller — copy exfil closed in the community dialect too, denied.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-community-box_file_copy_tool
+      uri: null
+    subject:
+      sub: auth0|analyst
+      claims:
+        groups:
+          - finance
+    payload:
+      name: box-community-box_file_copy_tool
+      args:
+        file_id: "9876543211"
+        parent_folder_id: "0"
+  output:
+    expectedResult: deny
+    expectedReason: Box file 9876543211 is fenced as sensitive and requires the 'hr' IdP group. Ask your Box administrator for access, or contact InfoSec if this fence looks wrong.
+
+# --- Red-team: folder move/copy (fixed) ---------------------------------------
+- description: 'Red-team (fixed) — move_folder relocates the fenced finance folder by its
+    literal ID; a non-finance caller is now denied (symmetric with move_file).'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-remote-move_folder
+      uri: null
+    subject:
+      sub: auth0|bob
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: box-remote-move_folder
+      args:
+        folder_id: "1234567890"
+        parent_folder_id: "0"
+  output:
+    expectedResult: deny
+    expectedReason: Box folder 1234567890 is a fenced sensitive tree and requires the 'finance' IdP group. Ask your Box administrator for access, or contact InfoSec if this fence looks wrong.
+
+- description: 'Red-team (fixed) — community box_folder_move_tool of the fenced HR folder by
+    a non-HR caller — folder relocation fenced in the community dialect, denied.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-community-box_folder_move_tool
+      uri: null
+    subject:
+      sub: auth0|bob
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: box-community-box_folder_move_tool
+      args:
+        folder_id: "1234567891"
+        parent_folder_id: "0"
+  output:
+    expectedResult: deny
+    expectedReason: Box folder 1234567891 is a fenced sensitive tree and requires the 'hr' IdP group. Ask your Box administrator for access, or contact InfoSec if this fence looks wrong.
+
+# --- Red-team: ancestry residuals (documented, not statelessly fixable) --------
+- description: 'Red-team (documented residual) — recursive community listing of the unfenced
+    root folder 0 enumerates items inside fenced subtrees. The policy only tests the literal
+    top folder_id (0, unfenced) and cannot resolve ancestry, so it allows. Documented under
+    Known limitations; mitigate by pinning root IDs and pairing egress redaction.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-community-box_folder_items_list_tool
+      uri: null
+    subject:
+      sub: auth0|bob
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: box-community-box_folder_items_list_tool
+      args:
+        folder_id: "0"
+        is_recursive: true
+  output:
+    expectedResult: allow
+
+- description: 'Red-team (documented residual) — a non-privileged caller sidesteps the
+    unscoped-search deny by scoping community search to the unfenced root folder 0, which
+    still searches into fenced subtrees. The literal ancestor ID (0) is not fenced, so the
+    scoped-search allow fires. Documented under Known limitations.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: box-community-box_search_tool
+      uri: null
+    subject:
+      sub: auth0|bob
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: box-community-box_search_tool
+      args:
+        query: payroll ssn
+        where_to_look_for_query: FILE_CONTENT
+        ancestor_folder_ids:
+          - "0"
+  output:
+    expectedResult: allow

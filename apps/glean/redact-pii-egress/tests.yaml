@@ -1,0 +1,757 @@
+# Egress transform policy (default allow := true) — allow is always true; the
+# meaningful assertions are transformApplied / transformedArgsContain. Cases
+# cover every rule branch: each detection class independently (SSN, PAN, IBAN)
+# and all three together; every in-scope tool (distinctive names + generic
+# search/chat); the resource.name / tool_metadata.name / payload.name candidate
+# surfaces; case-insensitive matching; out-of-scope tools (employee_search,
+# code_search, agents/proxied, ingress); MCP {type,text} object blocks;
+# non-string blocks; conservative-regex negatives; and every documented
+# red-team residual.
+
+# ---------- In-scope: each PII class independently ----------
+
+- description: In-scope glean-search response — SSN, PAN (4-4-4-4), and IBAN are all redacted in place; surrounding text is kept.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: glean-search
+      uri: null
+    payload:
+      name: glean-search
+      text:
+        - "Vendor record: SSN 123-45-6789, card 4111 1111 1111 1111, IBAN GB82WEST12345698765432"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Vendor record: SSN [REDACTED-SSN], card [REDACTED-PAN], IBAN [REDACTED-BANK]"
+
+- description: Lone SSN in a chat synthesis response is redacted on its own — no pairing required.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: glean-chat
+      uri: null
+    payload:
+      name: glean-chat
+      text:
+        - "Per the onboarding doc the SSN on file is 078-05-1120."
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Per the onboarding doc the SSN on file is [REDACTED-SSN]."
+
+- description: Lone unseparated 16-digit PAN run in a read_document response is redacted independently.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: glean-read_document
+      uri: null
+    payload:
+      name: glean-read_document
+      text:
+        - "Charge posted to 4111111111111111 last night"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Charge posted to [REDACTED-PAN] last night"
+
+- description: Amex 15-digit 4-6-5 PAN in a gmail_search snippet is redacted (distinct from the 4-4-4-4 shape).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: glean-gmail_search
+      uri: null
+    payload:
+      name: glean-gmail_search
+      text:
+        - "Receipt card 3782 822463 10005 attached"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Receipt card [REDACTED-PAN] attached"
+
+- description: Lone IBAN in an outlook_search response is redacted independently as a bank identifier.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: glean-outlook_search
+      uri: null
+    payload:
+      name: glean-outlook_search
+      text:
+        - "Wire to DE89370400440532013000 by Friday"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Wire to [REDACTED-BANK] by Friday"
+
+- description: meeting_lookup transcript line with a dash-grouped PAN is redacted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: glean-meeting_lookup
+      uri: null
+    payload:
+      name: glean-meeting_lookup
+      text:
+        - "Speaker: read out the card 4111-1111-1111-1111 on the call"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Speaker: read out the card [REDACTED-PAN] on the call"
+
+# ---------- Candidate-surface coverage ----------
+
+- description: Tool name only under tool_metadata.name (resource.name empty) — glean-read_document still matched via the candidate-surface union.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: ""
+      uri: null
+    tool_metadata:
+      name: glean-read_document
+    payload:
+      name: glean-read_document
+      text:
+        - "SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "SSN [REDACTED-SSN]"
+
+- description: Tool name present only under payload.name (resource.name empty, no tool_metadata) — payload.name is a candidate surface, so the call is in scope.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: ""
+      uri: null
+    payload:
+      name: glean-search
+      text:
+        - "SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "SSN [REDACTED-SSN]"
+
+# ---------- Separator / prefix portability ----------
+
+- description: Bare (prefix-less) generic name `search` is in scope — matches_suffix accepts the bare form.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: search
+      uri: null
+    payload:
+      name: search
+      text:
+        - "SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "SSN [REDACTED-SSN]"
+
+- description: Distinctive name after an underscore prefix separator (glean_read_document) is in scope — underscore is allowed for distinctive names.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: glean_read_document
+      uri: null
+    payload:
+      name: glean_read_document
+      text:
+        - "IBAN GB82WEST12345698765432"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "IBAN [REDACTED-BANK]"
+
+- description: Generic name after a dot separator (glean.chat) is in scope — dot is a hyphen-class separator.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: glean.chat
+      uri: null
+    payload:
+      name: glean.chat
+      text:
+        - "SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "SSN [REDACTED-SSN]"
+
+- description: Case-insensitive tool matching — GLEAN-SEARCH (uppercase) is still in scope.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: GLEAN-SEARCH
+      uri: null
+    payload:
+      name: GLEAN-SEARCH
+      text:
+        - "SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "SSN [REDACTED-SSN]"
+
+# ---------- Block-shape coverage ----------
+
+- description: Only the block that contains PII is rewritten; clean blocks pass through unchanged.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: glean-search
+      uri: null
+    payload:
+      name: glean-search
+      text:
+        - "Quarterly summary — no identifiers here."
+        - "Contact record SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Quarterly summary — no identifiers here."
+      - "Contact record SSN [REDACTED-SSN]"
+
+- description: MCP-standard structured text block {type:text, text:...} — the inner `text` is redacted and `type` preserved.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: glean-read_document
+      uri: null
+    payload:
+      name: glean-read_document
+      text:
+        - type: text
+          text: "Doc body: SSN 123-45-6789 and card 4111 1111 1111 1111"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - text: "Doc body: SSN [REDACTED-SSN] and card [REDACTED-PAN]"
+        type: text
+
+- description: Mixed content-block array — one plain string and one MCP {type,text} object, both carrying PII — every block is redacted regardless of shape.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: glean-search
+      uri: null
+    payload:
+      name: glean-search
+      text:
+        - "Plain block SSN 078-05-1120"
+        - type: text
+          text: "Object block IBAN DE89370400440532013000"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Plain block SSN [REDACTED-SSN]"
+      - text: "Object block IBAN [REDACTED-BANK]"
+        type: text
+
+# ---------- Negatives: out-of-scope tools ----------
+
+- description: employee_search (underscore-joined compound tool, out of scope per spec) must NOT match the generic `search` entry — no transform even with an SSN present.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: glean-employee_search
+      uri: null
+    payload:
+      name: glean-employee_search
+      text:
+        - "SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: code_search (underscore-joined compound tool, out of scope) must NOT match the generic `search` entry — no transform.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: glean-code_search
+      uri: null
+    payload:
+      name: glean-code_search
+      text:
+        - "SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: An org-specific agent-as-tool (arbitrary snake_case name) is out of scope — governed by the default-deny-unknown-tools companion, not this redactor.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: glean-qbr_summarizer
+      uri: null
+    payload:
+      name: glean-qbr_summarizer
+      text:
+        - "SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: A different server's bare `search` collides on the generic entry (documented residual) — redaction fires. Confirms suffix matching is server-agnostic; pin the prefix per tenant if this is undesired.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: github-search
+      uri: null
+    payload:
+      name: github-search
+      text:
+        - "SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "SSN [REDACTED-SSN]"
+
+# ---------- Negatives: conservative-regex ----------
+
+- description: In-scope tool but content carries no PII — response passes through byte-identical, no transform.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: glean-search
+      uri: null
+    payload:
+      name: glean-search
+      text:
+        - "The runbook is ready for review."
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Conservative-regex negatives — a short 9-digit run, a dotted version string, and a 12-digit run (below the 13-digit PAN floor) are NOT redacted, so an otherwise clean doc passes through byte-identical.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: glean-read_document
+      uri: null
+    payload:
+      name: glean-read_document
+      text:
+        - "Ref 123456789, version 1.2.3, order 123456789012"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Non-string (custom {field,value}) content block with no string `text` key passes through the redact_block guards unmodified — PII under other keys is out of the policy's claim, no transform.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: glean-search
+      uri: null
+    payload:
+      name: glean-search
+      text:
+        - field: ssn
+          value: "123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+# ---------- Guards ----------
+
+- description: Ingress hook (mode input) is never in scope — the same tool + SSN produces no transform on the pre-invoke path.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: glean-search
+      uri: null
+    payload:
+      name: glean-search
+      text:
+        - "SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+# ---------- Red-team regression cases (reviewer, standards §10) ----------
+
+- description: "Red-team: egress with action=tool_post_invoke but mode unset — is_egress still matches on action, so redaction fires (no fail-open leak)."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    resource:
+      type: tool
+      name: glean-search
+      uri: null
+    payload:
+      name: glean-search
+      text:
+        - "SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "SSN [REDACTED-SSN]"
+
+- description: "Red-team: egress that leaks what an ingress datasource fence would block — an HR-source page body with SSN + PAN + IBAN is still fully redacted, since this policy runs regardless of the ingress verdict."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: glean-search
+      uri: null
+    payload:
+      name: glean-search
+      text:
+        - "HR source leak: SSN 123-45-6789, PAN 4111 1111 1111 1111, IBAN GB82WEST12345698765432"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "HR source leak: SSN [REDACTED-SSN], PAN [REDACTED-PAN], IBAN [REDACTED-BANK]"
+
+- description: "Red-team DOCUMENTED residual: an IBAN printed with spaces every four chars breaks contiguity, so the iban_pattern does not match and it passes through unredacted (no transform). Captures the spaced-IBAN residual under Known limitations."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: glean-search
+      uri: null
+    payload:
+      name: glean-search
+      text:
+        - "IBAN GB82 WEST 1234 5698 7654 32 on file"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Red-team DOCUMENTED residual: full-width Unicode-digit SSN is not matched — RE2 `\\d` is ASCII-only, so the identifier streams through unredacted (no transform)."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: glean-search
+      uri: null
+    payload:
+      name: glean-search
+      text:
+        - "Full-width SSN １２３-４５-６７８９ on file"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Red-team DOCUMENTED residual (word-boundary adjacency): an SSN wrapped in Markdown italics underscores (_123-45-6789_) is NOT redacted — `_` is a regex word char, so the `\\b` anchor finds no boundary."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: glean-search
+      uri: null
+    payload:
+      name: glean-search
+      text:
+        - "contact _123-45-6789_ now"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Red-team DOCUMENTED residual: off-spec scalar `text` (a bare string, not an array) fails the is_array transform guard — no transform fires and the SSN passes through (fail-open on a shape off the documented gateway contract)."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: glean-search
+      uri: null
+    payload:
+      name: glean-search
+      text: "Onboarding SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Red-team DOCUMENTED residual: standard MCP embedded-resource block carries its body under nested `resource.text`, not a top-level `text` string — block_text reads only the top-level `text`, so the SSN passes through unredacted (no transform)."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: glean-read_document
+      uri: null
+    payload:
+      name: glean-read_document
+      text:
+        - type: resource
+          resource:
+            uri: "glean://doc/1"
+            text: "Onboarding SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Red-team DOCUMENTED residual: a nested-array content block (block that is itself an array of sub-blocks) is neither string nor object, so it hits the passthrough branch and the embedded SSN is not redacted (no transform)."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: glean-search
+      uri: null
+    payload:
+      name: glean-search
+      text:
+        - - "nested SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Red-team over-match guard: the generic `search` entry does not fire on a name that merely ends in the letters `search` after an underscore (glean-gmail_search is matched by its OWN distinctive entry, not the generic one) — confirmed here by an underscore-joined non-listed compound `glean-vendor_search` staying out of scope."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: glean-vendor_search
+      uri: null
+    payload:
+      name: glean-vendor_search
+      text:
+        - "SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Red-team DOCUMENTED residual: an underscore-joined server prefix on a GENERIC name (glean_search) is NOT matched — the generic entries exclude underscore, so this fails open. Pin the exact hyphen-class prefix per tenant. (Distinctive names still match under underscore — see the glean_read_document case above.)"
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: glean_search
+      uri: null
+    payload:
+      name: glean_search
+      text:
+        - "SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Red-team DOCUMENTED residual (PAN ceiling): a contiguous 20-digit numeric run (e.g. a long domestic bank-account number) exceeds the 13–19-digit PAN window, and its only word boundaries are the two ends, so pan_run cannot match it and it passes through unredacted (no transform)."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: glean-read_document
+      uri: null
+    payload:
+      name: glean-read_document
+      text:
+        - "Settlement account 12345678901234567890 confirmed"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Red-team DOCUMENTED residual: an off-spec structured block whose `text` value is itself an ARRAY (not a string) is rejected by block_text's is_string guard, so it hits the passthrough branch and the embedded SSN is not redacted (no transform)."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: glean-search
+      uri: null
+    payload:
+      name: glean-search
+      text:
+        - type: text
+          text:
+            - "SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Red-team DOCUMENTED residual (unlisted content read tool): the memory read tool (glean-read_memory, action:read, ExplicitMemories) can return user-entered PII but is out of scope, so an SSN in a memory read streams through unredacted (no transform). Captured under Known limitations alongside employee_search/code_search."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: glean-read_memory
+      uri: null
+    payload:
+      name: glean-read_memory
+      text:
+        - "Stored memory: user's SSN is 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Red-team DOCUMENTED residual: the bare `memory` write/read tool is likewise out of scope — a memory response carrying an SSN is not redacted (no transform). Memory writes are gated by the deny-memory-writes companion; memory read content is not redacted here."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: glean-memory
+      uri: null
+    payload:
+      name: glean-memory
+      text:
+        - "Stored memory: SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Red-team guard: memory_schema is schema/graph introspection (structure, not record content) and is intentionally excluded — no transform even with an SSN-shaped string present."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: glean-memory_schema
+      uri: null
+    payload:
+      name: glean-memory_schema
+      text:
+        - "field example 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Red-team byte-identical guard: a fully-clean MCP structured object block (no PII) produces value-equal output through object.union, so redacted_blocks == text_blocks and NO transform is emitted — confirming the byte-identical passthrough claim holds for object blocks, not just plain strings."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: glean-read_document
+      uri: null
+    payload:
+      name: glean-read_document
+      text:
+        - type: text
+          text: "Quarterly summary — nothing sensitive in this block."
+  output:
+    expectedResult: allow
+  transformApplied: false

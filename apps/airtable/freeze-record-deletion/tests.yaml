@@ -1,0 +1,899 @@
+# Reason string is identical across every deny case; anchored here for reuse.
+- description: Read tool (list_records) outside the destructive set, caller has no
+    claims at all. Pass-through allow branch.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-list_records
+      uri: null
+    payload:
+      name: airtable-list_records
+      args:
+        baseId: app0123456789
+        tableId: tbl0123456789
+  output:
+    expectedResult: allow
+- description: Non-destructive write (create_record, domdomegg) is not gated — name
+    has no "delete" substring. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-create_record
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - marketing
+    payload:
+      name: airtable-create_record
+      args:
+        baseId: app0123456789
+        tableId: tbl0123456789
+        fields: {}
+  output:
+    expectedResult: allow
+- description: Official batch write (create_records_for_table) is not gated. Allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-create_records_for_table
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - sales
+    payload:
+      name: airtable-create_records_for_table
+      args:
+        baseId: app0123456789
+        tableId: tbl0123456789
+  output:
+    expectedResult: allow
+- description: Destruction-by-overwrite (update_records) has no "delete" substring,
+    so it passes through — documented out-of-scope, covered by a companion policy.
+    Allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-update_records
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - marketing
+    payload:
+      name: airtable-update_records
+      args:
+        baseId: app0123456789
+        tableId: tbl0123456789
+        records: []
+  output:
+    expectedResult: allow
+- description: domdomegg delete_records (batch by recordIds) by a non-admin. "delete"
+    substring matches. Deny with reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-delete_records
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - marketing
+    payload:
+      name: airtable-delete_records
+      args:
+        baseId: app0123456789
+        tableId: tbl0123456789
+        recordIds:
+          - rec0000000000001
+          - rec0000000000002
+  output:
+    expectedResult: deny
+    expectedReason: "This Airtable deletion is blocked because deletions over MCP are irreversible at the API level: delete_records permanently removes rows by record ID (only Airtable's revision history or trash can restore them) and delete_page permanently removes an interface page. Make intentional deletions in the Airtable web UI instead, where they can be reviewed and undone. If you believe this block is a false positive, ask your Airtable admin to add you to the airtable-admins group."
+- description: Official delete_page (interface page) by a non-admin. "delete"
+    substring matches even though the suffix differs from delete_records. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-delete_page
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: airtable-delete_page
+      args:
+        pageId: pag0123456789
+  output:
+    expectedResult: deny
+    expectedReason: "This Airtable deletion is blocked because deletions over MCP are irreversible at the API level: delete_records permanently removes rows by record ID (only Airtable's revision history or trash can restore them) and delete_page permanently removes an interface page. Make intentional deletions in the Airtable web UI instead, where they can be reviewed and undone. If you believe this block is a false positive, ask your Airtable admin to add you to the airtable-admins group."
+- description: delete_records by an airtable-admins member (among other groups).
+    Admin branch allows the call.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-delete_records
+      uri: null
+    subject:
+      sub: admin@example.com
+      claims:
+        groups:
+          - engineering
+          - airtable-admins
+    payload:
+      name: airtable-delete_records
+      args:
+        baseId: app0123456789
+        tableId: tbl0123456789
+        recordIds:
+          - rec0000000000001
+  output:
+    expectedResult: allow
+- description: delete_page by an airtable-admins member. Admin branch allows.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-delete_page
+      uri: null
+    subject:
+      sub: admin@example.com
+      claims:
+        groups:
+          - airtable-admins
+    payload:
+      name: airtable-delete_page
+      args:
+        pageId: pag0123456789
+  output:
+    expectedResult: allow
+- description: "Unverified rashidazarang server: a plausible batch_delete_records
+    tool (name unverified in the landscape note) contains \"delete\" and is caught
+    by the blanket marker — deny for non-admin."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-batch_delete_records
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - marketing
+    payload:
+      name: airtable-batch_delete_records
+      args:
+        baseId: app0123456789
+        tableId: tbl0123456789
+  output:
+    expectedResult: deny
+    expectedReason: "This Airtable deletion is blocked because deletions over MCP are irreversible at the API level: delete_records permanently removes rows by record ID (only Airtable's revision history or trash can restore them) and delete_page permanently removes an interface page. Make intentional deletions in the Airtable web UI instead, where they can be reviewed and undone. If you believe this block is a false positive, ask your Airtable admin to add you to the airtable-admins group."
+- description: "Bare (unprefixed/local stdio) delete_records, non-admin. The
+    contains match still fires without a gateway prefix. Deny."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: delete_records
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - marketing
+    payload:
+      name: delete_records
+      args:
+        baseId: app0123456789
+        tableId: tbl0123456789
+        recordIds:
+          - rec0000000000001
+  output:
+    expectedResult: deny
+    expectedReason: "This Airtable deletion is blocked because deletions over MCP are irreversible at the API level: delete_records permanently removes rows by record ID (only Airtable's revision history or trash can restore them) and delete_page permanently removes an interface page. Make intentional deletions in the Airtable web UI instead, where they can be reviewed and undone. If you believe this block is a false positive, ask your Airtable admin to add you to the airtable-admins group."
+- description: Mixed-case tool name (Airtable-Delete_Records) must still match —
+    matching is case-insensitive. Deny for non-admin.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: Airtable-Delete_Records
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - marketing
+    payload:
+      name: Airtable-Delete_Records
+      args:
+        baseId: app0123456789
+        tableId: tbl0123456789
+  output:
+    expectedResult: deny
+    expectedReason: "This Airtable deletion is blocked because deletions over MCP are irreversible at the API level: delete_records permanently removes rows by record ID (only Airtable's revision history or trash can restore them) and delete_page permanently removes an interface page. Make intentional deletions in the Airtable web UI instead, where they can be reviewed and undone. If you believe this block is a false positive, ask your Airtable admin to add you to the airtable-admins group."
+- description: delete_records with no subject block at all (no IdP claims reached
+    the gateway). Fails closed via default allow := false — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-delete_records
+      uri: null
+    payload:
+      name: airtable-delete_records
+      args:
+        baseId: app0123456789
+        tableId: tbl0123456789
+        recordIds:
+          - rec0000000000001
+  output:
+    expectedResult: deny
+    expectedReason: "This Airtable deletion is blocked because deletions over MCP are irreversible at the API level: delete_records permanently removes rows by record ID (only Airtable's revision history or trash can restore them) and delete_page permanently removes an interface page. Make intentional deletions in the Airtable web UI instead, where they can be reviewed and undone. If you believe this block is a false positive, ask your Airtable admin to add you to the airtable-admins group."
+- description: Claims present but the groups claim is missing entirely. Fails
+    closed — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-delete_records
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        org_id: org_abc123
+    payload:
+      name: airtable-delete_records
+      args:
+        baseId: app0123456789
+        tableId: tbl0123456789
+  output:
+    expectedResult: deny
+    expectedReason: "This Airtable deletion is blocked because deletions over MCP are irreversible at the API level: delete_records permanently removes rows by record ID (only Airtable's revision history or trash can restore them) and delete_page permanently removes an interface page. Make intentional deletions in the Airtable web UI instead, where they can be reviewed and undone. If you believe this block is a false positive, ask your Airtable admin to add you to the airtable-admins group."
+- description: "Placeholder-claim spoofing surface: groups is a bare string
+    (\"airtable-admins\") instead of an array. is_array guard forces the membership
+    check to fail closed — deny."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-delete_records
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups: airtable-admins
+    payload:
+      name: airtable-delete_records
+      args:
+        baseId: app0123456789
+        tableId: tbl0123456789
+  output:
+    expectedResult: deny
+    expectedReason: "This Airtable deletion is blocked because deletions over MCP are irreversible at the API level: delete_records permanently removes rows by record ID (only Airtable's revision history or trash can restore them) and delete_page permanently removes an interface page. Make intentional deletions in the Airtable web UI instead, where they can be reviewed and undone. If you believe this block is a false positive, ask your Airtable admin to add you to the airtable-admins group."
+- description: "Red-team admin-gate fail-open (FIXED): groups claim is an OBJECT
+    whose values include the admin group name ({\"0\":\"airtable-admins\"}). Without
+    the is_array guard, `some group in groups` would iterate object values and
+    grant admin; the guard forces this non-array shape to fail closed — deny."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-delete_records
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          "0": airtable-admins
+    payload:
+      name: airtable-delete_records
+      args:
+        baseId: app0123456789
+        tableId: tbl0123456789
+  output:
+    expectedResult: deny
+    expectedReason: "This Airtable deletion is blocked because deletions over MCP are irreversible at the API level: delete_records permanently removes rows by record ID (only Airtable's revision history or trash can restore them) and delete_page permanently removes an interface page. Make intentional deletions in the Airtable web UI instead, where they can be reviewed and undone. If you believe this block is a false positive, ask your Airtable admin to add you to the airtable-admins group."
+- description: "Red-team claim spoofing: groups is an ARRAY whose one element is an
+    object carrying the admin name ([{\"name\":\"airtable-admins\"}]). is_array
+    passes, but the element is an object, not the string \"airtable-admins\", so
+    `group == admin_group` is false and the admin branch fails closed — deny."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-delete_records
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - name: airtable-admins
+    payload:
+      name: airtable-delete_records
+      args:
+        baseId: app0123456789
+        tableId: tbl0123456789
+  output:
+    expectedResult: deny
+    expectedReason: "This Airtable deletion is blocked because deletions over MCP are irreversible at the API level: delete_records permanently removes rows by record ID (only Airtable's revision history or trash can restore them) and delete_page permanently removes an interface page. Make intentional deletions in the Airtable web UI instead, where they can be reviewed and undone. If you believe this block is a false positive, ask your Airtable admin to add you to the airtable-admins group."
+- description: "Red-team type confusion: resource.name is a non-string (number)
+    while payload.name carries a real delete_records. Independent matching means
+    the malformed resource.name cannot suppress the delete — deny (fail-closed)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: 42
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - marketing
+    payload:
+      name: airtable-delete_records
+      args:
+        baseId: app0123456789
+        tableId: tbl0123456789
+  output:
+    expectedResult: deny
+    expectedReason: "This Airtable deletion is blocked because deletions over MCP are irreversible at the API level: delete_records permanently removes rows by record ID (only Airtable's revision history or trash can restore them) and delete_page permanently removes an interface page. Make intentional deletions in the Airtable web UI instead, where they can be reviewed and undone. If you believe this block is a false positive, ask your Airtable admin to add you to the airtable-admins group."
+- description: "Red-team type confusion: payload.name is a non-string (array) while
+    resource.name carries a real delete_page. Independent matching still catches
+    the destructive marker — deny (fail-closed)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-delete_page
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - marketing
+    payload:
+      name:
+        - malformed
+      args:
+        pageId: pag0123456789
+  output:
+    expectedResult: deny
+    expectedReason: "This Airtable deletion is blocked because deletions over MCP are irreversible at the API level: delete_records permanently removes rows by record ID (only Airtable's revision history or trash can restore them) and delete_page permanently removes an interface page. Make intentional deletions in the Airtable web UI instead, where they can be reviewed and undone. If you believe this block is a false positive, ask your Airtable admin to add you to the airtable-admins group."
+- description: "Red-team type confusion: resource.name is null while payload.name
+    carries a real delete_records. null coerces to empty string, payload branch
+    still matches — deny (fail-closed)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: null
+      uri: null
+    payload:
+      name: airtable-delete_records
+      args:
+        baseId: app0123456789
+        tableId: tbl0123456789
+  output:
+    expectedResult: deny
+    expectedReason: "This Airtable deletion is blocked because deletions over MCP are irreversible at the API level: delete_records permanently removes rows by record ID (only Airtable's revision history or trash can restore them) and delete_page permanently removes an interface page. Make intentional deletions in the Airtable web UI instead, where they can be reviewed and undone. If you believe this block is a false positive, ask your Airtable admin to add you to the airtable-admins group."
+- description: "Red-team suffix evasion neutralized by contains: tool name padded
+    with a trailing newline (airtable-delete_records\\n). Unlike an endswith match,
+    a contains match still finds the \"delete\" substring — deny for non-admin."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "airtable-delete_records\n"
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - marketing
+    payload:
+      name: "airtable-delete_records\n"
+      args:
+        baseId: app0123456789
+        tableId: tbl0123456789
+  output:
+    expectedResult: deny
+    expectedReason: "This Airtable deletion is blocked because deletions over MCP are irreversible at the API level: delete_records permanently removes rows by record ID (only Airtable's revision history or trash can restore them) and delete_page permanently removes an interface page. Make intentional deletions in the Airtable web UI instead, where they can be reviewed and undone. If you believe this block is a false positive, ask your Airtable admin to add you to the airtable-admins group."
+- description: "Red-team zero-width padding neutralized by contains: trailing
+    zero-width space (U+200B) after the verb. A contains match still finds the
+    \"delete\" substring (this would defeat an endswith match) — deny."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "airtable-delete_records​"
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - marketing
+    payload:
+      name: "airtable-delete_records​"
+      args:
+        baseId: app0123456789
+        tableId: tbl0123456789
+  output:
+    expectedResult: deny
+    expectedReason: "This Airtable deletion is blocked because deletions over MCP are irreversible at the API level: delete_records permanently removes rows by record ID (only Airtable's revision history or trash can restore them) and delete_page permanently removes an interface page. Make intentional deletions in the Airtable web UI instead, where they can be reviewed and undone. If you believe this block is a false positive, ask your Airtable admin to add you to the airtable-admins group."
+- description: "Over-match (DOCUMENTED, intentional): a read-oriented tool whose
+    name contains \"delete\" (list_deleted_records) is frozen by the blanket
+    marker. This is a known false-positive residual — deny locks in the behavior."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-list_deleted_records
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - marketing
+    payload:
+      name: airtable-list_deleted_records
+      args:
+        baseId: app0123456789
+        tableId: tbl0123456789
+  output:
+    expectedResult: deny
+    expectedReason: "This Airtable deletion is blocked because deletions over MCP are irreversible at the API level: delete_records permanently removes rows by record ID (only Airtable's revision history or trash can restore them) and delete_page permanently removes an interface page. Make intentional deletions in the Airtable web UI instead, where they can be reviewed and undone. If you believe this block is a false positive, ask your Airtable admin to add you to the airtable-admins group."
+- description: "Red-team synonym residual (DOCUMENTED, not fixed): a destructive
+    verb spelled without the marker \"delete\" (purge_records) is NOT caught by the
+    single-marker freeze and is allowed for a non-admin. Locks in the known
+    under-match residual — PF-28 is the closed backstop. Allow."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-purge_records
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - marketing
+    payload:
+      name: airtable-purge_records
+      args:
+        baseId: app0123456789
+        tableId: tbl0123456789
+  output:
+    expectedResult: allow
+- description: "Red-team batching/escape-hatch residual (DOCUMENTED, not fixed):
+    name-only matching does not inspect arguments, so a hypothetical composite
+    dispatcher (execute_operations — name UNVERIFIED for Airtable) that carries a
+    delete_records op inside its args has no \"delete\" in the tool name and passes
+    through for a non-admin. Compose PF-28 to freeze unknown tool names. Allow."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-execute_operations
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - marketing
+    payload:
+      name: airtable-execute_operations
+      args:
+        operations:
+          - op: delete_records
+            recordIds:
+              - rec0000000000001
+  output:
+    expectedResult: allow
+- description: "Over-match false positive (DOCUMENTED, intentional): a restore/undo
+    tool (undelete_records) contains \"delete\" and is frozen for a non-admin, even
+    though blocking restore is counter-productive after an accidental delete. Locks
+    in the documented over-match — add an explicit allow carve-out if your server
+    exposes an undelete. Deny."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-undelete_records
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - marketing
+    payload:
+      name: airtable-undelete_records
+      args:
+        baseId: app0123456789
+        tableId: tbl0123456789
+        recordIds:
+          - rec0000000000001
+  output:
+    expectedResult: deny
+    expectedReason: "This Airtable deletion is blocked because deletions over MCP are irreversible at the API level: delete_records permanently removes rows by record ID (only Airtable's revision history or trash can restore them) and delete_page permanently removes an interface page. Make intentional deletions in the Airtable web UI instead, where they can be reviewed and undone. If you believe this block is a false positive, ask your Airtable admin to add you to the airtable-admins group."
+- description: "Red-team homoglyph residual (DOCUMENTED, not fixed): the verb is
+    spelled with a Cyrillic 'е' (U+0435) inside \"dеlete\", so the ASCII \"delete\"
+    substring is absent and contains misses — the call passes through. Not a real
+    evasion (the gateway routes on the exact registered name), but it documents
+    the substring boundary. Allow."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "airtable-dеlete_records"
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - marketing
+    payload:
+      name: "airtable-dеlete_records"
+      args:
+        baseId: app0123456789
+        tableId: tbl0123456789
+  output:
+    expectedResult: allow
+- description: "Red-team fail-closed branch: groups is a well-formed but EMPTY array
+    ([]). is_array passes but `some group in groups` has nothing to iterate, so the
+    admin membership check fails closed for a delete — deny."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-delete_records
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups: []
+    payload:
+      name: airtable-delete_records
+      args:
+        baseId: app0123456789
+        tableId: tbl0123456789
+        recordIds:
+          - rec0000000000001
+  output:
+    expectedResult: deny
+    expectedReason: "This Airtable deletion is blocked because deletions over MCP are irreversible at the API level: delete_records permanently removes rows by record ID (only Airtable's revision history or trash can restore them) and delete_page permanently removes an interface page. Make intentional deletions in the Airtable web UI instead, where they can be reviewed and undone. If you believe this block is a false positive, ask your Airtable admin to add you to the airtable-admins group."
+- description: "Red-team fail-closed branch: claims itself is a non-object (a bare
+    string), not { groups: [...] }. object.get(claims, \"groups\", []) yields the
+    default [], is_array passes, membership fails — deny for a delete."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-delete_records
+      uri: null
+    subject:
+      sub: user@example.com
+      claims: airtable-admins
+    payload:
+      name: airtable-delete_records
+      args:
+        baseId: app0123456789
+        tableId: tbl0123456789
+        recordIds:
+          - rec0000000000001
+  output:
+    expectedResult: deny
+    expectedReason: "This Airtable deletion is blocked because deletions over MCP are irreversible at the API level: delete_records permanently removes rows by record ID (only Airtable's revision history or trash can restore them) and delete_page permanently removes an interface page. Make intentional deletions in the Airtable web UI instead, where they can be reviewed and undone. If you believe this block is a false positive, ask your Airtable admin to add you to the airtable-admins group."
+- description: "Red-team admin grant with noisy claim: groups is a valid array where
+    the admin string sits beside a non-string sibling ([123, \"airtable-admins\"]).
+    is_array passes and exact string equality still finds the admin entry — allow.
+    Confirms the is_array guard does not over-restrict a genuine admin."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-delete_records
+      uri: null
+    subject:
+      sub: admin@example.com
+      claims:
+        groups:
+          - 123
+          - airtable-admins
+    payload:
+      name: airtable-delete_records
+      args:
+        baseId: app0123456789
+        tableId: tbl0123456789
+        recordIds:
+          - rec0000000000001
+  output:
+    expectedResult: allow
+- description: "Red-team claim spoofing (nested array): groups is an array whose one
+    element is itself an array carrying the admin name ([[\"airtable-admins\"]]).
+    is_array passes on the outer array, but `some group in groups` yields the inner
+    ARRAY, which is not the string \"airtable-admins\", so the admin branch fails
+    closed — deny. Complements the array-of-objects and object-groups spoof cases."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-delete_records
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - - airtable-admins
+    payload:
+      name: airtable-delete_records
+      args:
+        baseId: app0123456789
+        tableId: tbl0123456789
+        recordIds:
+          - rec0000000000001
+  output:
+    expectedResult: deny
+    expectedReason: "This Airtable deletion is blocked because deletions over MCP are irreversible at the API level: delete_records permanently removes rows by record ID (only Airtable's revision history or trash can restore them) and delete_page permanently removes an interface page. Make intentional deletions in the Airtable web UI instead, where they can be reviewed and undone. If you believe this block is a false positive, ask your Airtable admin to add you to the airtable-admins group."
+- description: "Red-team very-long-name (regex/DoS surface per gate §10): the tool
+    name is a long string with the marker \"delete\" embedded in the middle.
+    Matching is pure `contains` (no regex, so no catastrophic backtracking); the
+    substring is still found — deny for non-admin. Confirms long strings do not
+    evade or hang the match."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "airtable-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa_delete_records_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - marketing
+    payload:
+      name: "airtable-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa_delete_records_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      args:
+        baseId: app0123456789
+        tableId: tbl0123456789
+  output:
+    expectedResult: deny
+    expectedReason: "This Airtable deletion is blocked because deletions over MCP are irreversible at the API level: delete_records permanently removes rows by record ID (only Airtable's revision history or trash can restore them) and delete_page permanently removes an interface page. Make intentional deletions in the Airtable web UI instead, where they can be reviewed and undone. If you believe this block is a false positive, ask your Airtable admin to add you to the airtable-admins group."
+- description: "Red-team fail-closed branch (regression lock): subject itself is a
+    non-object (a bare string), not { claims: {...} }. object.get(input.subject,
+    \"claims\", {}) resolves against a non-object and yields no admin, so the
+    membership check fails closed for a delete — deny. Complements the
+    claims-is-a-string case (which keeps subject an object)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-delete_records
+      uri: null
+    subject: airtable-admins
+    payload:
+      name: airtable-delete_records
+      args:
+        baseId: app0123456789
+        tableId: tbl0123456789
+        recordIds:
+          - rec0000000000001
+  output:
+    expectedResult: deny
+    expectedReason: "This Airtable deletion is blocked because deletions over MCP are irreversible at the API level: delete_records permanently removes rows by record ID (only Airtable's revision history or trash can restore them) and delete_page permanently removes an interface page. Make intentional deletions in the Airtable web UI instead, where they can be reviewed and undone. If you believe this block is a false positive, ask your Airtable admin to add you to the airtable-admins group."
+- description: "Red-team admin-gate exactness (regression lock): a group whose name
+    only differs from the admin group by CASE (\"Airtable-Admins\") does NOT match.
+    `group == admin_group` is exact, case-sensitive string equality, so a caller in
+    a look-alike group is not exempted — deny. Locks in that a case-insensitive
+    \"fix\" to the membership check would be a security downgrade."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-delete_records
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - Airtable-Admins
+    payload:
+      name: airtable-delete_records
+      args:
+        baseId: app0123456789
+        tableId: tbl0123456789
+        recordIds:
+          - rec0000000000001
+  output:
+    expectedResult: deny
+    expectedReason: "This Airtable deletion is blocked because deletions over MCP are irreversible at the API level: delete_records permanently removes rows by record ID (only Airtable's revision history or trash can restore them) and delete_page permanently removes an interface page. Make intentional deletions in the Airtable web UI instead, where they can be reviewed and undone. If you believe this block is a false positive, ask your Airtable admin to add you to the airtable-admins group."
+- description: "Red-team envelope-shape (regression lock): resource is delivered as
+    a bare STRING (not an object) but payload.name still carries a real
+    delete_records. The resource object.get chain collapses to \"\", yet the
+    independent payload branch matches — deny for a non-admin. Confirms the freeze
+    survives a malformed resource block as long as payload.name is populated (the
+    gateway invariant for every tool_pre_invoke)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource: airtable-delete_records
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - marketing
+    payload:
+      name: airtable-delete_records
+      args:
+        baseId: app0123456789
+        tableId: tbl0123456789
+        recordIds:
+          - rec0000000000001
+  output:
+    expectedResult: deny
+    expectedReason: "This Airtable deletion is blocked because deletions over MCP are irreversible at the API level: delete_records permanently removes rows by record ID (only Airtable's revision history or trash can restore them) and delete_page permanently removes an interface page. Make intentional deletions in the Airtable web UI instead, where they can be reviewed and undone. If you believe this block is a false positive, ask your Airtable admin to add you to the airtable-admins group."
+- description: "Red-team envelope-shape residual (DOCUMENTED, not fixed): resource is
+    a non-object bare string AND payload carries no name at all, so BOTH name
+    chains collapse to \"\" and no recognizable tool name is present — the
+    pass-through branch fails open and the call is allowed. Not attacker-reachable
+    on a correct gateway (payload.name is always set for a tool_pre_invoke); locks
+    in the documented envelope-shape assumption and points to PF-28 as the closed
+    backstop. Allow."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource: airtable-delete_records
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - marketing
+    payload:
+      args:
+        baseId: app0123456789
+        tableId: tbl0123456789
+  output:
+    expectedResult: allow
+- description: "Red-team admin-gate exactness (regression lock): a group that
+    CONTAINS the admin name as a substring (\"airtable-admins-readonly\") does NOT
+    match. Membership is exact equality, not substring/prefix, so a look-alike
+    group name grants no exemption — deny for a delete."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: airtable-delete_records
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - airtable-admins-readonly
+    payload:
+      name: airtable-delete_records
+      args:
+        baseId: app0123456789
+        tableId: tbl0123456789
+        recordIds:
+          - rec0000000000001
+  output:
+    expectedResult: deny
+    expectedReason: "This Airtable deletion is blocked because deletions over MCP are irreversible at the API level: delete_records permanently removes rows by record ID (only Airtable's revision history or trash can restore them) and delete_page permanently removes an interface page. Make intentional deletions in the Airtable web UI instead, where they can be reviewed and undone. If you believe this block is a false positive, ask your Airtable admin to add you to the airtable-admins group."
+- description: "Red-team envelope-shape residual (DOCUMENTED, not fixed): BOTH name
+    fields are present but carry non-string values — resource.name is a number (42)
+    and payload.name is an array. Each coerces to \"\" via the non-string name_of
+    branch, so is_destructive_tool is undefined and the pass-through branch fails
+    OPEN even though the args are delete-shaped (recordIds present). Confirms the
+    fail-open trigger is 'both names coerce to empty' — not only the
+    bare-string-resource + missing-payload-name path. Not attacker-reachable on a
+    correct gateway (a call routed to delete_records must carry the string tool
+    name somewhere); PF-28 is the closed backstop. Allow."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: 42
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - marketing
+    payload:
+      name:
+        - malformed
+      args:
+        baseId: app0123456789
+        tableId: tbl0123456789
+        recordIds:
+          - rec0000000000001
+  output:
+    expectedResult: allow

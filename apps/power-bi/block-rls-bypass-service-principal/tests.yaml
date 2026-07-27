@@ -1,0 +1,414 @@
+- description: Named user (idtyp=user) runs ExecuteQuery — RLS applies, allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: powerbi-mcp-ExecuteQuery
+      uri: null
+    subject:
+      claims:
+        idtyp: user
+        upn: alice@corp.com
+    payload:
+      name: powerbi-mcp-ExecuteQuery
+      args:
+        modelId: 11111111-1111-1111-1111-111111111111
+        query: EVALUATE TOPN(10, 'Sales')
+  output:
+    expectedResult: allow
+- description: Named user identified by upn only (no idtyp claim forwarded) — allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: powerbi-mcp-ValueSearch
+      uri: null
+    subject:
+      claims:
+        upn: bob@corp.com
+    payload:
+      name: powerbi-mcp-ValueSearch
+      args:
+        searchTerm: acme
+  output:
+    expectedResult: allow
+- description: Named user identified by email only — allow (execute_dax community tool).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: community-execute_dax
+      uri: null
+    subject:
+      claims:
+        email: carol@corp.com
+    payload:
+      name: community-execute_dax
+      args:
+        dax_query: EVALUATE TOPN(5, 'Orders')
+  output:
+    expectedResult: allow
+- description: Non-query tool under a service-principal (app) token passes through — this policy governs only the query surfaces.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: powerbi-mcp-GetSemanticModelSchema
+      uri: null
+    subject:
+      claims:
+        idtyp: app
+    payload:
+      name: powerbi-mcp-GetSemanticModelSchema
+      args: {}
+  output:
+    expectedResult: allow
+- description: Service-principal (idtyp=app) runs ExecuteQuery — RLS not enforced, deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: powerbi-mcp-ExecuteQuery
+      uri: null
+    subject:
+      claims:
+        idtyp: app
+        oid: 22222222-2222-2222-2222-222222222222
+        appid: 33333333-3333-3333-3333-333333333333
+    payload:
+      name: powerbi-mcp-ExecuteQuery
+      args:
+        query: EVALUATE 'Customers'
+  output:
+    expectedResult: deny
+    expectedReason: Power BI does not enforce row-level security (RLS) under service-principal authentication, so this read/query would return every RLS role's data. Run Power BI query tools (ExecuteQuery, ValueSearch, execute_dax, dax_query_operations) under an interactive Entra user identity instead of an app/service-principal token. Ask your data-governance team for an exception if this service principal is intentionally scoped.
+- description: Uppercase tool name under app token still matched (case-insensitive) — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: POWERBI-MCP-EXECUTEQUERY
+      uri: null
+    subject:
+      claims:
+        idtyp: APP
+    payload:
+      name: POWERBI-MCP-EXECUTEQUERY
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: Power BI does not enforce row-level security (RLS) under service-principal authentication, so this read/query would return every RLS role's data. Run Power BI query tools (ExecuteQuery, ValueSearch, execute_dax, dax_query_operations) under an interactive Entra user identity instead of an app/service-principal token. Ask your data-governance team for an exception if this service principal is intentionally scoped.
+- description: App token that also carries a upn (spoof surface) — explicit app token still wins, deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: modeling-dax_query_operations
+      uri: null
+    subject:
+      claims:
+        idtyp: app
+        upn: svc-bi@corp.com
+    payload:
+      name: modeling-dax_query_operations
+      args:
+        operation: execute
+        dax: EVALUATE 'Sales'
+  output:
+    expectedResult: deny
+    expectedReason: Power BI does not enforce row-level security (RLS) under service-principal authentication, so this read/query would return every RLS role's data. Run Power BI query tools (ExecuteQuery, ValueSearch, execute_dax, dax_query_operations) under an interactive Entra user identity instead of an app/service-principal token. Ask your data-governance team for an exception if this service principal is intentionally scoped.
+- description: Ambiguous identity — empty claims, no user signal — fails closed, deny (desktop_execute_dax matches execute_dax suffix).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: community-desktop_execute_dax
+      uri: null
+    subject:
+      claims: {}
+    payload:
+      name: community-desktop_execute_dax
+      args:
+        dax_query: EVALUATE 'Sales'
+  output:
+    expectedResult: deny
+    expectedReason: This session's identity could not be confirmed as a named Entra user (no user token-type or upn/email claim), so this RLS-sensitive Power BI read/query is denied rather than risk a silent row-level-security bypass. Re-authenticate with an interactive user identity, or confirm the gateway forwards the Entra token-type and upn/email claims. Contact your data-governance team if this is a false positive.
+- description: Ambiguous identity — oid present but no idtyp and no upn/email (app-style token without token-type claim) — fails closed, deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: powerbi-mcp-ValueSearch
+      uri: null
+    subject:
+      claims:
+        oid: 44444444-4444-4444-4444-444444444444
+        appid: 55555555-5555-5555-5555-555555555555
+    payload:
+      name: powerbi-mcp-ValueSearch
+      args:
+        searchTerm: ssn
+  output:
+    expectedResult: deny
+    expectedReason: This session's identity could not be confirmed as a named Entra user (no user token-type or upn/email claim), so this RLS-sensitive Power BI read/query is denied rather than risk a silent row-level-security bypass. Re-authenticate with an interactive user identity, or confirm the gateway forwards the Entra token-type and upn/email claims. Contact your data-governance team if this is a false positive.
+- description: Missing subject entirely on a query tool — object.get degrades to {}, fails closed, deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: modeling-dax_query_operations
+      uri: null
+    payload:
+      name: modeling-dax_query_operations
+      args:
+        operation: execute
+        dax: EVALUATE 'Payroll'
+  output:
+    expectedResult: deny
+    expectedReason: This session's identity could not be confirmed as a named Entra user (no user token-type or upn/email claim), so this RLS-sensitive Power BI read/query is denied rather than risk a silent row-level-security bypass. Re-authenticate with an interactive user identity, or confirm the gateway forwards the Entra token-type and upn/email claims. Contact your data-governance team if this is a false positive.
+- description: Non-query tool with no identity at all — still allowed (out of this policy's scope).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: powerbi-mcp-DiscoverArtifacts
+      uri: null
+    payload:
+      name: powerbi-mcp-DiscoverArtifacts
+      args: {}
+  output:
+    expectedResult: allow
+- description: 'Red-team: non-string idtyp (numeric) on a query tool with no user principal — must not collapse to fail-open; idtyp string-normalizes to "" and fails closed, deny.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: powerbi-mcp-ExecuteQuery
+      uri: null
+    subject:
+      claims:
+        idtyp: 123
+    payload:
+      name: powerbi-mcp-ExecuteQuery
+      args:
+        query: EVALUATE 'Customers'
+  output:
+    expectedResult: deny
+    expectedReason: This session's identity could not be confirmed as a named Entra user (no user token-type or upn/email claim), so this RLS-sensitive Power BI read/query is denied rather than risk a silent row-level-security bypass. Re-authenticate with an interactive user identity, or confirm the gateway forwards the Entra token-type and upn/email claims. Contact your data-governance team if this is a false positive.
+- description: 'Red-team: non-string idtyp (boolean true) on a query tool, no user principal — fails closed, deny.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: powerbi-mcp-ExecuteQuery
+      uri: null
+    subject:
+      claims:
+        idtyp: true
+    payload:
+      name: powerbi-mcp-ExecuteQuery
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: This session's identity could not be confirmed as a named Entra user (no user token-type or upn/email claim), so this RLS-sensitive Power BI read/query is denied rather than risk a silent row-level-security bypass. Re-authenticate with an interactive user identity, or confirm the gateway forwards the Entra token-type and upn/email claims. Contact your data-governance team if this is a false positive.
+- description: 'Red-team: whitespace-only upn spoof (" ") with no idtyp on a query tool — not a valid principal (no "@"), fails closed, deny.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: powerbi-mcp-ExecuteQuery
+      uri: null
+    subject:
+      claims:
+        upn: ' '
+    payload:
+      name: powerbi-mcp-ExecuteQuery
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: This session's identity could not be confirmed as a named Entra user (no user token-type or upn/email claim), so this RLS-sensitive Power BI read/query is denied rather than risk a silent row-level-security bypass. Re-authenticate with an interactive user identity, or confirm the gateway forwards the Entra token-type and upn/email claims. Contact your data-governance team if this is a false positive.
+- description: 'Red-team: non-string upn spoof (0) with no idtyp on a query tool — not a string principal, fails closed, deny.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: powerbi-mcp-ValueSearch
+      uri: null
+    subject:
+      claims:
+        upn: 0
+    payload:
+      name: powerbi-mcp-ValueSearch
+      args:
+        searchTerm: ssn
+  output:
+    expectedResult: deny
+    expectedReason: This session's identity could not be confirmed as a named Entra user (no user token-type or upn/email claim), so this RLS-sensitive Power BI read/query is denied rather than risk a silent row-level-security bypass. Re-authenticate with an interactive user identity, or confirm the gateway forwards the Entra token-type and upn/email claims. Contact your data-governance team if this is a false positive.
+- description: 'Regression: valid email principal with a non-string idtyp still allowed (named user preserved after hardening).'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: community-execute_dax
+      uri: null
+    subject:
+      claims:
+        idtyp: 123
+        email: dave@corp.com
+    payload:
+      name: community-execute_dax
+      args:
+        dax_query: EVALUATE TOPN(5, 'Orders')
+  output:
+    expectedResult: allow
+- description: 'Red-team (F1 fixed): resource.name absent, tool identified only via payload.name under an app token — must still match the query tool and deny (was fail-open allow).'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    payload:
+      name: powerbi-mcp-ExecuteQuery
+      args:
+        query: EVALUATE 'Customers'
+    subject:
+      claims:
+        idtyp: app
+  output:
+    expectedResult: deny
+    expectedReason: Power BI does not enforce row-level security (RLS) under service-principal authentication, so this read/query would return every RLS role's data. Run Power BI query tools (ExecuteQuery, ValueSearch, execute_dax, dax_query_operations) under an interactive Entra user identity instead of an app/service-principal token. Ask your data-governance team for an exception if this service principal is intentionally scoped.
+- description: 'Red-team (F1 fixed): non-string resource.name (123) with payload.name query tool under app token — considers payload.name, deny (was fail-open allow).'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: 123
+      uri: null
+    payload:
+      name: powerbi-mcp-ExecuteQuery
+      args: {}
+    subject:
+      claims:
+        idtyp: app
+  output:
+    expectedResult: deny
+    expectedReason: Power BI does not enforce row-level security (RLS) under service-principal authentication, so this read/query would return every RLS role's data. Run Power BI query tools (ExecuteQuery, ValueSearch, execute_dax, dax_query_operations) under an interactive Entra user identity instead of an app/service-principal token. Ask your data-governance team for an exception if this service principal is intentionally scoped.
+- description: 'Regression (F1): resource.name absent, payload.name query tool, named user — payload.name match must not break the allow path.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    payload:
+      name: powerbi-mcp-ExecuteQuery
+      args:
+        query: EVALUATE TOPN(10, 'Sales')
+    subject:
+      claims:
+        idtyp: user
+        upn: alice@corp.com
+  output:
+    expectedResult: allow
+- description: 'Red-team (F2 fixed): claims forwarded as a non-object string on a query tool — must degrade to {} and fail closed, deny (was fail-open allow).'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: powerbi-mcp-ExecuteQuery
+      uri: null
+    subject:
+      claims: idtyp=user upn=x@y.com
+    payload:
+      name: powerbi-mcp-ExecuteQuery
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: This session's identity could not be confirmed as a named Entra user (no user token-type or upn/email claim), so this RLS-sensitive Power BI read/query is denied rather than risk a silent row-level-security bypass. Re-authenticate with an interactive user identity, or confirm the gateway forwards the Entra token-type and upn/email claims. Contact your data-governance team if this is a false positive.
+- description: 'Red-team (F2 fixed): claims forwarded as an array on a query tool — non-object degrades to {}, fails closed, deny.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: powerbi-mcp-ValueSearch
+      uri: null
+    subject:
+      claims:
+        - idtyp
+        - user
+    payload:
+      name: powerbi-mcp-ValueSearch
+      args:
+        searchTerm: ssn
+  output:
+    expectedResult: deny
+    expectedReason: This session's identity could not be confirmed as a named Entra user (no user token-type or upn/email claim), so this RLS-sensitive Power BI read/query is denied rather than risk a silent row-level-security bypass. Re-authenticate with an interactive user identity, or confirm the gateway forwards the Entra token-type and upn/email claims. Contact your data-governance team if this is a false positive.
+- description: 'Red-team (F2 fixed): subject forwarded as a non-object string on a query tool — subject guard degrades to {}, fails closed, deny.'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: powerbi-mcp-ExecuteQuery
+      uri: null
+    subject: not-an-object
+    payload:
+      name: powerbi-mcp-ExecuteQuery
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: This session's identity could not be confirmed as a named Entra user (no user token-type or upn/email claim), so this RLS-sensitive Power BI read/query is denied rather than risk a silent row-level-security bypass. Re-authenticate with an interactive user identity, or confirm the gateway forwards the Entra token-type and upn/email claims. Contact your data-governance team if this is a false positive.
+- description: 'Documented scope (F4): adjacent community read tool analyze_query_performance is NOT gated by this policy — allowed even under an app token (companion policies cover it).'
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: community-analyze_query_performance
+      uri: null
+    subject:
+      claims:
+        idtyp: app
+    payload:
+      name: community-analyze_query_performance
+      args:
+        dax_query: EVALUATE 'Sales'
+  output:
+    expectedResult: allow

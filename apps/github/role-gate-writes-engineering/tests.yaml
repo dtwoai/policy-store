@@ -1,0 +1,534 @@
+# Least-privilege baseline for the GitHub MCP connector.
+# allow branches:   (a) is_engineering -> any tool;  (b) not is_gated_write_tool -> reads + ungated tools for all.
+# deny branch:       gated write suffix AND caller not in `engineering` (fails closed on missing/empty groups).
+
+# --- allow via "not is_gated_write_tool": read tools for everyone (no identity) ---
+
+- description: Read tool (get_file_contents) with no identity — allowed for everyone.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-get_file_contents
+      uri: null
+    payload:
+      name: github-mcp-get_file_contents
+      args:
+        owner: acme
+        repo: web
+        path: README.md
+  output:
+    expectedResult: allow
+
+- description: Consolidated read tool (pull_request_read) — `*_read` suffix is not gated, allowed for everyone.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-pull_request_read
+      uri: null
+    payload:
+      name: github-mcp-pull_request_read
+      args:
+        owner: acme
+        repo: web
+        method: get_diff
+  output:
+    expectedResult: allow
+
+- description: Search tool (search_code) with no identity — allowed for everyone.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-search_code
+      uri: null
+    payload:
+      name: github-mcp-search_code
+      args:
+        query: TODO in:file
+  output:
+    expectedResult: allow
+
+- description: Ungated write (merge_pull_request) — intentionally NOT gated by the baseline (owned by the merge policy); allowed here for a non-engineer.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-merge_pull_request
+      uri: null
+    subject:
+      sub: google-apps|sales@acme.ai
+      claims:
+        groups:
+          - sales
+    payload:
+      name: github-mcp-merge_pull_request
+      args:
+        owner: acme
+        repo: web
+        pullNumber: 7
+  output:
+    expectedResult: allow
+
+- description: Ungated write (mark_all_notifications_read) — ends in `_read` but is not in the gated set; allowed for a non-engineer (documented limitation).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-mark_all_notifications_read
+      uri: null
+    subject:
+      sub: google-apps|sales@acme.ai
+      claims:
+        groups:
+          - sales
+    payload:
+      name: github-mcp-mark_all_notifications_read
+      args: {}
+  output:
+    expectedResult: allow
+
+# --- allow via "is_engineering": gated writes permitted for engineering group ---
+
+- description: Gated write (push_files) by an engineering-group caller — allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-push_files
+      uri: null
+    subject:
+      sub: google-apps|dev@acme.ai
+      claims:
+        groups:
+          - engineering
+          - oncall
+    payload:
+      name: github-mcp-push_files
+      args:
+        owner: acme
+        repo: web
+        branch: main
+  output:
+    expectedResult: allow
+
+- description: Gated write (delete_file) by a caller whose group is "Engineering" — case-insensitive match, allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-delete_file
+      uri: null
+    subject:
+      sub: google-apps|dev@acme.ai
+      claims:
+        groups:
+          - Engineering
+    payload:
+      name: github-mcp-delete_file
+      args:
+        owner: acme
+        repo: web
+        path: old.txt
+        branch: main
+  output:
+    expectedResult: allow
+
+- description: Read tool by an engineering caller — allowed (both allow branches hold).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-list_commits
+      uri: null
+    subject:
+      sub: google-apps|dev@acme.ai
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: github-mcp-list_commits
+      args:
+        owner: acme
+        repo: web
+  output:
+    expectedResult: allow
+
+# --- deny: gated write by a non-engineering / unauthenticated caller ---
+
+- description: Gated write (create_or_update_file) with no identity claims — fails closed, denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-create_or_update_file
+      uri: null
+    payload:
+      name: github-mcp-create_or_update_file
+      args:
+        owner: acme
+        repo: web
+        path: app.py
+        branch: main
+        content: "..."
+        message: edit
+  output:
+    expectedResult: deny
+    expectedReason: "Access denied: `github-mcp-create_or_update_file` is a write or destructive GitHub tool restricted to the `engineering` IdP group. Read tools (get_*, list_*, search_*, *_read) remain available to everyone. Ask an admin to add you to the `engineering` group, or contact your platform team if this is a false positive."
+
+- description: Gated write (issue_write) by a caller in groups that do not include engineering — denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-issue_write
+      uri: null
+    subject:
+      sub: google-apps|sales@acme.ai
+      claims:
+        groups:
+          - sales
+          - marketing
+    payload:
+      name: github-mcp-issue_write
+      args:
+        method: create
+        owner: acme
+        repo: web
+  output:
+    expectedResult: deny
+    expectedReason: "Access denied: `github-mcp-issue_write` is a write or destructive GitHub tool restricted to the `engineering` IdP group. Read tools (get_*, list_*, search_*, *_read) remain available to everyone. Ask an admin to add you to the `engineering` group, or contact your platform team if this is a false positive."
+
+- description: Gated write (create_gist) with an empty groups array — fails closed, denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-create_gist
+      uri: null
+    subject:
+      sub: google-apps|sales@acme.ai
+      claims:
+        groups: []
+    payload:
+      name: github-mcp-create_gist
+      args:
+        description: notes
+  output:
+    expectedResult: deny
+
+- description: Gated write (sub_issue_write) by a non-engineer — covered by the issue_write suffix; denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-sub_issue_write
+      uri: null
+    subject:
+      sub: google-apps|pm@acme.ai
+      claims:
+        groups:
+          - product
+    payload:
+      name: github-mcp-sub_issue_write
+      args:
+        method: add
+  output:
+    expectedResult: deny
+    expectedReason: "Access denied: `github-mcp-sub_issue_write` is a write or destructive GitHub tool restricted to the `engineering` IdP group. Read tools (get_*, list_*, search_*, *_read) remain available to everyone. Ask an admin to add you to the `engineering` group, or contact your platform team if this is a false positive."
+
+- description: Gated write (actions_run_trigger) by a non-engineer — CI trigger denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-actions_run_trigger
+      uri: null
+    subject:
+      sub: google-apps|sales@acme.ai
+      claims:
+        groups:
+          - sales
+    payload:
+      name: github-mcp-actions_run_trigger
+      args:
+        owner: acme
+        repo: web
+  output:
+    expectedResult: deny
+
+- description: Gated write (create_pull_request_with_copilot) by a non-engineer — autonomous-agent handoff denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-create_pull_request_with_copilot
+      uri: null
+    subject:
+      sub: google-apps|sales@acme.ai
+      claims:
+        groups:
+          - sales
+    payload:
+      name: github-mcp-create_pull_request_with_copilot
+      args:
+        owner: acme
+        repo: web
+  output:
+    expectedResult: deny
+
+- description: Archived community server granular write (create_issue) by a non-engineer — denied (brownfield coverage).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-server-create_issue
+      uri: null
+    subject:
+      sub: google-apps|sales@acme.ai
+      claims:
+        groups:
+          - sales
+    payload:
+      name: github-server-create_issue
+      args:
+        owner: acme
+        repo: web
+        title: bug
+  output:
+    expectedResult: deny
+    expectedReason: "Access denied: `github-server-create_issue` is a write or destructive GitHub tool restricted to the `engineering` IdP group. Read tools (get_*, list_*, search_*, *_read) remain available to everyone. Ask an admin to add you to the `engineering` group, or contact your platform team if this is a false positive."
+
+- description: Missing subject entirely on a gated write (push_files) — fails closed, denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-push_files
+      uri: null
+    payload:
+      name: github-mcp-push_files
+      args:
+        owner: acme
+        repo: web
+        branch: main
+  output:
+    expectedResult: deny
+
+- description: Upper-cased gated write name (CREATE_BRANCH) by a non-engineer — case-insensitive suffix match, denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: GITHUB-MCP-CREATE_BRANCH
+      uri: null
+    subject:
+      sub: google-apps|sales@acme.ai
+      claims:
+        groups:
+          - sales
+    payload:
+      name: GITHUB-MCP-CREATE_BRANCH
+      args:
+        owner: acme
+        repo: web
+        branch: feature
+  output:
+    expectedResult: deny
+
+# --- red-team: writes that previously slipped past the suffix set (now gated) ---
+
+- description: Red-team — update_pull_request_branch by a non-engineer. Sibling of the gated update_pull_request; endswith("update_pull_request_branch","update_pull_request") is false, so it was previously allowed. Now gated, denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-update_pull_request_branch
+      uri: null
+    subject:
+      sub: google-apps|sales@acme.ai
+      claims:
+        groups:
+          - sales
+    payload:
+      name: github-mcp-update_pull_request_branch
+      args:
+        owner: acme
+        repo: web
+        pullNumber: 7
+  output:
+    expectedResult: deny
+    expectedReason: "Access denied: `github-mcp-update_pull_request_branch` is a write or destructive GitHub tool restricted to the `engineering` IdP group. Read tools (get_*, list_*, search_*, *_read) remain available to everyone. Ask an admin to add you to the `engineering` group, or contact your platform team if this is a false positive."
+
+- description: Red-team — add_comment_to_pending_review by a non-engineer. PR-review write not covered by add_issue_comment; previously allowed. Now gated, denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-add_comment_to_pending_review
+      uri: null
+    subject:
+      sub: google-apps|sales@acme.ai
+      claims:
+        groups:
+          - sales
+    payload:
+      name: github-mcp-add_comment_to_pending_review
+      args:
+        owner: acme
+        repo: web
+  output:
+    expectedResult: deny
+
+- description: Red-team — add_reply_to_pull_request_comment by a non-engineer. PR review-comment write; add_issue_comment suffix does not cover it; previously allowed. Now gated, denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-add_reply_to_pull_request_comment
+      uri: null
+    subject:
+      sub: google-apps|sales@acme.ai
+      claims:
+        groups:
+          - sales
+    payload:
+      name: github-mcp-add_reply_to_pull_request_comment
+      args:
+        owner: acme
+        repo: web
+  output:
+    expectedResult: deny
+
+- description: Red-team — update_pull_request_branch by an engineer is still allowed (fix does not over-block engineers).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-update_pull_request_branch
+      uri: null
+    subject:
+      sub: google-apps|dev@acme.ai
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: github-mcp-update_pull_request_branch
+      args:
+        owner: acme
+        repo: web
+        pullNumber: 7
+  output:
+    expectedResult: allow
+
+- description: Red-team — discussion_comment_write by a non-engineer. Public/watcher-visible content write; not covered by add_issue_comment or any other suffix; previously allowed. Now gated, denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-discussion_comment_write
+      uri: null
+    subject:
+      sub: google-apps|sales@acme.ai
+      claims:
+        groups:
+          - sales
+    payload:
+      name: github-mcp-discussion_comment_write
+      args:
+        method: create
+        owner: acme
+        repo: web
+  output:
+    expectedResult: deny
+    expectedReason: "Access denied: `github-mcp-discussion_comment_write` is a write or destructive GitHub tool restricted to the `engineering` IdP group. Read tools (get_*, list_*, search_*, *_read) remain available to everyone. Ask an admin to add you to the `engineering` group, or contact your platform team if this is a false positive."
+
+- description: Red-team — discussion_comment_write by an engineer is still allowed (fix does not over-block engineers).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-discussion_comment_write
+      uri: null
+    subject:
+      sub: google-apps|dev@acme.ai
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: github-mcp-discussion_comment_write
+      args:
+        method: create
+        owner: acme
+        repo: web
+  output:
+    expectedResult: allow
+
+- description: Red-team — manage_repository_notification_subscription by a non-engineer. Documented low-risk passthrough (notification-subscription family, intentionally ungated); allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-manage_repository_notification_subscription
+      uri: null
+    subject:
+      sub: google-apps|sales@acme.ai
+      claims:
+        groups:
+          - sales
+    payload:
+      name: github-mcp-manage_repository_notification_subscription
+      args:
+        owner: acme
+        repo: web
+  output:
+    expectedResult: allow

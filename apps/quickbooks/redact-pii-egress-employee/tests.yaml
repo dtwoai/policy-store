@@ -1,0 +1,480 @@
+# Egress transform policy (default allow := true) — allow is always true; the
+# meaningful assertions are transformApplied / the transform object. Cases cover
+# every rule branch: all four in-scope tools, each tool-name surface (resource,
+# tool_metadata, payload), both is_egress branches (mode, action-only), all three
+# exemption forms (array / bare-string / case-insensitive), fail-closed on missing
+# claims and missing subject, out-of-scope tool, the ingress guard, and the
+# red-team group-claim shapes (object-map, nested array).
+
+# --- In scope, non-exempt: transform emitted (asserted field-by-field once) ---
+
+- description: Employee read, non-exempt caller (sales) — transform emitted with the full redact instruction.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: quickbooks-mcp-get_employee
+      uri: null
+    subject:
+      sub: auth0|u1
+      claims:
+        groups:
+          - sales
+    payload:
+      name: quickbooks-mcp-get_employee
+      text:
+        - '{"Employee":{"SSN":"123-45-6789","PrimaryAddr":{"Line1":"1 Main St"}}}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transform:
+    redact_fields:
+      - SSN
+      - PrimaryAddr
+      - BillRate
+      - TaxIdentifier
+      - AcctNum
+      - BankAccountNumber
+      - BankBranchIdentifier
+      - VendorPaymentBankDetail
+    redact_patterns:
+      - '\b\d{3}-\d{2}-\d{4}\b'
+      - '\b\d{2}-\d{7}\b'
+    replacement: "[REDACTED]"
+
+- description: search_employees read, non-exempt caller — in scope, transform emitted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: quickbooks-mcp-search_employees
+      uri: null
+    subject:
+      sub: auth0|u2
+      claims:
+        groups:
+          - eng
+    payload:
+      name: quickbooks-mcp-search_employees
+      text:
+        - '{"Employee":[{"SSN":"078-05-1120"}]}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+
+- description: get_vendor read, non-exempt caller — Vendor tax-ID/bank surface in scope, transform emitted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: quickbooks-mcp-get_vendor
+      uri: null
+    subject:
+      sub: auth0|u3
+      claims:
+        groups:
+          - marketing
+    payload:
+      name: quickbooks-mcp-get_vendor
+      text:
+        - '{"Vendor":{"TaxIdentifier":"12-3456789"}}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+
+- description: search_vendors read, non-exempt caller — in scope, transform emitted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: quickbooks-mcp-search_vendors
+      uri: null
+    subject:
+      sub: auth0|u4
+      claims:
+        groups:
+          - support
+    payload:
+      name: quickbooks-mcp-search_vendors
+      text:
+        - '{"Vendor":[{"AcctNum":"9911"}]}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+
+# --- Tool-name surface coverage ---
+
+- description: Tool name only under tool_metadata.name (resource.name empty) — still matched via the fallback surface.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: ""
+      uri: null
+    tool_metadata:
+      name: qbo-prod-get_employee
+    subject:
+      sub: auth0|u5
+      claims:
+        groups:
+          - eng
+    payload:
+      name: qbo-prod-get_employee
+      text:
+        - '{"Employee":{"SSN":"111-22-3333"}}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+
+- description: "Tool name present only under payload.name (resource.name empty, no tool_metadata) — payload.name is a candidate surface, so in scope."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: ""
+      uri: null
+    subject:
+      sub: auth0|u6
+      claims:
+        groups:
+          - eng
+    payload:
+      name: quickbooks-mcp-get_vendor
+      text:
+        - '{"Vendor":{"TaxIdentifier":"98-7654321"}}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+
+- description: "Egress with action=tool_post_invoke but mode unset — is_egress still matches on action, so redaction fires (no fail-open leak)."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    resource:
+      type: tool
+      name: quickbooks-mcp-get_employee
+      uri: null
+    subject:
+      sub: auth0|u7
+      claims:
+        groups:
+          - eng
+    payload:
+      name: quickbooks-mcp-get_employee
+      text:
+        - '{"Employee":{"SSN":"123-45-6789"}}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+
+# --- Exempt callers: no transform ---
+
+- description: Exempt caller (groups array contains hr) — response passes through unredacted, no transform.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: quickbooks-mcp-get_employee
+      uri: null
+    subject:
+      sub: auth0|u8
+      claims:
+        groups:
+          - hr
+    payload:
+      name: quickbooks-mcp-get_employee
+      text:
+        - '{"Employee":{"SSN":"123-45-6789"}}'
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Exempt caller with a bare-string groups claim (finance) — the string branch matches, no transform.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: quickbooks-mcp-get_vendor
+      uri: null
+    subject:
+      sub: auth0|u9
+      claims:
+        groups: finance
+    payload:
+      name: quickbooks-mcp-get_vendor
+      text:
+        - '{"Vendor":{"TaxIdentifier":"12-3456789"}}'
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Group name matching is case-insensitive — uppercase HR is exempt, no transform.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: quickbooks-mcp-get_employee
+      uri: null
+    subject:
+      sub: auth0|u10
+      claims:
+        groups:
+          - Staff
+          - HR
+    payload:
+      name: quickbooks-mcp-get_employee
+      text:
+        - '{"Employee":{"SSN":"123-45-6789"}}'
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+# --- Fail-closed on identity ---
+
+- description: Fail closed for the grant — subject has claims but no groups claim, so the caller is not exempt and redaction applies.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: quickbooks-mcp-get_employee
+      uri: null
+    subject:
+      sub: auth0|u11
+      claims:
+        scope: openid profile
+    payload:
+      name: quickbooks-mcp-get_employee
+      text:
+        - '{"Employee":{"SSN":"123-45-6789"}}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+
+- description: "Fail closed — no subject at all: the object.get chain yields no groups, caller is not exempt, redaction applies."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: quickbooks-mcp-get_vendor
+      uri: null
+    payload:
+      name: quickbooks-mcp-get_vendor
+      text:
+        - '{"Vendor":{"TaxIdentifier":"12-3456789"}}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+
+# --- Out of scope: no transform ---
+
+- description: Out-of-scope tool (get_customer is not one of the four targeted name-entities) — no transform even with an SSN-shaped value present.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: quickbooks-mcp-get_customer
+      uri: null
+    subject:
+      sub: auth0|u12
+      claims:
+        groups:
+          - eng
+    payload:
+      name: quickbooks-mcp-get_customer
+      text:
+        - '{"Customer":{"Notes":"ref 123-45-6789"}}'
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Ingress hook (mode input) is never in scope — the same tool produces no transform on the pre-invoke path.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: quickbooks-mcp-get_employee
+      uri: null
+    subject:
+      sub: auth0|u13
+      claims:
+        groups:
+          - eng
+    payload:
+      name: quickbooks-mcp-get_employee
+      args:
+        employee_id: "42"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+# --- Red-team regression cases (reviewer, standards §10) ---
+
+- description: "Red-team: object-shaped groups claim {department: finance} must NOT grant the exemption — is_array guard fails it closed, so redaction still applies."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: quickbooks-mcp-get_employee
+      uri: null
+    subject:
+      sub: auth0|u14
+      claims:
+        groups:
+          department: finance
+    payload:
+      name: quickbooks-mcp-get_employee
+      text:
+        - '{"Employee":{"SSN":"123-45-6789"}}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+
+- description: "Red-team: nested-array groups [[hr]] is not a flat array of strings — is_string(g) fails, caller not exempt, redaction applies."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: quickbooks-mcp-get_vendor
+      uri: null
+    subject:
+      sub: auth0|u15
+      claims:
+        groups:
+          - - hr
+    payload:
+      name: quickbooks-mcp-get_vendor
+      text:
+        - '{"Vendor":{"TaxIdentifier":"12-3456789"}}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+
+# Reviewer red-team: scope-of-redaction bypasses. Both are DOCUMENTED limitations
+# (see Known limitations) — these cases lock the current behaviour so a future
+# edit that silently narrows/widens scope is caught.
+
+- description: "Red-team (documented limitation): an EIN-shaped identifier returned by get_company_info — an out-of-scope read tool — is NOT masked. Field- and pattern-redaction fire only for the four name-entity tools, so the transform is never emitted and the same identifier escapes via reports / company-info / attachable reads."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: quickbooks-mcp-get_company_info
+      uri: null
+    subject:
+      sub: auth0|u16
+      claims:
+        groups:
+          - eng
+    payload:
+      name: quickbooks-mcp-get_company_info
+      text:
+        - '{"CompanyInfo":{"CompanyName":"Acme","LegalName":"Acme LLC","Note":"owner EIN 12-3456789"}}'
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Red-team (FIXED): egress signalled only by the legacy `kind` field (action and mode both absent) — an older gateway near the minimum version may populate only `kind`. is_egress must still match on `kind`, so redaction fires and PII does not leak. Before the fix this returned transformApplied=false (fail-open leak)."
+  input:
+    kind: tool_post_invoke
+    resource:
+      type: tool
+      name: quickbooks-mcp-get_employee
+      uri: null
+    subject:
+      sub: auth0|u18
+      claims:
+        groups:
+          - eng
+    payload:
+      name: quickbooks-mcp-get_employee
+      text:
+        - '{"Employee":{"SSN":"123-45-6789"}}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+
+- description: "Red-team (documented limitation): the archived hvkshetry `party` mega-tool carries the verb in an `operation` argument, so an Employee read arrives as tool name `party` (party_type=Employee). It ends with none of the four suffixes, so no transform is emitted and the SSN in the response is NOT masked. Locks the documented parameterized-server gap so a future suffix edit that silently claims to cover it is caught."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: quickbooks-mcp-party
+      uri: null
+    subject:
+      sub: auth0|u19
+      claims:
+        groups:
+          - eng
+    payload:
+      name: quickbooks-mcp-party
+      text:
+        - '{"party_type":"Employee","Employee":{"SSN":"123-45-6789"}}'
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Red-team (documented limitation): a non-exempt Employee read whose only sensitive fields are contact PII (PrimaryEmailAddr / Mobile / BirthDate). The transform fires, but redact_fields is scoped to high-value identifiers only — email, phone, and DOB are absent from the list and match neither the SSN nor the EIN pattern, so they pass through. This asserts the exact field set to guard against silent scope drift."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: quickbooks-mcp-get_employee
+      uri: null
+    subject:
+      sub: auth0|u17
+      claims:
+        groups:
+          - eng
+    payload:
+      name: quickbooks-mcp-get_employee
+      text:
+        - '{"Employee":{"PrimaryEmailAddr":{"Address":"jane@example.com"},"Mobile":{"FreeFormNumber":"555-1212"},"BirthDate":"1990-01-01"}}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transform:
+    redact_fields:
+      - SSN
+      - PrimaryAddr
+      - BillRate
+      - TaxIdentifier
+      - AcctNum
+      - BankAccountNumber
+      - BankBranchIdentifier
+      - VendorPaymentBankDetail

@@ -1,0 +1,544 @@
+- description: Remote read tool (search_crm_objects) with a non-writer caller.
+    Reads pass for everyone — allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: hubspot-remote-search_crm_objects
+      uri: null
+    subject:
+      sub: auth0|reader@example.com
+      claims:
+        groups:
+          - support
+    payload:
+      name: hubspot-remote-search_crm_objects
+      args:
+        objectType: contacts
+        query: acme
+  output:
+    expectedResult: allow
+- description: Local-beta read tool (hubspot-list-objects) with no identity at
+    all. Reads pass even without claims — allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: hubspot-list-objects
+      uri: null
+    payload:
+      name: hubspot-list-objects
+      args:
+        objectType: deals
+  output:
+    expectedResult: allow
+- description: Shinzo read tool (crm_search_contacts) with a non-writer caller —
+    allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: hubspot-shinzo-crm_search_contacts
+      uri: null
+    subject:
+      sub: auth0|reader@example.com
+      claims:
+        groups:
+          - support
+    payload:
+      name: hubspot-shinzo-crm_search_contacts
+      args:
+        query: jane
+  output:
+    expectedResult: allow
+- description: Shinzo batch READ (calls_batch_read) must not be caught by the
+    calls_* write suffixes — allow for a non-writer.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: hubspot-shinzo-calls_batch_read
+      uri: null
+    subject:
+      sub: auth0|reader@example.com
+      claims:
+        groups:
+          - support
+    payload:
+      name: hubspot-shinzo-calls_batch_read
+      args:
+        inputs:
+          - id: "101"
+  output:
+    expectedResult: allow
+- description: RED-TEAM (documented fail-open) — baryhuang community server write
+    (hubspot_create_contact) is not in the verified suffix list, so a non-writer's
+    create is ALLOWED. Codifies the "baryhuang not covered" Known limitation; run a
+    destructive/community deny policy alongside this one if you use that server.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: hubspot-bary-hubspot_create_contact
+      uri: null
+    subject:
+      sub: auth0|reader@example.com
+      claims:
+        groups:
+          - support
+    payload:
+      name: hubspot-bary-hubspot_create_contact
+      args:
+        properties:
+          email: jane@example.com
+  output:
+    expectedResult: allow
+- description: RED-TEAM (documented fail-open) — shinzo destructive tool
+    (crm_archive_object) is intentionally NOT gated as a write, so a non-writer's
+    archive is ALLOWED. Codifies the "destructive tools not listed — block with a
+    dedicated deny policy" Known limitation.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: hubspot-shinzo-crm_archive_object
+      uri: null
+    subject:
+      sub: auth0|reader@example.com
+      claims:
+        groups:
+          - support
+    payload:
+      name: hubspot-shinzo-crm_archive_object
+      args:
+        objectType: contacts
+        id: "101"
+  output:
+    expectedResult: allow
+- description: RED-TEAM (documented fail-open) — shinzo consent-destructive tool
+    (communications_unsubscribe_contact) is not on the write list, so a non-writer's
+    unsubscribe is ALLOWED. Codifies the documented residual; pair with a
+    destructive-suffix deny policy to close it.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: hubspot-shinzo-communications_unsubscribe_contact
+      uri: null
+    subject:
+      sub: auth0|reader@example.com
+      claims:
+        groups:
+          - support
+    payload:
+      name: hubspot-shinzo-communications_unsubscribe_contact
+      args:
+        contactEmail: jane@example.com
+        subscriptionId: "77"
+  output:
+    expectedResult: allow
+- description: RED-TEAM (fail-closed) — claims emitted as a bare string instead of an
+    object. object.get chain resolves groups to [] and the write is denied even
+    though the string value equals crm-writers. No claim-spoofing via malformed claims.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: hubspot-remote-manage_crm_objects
+      uri: null
+    subject:
+      sub: auth0|writer@example.com
+      claims: crm-writers
+    payload:
+      name: hubspot-remote-manage_crm_objects
+      args:
+        objectType: contacts
+  output:
+    expectedResult: deny
+    expectedReason: HubSpot write tools are limited to members of the 'crm-writers' group — your HubSpot access through the agent channel is read-only. If you believe this is a false positive, ask your administrator to add you to the writers group.
+- description: RED-TEAM (fail-closed) — groups claim emitted as a number (not a list
+    of strings). Not iterable, caller_is_writer never fires, write is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: hubspot-remote-manage_crm_objects
+      uri: null
+    subject:
+      sub: auth0|writer@example.com
+      claims:
+        groups: 5
+    payload:
+      name: hubspot-remote-manage_crm_objects
+      args:
+        objectType: contacts
+  output:
+    expectedResult: deny
+    expectedReason: HubSpot write tools are limited to members of the 'crm-writers' group — your HubSpot access through the agent channel is read-only. If you believe this is a false positive, ask your administrator to add you to the writers group.
+- description: RED-TEAM (blocklist edge) — resource.name absent entirely. The
+    name-only write detector is undefined, so the request is treated as a non-write
+    and allowed. Documents the blocklist model's behavior on nameless calls.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      uri: null
+    subject:
+      sub: auth0|reader@example.com
+      claims:
+        groups:
+          - support
+    payload:
+      args:
+        objectType: contacts
+  output:
+    expectedResult: allow
+- description: Remote write tool (manage_crm_objects) with a caller in the
+    crm-writers group — allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: hubspot-remote-manage_crm_objects
+      uri: null
+    subject:
+      sub: auth0|writer@example.com
+      claims:
+        groups:
+          - sales
+          - crm-writers
+    payload:
+      name: hubspot-remote-manage_crm_objects
+      args:
+        objectType: contacts
+  output:
+    expectedResult: allow
+- description: Remote submit_feedback with a crm-writers member — allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: hubspot-remote-submit_feedback
+      uri: null
+    subject:
+      sub: auth0|writer@example.com
+      claims:
+        groups:
+          - crm-writers
+    payload:
+      name: hubspot-remote-submit_feedback
+      args:
+        feedback: great tool
+  output:
+    expectedResult: allow
+- description: Local-beta write (hubspot-create-engagement) with a crm-writers
+    member — allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: hubspot-create-engagement
+      uri: null
+    subject:
+      sub: auth0|writer@example.com
+      claims:
+        groups:
+          - crm-writers
+    payload:
+      name: hubspot-create-engagement
+      args:
+        type: NOTE
+  output:
+    expectedResult: allow
+- description: Remote write tool (manage_crm_objects) with a caller outside the
+    writers group — deny with the read-only reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: hubspot-remote-manage_crm_objects
+      uri: null
+    subject:
+      sub: auth0|reader@example.com
+      claims:
+        groups:
+          - support
+          - engineering
+    payload:
+      name: hubspot-remote-manage_crm_objects
+      args:
+        objectType: contacts
+  output:
+    expectedResult: deny
+    expectedReason: HubSpot write tools are limited to members of the 'crm-writers' group — your HubSpot access through the agent channel is read-only. If you believe this is a false positive, ask your administrator to add you to the writers group.
+- description: Write tool with no subject block at all (no IdP identity) —
+    fail-closed deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: hubspot-remote-manage_crm_objects
+      uri: null
+    payload:
+      name: hubspot-remote-manage_crm_objects
+      args:
+        objectType: deals
+  output:
+    expectedResult: deny
+    expectedReason: HubSpot write tools are limited to members of the 'crm-writers' group — your HubSpot access through the agent channel is read-only. If you believe this is a false positive, ask your administrator to add you to the writers group.
+- description: Write tool with claims present but no groups claim — fail-closed
+    deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: hubspot-remote-manage_crm_objects
+      uri: null
+    subject:
+      sub: auth0|reader@example.com
+      claims:
+        org_id: org_abc123
+    payload:
+      name: hubspot-remote-manage_crm_objects
+      args:
+        objectType: contacts
+  output:
+    expectedResult: deny
+    expectedReason: HubSpot write tools are limited to members of the 'crm-writers' group — your HubSpot access through the agent channel is read-only. If you believe this is a false positive, ask your administrator to add you to the writers group.
+- description: Groups claim emitted as a single string instead of an array —
+    not iterable, fail-closed deny even though the value equals crm-writers.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: hubspot-remote-manage_crm_objects
+      uri: null
+    subject:
+      sub: auth0|writer@example.com
+      claims:
+        groups: crm-writers
+    payload:
+      name: hubspot-remote-manage_crm_objects
+      args:
+        objectType: contacts
+  output:
+    expectedResult: deny
+    expectedReason: HubSpot write tools are limited to members of the 'crm-writers' group — your HubSpot access through the agent channel is read-only. If you believe this is a false positive, ask your administrator to add you to the writers group.
+- description: Group comparison is exact and case-sensitive — a caller in
+    CRM-Writers (wrong case) is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: hubspot-remote-manage_crm_objects
+      uri: null
+    subject:
+      sub: auth0|writer@example.com
+      claims:
+        groups:
+          - CRM-Writers
+    payload:
+      name: hubspot-remote-manage_crm_objects
+      args:
+        objectType: contacts
+  output:
+    expectedResult: deny
+    expectedReason: HubSpot write tools are limited to members of the 'crm-writers' group — your HubSpot access through the agent channel is read-only. If you believe this is a false positive, ask your administrator to add you to the writers group.
+- description: Tool-name matching is case-insensitive — mixed-case
+    Manage_CRM_Objects from a non-writer is still denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: HubSpot-Remote-Manage_CRM_Objects
+      uri: null
+    subject:
+      sub: auth0|reader@example.com
+      claims:
+        groups:
+          - support
+    payload:
+      name: HubSpot-Remote-Manage_CRM_Objects
+      args:
+        objectType: contacts
+  output:
+    expectedResult: deny
+    expectedReason: HubSpot write tools are limited to members of the 'crm-writers' group — your HubSpot access through the agent channel is read-only. If you believe this is a false positive, ask your administrator to add you to the writers group.
+- description: Kebab-case remote variant (hubspot-manage-crm-objects, the name
+    the earlier read-only policy matched) from a non-writer — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: hubspot-manage-crm-objects
+      uri: null
+    subject:
+      sub: auth0|reader@example.com
+      claims:
+        groups:
+          - support
+    payload:
+      name: hubspot-manage-crm-objects
+      args:
+        objectType: contacts
+  output:
+    expectedResult: deny
+    expectedReason: HubSpot write tools are limited to members of the 'crm-writers' group — your HubSpot access through the agent channel is read-only. If you believe this is a false positive, ask your administrator to add you to the writers group.
+- description: Local-beta batch write (hubspot-batch-update-objects) from a
+    non-writer — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: hubspot-batch-update-objects
+      uri: null
+    subject:
+      sub: auth0|reader@example.com
+      claims:
+        groups:
+          - support
+    payload:
+      name: hubspot-batch-update-objects
+      args:
+        objectType: contacts
+        inputs:
+          - id: "42"
+            properties:
+              lifecyclestage: customer
+  output:
+    expectedResult: deny
+    expectedReason: HubSpot write tools are limited to members of the 'crm-writers' group — your HubSpot access through the agent channel is read-only. If you believe this is a false positive, ask your administrator to add you to the writers group.
+- description: Shinzo per-type batch write (crm_batch_create_contacts) from a
+    non-writer — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: hubspot-shinzo-crm_batch_create_contacts
+      uri: null
+    subject:
+      sub: auth0|reader@example.com
+      claims:
+        groups:
+          - support
+    payload:
+      name: hubspot-shinzo-crm_batch_create_contacts
+      args:
+        inputs:
+          - properties:
+              email: jane@example.com
+  output:
+    expectedResult: deny
+    expectedReason: HubSpot write tools are limited to members of the 'crm-writers' group — your HubSpot access through the agent channel is read-only. If you believe this is a false positive, ask your administrator to add you to the writers group.
+- description: Shinzo consent-state mutation
+    (communications_update_subscription_status) from a non-writer — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: hubspot-shinzo-communications_update_subscription_status
+      uri: null
+    subject:
+      sub: auth0|reader@example.com
+      claims:
+        groups:
+          - support
+    payload:
+      name: hubspot-shinzo-communications_update_subscription_status
+      args:
+        contactEmail: jane@example.com
+        subscriptionId: "77"
+  output:
+    expectedResult: deny
+    expectedReason: HubSpot write tools are limited to members of the 'crm-writers' group — your HubSpot access through the agent channel is read-only. If you believe this is a false positive, ask your administrator to add you to the writers group.
+- description: Shinzo wildcard property write (*_create_property, here
+    crm_create_property) from a non-writer — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: hubspot-shinzo-crm_create_property
+      uri: null
+    subject:
+      sub: auth0|reader@example.com
+      claims:
+        groups:
+          - support
+    payload:
+      name: hubspot-shinzo-crm_create_property
+      args:
+        name: custom_field
+  output:
+    expectedResult: deny
+    expectedReason: HubSpot write tools are limited to members of the 'crm-writers' group — your HubSpot access through the agent channel is read-only. If you believe this is a false positive, ask your administrator to add you to the writers group.
+- description: Shinzo engagement write (tasks_update) from a crm-writers
+    member — allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: hubspot-shinzo-tasks_update
+      uri: null
+    subject:
+      sub: auth0|writer@example.com
+      claims:
+        groups:
+          - crm-writers
+    payload:
+      name: hubspot-shinzo-tasks_update
+      args:
+        id: "9"
+        properties:
+          hs_task_subject: follow up
+  output:
+    expectedResult: allow

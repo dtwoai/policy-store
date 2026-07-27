@@ -1,0 +1,665 @@
+# Tier 1 (irreversible) reason and Tier 2 (admin-gated) reason are each stable
+# strings; anchored on the deny cases below.
+- description: Read tool (get_board_items_page) outside both destructive tiers,
+    caller has no claims at all. Pass-through allow branch.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-get_board_items_page
+      uri: null
+    payload:
+      name: monday-get_board_items_page
+      args:
+        boardId: 123456789
+  output:
+    expectedResult: allow
+- description: Non-destructive write (create_item) is not gated. Policy should
+    allow even for a non-admin.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-create_item
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - marketing
+    payload:
+      name: monday-create_item
+      args:
+        boardId: 123456789
+        name: New lead
+  output:
+    expectedResult: allow
+- description: Non-destructive schema write (manage_object_schema_columns) is a
+    near-miss for the delete_object_schema_columns suffix but the tail differs
+    (manage_ vs delete_), so it is NOT frozen. Allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-manage_object_schema_columns
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - marketing
+    payload:
+      name: monday-manage_object_schema_columns
+      args:
+        schemaId: "s1"
+  output:
+    expectedResult: allow
+- description: Non-destructive comment write (create_update) does not end with the
+    delete_update suffix, so it is not gated. Allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-create_update
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - marketing
+    payload:
+      name: monday-create_update
+      args:
+        itemId: 456
+        body: nice work
+  output:
+    expectedResult: allow
+
+# --- Tier 2: recycle-bin-recoverable, admin-gated ---
+- description: Official delete_item by a non-admin. delete_item suffix matches
+    Tier 2. Deny with the admin-gate reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-delete_item
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - marketing
+    payload:
+      name: monday-delete_item
+      args:
+        itemId: 456
+  output:
+    expectedResult: deny
+    expectedReason: "This monday deletion is blocked because delete/undo tools over MCP remove records an agent could destroy in error or under prompt injection: delete_item takes only an itemId with no confirmation, and delete_update, undo_action, and archive_item remove or reverse item data. These are recoverable from monday's recycle bin (~30 days) but still gated. Route this request through a member of your monday admin group (placeholder: monday-admins) instead. If you believe this block is a false positive, ask your InfoSec team to add you to that group."
+- description: Community monday_delete_item by a non-admin. Ends with delete_item,
+    so the same Tier 2 suffix catches it. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-monday_delete_item
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: monday-monday_delete_item
+      args:
+        itemId: 456
+  output:
+    expectedResult: deny
+    expectedReason: "This monday deletion is blocked because delete/undo tools over MCP remove records an agent could destroy in error or under prompt injection: delete_item takes only an itemId with no confirmation, and delete_update, undo_action, and archive_item remove or reverse item data. These are recoverable from monday's recycle bin (~30 days) but still gated. Route this request through a member of your monday admin group (placeholder: monday-admins) instead. If you believe this block is a false positive, ask your InfoSec team to add you to that group."
+- description: Community monday_archive_item by a non-admin. archive_item suffix
+    matches Tier 2. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-monday_archive_item
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - sales
+    payload:
+      name: monday-monday_archive_item
+      args:
+        itemId: 456
+  output:
+    expectedResult: deny
+    expectedReason: "This monday deletion is blocked because delete/undo tools over MCP remove records an agent could destroy in error or under prompt injection: delete_item takes only an itemId with no confirmation, and delete_update, undo_action, and archive_item remove or reverse item data. These are recoverable from monday's recycle bin (~30 days) but still gated. Route this request through a member of your monday admin group (placeholder: monday-admins) instead. If you believe this block is a false positive, ask your InfoSec team to add you to that group."
+- description: Official delete_update by a non-admin. delete_update suffix matches
+    Tier 2. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-delete_update
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - marketing
+    payload:
+      name: monday-delete_update
+      args:
+        updateId: 789
+  output:
+    expectedResult: deny
+    expectedReason: "This monday deletion is blocked because delete/undo tools over MCP remove records an agent could destroy in error or under prompt injection: delete_item takes only an itemId with no confirmation, and delete_update, undo_action, and archive_item remove or reverse item data. These are recoverable from monday's recycle bin (~30 days) but still gated. Route this request through a member of your monday admin group (placeholder: monday-admins) instead. If you believe this block is a false positive, ask your InfoSec team to add you to that group."
+- description: undo_action by a non-admin. undo_action suffix matches Tier 2. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-undo_action
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: monday-undo_action
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "This monday deletion is blocked because delete/undo tools over MCP remove records an agent could destroy in error or under prompt injection: delete_item takes only an itemId with no confirmation, and delete_update, undo_action, and archive_item remove or reverse item data. These are recoverable from monday's recycle bin (~30 days) but still gated. Route this request through a member of your monday admin group (placeholder: monday-admins) instead. If you believe this block is a false positive, ask your InfoSec team to add you to that group."
+- description: delete_item by a monday-admins member (among other groups). Admin
+    branch allows the Tier 2 call.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-delete_item
+      uri: null
+    subject:
+      sub: admin@example.com
+      claims:
+        groups:
+          - engineering
+          - monday-admins
+    payload:
+      name: monday-delete_item
+      args:
+        itemId: 456
+  output:
+    expectedResult: allow
+- description: undo_action by a monday-admins member. Admin branch allows.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-undo_action
+      uri: null
+    subject:
+      sub: admin@example.com
+      claims:
+        groups:
+          - monday-admins
+    payload:
+      name: monday-undo_action
+      args: {}
+  output:
+    expectedResult: allow
+
+# --- Tier 1: irreversible, no admin override ---
+- description: delete_column by a non-admin. Tier 1 suffix matches. Deny with the
+    irreversible reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-delete_column
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - marketing
+    payload:
+      name: monday-delete_column
+      args:
+        boardId: 123456789
+        columnId: status
+  output:
+    expectedResult: deny
+    expectedReason: "This monday operation is blocked for everyone: delete_column, delete_object_schema, and delete_object_schema_columns are irreversible and hit every item on the board (or a shared schema account-wide), and none of them route to the recycle bin. There is no admin override for these over MCP — make this structural change from the monday web UI, where it can be reviewed. If you believe this block is a false positive, contact your InfoSec team."
+- description: delete_column by a monday-admins member. Tier 1 has NO admin
+    override, so the admin is still denied with the irreversible reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-delete_column
+      uri: null
+    subject:
+      sub: admin@example.com
+      claims:
+        groups:
+          - monday-admins
+    payload:
+      name: monday-delete_column
+      args:
+        boardId: 123456789
+        columnId: status
+  output:
+    expectedResult: deny
+    expectedReason: "This monday operation is blocked for everyone: delete_column, delete_object_schema, and delete_object_schema_columns are irreversible and hit every item on the board (or a shared schema account-wide), and none of them route to the recycle bin. There is no admin override for these over MCP — make this structural change from the monday web UI, where it can be reviewed. If you believe this block is a false positive, contact your InfoSec team."
+- description: delete_object_schema by a non-admin. Tier 1 suffix matches. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-delete_object_schema
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - sales
+    payload:
+      name: monday-delete_object_schema
+      args:
+        schemaId: "s1"
+  output:
+    expectedResult: deny
+    expectedReason: "This monday operation is blocked for everyone: delete_column, delete_object_schema, and delete_object_schema_columns are irreversible and hit every item on the board (or a shared schema account-wide), and none of them route to the recycle bin. There is no admin override for these over MCP — make this structural change from the monday web UI, where it can be reviewed. If you believe this block is a false positive, contact your InfoSec team."
+- description: delete_object_schema_columns by a non-admin. Distinct Tier 1 suffix
+    (tail is _columns, not caught by delete_object_schema). Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-delete_object_schema_columns
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - marketing
+    payload:
+      name: monday-delete_object_schema_columns
+      args:
+        schemaId: "s1"
+  output:
+    expectedResult: deny
+    expectedReason: "This monday operation is blocked for everyone: delete_column, delete_object_schema, and delete_object_schema_columns are irreversible and hit every item on the board (or a shared schema account-wide), and none of them route to the recycle bin. There is no admin override for these over MCP — make this structural change from the monday web UI, where it can be reviewed. If you believe this block is a false positive, contact your InfoSec team."
+
+# --- Portability / case / fail-closed / red-team ---
+- description: Bare (unprefixed/local) official delete_item, non-admin. Suffix
+    match fires without a gateway prefix. Deny (Tier 2).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: delete_item
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - marketing
+    payload:
+      name: delete_item
+      args:
+        itemId: 456
+  output:
+    expectedResult: deny
+    expectedReason: "This monday deletion is blocked because delete/undo tools over MCP remove records an agent could destroy in error or under prompt injection: delete_item takes only an itemId with no confirmation, and delete_update, undo_action, and archive_item remove or reverse item data. These are recoverable from monday's recycle bin (~30 days) but still gated. Route this request through a member of your monday admin group (placeholder: monday-admins) instead. If you believe this block is a false positive, ask your InfoSec team to add you to that group."
+- description: Mixed-case tool name (Monday-Delete_Column) must still match — Tier 1
+    matching is case-insensitive. Deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: Monday-Delete_Column
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - marketing
+    payload:
+      name: Monday-Delete_Column
+      args:
+        boardId: 123456789
+        columnId: status
+  output:
+    expectedResult: deny
+    expectedReason: "This monday operation is blocked for everyone: delete_column, delete_object_schema, and delete_object_schema_columns are irreversible and hit every item on the board (or a shared schema account-wide), and none of them route to the recycle bin. There is no admin override for these over MCP — make this structural change from the monday web UI, where it can be reviewed. If you believe this block is a false positive, contact your InfoSec team."
+- description: delete_item with no subject block at all (no IdP claims reached the
+    gateway). Tier 2 fails closed — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-delete_item
+      uri: null
+    payload:
+      name: monday-delete_item
+      args:
+        itemId: 456
+  output:
+    expectedResult: deny
+    expectedReason: "This monday deletion is blocked because delete/undo tools over MCP remove records an agent could destroy in error or under prompt injection: delete_item takes only an itemId with no confirmation, and delete_update, undo_action, and archive_item remove or reverse item data. These are recoverable from monday's recycle bin (~30 days) but still gated. Route this request through a member of your monday admin group (placeholder: monday-admins) instead. If you believe this block is a false positive, ask your InfoSec team to add you to that group."
+- description: Claims present but the groups claim is missing entirely. Tier 2
+    fails closed — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-delete_item
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        org_id: org_abc123
+    payload:
+      name: monday-delete_item
+      args:
+        itemId: 456
+  output:
+    expectedResult: deny
+    expectedReason: "This monday deletion is blocked because delete/undo tools over MCP remove records an agent could destroy in error or under prompt injection: delete_item takes only an itemId with no confirmation, and delete_update, undo_action, and archive_item remove or reverse item data. These are recoverable from monday's recycle bin (~30 days) but still gated. Route this request through a member of your monday admin group (placeholder: monday-admins) instead. If you believe this block is a false positive, ask your InfoSec team to add you to that group."
+- description: "Placeholder-claim spoofing surface: groups is a bare string
+    (\"monday-admins\") instead of an array. Membership iteration over a string
+    fails closed — deny (Tier 2)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-delete_item
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups: monday-admins
+    payload:
+      name: monday-delete_item
+      args:
+        itemId: 456
+  output:
+    expectedResult: deny
+    expectedReason: "This monday deletion is blocked because delete/undo tools over MCP remove records an agent could destroy in error or under prompt injection: delete_item takes only an itemId with no confirmation, and delete_update, undo_action, and archive_item remove or reverse item data. These are recoverable from monday's recycle bin (~30 days) but still gated. Route this request through a member of your monday admin group (placeholder: monday-admins) instead. If you believe this block is a false positive, ask your InfoSec team to add you to that group."
+- description: "Red-team admin-gate fail-open (FIXED): groups claim is an OBJECT
+    whose values include the admin group name ({\"0\":\"monday-admins\"}). The
+    is_array guard forces this non-array shape to fail closed — deny (Tier 2)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-delete_item
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          "0": monday-admins
+    payload:
+      name: monday-delete_item
+      args:
+        itemId: 456
+  output:
+    expectedResult: deny
+    expectedReason: "This monday deletion is blocked because delete/undo tools over MCP remove records an agent could destroy in error or under prompt injection: delete_item takes only an itemId with no confirmation, and delete_update, undo_action, and archive_item remove or reverse item data. These are recoverable from monday's recycle bin (~30 days) but still gated. Route this request through a member of your monday admin group (placeholder: monday-admins) instead. If you believe this block is a false positive, ask your InfoSec team to add you to that group."
+- description: "Red-team type confusion: resource.name is a non-string (number)
+    while payload.name carries a real delete_column. Independent matching means
+    the malformed resource.name cannot suppress the Tier 1 match — deny."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: 42
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - marketing
+    payload:
+      name: monday-delete_column
+      args:
+        boardId: 123456789
+        columnId: status
+  output:
+    expectedResult: deny
+    expectedReason: "This monday operation is blocked for everyone: delete_column, delete_object_schema, and delete_object_schema_columns are irreversible and hit every item on the board (or a shared schema account-wide), and none of them route to the recycle bin. There is no admin override for these over MCP — make this structural change from the monday web UI, where it can be reviewed. If you believe this block is a false positive, contact your InfoSec team."
+- description: "Red-team type confusion: payload.name is a non-string (array)
+    while resource.name carries a real delete_item, non-admin. Independent
+    matching still catches the Tier 2 suffix — deny."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-delete_item
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - marketing
+    payload:
+      name:
+        - malformed
+      args:
+        itemId: 456
+  output:
+    expectedResult: deny
+    expectedReason: "This monday deletion is blocked because delete/undo tools over MCP remove records an agent could destroy in error or under prompt injection: delete_item takes only an itemId with no confirmation, and delete_update, undo_action, and archive_item remove or reverse item data. These are recoverable from monday's recycle bin (~30 days) but still gated. Route this request through a member of your monday admin group (placeholder: monday-admins) instead. If you believe this block is a false positive, ask your InfoSec team to add you to that group."
+- description: "Red-team suffix evasion (FIXED): delete_item padded with a trailing
+    newline (monday-delete_item\\n). trim_space strips it before endswith, so the
+    Tier 2 suffix still matches — deny for non-admin."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "monday-delete_item\n"
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - marketing
+    payload:
+      name: "monday-delete_item\n"
+      args:
+        itemId: 456
+  output:
+    expectedResult: deny
+    expectedReason: "This monday deletion is blocked because delete/undo tools over MCP remove records an agent could destroy in error or under prompt injection: delete_item takes only an itemId with no confirmation, and delete_update, undo_action, and archive_item remove or reverse item data. These are recoverable from monday's recycle bin (~30 days) but still gated. Route this request through a member of your monday admin group (placeholder: monday-admins) instead. If you believe this block is a false positive, ask your InfoSec team to add you to that group."
+- description: "Red-team near-miss: a plural bulk name ending in delete_items does
+    NOT end with the delete_item suffix, so it is not gated by this policy (a
+    documented limitation — cover with a batch/write or PF-28 policy). Allow."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-bulk_delete_items
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - marketing
+    payload:
+      name: monday-bulk_delete_items
+      args:
+        itemIds: []
+  output:
+    expectedResult: allow
+- description: "Red-team escape-hatch bypass (DOCUMENTED, out of scope): the GraphQL
+    passthrough all_monday_api carries a delete mutation in its opaque query string.
+    Its tool name ends in no destructive suffix, so this policy passes it through
+    (allow). This is the residual called out in Known limitations — compose the
+    PF-22 deny-escape-hatches policy to close it."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-all_monday_api
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - marketing
+    payload:
+      name: monday-all_monday_api
+      args:
+        query: "mutation { delete_item (item_id: 456) { id } }"
+  output:
+    expectedResult: allow
+- description: "Red-team escape-hatch bypass (DOCUMENTED, out of scope): all_api_write
+    variant of the GraphQL passthrough, likewise not caught by suffix matching. Allow
+    (residual — compose PF-22)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-all_api_write
+      uri: null
+    payload:
+      name: monday-all_api_write
+      args:
+        query: "mutation { delete_column }"
+  output:
+    expectedResult: allow
+- description: "Red-team unicode evasion (DOCUMENTED residual): delete_item padded
+    with a trailing zero-width space (U+200B). trim_space strips ASCII/Unicode
+    whitespace but NOT U+200B, so the suffix no longer matches and the call passes
+    through (allow). This is not a real evasion on a correctly configured gateway
+    (routing is on the exact registered tool name), but is regression-locked here per
+    the Known-limitations note; compose PF-28 if the invariant cannot be relied on."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "monday-delete_item​"
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - marketing
+    payload:
+      name: "monday-delete_item​"
+      args:
+        itemId: 456
+  output:
+    expectedResult: allow
+- description: "Red-team dual-tier admin (DEFENSE holds): resource.name carries a
+    Tier 1 verb (delete_column) while payload.name carries a Tier 2 verb
+    (delete_item), and the caller IS in monday-admins. The admin allow branch is
+    guarded by `not is_irreversible_tool`, so the Tier 1 match wins and the admin
+    group does NOT unlock the call — deny with the irreversible reason."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-delete_column
+      uri: null
+    subject:
+      sub: admin@example.com
+      claims:
+        groups:
+          - monday-admins
+    payload:
+      name: monday-delete_item
+      args:
+        itemId: 456
+  output:
+    expectedResult: deny
+    expectedReason: "This monday operation is blocked for everyone: delete_column, delete_object_schema, and delete_object_schema_columns are irreversible and hit every item on the board (or a shared schema account-wide), and none of them route to the recycle bin. There is no admin override for these over MCP — make this structural change from the monday web UI, where it can be reviewed. If you believe this block is a false positive, contact your InfoSec team."
+- description: "Red-team split-name smuggle (DEFENSE holds): a benign read name in
+    resource.name paired with a real delete_column in payload.name. Independent
+    matching of both fields means the benign resource.name cannot mask the Tier 1
+    payload verb — deny with the irreversible reason."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: monday-get_board_info
+      uri: null
+    subject:
+      sub: user@example.com
+      claims:
+        groups:
+          - marketing
+    payload:
+      name: monday-delete_column
+      args:
+        boardId: 123456789
+        columnId: status
+  output:
+    expectedResult: deny
+    expectedReason: "This monday operation is blocked for everyone: delete_column, delete_object_schema, and delete_object_schema_columns are irreversible and hit every item on the board (or a shared schema account-wide), and none of them route to the recycle bin. There is no admin override for these over MCP — make this structural change from the monday web UI, where it can be reviewed. If you believe this block is a false positive, contact your InfoSec team."

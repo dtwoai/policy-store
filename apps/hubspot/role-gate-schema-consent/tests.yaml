@@ -1,0 +1,409 @@
+- description: Read tool (shinzo communications_get_subscription_status) with no
+    identity — not gated, allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: hubspot-shinzo-communications_get_subscription_status
+      uri: null
+    payload:
+      name: hubspot-shinzo-communications_get_subscription_status
+      args:
+        contactEmail: jane@example.com
+  output:
+    expectedResult: allow
+- description: Ordinary record write (manage_crm_objects) by a crm-writer who is
+    not an admin — SoD preserved, this policy does not gate record writes, allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: hubspot-remote-manage_crm_objects
+      uri: null
+    subject:
+      sub: auth0|writer@example.com
+      claims:
+        groups:
+          - crm-writers
+    payload:
+      name: hubspot-remote-manage_crm_objects
+      args:
+        objectType: contacts
+  output:
+    expectedResult: allow
+- description: Irreversible unsubscribe (communications_unsubscribe_contact) by a
+    non-admin — NOT gated here (freeze-destructive-ops owns the hard deny), allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: hubspot-shinzo-communications_unsubscribe_contact
+      uri: null
+    subject:
+      sub: auth0|writer@example.com
+      claims:
+        groups:
+          - crm-writers
+    payload:
+      name: hubspot-shinzo-communications_unsubscribe_contact
+      args:
+        contactEmail: jane@example.com
+        subscriptionId: "77"
+  output:
+    expectedResult: allow
+- description: Local-beta schema tool (hubspot-create-property) by a hubspot-admins
+    member — allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: hubspot-create-property
+      uri: null
+    subject:
+      sub: auth0|admin@example.com
+      claims:
+        groups:
+          - hubspot-admins
+    payload:
+      name: hubspot-create-property
+      args:
+        name: custom_field
+        type: string
+  output:
+    expectedResult: allow
+- description: Shinzo wildcard schema stem (crm_create_property) by a hubspot-admins
+    member — allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: hubspot-shinzo-crm_create_property
+      uri: null
+    subject:
+      sub: auth0|admin@example.com
+      claims:
+        groups:
+          - hubspot-admins
+    payload:
+      name: hubspot-shinzo-crm_create_property
+      args:
+        name: custom_field
+  output:
+    expectedResult: allow
+- description: Red-team — shinzo wildcard UPDATE-property stem (crm_update_property)
+    by a non-admin. Editing a property definition is a portal-schema mutation; the
+    _update_property suffix must gate it just like _create_property. deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: hubspot-shinzo-crm_update_property
+      uri: null
+    subject:
+      sub: auth0|writer@example.com
+      claims:
+        groups:
+          - crm-writers
+    payload:
+      name: hubspot-shinzo-crm_update_property
+      args:
+        name: dealstage
+  output:
+    expectedResult: deny
+    expectedReason: "HubSpot property definitions are admin-owned: creating or editing them changes the portal schema for every user. Editing property definitions through the agent channel is limited to members of the 'hubspot-admins' group. Manage properties in HubSpot Settings > Properties, or ask an administrator to add you to that group if you believe this is a false positive."
+- description: Shinzo wildcard UPDATE-property stem (crm_update_property) by a
+    hubspot-admins member — allow (admin owns schema mutations).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: hubspot-shinzo-crm_update_property
+      uri: null
+    subject:
+      sub: auth0|admin@example.com
+      claims:
+        groups:
+          - hubspot-admins
+    payload:
+      name: hubspot-shinzo-crm_update_property
+      args:
+        name: dealstage
+  output:
+    expectedResult: allow
+- description: Consent tool (communications_update_subscription_status) by a
+    hubspot-admins member — allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: hubspot-shinzo-communications_update_subscription_status
+      uri: null
+    subject:
+      sub: auth0|admin@example.com
+      claims:
+        groups:
+          - hubspot-admins
+    payload:
+      name: hubspot-shinzo-communications_update_subscription_status
+      args:
+        contactEmail: jane@example.com
+        subscriptionId: "77"
+        status: SUBSCRIBED
+  output:
+    expectedResult: allow
+- description: Schema tool (hubspot-update-property) by a crm-writer who is not an
+    admin — deny with the schema reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: hubspot-update-property
+      uri: null
+    subject:
+      sub: auth0|writer@example.com
+      claims:
+        groups:
+          - crm-writers
+    payload:
+      name: hubspot-update-property
+      args:
+        name: dealstage
+  output:
+    expectedResult: deny
+    expectedReason: "HubSpot property definitions are admin-owned: creating or editing them changes the portal schema for every user. Editing property definitions through the agent channel is limited to members of the 'hubspot-admins' group. Manage properties in HubSpot Settings > Properties, or ask an administrator to add you to that group if you believe this is a false positive."
+- description: Shinzo wildcard schema stem (crm_create_property) by a non-admin —
+    deny with the schema reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: hubspot-shinzo-crm_create_property
+      uri: null
+    subject:
+      sub: auth0|writer@example.com
+      claims:
+        groups:
+          - crm-writers
+    payload:
+      name: hubspot-shinzo-crm_create_property
+      args:
+        name: custom_field
+  output:
+    expectedResult: deny
+    expectedReason: "HubSpot property definitions are admin-owned: creating or editing them changes the portal schema for every user. Editing property definitions through the agent channel is limited to members of the 'hubspot-admins' group. Manage properties in HubSpot Settings > Properties, or ask an administrator to add you to that group if you believe this is a false positive."
+- description: Consent tool (communications_update_subscription_status) by a
+    non-admin crm-writer — deny with the consent reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: hubspot-shinzo-communications_update_subscription_status
+      uri: null
+    subject:
+      sub: auth0|writer@example.com
+      claims:
+        groups:
+          - crm-writers
+    payload:
+      name: hubspot-shinzo-communications_update_subscription_status
+      args:
+        contactEmail: jane@example.com
+        subscriptionId: "77"
+        status: UNSUBSCRIBED
+  output:
+    expectedResult: deny
+    expectedReason: HubSpot marketing subscription and consent preferences are admin-owned because they carry GDPR/CAN-SPAM obligations. Changing them through the agent channel is limited to members of the 'hubspot-admins' group. Manage subscription types in HubSpot Settings > Marketing > Email > Subscription Types, or ask an administrator to add you to that group if you believe this is a false positive.
+- description: Consent tool (communications_update_preferences) by a non-admin —
+    deny with the consent reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: hubspot-shinzo-communications_update_preferences
+      uri: null
+    subject:
+      sub: auth0|writer@example.com
+      claims:
+        groups:
+          - crm-writers
+    payload:
+      name: hubspot-shinzo-communications_update_preferences
+      args:
+        contactEmail: jane@example.com
+        preferences:
+          marketing: false
+  output:
+    expectedResult: deny
+    expectedReason: HubSpot marketing subscription and consent preferences are admin-owned because they carry GDPR/CAN-SPAM obligations. Changing them through the agent channel is limited to members of the 'hubspot-admins' group. Manage subscription types in HubSpot Settings > Marketing > Email > Subscription Types, or ask an administrator to add you to that group if you believe this is a false positive.
+- description: Consent tool (communications_subscribe_contact) by a non-admin —
+    deny with the consent reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: hubspot-shinzo-communications_subscribe_contact
+      uri: null
+    subject:
+      sub: auth0|writer@example.com
+      claims:
+        groups:
+          - crm-writers
+    payload:
+      name: hubspot-shinzo-communications_subscribe_contact
+      args:
+        contactEmail: jane@example.com
+        subscriptionId: "77"
+  output:
+    expectedResult: deny
+    expectedReason: HubSpot marketing subscription and consent preferences are admin-owned because they carry GDPR/CAN-SPAM obligations. Changing them through the agent channel is limited to members of the 'hubspot-admins' group. Manage subscription types in HubSpot Settings > Marketing > Email > Subscription Types, or ask an administrator to add you to that group if you believe this is a false positive.
+- description: Schema tool with no subject block at all (no IdP identity) —
+    fail-closed deny with the schema reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: hubspot-create-property
+      uri: null
+    payload:
+      name: hubspot-create-property
+      args:
+        name: custom_field
+  output:
+    expectedResult: deny
+    expectedReason: "HubSpot property definitions are admin-owned: creating or editing them changes the portal schema for every user. Editing property definitions through the agent channel is limited to members of the 'hubspot-admins' group. Manage properties in HubSpot Settings > Properties, or ask an administrator to add you to that group if you believe this is a false positive."
+- description: Consent tool with claims present but no groups claim —
+    fail-closed deny with the consent reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: hubspot-shinzo-communications_update_preferences
+      uri: null
+    subject:
+      sub: auth0|writer@example.com
+      claims:
+        org_id: org_abc123
+    payload:
+      name: hubspot-shinzo-communications_update_preferences
+      args:
+        contactEmail: jane@example.com
+  output:
+    expectedResult: deny
+    expectedReason: HubSpot marketing subscription and consent preferences are admin-owned because they carry GDPR/CAN-SPAM obligations. Changing them through the agent channel is limited to members of the 'hubspot-admins' group. Manage subscription types in HubSpot Settings > Marketing > Email > Subscription Types, or ask an administrator to add you to that group if you believe this is a false positive.
+- description: Groups claim emitted as a single string instead of an array — not
+    iterable, fail-closed deny even though the value equals hubspot-admins.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: hubspot-create-property
+      uri: null
+    subject:
+      sub: auth0|admin@example.com
+      claims:
+        groups: hubspot-admins
+    payload:
+      name: hubspot-create-property
+      args:
+        name: custom_field
+  output:
+    expectedResult: deny
+    expectedReason: "HubSpot property definitions are admin-owned: creating or editing them changes the portal schema for every user. Editing property definitions through the agent channel is limited to members of the 'hubspot-admins' group. Manage properties in HubSpot Settings > Properties, or ask an administrator to add you to that group if you believe this is a false positive."
+- description: Group comparison is exact and case-sensitive — a caller in
+    HubSpot-Admins (wrong case) is denied on a schema tool.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: hubspot-create-property
+      uri: null
+    subject:
+      sub: auth0|admin@example.com
+      claims:
+        groups:
+          - HubSpot-Admins
+    payload:
+      name: hubspot-create-property
+      args:
+        name: custom_field
+  output:
+    expectedResult: deny
+    expectedReason: "HubSpot property definitions are admin-owned: creating or editing them changes the portal schema for every user. Editing property definitions through the agent channel is limited to members of the 'hubspot-admins' group. Manage properties in HubSpot Settings > Properties, or ask an administrator to add you to that group if you believe this is a false positive."
+- description: Tool-name matching is case-insensitive — mixed-case
+    HubSpot-Create-Property from a non-admin is still denied (schema reason).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: HubSpot-Create-Property
+      uri: null
+    subject:
+      sub: auth0|writer@example.com
+      claims:
+        groups:
+          - crm-writers
+    payload:
+      name: HubSpot-Create-Property
+      args:
+        name: custom_field
+  output:
+    expectedResult: deny
+    expectedReason: "HubSpot property definitions are admin-owned: creating or editing them changes the portal schema for every user. Editing property definitions through the agent channel is limited to members of the 'hubspot-admins' group. Manage properties in HubSpot Settings > Properties, or ask an administrator to add you to that group if you believe this is a false positive."
+- description: Kebab-case consent variant (communications-update-preferences) from
+    a non-admin — portability suffix matches, deny with the consent reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: hubspot-shinzo-communications-update-preferences
+      uri: null
+    subject:
+      sub: auth0|writer@example.com
+      claims:
+        groups:
+          - crm-writers
+    payload:
+      name: hubspot-shinzo-communications-update-preferences
+      args:
+        contactEmail: jane@example.com
+  output:
+    expectedResult: deny
+    expectedReason: HubSpot marketing subscription and consent preferences are admin-owned because they carry GDPR/CAN-SPAM obligations. Changing them through the agent channel is limited to members of the 'hubspot-admins' group. Manage subscription types in HubSpot Settings > Marketing > Email > Subscription Types, or ask an administrator to add you to that group if you believe this is a false positive.

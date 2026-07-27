@@ -1,0 +1,552 @@
+# Reason strings (kept verbatim for expectedReason assertions)
+# R_MISSING_QUERY:
+#   "This Salesforce query tool was called without a 'query' argument, so its scope cannot be verified and it is blocked. Provide the SOQL text you want to run. Contact your InfoSec team if this block is a false positive."
+# R_UNBOUNDED_PII:
+#   "SOQL reads from the Contact, Lead, or Account objects must include a trailing 'LIMIT' clause of 1000 rows or fewer to prevent bulk PII extraction. Add 'LIMIT 1000' (or lower) to the end of your query. Contact your InfoSec team if this block is a false positive."
+# R_SOSL_GROUP:
+#   "Org-wide Salesforce search (SOSL) scans every field across every object and is restricted to callers in the 'sales' or 'support' groups. Use a scoped SOQL query against a specific object instead, or ask a member of those groups to run the search. Contact your InfoSec team if this block is a false positive."
+# R_MISSING_SEARCH:
+#   "This Salesforce search tool was called without a 'search' argument, so it is blocked. Provide the SOSL search term you want to run. Contact your InfoSec team if this block is a false positive."
+
+- description: Non-governed Salesforce tool (createSobjectRecord) passes through untouched.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: salesforce-createSobjectRecord
+      uri: null
+    payload:
+      name: salesforce-createSobjectRecord
+      args:
+        sobject-name: Task
+        body:
+          Subject: Follow-up call
+  output:
+    expectedResult: allow
+
+- description: Non-Salesforce tool on the same gateway is untouched — allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-slack-post-message
+      uri: null
+    payload:
+      name: slack-mcp-slack-post-message
+      args:
+        channel: C0123456789
+        text: pipeline review at 3
+  output:
+    expectedResult: allow
+
+- description: SOQL against a non-PII object (Opportunity) with no LIMIT — out of scope, allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: salesforce-soql_query
+      uri: null
+    payload:
+      name: salesforce-soql_query
+      args:
+        query: SELECT Id, Amount, StageName FROM Opportunity WHERE IsClosed = false
+  output:
+    expectedResult: allow
+
+- description: SOQL PII read (Contact) with LIMIT 100 — bounded, allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: salesforce-soql_query
+      uri: null
+    payload:
+      name: salesforce-soql_query
+      args:
+        query: "SELECT Id, Name FROM Contact WHERE Title = 'CFO' LIMIT 100"
+  output:
+    expectedResult: allow
+
+- description: SOQL PII read (Account) at the LIMIT 1000 boundary — allowed (<= 1000).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: salesforce-querySobjects
+      uri: null
+    payload:
+      name: salesforce-querySobjects
+      args:
+        query: SELECT Id, Name FROM Account LIMIT 1000
+  output:
+    expectedResult: allow
+
+- description: SOQL PII read (Lead) with no LIMIT — unbounded, deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: salesforce-soql_query
+      uri: null
+    payload:
+      name: salesforce-soql_query
+      args:
+        query: SELECT Id, Email, Phone FROM Lead
+  output:
+    expectedResult: deny
+    expectedReason: "SOQL reads from the Contact, Lead, or Account objects must include a trailing 'LIMIT' clause of 1000 rows or fewer to prevent bulk PII extraction. Add 'LIMIT 1000' (or lower) to the end of your query. Contact your InfoSec team if this block is a false positive."
+
+- description: SOQL PII read (Contact) with LIMIT 5000 above the cap — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: salesforce-soql_query
+      uri: null
+    payload:
+      name: salesforce-soql_query
+      args:
+        query: SELECT Id, Email FROM Contact LIMIT 5000
+  output:
+    expectedResult: deny
+    expectedReason: "SOQL reads from the Contact, Lead, or Account objects must include a trailing 'LIMIT' clause of 1000 rows or fewer to prevent bulk PII extraction. Add 'LIMIT 1000' (or lower) to the end of your query. Contact your InfoSec team if this block is a false positive."
+
+- description: Matched SOQL tool with the query argument missing entirely — fails closed, deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: salesforce-salesforce_query_records
+      uri: null
+    payload:
+      name: salesforce-salesforce_query_records
+      args:
+        objectName: Contact
+  output:
+    expectedResult: deny
+    expectedReason: "This Salesforce query tool was called without a 'query' argument, so its scope cannot be verified and it is blocked. Provide the SOQL text you want to run. Contact your InfoSec team if this block is a false positive."
+
+- description: Lowercase SOQL (SOQL is case-insensitive) with a valid LIMIT — allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: salesforce-run_soql_query
+      uri: null
+    payload:
+      name: salesforce-run_soql_query
+      args:
+        query: select id, name from contact limit 50
+  output:
+    expectedResult: allow
+
+- description: Uppercase tool-name casing does not bypass the suffix match — PII read with no LIMIT is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: SALESFORCE-SOQL_QUERY
+      uri: null
+    payload:
+      name: SALESFORCE-SOQL_QUERY
+      args:
+        query: SELECT Id FROM Account
+  output:
+    expectedResult: deny
+    expectedReason: "SOQL reads from the Contact, Lead, or Account objects must include a trailing 'LIMIT' clause of 1000 rows or fewer to prevent bulk PII extraction. Add 'LIMIT 1000' (or lower) to the end of your query. Contact your InfoSec team if this block is a false positive."
+
+- description: Red-team — newline before an over-cap LIMIT still parsed and denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: salesforce-soql_query
+      uri: null
+    payload:
+      name: salesforce-soql_query
+      args:
+        query: "SELECT Id, Email FROM Lead\nLIMIT 9999"
+  output:
+    expectedResult: deny
+    expectedReason: "SOQL reads from the Contact, Lead, or Account objects must include a trailing 'LIMIT' clause of 1000 rows or fewer to prevent bulk PII extraction. Add 'LIMIT 1000' (or lower) to the end of your query. Contact your InfoSec team if this block is a false positive."
+
+- description: Red-team — LIMIT only inside a child subquery, outer Account read unbounded, deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: salesforce-soql_query
+      uri: null
+    payload:
+      name: salesforce-soql_query
+      args:
+        query: SELECT Id, (SELECT Id FROM Contacts LIMIT 5) FROM Account
+  output:
+    expectedResult: deny
+    expectedReason: "SOQL reads from the Contact, Lead, or Account objects must include a trailing 'LIMIT' clause of 1000 rows or fewer to prevent bulk PII extraction. Add 'LIMIT 1000' (or lower) to the end of your query. Contact your InfoSec team if this block is a false positive."
+
+- description: Red-team — LIMIT hidden in a WHERE string literal, no real cap, deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: salesforce-soql_query
+      uri: null
+    payload:
+      name: salesforce-soql_query
+      args:
+        query: "SELECT Id FROM Contact WHERE LastName = 'LIMIT 5'"
+  output:
+    expectedResult: deny
+    expectedReason: "SOQL reads from the Contact, Lead, or Account objects must include a trailing 'LIMIT' clause of 1000 rows or fewer to prevent bulk PII extraction. Add 'LIMIT 1000' (or lower) to the end of your query. Contact your InfoSec team if this block is a false positive."
+
+- description: PII read with a bounded outer LIMIT and a child subquery — genuinely bounded, allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: salesforce-soql_query
+      uri: null
+    payload:
+      name: salesforce-soql_query
+      args:
+        query: SELECT Id, (SELECT Id FROM Contacts) FROM Account LIMIT 10
+  output:
+    expectedResult: allow
+
+- description: PII read with LIMIT then OFFSET then FOR VIEW at the end — trailing clauses tolerated, allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: salesforce-soql_query
+      uri: null
+    payload:
+      name: salesforce-soql_query
+      args:
+        query: SELECT Id FROM Contact ORDER BY LastName LIMIT 200 OFFSET 100 FOR VIEW
+  output:
+    expectedResult: allow
+
+- description: SOSL search by a caller in the sales group — allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: salesforce-find
+      uri: null
+    subject:
+      sub: auth0|rep@example.com
+      claims:
+        groups:
+          - sales
+    payload:
+      name: salesforce-find
+      args:
+        search: FIND {acme} IN ALL FIELDS RETURNING Account(Id, Name)
+  output:
+    expectedResult: allow
+
+- description: SOSL search by the support group via the tsmztech tool — allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: sf-mcp-salesforce_search_all
+      uri: null
+    subject:
+      sub: auth0|agent@example.com
+      claims:
+        groups:
+          - support
+    payload:
+      name: sf-mcp-salesforce_search_all
+      args:
+        search: FIND {ticket-123} IN ALL FIELDS
+  output:
+    expectedResult: allow
+
+- description: SOSL group casing is normalized — a Sales membership still exempts.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: salesforce-executeSearch
+      uri: null
+    subject:
+      sub: auth0|rep@example.com
+      claims:
+        groups:
+          - Sales
+    payload:
+      name: salesforce-executeSearch
+      args:
+        search: FIND {john} IN NAME FIELDS RETURNING Contact(Id)
+  output:
+    expectedResult: allow
+
+- description: SOSL search by a caller outside sales/support (engineering) — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: salesforce-find
+      uri: null
+    subject:
+      sub: auth0|eng@example.com
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: salesforce-find
+      args:
+        search: FIND {john} IN ALL FIELDS RETURNING Contact(Id, Email)
+  output:
+    expectedResult: deny
+    expectedReason: "Org-wide Salesforce search (SOSL) scans every field across every object and is restricted to callers in the 'sales' or 'support' groups. Use a scoped SOQL query against a specific object instead, or ask a member of those groups to run the search. Contact your InfoSec team if this block is a false positive."
+
+- description: SOSL search with no subject/claims at all — exemption fails closed, deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: salesforce-searchSobjects
+      uri: null
+    payload:
+      name: salesforce-searchSobjects
+      args:
+        search: FIND {smith} IN ALL FIELDS
+  output:
+    expectedResult: deny
+    expectedReason: "Org-wide Salesforce search (SOSL) scans every field across every object and is restricted to callers in the 'sales' or 'support' groups. Use a scoped SOQL query against a specific object instead, or ask a member of those groups to run the search. Contact your InfoSec team if this block is a false positive."
+
+- description: SOSL group claim is a bare string (non-array) — no iteration, fails closed, deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: salesforce-find
+      uri: null
+    subject:
+      sub: auth0|spoof@example.com
+      claims:
+        groups: sales
+    payload:
+      name: salesforce-find
+      args:
+        search: FIND {smith} IN ALL FIELDS
+  output:
+    expectedResult: deny
+    expectedReason: "Org-wide Salesforce search (SOSL) scans every field across every object and is restricted to callers in the 'sales' or 'support' groups. Use a scoped SOQL query against a specific object instead, or ask a member of those groups to run the search. Contact your InfoSec team if this block is a false positive."
+
+- description: Red-team — SOSL groups claim is an object/map whose value equals a gated group ({"role":"sales"}). Without an is_array guard `some group in groups` would iterate map values and spoof the exemption; the guard fails it closed, deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: salesforce-find
+      uri: null
+    subject:
+      sub: auth0|spoof-map@example.com
+      claims:
+        groups:
+          role: sales
+    payload:
+      name: salesforce-find
+      args:
+        search: FIND {smith} IN ALL FIELDS
+  output:
+    expectedResult: deny
+    expectedReason: "Org-wide Salesforce search (SOSL) scans every field across every object and is restricted to callers in the 'sales' or 'support' groups. Use a scoped SOQL query against a specific object instead, or ask a member of those groups to run the search. Contact your InfoSec team if this block is a false positive."
+
+- description: Red-team — SOSL groups is an array whose sole entry is a non-string (123). The is_string guard skips it; no exemption, deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: salesforce-find
+      uri: null
+    subject:
+      sub: auth0|spoof-num@example.com
+      claims:
+        groups:
+          - 123
+    payload:
+      name: salesforce-find
+      args:
+        search: FIND {smith} IN ALL FIELDS
+  output:
+    expectedResult: deny
+    expectedReason: "Org-wide Salesforce search (SOSL) scans every field across every object and is restricted to callers in the 'sales' or 'support' groups. Use a scoped SOQL query against a specific object instead, or ask a member of those groups to run the search. Contact your InfoSec team if this block is a false positive."
+
+- description: Red-team — SOSL groups array mixing a non-string with a genuine gated string still exempts (the valid 'support' entry grants). Guards must not over-block real members.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: salesforce-find
+      uri: null
+    subject:
+      sub: auth0|rep@example.com
+      claims:
+        groups:
+          - 123
+          - support
+    payload:
+      name: salesforce-find
+      args:
+        search: FIND {smith} IN ALL FIELDS
+  output:
+    expectedResult: allow
+
+- description: Red-team — SOQL semi-join with the only LIMIT inside a WHERE-clause subquery ending in ')'; the end-anchor is not satisfied so the outer Account read is treated as unbounded, deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: salesforce-soql_query
+      uri: null
+    payload:
+      name: salesforce-soql_query
+      args:
+        query: "SELECT Id, Name FROM Account WHERE Id IN (SELECT AccountId FROM Contact LIMIT 100)"
+  output:
+    expectedResult: deny
+    expectedReason: "SOQL reads from the Contact, Lead, or Account objects must include a trailing 'LIMIT' clause of 1000 rows or fewer to prevent bulk PII extraction. Add 'LIMIT 1000' (or lower) to the end of your query. Contact your InfoSec team if this block is a false positive."
+
+- description: Red-team — mixed-case LIMIT keyword (LiMiT) over the cap is still parsed (regex is case-insensitive), deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: salesforce-soql_query
+      uri: null
+    payload:
+      name: salesforce-soql_query
+      args:
+        query: "SELECT Id FROM Contact LiMiT 5000"
+  output:
+    expectedResult: deny
+    expectedReason: "SOQL reads from the Contact, Lead, or Account objects must include a trailing 'LIMIT' clause of 1000 rows or fewer to prevent bulk PII extraction. Add 'LIMIT 1000' (or lower) to the end of your query. Contact your InfoSec team if this block is a false positive."
+
+- description: Matched SOSL tool with the search argument missing — fails closed even for a sales caller, deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: salesforce-run_sosl_search
+      uri: null
+    subject:
+      sub: auth0|rep@example.com
+      claims:
+        groups:
+          - sales
+    payload:
+      name: salesforce-run_sosl_search
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "This Salesforce search tool was called without a 'search' argument, so it is blocked. Provide the SOSL search term you want to run. Contact your InfoSec team if this block is a false positive."
+
+- description: Red-team — PII read with a WHERE filter but no trailing LIMIT is still denied; the deny reason names only the trailing-LIMIT remediation (a WHERE filter does not bound row volume).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: salesforce-soql_query
+      uri: null
+    payload:
+      name: salesforce-soql_query
+      args:
+        query: "SELECT Id, Email FROM Contact WHERE Email != null"
+  output:
+    expectedResult: deny
+    expectedReason: "SOQL reads from the Contact, Lead, or Account objects must include a trailing 'LIMIT' clause of 1000 rows or fewer to prevent bulk PII extraction. Add 'LIMIT 1000' (or lower) to the end of your query. Contact your InfoSec team if this block is a false positive."
+
+- description: Red-team (documented residual) — non-PII primary object with a parent-to-child subquery pulling PII (Contacts) passes through; volume is governed only for a PII *primary* object. Object pinning is query-allowlist's job.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: salesforce-soql_query
+      uri: null
+    payload:
+      name: salesforce-soql_query
+      args:
+        query: "SELECT Name, (SELECT Email, Phone FROM Contacts) FROM Opportunity"
+  output:
+    expectedResult: allow
+
+- description: Red-team (documented residual) — an escape-hatch tool (apex_execute) can read records without a matched SOQL/SOSL call and is out of scope here; it passes through untouched. Govern it with an escape-hatch deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: salesforce-apex_execute
+      uri: null
+    payload:
+      name: salesforce-apex_execute
+      args:
+        code: "for (Contact c : [SELECT Email FROM Contact]) System.debug(c.Email);"
+  output:
+    expectedResult: allow

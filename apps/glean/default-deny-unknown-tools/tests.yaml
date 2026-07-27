@@ -1,0 +1,421 @@
+- description: Verified built-in read tool (search) under the pinned Glean server
+    prefix. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: glean-mcp-search
+      uri: null
+    payload:
+      name: glean-mcp-search
+      args:
+        query: q3 roadmap
+        app: confluence
+  output:
+    expectedResult: allow
+- description: Verified built-in read tool with an underscore in its name
+    (read_document) — exact suffix match. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: glean-mcp-read_document
+      uri: null
+    payload:
+      name: glean-mcp-read_document
+      args:
+        urls:
+          - https://drive.example.com/doc/123
+  output:
+    expectedResult: allow
+- description: Memory surface allowlisted at the tool level (memory) — reachable
+    here; memory WRITES are governed by the companion action-level guard. Policy
+    should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: glean-mcp-memory
+      uri: null
+    payload:
+      name: glean-mcp-memory
+      args:
+        action: read
+  output:
+    expectedResult: allow
+- description: The client-guide alias for the memory tool (read_memory) is also on
+    the allowlist so either wire name is accepted. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: glean-mcp-read_memory
+      uri: null
+    payload:
+      name: glean-mcp-read_memory
+      args:
+        action: read
+        category: ExplicitMemories
+  output:
+    expectedResult: allow
+- description: Built-in tool under the alternate pinned bare server name (glean) —
+    prefix "glean-" stripped, suffix "chat" is allowlisted. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: glean-chat
+      uri: null
+    payload:
+      name: glean-chat
+      args:
+        message: summarize the latest incident review
+  output:
+    expectedResult: allow
+- description: Mixed-case allowlisted name (Glean-MCP-Search) matches after case
+    normalization. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: Glean-MCP-Search
+      uri: null
+    payload:
+      name: Glean-MCP-Search
+      args:
+        query: onboarding
+  output:
+    expectedResult: allow
+- description: Tool on a different MCP server behind the same gateway is out of
+    scope and passes through. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-slack-post-message
+      uri: null
+    payload:
+      name: slack-mcp-slack-post-message
+      args:
+        channel: C0123456789
+        text: lunch in 5
+  output:
+    expectedResult: allow
+- description: "Prefix-boundary guard: gleanx-mcp-read-data starts with the
+    characters of the pinned server name but not with 'glean-mcp-' or 'glean-' — a
+    different server, out of scope. Policy should allow."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gleanx-mcp-read-data
+      uri: null
+    payload:
+      name: gleanx-mcp-read-data
+      args: {}
+  output:
+    expectedResult: allow
+- description: "Red-team regression: a leading-whitespace padded tool on a
+    NON-Glean server (' github-mcp-search') is still out of scope after trimming
+    and passes through unchanged. Policy should allow."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: " github-mcp-search"
+      uri: null
+    payload:
+      name: " github-mcp-search"
+      args:
+        query: repo
+  output:
+    expectedResult: allow
+- description: Org-built agent-as-tool (qbr_summarizer) that appeared after the
+    review — arbitrary snake_case name, unknown suffix. Policy should deny with
+    the drift-alert reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: glean-mcp-qbr_summarizer
+      uri: null
+    payload:
+      name: glean-mcp-qbr_summarizer
+      args:
+        quarter: Q3
+  output:
+    expectedResult: deny
+    expectedReason: "The Glean tool 'glean-mcp-qbr_summarizer' is not on the reviewed allowlist of verified built-in Glean tools, so it is denied by default. Glean's tool inventory is admin-mutable and self-expanding: org-built agents-as-tools and MCP-Gateway-proxied third-party and write tools appear under arbitrary, undocumented names. If this tool is legitimate, ask your gateway operator to inventory the configured Glean server, review this tool, and add its exact name suffix to the allowlist in this policy after review."
+- description: "Gateway-proxied third-party write tool (create_jira_issue) — an
+    undocumented, admin-mutable name. Not on the allowlist, so denied."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: glean-mcp-create_jira_issue
+      uri: null
+    payload:
+      name: glean-mcp-create_jira_issue
+      args:
+        project: OPS
+        summary: file it
+  output:
+    expectedResult: deny
+    expectedReason: "The Glean tool 'glean-mcp-create_jira_issue' is not on the reviewed allowlist of verified built-in Glean tools, so it is denied by default. Glean's tool inventory is admin-mutable and self-expanding: org-built agents-as-tools and MCP-Gateway-proxied third-party and write tools appear under arbitrary, undocumented names. If this tool is legitimate, ask your gateway operator to inventory the configured Glean server, review this tool, and add its exact name suffix to the allowlist in this policy after review."
+- description: "Red-team generic-token bypass: evil_search ends in the allowlisted
+    token 'search' but suffix matching is exact, not a bare-token endswith. Policy
+    should deny."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: glean-mcp-evil_search
+      uri: null
+    payload:
+      name: glean-mcp-evil_search
+      args:
+        query: exfiltrate
+  output:
+    expectedResult: deny
+    expectedReason: "The Glean tool 'glean-mcp-evil_search' is not on the reviewed allowlist of verified built-in Glean tools, so it is denied by default. Glean's tool inventory is admin-mutable and self-expanding: org-built agents-as-tools and MCP-Gateway-proxied third-party and write tools appear under arbitrary, undocumented names. If this tool is legitimate, ask your gateway operator to inventory the configured Glean server, review this tool, and add its exact name suffix to the allowlist in this policy after review."
+- description: "Near-miss guard: search_v2 extends an allowlisted name but matching
+    is exact — a renamed built-in is unknown until reviewed. Policy should deny."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: glean-mcp-search_v2
+      uri: null
+    payload:
+      name: glean-mcp-search_v2
+      args:
+        query: onboarding
+  output:
+    expectedResult: deny
+    expectedReason: "The Glean tool 'glean-mcp-search_v2' is not on the reviewed allowlist of verified built-in Glean tools, so it is denied by default. Glean's tool inventory is admin-mutable and self-expanding: org-built agents-as-tools and MCP-Gateway-proxied third-party and write tools appear under arbitrary, undocumented names. If this tool is legitimate, ask your gateway operator to inventory the configured Glean server, review this tool, and add its exact name suffix to the allowlist in this policy after review."
+- description: "Red-team embedded server-name mimicry: the tool portion embeds the
+    server name again (x-glean-mcp-search), yielding suffix 'x-glean-mcp-search'
+    which is not allowlisted. Policy should deny."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: glean-mcp-x-glean-mcp-search
+      uri: null
+    payload:
+      name: glean-mcp-x-glean-mcp-search
+      args:
+        query: onboarding
+  output:
+    expectedResult: deny
+    expectedReason: "The Glean tool 'glean-mcp-x-glean-mcp-search' is not on the reviewed allowlist of verified built-in Glean tools, so it is denied by default. Glean's tool inventory is admin-mutable and self-expanding: org-built agents-as-tools and MCP-Gateway-proxied third-party and write tools appear under arbitrary, undocumented names. If this tool is legitimate, ask your gateway operator to inventory the configured Glean server, review this tool, and add its exact name suffix to the allowlist in this policy after review."
+- description: "Degenerate name: a tool named exactly the pinned server name
+    (glean-mcp) is Glean-scoped via the equality branch and never allowlisted.
+    Policy should deny."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: glean-mcp
+      uri: null
+    payload:
+      name: glean-mcp
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "The Glean tool 'glean-mcp' is not on the reviewed allowlist of verified built-in Glean tools, so it is denied by default. Glean's tool inventory is admin-mutable and self-expanding: org-built agents-as-tools and MCP-Gateway-proxied third-party and write tools appear under arbitrary, undocumented names. If this tool is legitimate, ask your gateway operator to inventory the configured Glean server, review this tool, and add its exact name suffix to the allowlist in this policy after review."
+- description: "Red-team whitespace bypass (fixed): a LEADING-whitespace padded
+    allowlisted name (' glean-mcp-search') stays in scope via the trimmed scoping
+    view but fails the exact suffix match on the untrimmed name, so it is denied
+    (fail closed) rather than passing through."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: " glean-mcp-search"
+      uri: null
+    payload:
+      name: " glean-mcp-search"
+      args:
+        query: onboarding
+  output:
+    expectedResult: deny
+    expectedReason: "The Glean tool ' glean-mcp-search' is not on the reviewed allowlist of verified built-in Glean tools, so it is denied by default. Glean's tool inventory is admin-mutable and self-expanding: org-built agents-as-tools and MCP-Gateway-proxied third-party and write tools appear under arbitrary, undocumented names. If this tool is legitimate, ask your gateway operator to inventory the configured Glean server, review this tool, and add its exact name suffix to the allowlist in this policy after review."
+- description: "Red-team whitespace bypass: a TRAILING-whitespace padded
+    allowlisted name ('glean-mcp-search ') yields the suffix 'search ' which is not
+    an exact match. Policy should deny (fail closed)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "glean-mcp-search "
+      uri: null
+    payload:
+      name: "glean-mcp-search "
+      args:
+        query: onboarding
+  output:
+    expectedResult: deny
+    expectedReason: "The Glean tool 'glean-mcp-search ' is not on the reviewed allowlist of verified built-in Glean tools, so it is denied by default. Glean's tool inventory is admin-mutable and self-expanding: org-built agents-as-tools and MCP-Gateway-proxied third-party and write tools appear under arbitrary, undocumented names. If this tool is legitimate, ask your gateway operator to inventory the configured Glean server, review this tool, and add its exact name suffix to the allowlist in this policy after review."
+- description: Mixed-case unknown tool (Glean-MCP-Delete-Everything) is still scoped
+    and denied case-insensitively; the reason carries the normalized (lower-cased)
+    name. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: Glean-MCP-Delete-Everything
+      uri: null
+    payload:
+      name: Glean-MCP-Delete-Everything
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "The Glean tool 'glean-mcp-delete-everything' is not on the reviewed allowlist of verified built-in Glean tools, so it is denied by default. Glean's tool inventory is admin-mutable and self-expanding: org-built agents-as-tools and MCP-Gateway-proxied third-party and write tools appear under arbitrary, undocumented names. If this tool is legitimate, ask your gateway operator to inventory the configured Glean server, review this tool, and add its exact name suffix to the allowlist in this policy after review."
+- description: Unknown Glean tool with no payload object at all still denies — the
+    decision reads only resource.name, so missing args must not fail open.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: glean-mcp-run_agent
+      uri: null
+  output:
+    expectedResult: deny
+    expectedReason: "The Glean tool 'glean-mcp-run_agent' is not on the reviewed allowlist of verified built-in Glean tools, so it is denied by default. Glean's tool inventory is admin-mutable and self-expanding: org-built agents-as-tools and MCP-Gateway-proxied third-party and write tools appear under arbitrary, undocumented names. If this tool is legitimate, ask your gateway operator to inventory the configured Glean server, review this tool, and add its exact name suffix to the allowlist in this policy after review."
+- description: "Fail-closed on missing tool name: a request with no
+    input.resource.name cannot be matched against the reviewed allowlist and is
+    denied by default (unlike apps that pass nameless calls through)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      uri: null
+  output:
+    expectedResult: deny
+    expectedReason: "This request carries no tool name, so it cannot be matched against the reviewed Glean allowlist and is denied by default (fail closed). Verify the gateway is populating input.resource.name with the dump-input debug technique; if tool names are missing systemically, fix the gateway configuration rather than relaxing this policy."
+- description: "Red-team whitespace-only-name bypass (fixed): a name of only spaces
+    trims to empty, is NOT a Glean tool, and previously slipped through the
+    out-of-scope pass-through branch and was ALLOWED. It must now fail closed
+    (denied) with the missing-name reason."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "   "
+      uri: null
+    payload:
+      name: "   "
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "This request carries no tool name, so it cannot be matched against the reviewed Glean allowlist and is denied by default (fail closed). Verify the gateway is populating input.resource.name with the dump-input debug technique; if tool names are missing systemically, fix the gateway configuration rather than relaxing this policy."
+- description: "Red-team whitespace-only-name bypass (fixed): a TAB-only name also
+    trims to empty and must fail closed (denied) rather than being allowed via the
+    pass-through branch."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "\t"
+      uri: null
+  output:
+    expectedResult: deny
+    expectedReason: "This request carries no tool name, so it cannot be matched against the reviewed Glean allowlist and is denied by default (fail closed). Verify the gateway is populating input.resource.name with the dump-input debug technique; if tool names are missing systemically, fix the gateway configuration rather than relaxing this policy."
+- description: "Red-team documented residual (fail OPEN): the gateway sends BARE,
+    unprefixed tool names, so an agent-as-tool ('qbr_summarizer' with no pinned
+    prefix) is treated as another server and passes through ALLOWED. Documents the
+    'server-name pinning is load-bearing' Known limitation — the gate only exists
+    inside the pinned prefix scope. Policy allows (by design, unavoidable in Rego)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: qbr_summarizer
+      uri: null
+    payload:
+      name: qbr_summarizer
+      args:
+        quarter: Q3
+  output:
+    expectedResult: allow
+- description: "Red-team documented residual (fail OPEN): the gateway prefixes Glean
+    tools with a server name the operator has NOT pinned ('acme-glean-create_jira_issue'
+    while defaults glean-mcp/glean are left in place). The whole Glean surface,
+    including a proxied write, is mistaken for another server and passes through
+    ALLOWED. Documents why pinning the real server name is not optional. Policy allows."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: acme-glean-create_jira_issue
+      uri: null
+    payload:
+      name: acme-glean-create_jira_issue
+      args:
+        project: OPS
+        summary: file it
+  output:
+    expectedResult: allow
+- description: "Red-team non-string-name (JSON null) case: resource.name is null,
+    which is coerced to empty so the request fails closed (denied) WITH the
+    missing-name reason rather than denying silently with no audit reason."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: null
+      uri: null
+  output:
+    expectedResult: deny
+    expectedReason: "This request carries no tool name, so it cannot be matched against the reviewed Glean allowlist and is denied by default (fail closed). Verify the gateway is populating input.resource.name with the dump-input debug technique; if tool names are missing systemically, fix the gateway configuration rather than relaxing this policy."

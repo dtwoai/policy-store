@@ -1,0 +1,400 @@
+- description: Agentic read funnel with no groups claim at all — reads stay open to
+    everyone. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zapier-mcp-execute_zapier_read_action
+      uri: null
+    subject:
+      sub: auth0|analyst
+      claims: {}
+    payload:
+      name: zapier-mcp-execute_zapier_read_action
+      args:
+        instructions: list my open invoices
+  output:
+    expectedResult: allow
+- description: Classic-mode read tool (find_ verb), caller not in any group — reads
+    stay open. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zapier-mcp-quickbooks_online_find_customer
+      uri: null
+    subject:
+      sub: auth0|analyst
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: zapier-mcp-quickbooks_online_find_customer
+      args:
+        name: Acme Corp
+  output:
+    expectedResult: allow
+- description: Non-write meta-tool (discover_zapier_actions) carries no write verb —
+    passes for everyone. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zapier-mcp-discover_zapier_actions
+      uri: null
+    subject:
+      sub: auth0|analyst
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: zapier-mcp-discover_zapier_actions
+      args:
+        query: spreadsheets
+  output:
+    expectedResult: allow
+- description: Agentic write funnel, caller not in the writer group. Policy should
+    deny with the exact reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zapier-mcp-execute_zapier_write_action
+      uri: null
+    subject:
+      sub: auth0|analyst
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: zapier-mcp-execute_zapier_write_action
+      args:
+        instructions: email the quarterly report to the whole team
+  output:
+    expectedResult: deny
+    expectedReason: Zapier write actions are restricted to members of the automation-writers group; read actions remain available to everyone. Ask your IdP administrator to add you to automation-writers if your role requires write access through this connector. If you believe this is a false positive, contact your InfoSec team.
+- description: Agentic write funnel, caller IS in the writer group. Policy should
+    allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zapier-mcp-execute_zapier_write_action
+      uri: null
+    subject:
+      sub: auth0|ops
+      claims:
+        groups:
+          - engineering
+          - automation-writers
+    payload:
+      name: zapier-mcp-execute_zapier_write_action
+      args:
+        instructions: add a row to the ops tracking sheet
+  output:
+    expectedResult: allow
+- description: Agentic write funnel with missing claims entirely (empty subject) —
+    must fail closed. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zapier-mcp-execute_zapier_write_action
+      uri: null
+    subject: {}
+    payload:
+      name: zapier-mcp-execute_zapier_write_action
+      args:
+        instructions: delete the old records
+  output:
+    expectedResult: deny
+    expectedReason: Zapier write actions are restricted to members of the automation-writers group; read actions remain available to everyone. Ask your IdP administrator to add you to automation-writers if your role requires write access through this connector. If you believe this is a false positive, contact your InfoSec team.
+- description: Agentic write funnel where the groups claim is a string, not an array —
+    membership never matches, fails closed. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zapier-mcp-execute_zapier_write_action
+      uri: null
+    subject:
+      sub: auth0|ops
+      claims:
+        groups: automation-writers
+    payload:
+      name: zapier-mcp-execute_zapier_write_action
+      args:
+        instructions: update the CRM record
+  output:
+    expectedResult: deny
+- description: Classic-mode send (gmail_send_email), caller not in the writer group.
+    Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zapier-mcp-gmail_send_email
+      uri: null
+    subject:
+      sub: auth0|analyst
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: zapier-mcp-gmail_send_email
+      args:
+        to: outsider@example.com
+        subject: draft
+  output:
+    expectedResult: deny
+    expectedReason: Zapier write actions are restricted to members of the automation-writers group; read actions remain available to everyone. Ask your IdP administrator to add you to automation-writers if your role requires write access through this connector. If you believe this is a false positive, contact your InfoSec team.
+- description: Classic-mode create (google_sheets_create_row), caller IS in the writer
+    group. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zapier-mcp-google_sheets_create_row
+      uri: null
+    subject:
+      sub: auth0|ops
+      claims:
+        groups:
+          - automation-writers
+    payload:
+      name: zapier-mcp-google_sheets_create_row
+      args:
+        row:
+          - Q3
+          - "42"
+  output:
+    expectedResult: allow
+- description: Classic-mode update verb, non-writer. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zapier-mcp-hubspot_update_contact
+      uri: null
+    subject:
+      sub: auth0|analyst
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: zapier-mcp-hubspot_update_contact
+      args:
+        email: someone@example.com
+  output:
+    expectedResult: deny
+- description: Classic-mode delete verb, non-writer. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zapier-mcp-notion_delete_page
+      uri: null
+    subject:
+      sub: auth0|analyst
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: zapier-mcp-notion_delete_page
+      args:
+        page_id: abc123
+  output:
+    expectedResult: deny
+- description: Classic-mode remove verb, non-writer. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zapier-mcp-gmail_remove_label
+      uri: null
+    subject:
+      sub: auth0|analyst
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: zapier-mcp-gmail_remove_label
+      args:
+        label: archive
+  output:
+    expectedResult: deny
+- description: Mixed-case tool name (Execute_Zapier_WRITE_action suffix), non-writer —
+    matching is case-insensitive. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: Zapier-MCP-Execute_Zapier_WRITE_Action
+      uri: null
+    subject:
+      sub: auth0|analyst
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: Zapier-MCP-Execute_Zapier_WRITE_Action
+      args:
+        instructions: send a slack message
+  output:
+    expectedResult: deny
+- description: Mixed-case classic write (Gmail_Send_Email), non-writer — verb
+    substring matching is case-insensitive. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zapier-mcp-Gmail_Send_Email
+      uri: null
+    subject:
+      sub: auth0|analyst
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: zapier-mcp-Gmail_Send_Email
+      args:
+        to: someone@example.com
+  output:
+    expectedResult: deny
+- description: Agentic skill meta-tool (update_zapier_skill) carries the update_ verb —
+    intentionally gated as a write (persists instructions future sessions auto-load).
+    Non-writer should be denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zapier-mcp-update_zapier_skill
+      uri: null
+    subject:
+      sub: auth0|analyst
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: zapier-mcp-update_zapier_skill
+      args:
+        skill_id: sk-1
+        content: always CC me
+  output:
+    expectedResult: deny
+- description: "Red-team: resource.name entirely missing. Cannot be classified as a
+    read, so the read-open branch does not fire and it falls through to default deny
+    (fail closed on unidentifiable tool identity)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      uri: null
+    subject:
+      sub: auth0|analyst
+      claims:
+        groups:
+          - engineering
+    payload:
+      args:
+        instructions: delete the customer records
+  output:
+    expectedResult: deny
+- description: "Red-team: resource.name is an empty string. is_string is true but the
+    name is blank, so has_tool_name fails and the request falls through to default
+    deny (fail closed)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ""
+      uri: null
+    subject:
+      sub: auth0|ops
+      claims:
+        groups:
+          - automation-writers
+    payload:
+      name: ""
+      args: {}
+  output:
+    expectedResult: deny
+- description: "Red-team (documented residual): disable_zapier_action is a toolset
+    self-modification meta-tool with no listed write verb, so it passes as a read for a
+    non-writer. Writes-of-capability are out of this policy's scope by design — cover
+    with freeze-toolset. Policy allows."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zapier-mcp-disable_zapier_action
+      uri: null
+    subject:
+      sub: auth0|analyst
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: zapier-mcp-disable_zapier_action
+      args:
+        action_key: gmail_send_email
+  output:
+    expectedResult: allow
+- description: "Red-team (documented residual): enable_zapier_action likewise carries no
+    listed verb and passes as a read for a non-writer — self-expansion is freeze-toolset's
+    job, not this policy's. Policy allows."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: zapier-mcp-enable_zapier_action
+      uri: null
+    subject:
+      sub: auth0|analyst
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: zapier-mcp-enable_zapier_action
+      args:
+        action_key: quickbooks_online_create_invoice
+  output:
+    expectedResult: allow

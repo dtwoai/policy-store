@@ -1,0 +1,452 @@
+- description: Verified fixed verb (execute_sql_read_only) on the pinned managed SQL
+    server, exact composed match. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-sql-execute_sql_read_only
+      uri: null
+    payload:
+      name: databricks-sql-execute_sql_read_only
+      args:
+        statement: SELECT id FROM sales.orders LIMIT 100
+  output:
+    expectedResult: allow
+- description: Verified Genie fixed verb (genie_ask) on the pinned Genie server.
+    Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-genie-genie_ask
+      uri: null
+    payload:
+      name: databricks-genie-genie_ask
+      args:
+        question: what were Q2 sales
+  output:
+    expectedResult: allow
+- description: Audited AI Search index tool ({cat}__{schema}__{index} double
+    underscore) pinned into allowed_dynamic_tools. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-ai-search-support__tickets__kb_index
+      uri: null
+    payload:
+      name: databricks-ai-search-support__tickets__kb_index
+      args:
+        query: reset password
+        num_results: 5
+  output:
+    expectedResult: allow
+- description: Audited UC function tool pinned into allowed_dynamic_tools. Policy
+    should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-functions-sales__analytics__forecast_revenue
+      uri: null
+    payload:
+      name: databricks-functions-sales__analytics__forecast_revenue
+      args:
+        horizon_months: 3
+  output:
+    expectedResult: allow
+- description: Mixed-case allowlisted fixed verb (Databricks-SQL-Execute_SQL) still
+    matches after case normalization. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: Databricks-SQL-Execute_SQL
+      uri: null
+    payload:
+      name: Databricks-SQL-Execute_SQL
+      args:
+        statement: SELECT 1
+  output:
+    expectedResult: allow
+- description: Tool on a different MCP server behind the same gateway is out of
+    scope and passes through. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-slack-post-message
+      uri: null
+    payload:
+      name: slack-mcp-slack-post-message
+      args:
+        channel: C0123456789
+        text: lunch in 5
+  output:
+    expectedResult: allow
+- description: "Prefix-boundary guard: databricks-mcp2-read-data starts with the
+    characters of a pinned server name but not with 'databricks-mcp-' — a
+    different server, out of scope. Policy should allow."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-mcp2-read-data
+      uri: null
+    payload:
+      name: databricks-mcp2-read-data
+      args: {}
+  output:
+    expectedResult: allow
+- description: "Documented behavior: a request with no tool name at all cannot be
+    scoped to the Databricks server and is allowed (the gateway never routes a
+    nameless tool call, so this is not a reachable bypass)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      uri: null
+  output:
+    expectedResult: allow
+- description: "Documented fail-open (red-team): a present but NON-STRING tool name
+    (a number) makes lower() yield an undefined normalized_name, so the request
+    matches no pinned server prefix and falls through the out-of-scope pass-through
+    branch. The gateway only routes string tool names, so this is not a reachable
+    bypass, but it is asserted here so the documented behavior is pinned."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: 123
+      uri: null
+  output:
+    expectedResult: allow
+- description: "Documented fail-open (red-team): a present but NON-STRING tool name
+    (an array) is likewise unscoped and allowed via the pass-through branch. Not
+    reachable over MCP (tool names are strings by protocol); pinned to document the
+    residual."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name:
+        - databricks-functions-payments__ops__wire_transfer
+      uri: null
+  output:
+    expectedResult: allow
+- description: "Regression for the scoping trim: a leading-whitespace padded tool on
+    a NON-Databricks server (' slack-mcp-slack-post-message') is still out of scope
+    after trimming and passes through unchanged. Policy should allow."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: " slack-mcp-slack-post-message"
+      uri: null
+    payload:
+      name: " slack-mcp-slack-post-message"
+      args:
+        channel: C0123456789
+        text: lunch in 5
+  output:
+    expectedResult: allow
+- description: Unknown UC function (payments__ops__wire_transfer) registered upstream
+    after the audit — name not on the pinned allowlist. Policy should deny with the
+    drift-alert reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-functions-payments__ops__wire_transfer
+      uri: null
+    payload:
+      name: databricks-functions-payments__ops__wire_transfer
+      args:
+        amount: 5000
+  output:
+    expectedResult: deny
+    expectedReason: "The Databricks tool 'databricks-functions-payments__ops__wire_transfer' is not on the pinned allowlist of audited tool names for this gateway, so it is denied by default. Databricks managed servers expose a fixed set of verbs (genie_ask, genie_poll_response, execute_sql, execute_sql_read_only, poll_sql_result) plus dynamically-named AI Search index tools ({catalog}__{schema}__{index}) and one tool per registered Unity Catalog function whose body can hide arbitrary writes, so an unknown name may be a newly published UC function or a renamed search index that has not been reviewed. If this tool is legitimate, enumerate the workspace's current tool inventory, audit it, and add its exact name to the pinned allowlist in this policy."
+- description: "Near-miss guard: genie_ask_v2 extends an allowlisted fixed verb but
+    matching is exact, not prefix/suffix — a renamed tool is unknown. Policy should
+    deny."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-genie-genie_ask_v2
+      uri: null
+    payload:
+      name: databricks-genie-genie_ask_v2
+      args:
+        question: hi
+  output:
+    expectedResult: deny
+    expectedReason: "The Databricks tool 'databricks-genie-genie_ask_v2' is not on the pinned allowlist of audited tool names for this gateway, so it is denied by default. Databricks managed servers expose a fixed set of verbs (genie_ask, genie_poll_response, execute_sql, execute_sql_read_only, poll_sql_result) plus dynamically-named AI Search index tools ({catalog}__{schema}__{index}) and one tool per registered Unity Catalog function whose body can hide arbitrary writes, so an unknown name may be a newly published UC function or a renamed search index that has not been reviewed. If this tool is legitimate, enumerate the workspace's current tool inventory, audit it, and add its exact name to the pinned allowlist in this policy."
+- description: "Red-team suffix-crafting: a UC function crafted to END with an
+    allowlisted verb (evil_execute_sql) must NOT slip through, because matching is
+    exact against <server>-<entry>, not a suffix match. Policy should deny."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-functions-evil_execute_sql
+      uri: null
+    payload:
+      name: databricks-functions-evil_execute_sql
+      args:
+        statement: DROP TABLE customers
+  output:
+    expectedResult: deny
+    expectedReason: "The Databricks tool 'databricks-functions-evil_execute_sql' is not on the pinned allowlist of audited tool names for this gateway, so it is denied by default. Databricks managed servers expose a fixed set of verbs (genie_ask, genie_poll_response, execute_sql, execute_sql_read_only, poll_sql_result) plus dynamically-named AI Search index tools ({catalog}__{schema}__{index}) and one tool per registered Unity Catalog function whose body can hide arbitrary writes, so an unknown name may be a newly published UC function or a renamed search index that has not been reviewed. If this tool is legitimate, enumerate the workspace's current tool inventory, audit it, and add its exact name to the pinned allowlist in this policy."
+- description: Renamed AI Search index (support__tickets__kb_index_v2) is not the
+    exact pinned name, so it is unknown. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-ai-search-support__tickets__kb_index_v2
+      uri: null
+    payload:
+      name: databricks-ai-search-support__tickets__kb_index_v2
+      args:
+        query: reset password
+  output:
+    expectedResult: deny
+    expectedReason: "The Databricks tool 'databricks-ai-search-support__tickets__kb_index_v2' is not on the pinned allowlist of audited tool names for this gateway, so it is denied by default. Databricks managed servers expose a fixed set of verbs (genie_ask, genie_poll_response, execute_sql, execute_sql_read_only, poll_sql_result) plus dynamically-named AI Search index tools ({catalog}__{schema}__{index}) and one tool per registered Unity Catalog function whose body can hide arbitrary writes, so an unknown name may be a newly published UC function or a renamed search index that has not been reviewed. If this tool is legitimate, enumerate the workspace's current tool inventory, audit it, and add its exact name to the pinned allowlist in this policy."
+- description: "system.ai proxy fence: a Databricks system.ai Slack proxy
+    (system__ai__slack_send_message) is denied unconditionally with the
+    second-order-gateway reason. Policy should deny."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-functions-system__ai__slack_send_message
+      uri: null
+    payload:
+      name: databricks-functions-system__ai__slack_send_message
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "The Databricks tool 'databricks-functions-system__ai__slack_send_message' is a Databricks system.ai prebuilt MCP-Services proxy (Slack, GitHub, or Google Drive) and is fenced off unconditionally. Routing those SaaS apps through Databricks would let the lakehouse act as a second-order gateway that bypasses the per-app DTwo policies governing Slack, GitHub, and Google Drive directly. Use the dedicated DTwo MCP server for that app instead. Adding the name to the allowlist does not lift this fence; remove the system.ai proxy from the Databricks MCP surface if you believe this is a false positive."
+- description: "system.ai proxy fence (GitHub): a system__ai__github_create_issue
+    proxy is fenced regardless of the app. Policy should deny with the proxy
+    reason."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-mcp-system__ai__github_create_issue
+      uri: null
+    payload:
+      name: databricks-mcp-system__ai__github_create_issue
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "The Databricks tool 'databricks-mcp-system__ai__github_create_issue' is a Databricks system.ai prebuilt MCP-Services proxy (Slack, GitHub, or Google Drive) and is fenced off unconditionally. Routing those SaaS apps through Databricks would let the lakehouse act as a second-order gateway that bypasses the per-app DTwo policies governing Slack, GitHub, and Google Drive directly. Use the dedicated DTwo MCP server for that app instead. Adding the name to the allowlist does not lift this fence; remove the system.ai proxy from the Databricks MCP surface if you believe this is a false positive."
+- description: "Red-team regression: an allowlisted name with a TRAILING space
+    ('databricks-sql-execute_sql ') is NOT trimmed into an allow — exact matching
+    treats whitespace variants as unknown tools (fail closed). Policy should deny."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "databricks-sql-execute_sql "
+      uri: null
+    payload:
+      name: "databricks-sql-execute_sql "
+      args:
+        statement: SELECT 1
+  output:
+    expectedResult: deny
+    expectedReason: "The Databricks tool 'databricks-sql-execute_sql ' is not on the pinned allowlist of audited tool names for this gateway, so it is denied by default. Databricks managed servers expose a fixed set of verbs (genie_ask, genie_poll_response, execute_sql, execute_sql_read_only, poll_sql_result) plus dynamically-named AI Search index tools ({catalog}__{schema}__{index}) and one tool per registered Unity Catalog function whose body can hide arbitrary writes, so an unknown name may be a newly published UC function or a renamed search index that has not been reviewed. If this tool is legitimate, enumerate the workspace's current tool inventory, audit it, and add its exact name to the pinned allowlist in this policy."
+- description: "Red-team bypass (fixed): a LEADING-whitespace padded allowlisted
+    name (' databricks-sql-execute_sql') must NOT escape scoping via the
+    pass-through branch. Scoping trims whitespace so the name stays in scope, but
+    the exact allowlist match runs on the untrimmed name and fails, so it is denied
+    (fail closed). Before the fix this returned allow=true."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: " databricks-sql-execute_sql"
+      uri: null
+    payload:
+      name: " databricks-sql-execute_sql"
+      args:
+        statement: DROP TABLE customers
+  output:
+    expectedResult: deny
+    expectedReason: "The Databricks tool ' databricks-sql-execute_sql' is not on the pinned allowlist of audited tool names for this gateway, so it is denied by default. Databricks managed servers expose a fixed set of verbs (genie_ask, genie_poll_response, execute_sql, execute_sql_read_only, poll_sql_result) plus dynamically-named AI Search index tools ({catalog}__{schema}__{index}) and one tool per registered Unity Catalog function whose body can hide arbitrary writes, so an unknown name may be a newly published UC function or a renamed search index that has not been reviewed. If this tool is legitimate, enumerate the workspace's current tool inventory, audit it, and add its exact name to the pinned allowlist in this policy."
+- description: "Degenerate name: a tool named exactly the pinned server name
+    (databricks-sql) is Databricks-scoped via the equality branch and never
+    allowlisted. Policy should deny."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-sql
+      uri: null
+    payload:
+      name: databricks-sql
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "The Databricks tool 'databricks-sql' is not on the pinned allowlist of audited tool names for this gateway, so it is denied by default. Databricks managed servers expose a fixed set of verbs (genie_ask, genie_poll_response, execute_sql, execute_sql_read_only, poll_sql_result) plus dynamically-named AI Search index tools ({catalog}__{schema}__{index}) and one tool per registered Unity Catalog function whose body can hide arbitrary writes, so an unknown name may be a newly published UC function or a renamed search index that has not been reviewed. If this tool is legitimate, enumerate the workspace's current tool inventory, audit it, and add its exact name to the pinned allowlist in this policy."
+- description: Unknown Databricks tool with no payload object at all still denies —
+    the decision reads only resource.name, so missing args must not fail open.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: databricks-functions-hr__ops__delete_worker
+      uri: null
+  output:
+    expectedResult: deny
+    expectedReason: "The Databricks tool 'databricks-functions-hr__ops__delete_worker' is not on the pinned allowlist of audited tool names for this gateway, so it is denied by default. Databricks managed servers expose a fixed set of verbs (genie_ask, genie_poll_response, execute_sql, execute_sql_read_only, poll_sql_result) plus dynamically-named AI Search index tools ({catalog}__{schema}__{index}) and one tool per registered Unity Catalog function whose body can hide arbitrary writes, so an unknown name may be a newly published UC function or a renamed search index that has not been reviewed. If this tool is legitimate, enumerate the workspace's current tool inventory, audit it, and add its exact name to the pinned allowlist in this policy."
+- description: Mixed-case unknown tool (Databricks-Functions-Drop_Everything) is
+    still scoped and denied case-insensitively; the reason carries the normalized
+    (lower-cased) name. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: Databricks-Functions-Drop_Everything
+      uri: null
+    payload:
+      name: Databricks-Functions-Drop_Everything
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "The Databricks tool 'databricks-functions-drop_everything' is not on the pinned allowlist of audited tool names for this gateway, so it is denied by default. Databricks managed servers expose a fixed set of verbs (genie_ask, genie_poll_response, execute_sql, execute_sql_read_only, poll_sql_result) plus dynamically-named AI Search index tools ({catalog}__{schema}__{index}) and one tool per registered Unity Catalog function whose body can hide arbitrary writes, so an unknown name may be a newly published UC function or a renamed search index that has not been reviewed. If this tool is legitimate, enumerate the workspace's current tool inventory, audit it, and add its exact name to the pinned allowlist in this policy."
+- description: "Red-team bypass (fixed): a LEADING ZERO-WIDTH SPACE (U+200B) before an\n    unknown UC function must NOT escape scoping via the pass-through branch. Scoping\n    strips invisible characters (not just whitespace) so the name stays in scope, the\n    exact allowlist match runs on the untrimmed name and fails, so it is denied (fail\n    closed). Before the invisible-char fix this returned allow=true."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "​databricks-functions-payments__ops__wire_transfer"
+      uri: null
+    payload:
+      name: "​databricks-functions-payments__ops__wire_transfer"
+      args:
+        amount: 5000
+  output:
+    expectedResult: deny
+- description: "Red-team bypass (fixed): a LEADING BOM (U+FEFF) before a system.ai\n    proxy must NOT escape the proxy fence via the pass-through branch. Invisible-char\n    stripping keeps it in scope; the fence (contains system__ai__) still fires, so it\n    is denied. Before the invisible-char fix this returned allow=true, bypassing the\n    fence entirely."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "﻿databricks-functions-system__ai__slack_send_message"
+      uri: null
+    payload:
+      name: "﻿databricks-functions-system__ai__slack_send_message"
+      args: {}
+  output:
+    expectedResult: deny
+- description: "Red-team bypass (fixed): a leading Unicode TAG character (U+E0001, the\n    canonical invisible-text smuggling vector) before an unknown UC function must NOT\n    escape scoping via the pass-through branch. The Tags block (U+E0000-E007F) is now\n    stripped for scoping, so the name stays in scope and the exact allowlist match on\n    the untrimmed name fails => denied (fail closed). Before the fix this returned\n    allow=true."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "󠀁databricks-functions-payments__ops__wire_transfer"
+      uri: null
+    payload:
+      name: "󠀁databricks-functions-payments__ops__wire_transfer"
+      args:
+        amount: 5000
+  output:
+    expectedResult: deny
+- description: "Red-team bypass (fixed): a leading bidi ISOLATE (U+2066 LRI) before an\n    allowlisted verb must NOT escape scoping. U+2066-2069 are the modern replacements\n    for the legacy bidi overrides (U+202A-202E) the policy already stripped; they are\n    now stripped too. The name stays in scope, the exact match on the untrimmed name\n    fails => denied. Before the fix this returned allow=true."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "⁦databricks-sql-execute_sql"
+      uri: null
+    payload:
+      name: "⁦databricks-sql-execute_sql"
+      args:
+        statement: DROP TABLE customers
+  output:
+    expectedResult: deny
+- description: "Red-team bypass (fixed): a leading VARIATION SELECTOR (U+FE0F) before a\n    system.ai proxy must NOT escape the proxy fence. Variation selectors are now\n    stripped for scoping, so the name stays in scope and the fence (contains\n    system__ai__) still fires => denied. Before the fix this returned allow=true,\n    bypassing the fence."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "️databricks-functions-system__ai__slack_send_message"
+      uri: null
+    payload:
+      name: "️databricks-functions-system__ai__slack_send_message"
+      args: {}
+  output:
+    expectedResult: deny
+- description: "Documented residual (red-team): a leading HANGUL FILLER (U+3164) is NOT\n    in the stripped set, so it pushes the name out of scope into the pass-through\n    allow branch (fail open). This is only reachable if the gateway itself normalizes\n    U+3164 away when routing; otherwise the crafted name matches no real tool and is\n    never routed. Pinned to document the residual (see Known limitations)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "ㅤdatabricks-sql-execute_sql"
+      uri: null
+    payload:
+      name: "ㅤdatabricks-sql-execute_sql"
+      args:
+        statement: SELECT 1
+  output:
+    expectedResult: allow

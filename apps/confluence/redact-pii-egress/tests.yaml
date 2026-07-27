@@ -1,0 +1,938 @@
+# Egress transform policy (default allow := true) — allow is always true; the
+# meaningful assertions are transformApplied / transformedArgsContain. Cases
+# cover every rule branch: each detection class independently (SSN, email,
+# phone) and all three together, every in-scope tool suffix (official +
+# community), the resource.name / tool_metadata.name / payload.name candidate
+# surfaces, both group-exemption forms, case-insensitive matching, fail-closed
+# on missing/oddly-shaped claims, out-of-scope tools, non-string blocks,
+# conservative-regex negatives (page IDs / version strings), and the ingress guard.
+
+- description: In-scope getConfluencePage, non-exempt caller — SSN, email, and phone are all redacted in place; surrounding wiki text is kept.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: atlassian-getconfluencepage
+      uri: null
+    subject:
+      sub: auth0|u1
+      claims:
+        groups:
+          - marketing
+    payload:
+      name: atlassian-getconfluencepage
+      text:
+        - "Onboarding SSN 123-45-6789, contact jane@acme.com or 206-555-0100"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Onboarding SSN [REDACTED-SSN], contact [REDACTED-EMAIL] or [REDACTED-PHONE]"
+
+- description: Lone SSN in a page footer comment (getConfluencePageFooterComments) is redacted on its own — no pairing required.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: atlassian-getconfluencepagefootercomments
+      uri: null
+    subject:
+      sub: auth0|u2
+      claims:
+        groups:
+          - support
+    payload:
+      name: atlassian-getconfluencepagefootercomments
+      text:
+        - "Reviewer left SSN 078-05-1120 in the thread"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Reviewer left SSN [REDACTED-SSN] in the thread"
+
+- description: Lone email in an inline comment (getConfluencePageInlineComments) is redacted independently.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: atlassian-getconfluencepageinlinecomments
+      uri: null
+    subject:
+      sub: auth0|u3
+      claims:
+        groups:
+          - support
+    payload:
+      name: atlassian-getconfluencepageinlinecomments
+      text:
+        - "Ping ops.lead@example.co.uk for the runbook"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Ping [REDACTED-EMAIL] for the runbook"
+
+- description: Lone parenthesized phone number in a comment-children thread (getConfluenceCommentChildren) is redacted independently.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: atlassian-getconfluencecommentchildren
+      uri: null
+    subject:
+      sub: auth0|u4
+      claims:
+        groups:
+          - support
+    payload:
+      name: atlassian-getconfluencecommentchildren
+      text:
+        - "Call the desk at (206) 555-0100 before 5pm"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Call the desk at [REDACTED-PHONE] before 5pm"
+
+- description: CQL search snippet (searchConfluenceUsingCql) with an international-format phone is redacted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: atlassian-searchconfluenceusingcql
+      uri: null
+    subject:
+      sub: auth0|u5
+      claims:
+        groups:
+          - marketing
+    payload:
+      name: atlassian-searchconfluenceusingcql
+      text:
+        - "Match in page 'Contacts': +1 206.555.0100"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Match in page 'Contacts': [REDACTED-PHONE]"
+
+- description: Page descendants (getConfluencePageDescendants) response with an SSN is in scope and redacted.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: atlassian-getconfluencepagedescendants
+      uri: null
+    subject:
+      sub: auth0|u6
+      claims:
+        groups:
+          - eng
+    payload:
+      name: atlassian-getconfluencepagedescendants
+      text:
+        - "Child page notes: SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Child page notes: SSN [REDACTED-SSN]"
+
+- description: Community sooperset confluence_get_page suffix (via resource.name) is in scope.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: atlassian-confluence_get_page
+      uri: null
+    subject:
+      sub: auth0|u7
+      claims:
+        groups:
+          - eng
+    payload:
+      name: atlassian-confluence_get_page
+      text:
+        - "Employee record SSN 123-45-6789 on file"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Employee record SSN [REDACTED-SSN] on file"
+
+- description: Community confluence_search suffix (via resource.name) is in scope.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: mcp-atlassian-confluence_search
+      uri: null
+    subject:
+      sub: auth0|u8
+      claims:
+        groups:
+          - eng
+    payload:
+      name: mcp-atlassian-confluence_search
+      text:
+        - "Hit: contact jane@acme.com"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Hit: contact [REDACTED-EMAIL]"
+
+- description: Tool name only under tool_metadata.name (resource.name empty) — community confluence_get_comments still matched via the candidate-surface union.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: ""
+      uri: null
+    tool_metadata:
+      name: mcp-atlassian-confluence_get_comments
+    subject:
+      sub: auth0|u9
+      claims:
+        groups:
+          - eng
+    payload:
+      name: mcp-atlassian-confluence_get_comments
+      text:
+        - "SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "SSN [REDACTED-SSN]"
+
+- description: Tool name present only under payload.name (resource.name empty, no tool_metadata) — payload.name is a candidate surface, so the call is in scope and redaction fires.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: ""
+      uri: null
+    subject:
+      sub: auth0|u10
+      claims:
+        groups:
+          - eng
+    payload:
+      name: atlassian-getconfluencepage
+      text:
+        - "SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "SSN [REDACTED-SSN]"
+
+- description: Only the block that contains PII is rewritten; clean blocks pass through unchanged.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: atlassian-getconfluencepage
+      uri: null
+    subject:
+      sub: auth0|u11
+      claims:
+        groups:
+          - eng
+    payload:
+      name: atlassian-getconfluencepage
+      text:
+        - "Release notes for v1.2.3"
+        - "Escalation contact: 206-555-0100"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Release notes for v1.2.3"
+      - "Escalation contact: [REDACTED-PHONE]"
+
+- description: Exempt caller (groups array contains pii-full) — response passes through unredacted, no transform.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: atlassian-getconfluencepage
+      uri: null
+    subject:
+      sub: auth0|u12
+      claims:
+        groups:
+          - pii-full
+    payload:
+      name: atlassian-getconfluencepage
+      text:
+        - "Onboarding SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Exempt caller with a bare-string groups claim (pii-full) — the string branch matches, no transform.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: atlassian-getconfluencepage
+      uri: null
+    subject:
+      sub: auth0|u13
+      claims:
+        groups: pii-full
+    payload:
+      name: atlassian-getconfluencepage
+      text:
+        - "Onboarding SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Group name matching is case-insensitive — uppercase PII-FULL is exempt, no transform.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: atlassian-getconfluencepage
+      uri: null
+    subject:
+      sub: auth0|u14
+      claims:
+        groups:
+          - staff
+          - PII-FULL
+    payload:
+      name: atlassian-getconfluencepage
+      text:
+        - "SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Fail closed for the grant — subject has no claims, so the caller is not exempt and redaction applies.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: atlassian-getconfluencepage
+      uri: null
+    subject:
+      sub: auth0|u15
+    payload:
+      name: atlassian-getconfluencepage
+      text:
+        - "SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "SSN [REDACTED-SSN]"
+
+- description: Out-of-scope tool (getPagesInConfluenceSpace returns a page list, not body content; the leading-hyphen suffix guard keeps -getconfluencepage from matching it) — no transform even with an SSN present.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: atlassian-getpagesinconfluencespace
+      uri: null
+    subject:
+      sub: auth0|u16
+      claims:
+        groups:
+          - eng
+    payload:
+      name: atlassian-getpagesinconfluencespace
+      text:
+        - "SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Conservative-regex negatives — a 9-digit page ID and a dotted version string are NOT redacted, so an otherwise clean page passes through byte-identical.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: atlassian-getconfluencepage
+      uri: null
+    subject:
+      sub: auth0|u17
+      claims:
+        groups:
+          - eng
+    payload:
+      name: atlassian-getconfluencepage
+      text:
+        - "Page ID 123456789, version 1.2.3, build 2026"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Non-string (structured/JSON) content block passes through the redact_block string guard unmodified — no transform.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: atlassian-getconfluencepage
+      uri: null
+    subject:
+      sub: auth0|u18
+      claims:
+        groups:
+          - eng
+    payload:
+      name: atlassian-getconfluencepage
+      text:
+        - field: ssn
+          value: 123-45-6789
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: In-scope tool but the content carries no PII — response passes through byte-identical, no transform.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: atlassian-getconfluencepage
+      uri: null
+    subject:
+      sub: auth0|u19
+      claims:
+        groups:
+          - eng
+    payload:
+      name: atlassian-getconfluencepage
+      text:
+        - "The runbook is ready for review."
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Ingress hook (mode input) is never in scope — the same tool + SSN produces no transform on the pre-invoke path.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: atlassian-getconfluencepage
+      uri: null
+    subject:
+      sub: auth0|u20
+      claims:
+        groups:
+          - eng
+    payload:
+      name: atlassian-getconfluencepage
+      text:
+        - "SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+# --- Red-team regression cases (reviewer, standards §10) ---
+
+- description: "Red-team: egress with action=tool_post_invoke but mode unset — is_egress still matches on action, so redaction fires (no fail-open leak)."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    resource:
+      type: tool
+      name: atlassian-getconfluencepage
+      uri: null
+    subject:
+      sub: auth0|u21
+      claims:
+        groups:
+          - eng
+    payload:
+      name: atlassian-getconfluencepage
+      text:
+        - "SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "SSN [REDACTED-SSN]"
+
+- description: "Red-team: object-shaped groups claim {department: pii-full} must NOT grant the exemption — the is_array guard fails it closed, so redaction still applies."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: atlassian-getconfluencepage
+      uri: null
+    subject:
+      sub: auth0|u22
+      claims:
+        groups:
+          department: pii-full
+    payload:
+      name: atlassian-getconfluencepage
+      text:
+        - "SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "SSN [REDACTED-SSN]"
+
+- description: "Red-team: nested-array groups [[pii-full]] is not a flat array of strings — the is_string(g) guard fails it closed (not exempt), redaction applies."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: atlassian-getconfluencepage
+      uri: null
+    subject:
+      sub: auth0|u23
+      claims:
+        groups:
+          - - pii-full
+    payload:
+      name: atlassian-getconfluencepage
+      text:
+        - "SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "SSN [REDACTED-SSN]"
+
+- description: "Red-team: egress that leaks what an ingress space fence would block — a restricted-space page body with SSN + email + phone is still fully redacted, since this policy runs regardless of the ingress verdict."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: atlassian-getconfluencepage
+      uri: null
+    subject:
+      sub: auth0|u24
+      claims:
+        groups:
+          - eng
+    payload:
+      name: atlassian-getconfluencepage
+      text:
+        - "HR space leak: SSN 123-45-6789, jane@acme.com, 206-555-0100"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "HR space leak: SSN [REDACTED-SSN], [REDACTED-EMAIL], [REDACTED-PHONE]"
+
+- description: "Red-team FIXED: page body delivered as MCP-standard structured text blocks {type:text, text:...} — the inner `text` is redacted and `type` preserved. Before the fix, object blocks slipped past the string-only redactor and leaked verbatim."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: atlassian-getconfluencepage
+      uri: null
+    subject:
+      sub: auth0|u25
+      claims:
+        groups:
+          - eng
+    payload:
+      name: atlassian-getconfluencepage
+      text:
+        - type: text
+          text: "Onboarding SSN 123-45-6789, contact jane@acme.com or 206-555-0100"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - text: "Onboarding SSN [REDACTED-SSN], contact [REDACTED-EMAIL] or [REDACTED-PHONE]"
+        type: text
+
+- description: "Red-team FIXED: mixed content-block array — one plain string and one MCP {type,text} object, both carrying PII — every block is redacted regardless of shape."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: atlassian-getconfluencepageinlinecomments
+      uri: null
+    subject:
+      sub: auth0|u26
+      claims:
+        groups:
+          - support
+    payload:
+      name: atlassian-getconfluencepageinlinecomments
+      text:
+        - "Plain block SSN 078-05-1120"
+        - type: text
+          text: "Object block email ops.lead@example.co.uk"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Plain block SSN [REDACTED-SSN]"
+      - text: "Object block email [REDACTED-EMAIL]"
+        type: text
+
+- description: "Red-team DOCUMENTED residual: cross-product atlassian-fetch returns a Confluence page body (SSN+email+phone) but is NOT in pii_read_suffixes, so no transform fires and content passes through unredacted. Captures the out-of-scope egress surface flagged under Known limitations."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: atlassian-fetch
+      uri: null
+    subject:
+      sub: auth0|u27
+      claims:
+        groups:
+          - eng
+    payload:
+      name: atlassian-fetch
+      text:
+        - "Fetched Confluence page: SSN 123-45-6789, jane@acme.com, 206-555-0100"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Red-team DOCUMENTED residual: cross-product atlassian-search snippet carrying an SSN is out of scope (generic search tool, not searchConfluenceUsingCql) — no transform, content passes through."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: atlassian-search
+      uri: null
+    subject:
+      sub: auth0|u28
+      claims:
+        groups:
+          - eng
+    payload:
+      name: atlassian-search
+      text:
+        - "Result: SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Red-team DOCUMENTED residual: off-spec scalar `text` (a bare string, not an array) fails the is_array transform guard — no transform fires and the SSN passes through (fail-open on a shape off the documented gateway contract)."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: atlassian-getconfluencepage
+      uri: null
+    subject:
+      sub: auth0|u29
+      claims:
+        groups:
+          - eng
+    payload:
+      name: atlassian-getconfluencepage
+      text: "Onboarding SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Red-team FIXED regression guard: a structured block with NO string `text` key (custom {field,value} shape) still passes through untouched after the fix — PII under other keys is out of the policy's claim, so no transform even with an SSN in `value`."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: atlassian-getconfluencepage
+      uri: null
+    subject:
+      sub: auth0|u30
+      claims:
+        groups:
+          - eng
+    payload:
+      name: atlassian-getconfluencepage
+      text:
+        - field: ssn
+          value: "123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Red-team DOCUMENTED residual: standard MCP embedded-resource content block carries its body under nested `resource.text`, not a top-level `text` string — block_text reads only the top-level `text`, so the SSN passes through unredacted (no transform). Deployments emitting resource blocks must extend block_text; see Known limitations."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: atlassian-getconfluencepage
+      uri: null
+    subject:
+      sub: auth0|u31
+      claims:
+        groups:
+          - eng
+    payload:
+      name: atlassian-getconfluencepage
+      text:
+        - type: resource
+          resource:
+            uri: "confluence://page/1"
+            text: "Onboarding SSN 123-45-6789, contact jane@acme.com"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Red-team DOCUMENTED residual: a nested-array content block (block that is itself an array of sub-blocks) is neither string nor object, so it hits the passthrough branch and the embedded SSN is not redacted (no transform)."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: atlassian-getconfluencepage
+      uri: null
+    subject:
+      sub: auth0|u32
+      claims:
+        groups:
+          - eng
+    payload:
+      name: atlassian-getconfluencepage
+      text:
+        - - "nested SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Red-team DOCUMENTED residual: full-width Unicode-digit SSN is not matched — RE2 `\\d` is ASCII-only, so the identifier streams through unredacted (no transform). Captures the non-ASCII-digit obfuscation flagged under Known limitations."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: atlassian-getconfluencepage
+      uri: null
+    subject:
+      sub: auth0|u33
+      claims:
+        groups:
+          - eng
+    payload:
+      name: atlassian-getconfluencepage
+      text:
+        - "Full-width SSN １２３-４５-６７８９ on file"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Red-team FIXED: official tool emitted with an underscore prefix separator (atlassian_getconfluencepage) is now redacted. The suffixes are matched bare; the earlier leading-hyphen form FAILED OPEN here (no `-` separator), leaking the whole response."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: atlassian_getconfluencepage
+      uri: null
+    subject:
+      sub: auth0|u34
+      claims:
+        groups:
+          - eng
+    payload:
+      name: atlassian_getconfluencepage
+      text:
+        - "Onboarding SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Onboarding SSN [REDACTED-SSN]"
+
+- description: "Red-team FIXED: prefix-less official tool name (bare getconfluencepage, no server prefix at all) is now in scope and redacted — bare-suffix matching closes the earlier leading-hyphen fail-open."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: getconfluencepage
+      uri: null
+    subject:
+      sub: auth0|u35
+      claims:
+        groups:
+          - eng
+    payload:
+      name: getconfluencepage
+      text:
+        - "contact jane@acme.com"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "contact [REDACTED-EMAIL]"
+
+- description: "Red-team over-match guard: after dropping the leading hyphen, the prefix-less getpagesinconfluencespace (a page-list tool, ends in `...space`) still does NOT match `getconfluencepage` — it stays out of scope, so no transform even with an SSN present."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: getpagesinconfluencespace
+      uri: null
+    subject:
+      sub: auth0|u36
+      claims:
+        groups:
+          - eng
+    payload:
+      name: getpagesinconfluencespace
+      text:
+        - "SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Red-team over-match guard: createConfluencePage (a write tool, ends in `...ateconfluencepage`) must NOT match the bare `getconfluencepage` suffix — out of scope, no transform."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: atlassian-createconfluencepage
+      uri: null
+    subject:
+      sub: auth0|u37
+      claims:
+        groups:
+          - eng
+    payload:
+      name: atlassian-createconfluencepage
+      text:
+        - "SSN 123-45-6789"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Red-team DOCUMENTED residual (word-boundary adjacency): an SSN wrapped in Markdown/wiki italics underscores (_123-45-6789_) is NOT redacted — `_` is a regex word char, so the `\\b` anchor finds no boundary. Captures the word-adjacent escape flagged under Known limitations."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: atlassian-getconfluencepage
+      uri: null
+    subject:
+      sub: auth0|u38
+      claims:
+        groups:
+          - eng
+    payload:
+      name: atlassian-getconfluencepage
+      text:
+        - "contact _123-45-6789_ now"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Red-team DOCUMENTED residual (word-boundary adjacency): a run-on SSN abutting letters (id123-45-6789) escapes the `\\b`-anchored pattern — no transform. Documented residual; delimiting the identifier with a space/colon/punctuation would match."
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: atlassian-getconfluencepage
+      uri: null
+    subject:
+      sub: auth0|u39
+      claims:
+        groups:
+          - eng
+    payload:
+      name: atlassian-getconfluencepage
+      text:
+        - "id123-45-6789 logged"
+  output:
+    expectedResult: allow
+  transformApplied: false

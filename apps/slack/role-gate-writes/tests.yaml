@@ -1,0 +1,944 @@
+- description: Official read tool (slack_read_channel) with a non-writer caller.
+    Reads pass for everyone — allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-slack_read_channel
+      uri: null
+    subject:
+      sub: auth0|reader@example.com
+      claims:
+        groups:
+          - support
+    payload:
+      name: slack-mcp-slack_read_channel
+      args:
+        channel_id: C0123456789
+        limit: 20
+  output:
+    expectedResult: allow
+- description: Korotovsky read tool (conversations_history) with no identity at
+    all. Reads pass even without claims — allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-conversations_history
+      uri: null
+    payload:
+      name: slack-mcp-conversations_history
+      args:
+        channel_id: C0123456789
+  output:
+    expectedResult: allow
+- description: Korotovsky usergroups_list shares a stem with the usergroups_*
+    writes but is a read — must not be caught by the write suffixes; allow for
+    a non-writer.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-usergroups_list
+      uri: null
+    subject:
+      sub: auth0|reader@example.com
+      claims:
+        groups:
+          - support
+    payload:
+      name: slack-mcp-usergroups_list
+      args: {}
+  output:
+    expectedResult: allow
+- description: Korotovsky saved_list is a read next to the saved_update /
+    saved_clear_completed writes — allow for a non-writer.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-saved_list
+      uri: null
+    subject:
+      sub: auth0|reader@example.com
+      claims:
+        groups:
+          - support
+    payload:
+      name: slack-mcp-saved_list
+      args: {}
+  output:
+    expectedResult: allow
+- description: Official slack_read_canvas is a read next to the canvas writes
+    (slack_create_canvas / slack_update_canvas) — allow for a non-writer.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-slack_read_canvas
+      uri: null
+    subject:
+      sub: auth0|reader@example.com
+      claims:
+        groups:
+          - support
+    payload:
+      name: slack-mcp-slack_read_canvas
+      args:
+        canvas_id: F0123456789
+  output:
+    expectedResult: allow
+- description: Legacy read tool (slack_get_channel_history) with a non-writer
+    caller — allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-legacy-slack_get_channel_history
+      uri: null
+    subject:
+      sub: auth0|reader@example.com
+      claims:
+        groups:
+          - support
+    payload:
+      name: slack-legacy-slack_get_channel_history
+      args:
+        channel_id: C0123456789
+  output:
+    expectedResult: allow
+- description: Official write (slack_send_message) with a caller in the
+    slack-writers group — allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-slack_send_message
+      uri: null
+    subject:
+      sub: auth0|writer@example.com
+      claims:
+        groups:
+          - engineering
+          - slack-writers
+    payload:
+      name: slack-mcp-slack_send_message
+      args:
+        channel_id: C0123456789
+        message: shipping at 3
+  output:
+    expectedResult: allow
+- description: Korotovsky write (conversations_add_message) with a slack-writers
+    member — allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-conversations_add_message
+      uri: null
+    subject:
+      sub: auth0|writer@example.com
+      claims:
+        groups:
+          - slack-writers
+    payload:
+      name: slack-mcp-conversations_add_message
+      args:
+        channel_id: C0123456789
+        payload: hello
+        content_type: text/markdown
+  output:
+    expectedResult: allow
+- description: Legacy write (slack_reply_to_thread) with a slack-writers
+    member — allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-legacy-slack_reply_to_thread
+      uri: null
+    subject:
+      sub: auth0|writer@example.com
+      claims:
+        groups:
+          - slack-writers
+    payload:
+      name: slack-legacy-slack_reply_to_thread
+      args:
+        channel_id: C0123456789
+        thread_ts: "1720000000.000100"
+        text: on it
+  output:
+    expectedResult: allow
+- description: Kebab-case deployment naming (slack-mcp-slack-send-message) is
+    normalized to underscores and still recognized as a write — allow for a
+    slack-writers member.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-slack-send-message
+      uri: null
+    subject:
+      sub: auth0|writer@example.com
+      claims:
+        groups:
+          - slack-writers
+    payload:
+      name: slack-mcp-slack-send-message
+      args:
+        channel_id: C0123456789
+        message: kebab deployment
+  output:
+    expectedResult: allow
+- description: Official write (slack_send_message) with a caller outside the
+    writers group — deny with the read-only reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-slack_send_message
+      uri: null
+    subject:
+      sub: auth0|reader@example.com
+      claims:
+        groups:
+          - support
+          - engineering
+    payload:
+      name: slack-mcp-slack_send_message
+      args:
+        channel_id: C0123456789
+        message: shipping at 3
+  output:
+    expectedResult: deny
+    expectedReason: Slack write tools are limited to members of the 'slack-writers' group — your Slack access through the agent channel is read-only. If you believe this is a false positive, ask your administrator to add you to the writers group.
+- description: Kebab-case write (slack-mcp-slack-send-message) from a non-writer
+    is normalized and denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-slack-send-message
+      uri: null
+    subject:
+      sub: auth0|reader@example.com
+      claims:
+        groups:
+          - support
+    payload:
+      name: slack-mcp-slack-send-message
+      args:
+        channel_id: C0123456789
+        message: kebab deployment
+  output:
+    expectedResult: deny
+    expectedReason: Slack write tools are limited to members of the 'slack-writers' group — your Slack access through the agent channel is read-only. If you believe this is a false positive, ask your administrator to add you to the writers group.
+- description: Scheduled send (slack_schedule_message) time-shifts past session
+    review — deny for a non-writer.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-slack_schedule_message
+      uri: null
+    subject:
+      sub: auth0|reader@example.com
+      claims:
+        groups:
+          - support
+    payload:
+      name: slack-mcp-slack_schedule_message
+      args:
+        channel_id: C0123456789
+        message: later
+        post_at: 1893456000
+  output:
+    expectedResult: deny
+    expectedReason: Slack write tools are limited to members of the 'slack-writers' group — your Slack access through the agent channel is read-only. If you believe this is a false positive, ask your administrator to add you to the writers group.
+- description: Draft creation (slack_send_message_draft) is still gated as a
+    write — deny for a non-writer.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-slack_send_message_draft
+      uri: null
+    subject:
+      sub: auth0|reader@example.com
+      claims:
+        groups:
+          - support
+    payload:
+      name: slack-mcp-slack_send_message_draft
+      args:
+        channel_id: C0123456789
+        message: draft body
+  output:
+    expectedResult: deny
+    expectedReason: Slack write tools are limited to members of the 'slack-writers' group — your Slack access through the agent channel is read-only. If you believe this is a false positive, ask your administrator to add you to the writers group.
+- description: Canvas creation (slack_create_canvas) from a non-writer — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-slack_create_canvas
+      uri: null
+    subject:
+      sub: auth0|reader@example.com
+      claims:
+        groups:
+          - support
+    payload:
+      name: slack-mcp-slack_create_canvas
+      args:
+        title: Q3 plan
+        content: "# plan"
+  output:
+    expectedResult: deny
+    expectedReason: Slack write tools are limited to members of the 'slack-writers' group — your Slack access through the agent channel is read-only. If you believe this is a false positive, ask your administrator to add you to the writers group.
+- description: Canvas update (slack_update_canvas) from a non-writer — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-slack_update_canvas
+      uri: null
+    subject:
+      sub: auth0|reader@example.com
+      claims:
+        groups:
+          - support
+    payload:
+      name: slack-mcp-slack_update_canvas
+      args:
+        canvas_id: F0123456789
+        action: append
+        content: more
+  output:
+    expectedResult: deny
+    expectedReason: Slack write tools are limited to members of the 'slack-writers' group — your Slack access through the agent channel is read-only. If you believe this is a false positive, ask your administrator to add you to the writers group.
+- description: Korotovsky write (conversations_add_message) from a non-writer —
+    deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-conversations_add_message
+      uri: null
+    subject:
+      sub: auth0|reader@example.com
+      claims:
+        groups:
+          - support
+    payload:
+      name: slack-mcp-conversations_add_message
+      args:
+        channel_id: C0123456789
+        payload: hello
+  output:
+    expectedResult: deny
+    expectedReason: Slack write tools are limited to members of the 'slack-writers' group — your Slack access through the agent channel is read-only. If you believe this is a false positive, ask your administrator to add you to the writers group.
+- description: Reaction add (reactions_add) from a non-writer — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-reactions_add
+      uri: null
+    subject:
+      sub: auth0|reader@example.com
+      claims:
+        groups:
+          - support
+    payload:
+      name: slack-mcp-reactions_add
+      args:
+        channel_id: C0123456789
+        timestamp: "1720000000.000100"
+        name: thumbsup
+  output:
+    expectedResult: deny
+    expectedReason: Slack write tools are limited to members of the 'slack-writers' group — your Slack access through the agent channel is read-only. If you believe this is a false positive, ask your administrator to add you to the writers group.
+- description: Reaction removal (reactions_remove) from a non-writer — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-reactions_remove
+      uri: null
+    subject:
+      sub: auth0|reader@example.com
+      claims:
+        groups:
+          - support
+    payload:
+      name: slack-mcp-reactions_remove
+      args:
+        channel_id: C0123456789
+        timestamp: "1720000000.000100"
+        name: thumbsup
+  output:
+    expectedResult: deny
+    expectedReason: Slack write tools are limited to members of the 'slack-writers' group — your Slack access through the agent channel is read-only. If you believe this is a false positive, ask your administrator to add you to the writers group.
+- description: Read-state mutation (conversations_mark) from a non-writer —
+    deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-conversations_mark
+      uri: null
+    subject:
+      sub: auth0|reader@example.com
+      claims:
+        groups:
+          - support
+    payload:
+      name: slack-mcp-conversations_mark
+      args:
+        channel_id: C0123456789
+        timestamp: "1720000000.000100"
+  output:
+    expectedResult: deny
+    expectedReason: Slack write tools are limited to members of the 'slack-writers' group — your Slack access through the agent channel is read-only. If you believe this is a false positive, ask your administrator to add you to the writers group.
+- description: Saved-item mutation (saved_update) from a non-writer — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-saved_update
+      uri: null
+    subject:
+      sub: auth0|reader@example.com
+      claims:
+        groups:
+          - support
+    payload:
+      name: slack-mcp-saved_update
+      args:
+        item_id: "123"
+        state: completed
+  output:
+    expectedResult: deny
+    expectedReason: Slack write tools are limited to members of the 'slack-writers' group — your Slack access through the agent channel is read-only. If you believe this is a false positive, ask your administrator to add you to the writers group.
+- description: Saved-item bulk mutation (saved_clear_completed) from a
+    non-writer — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-saved_clear_completed
+      uri: null
+    subject:
+      sub: auth0|reader@example.com
+      claims:
+        groups:
+          - support
+    payload:
+      name: slack-mcp-saved_clear_completed
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: Slack write tools are limited to members of the 'slack-writers' group — your Slack access through the agent channel is read-only. If you believe this is a false positive, ask your administrator to add you to the writers group.
+- description: Org group creation (usergroups_create) modifies paging and
+    escalation structure — deny for a non-writer.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-usergroups_create
+      uri: null
+    subject:
+      sub: auth0|reader@example.com
+      claims:
+        groups:
+          - support
+    payload:
+      name: slack-mcp-usergroups_create
+      args:
+        name: oncall-new
+  output:
+    expectedResult: deny
+    expectedReason: Slack write tools are limited to members of the 'slack-writers' group — your Slack access through the agent channel is read-only. If you believe this is a false positive, ask your administrator to add you to the writers group.
+- description: Org group edit (usergroups_update) from a non-writer — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-usergroups_update
+      uri: null
+    subject:
+      sub: auth0|reader@example.com
+      claims:
+        groups:
+          - support
+    payload:
+      name: slack-mcp-usergroups_update
+      args:
+        usergroup_id: S0123456789
+        name: oncall-renamed
+  output:
+    expectedResult: deny
+    expectedReason: Slack write tools are limited to members of the 'slack-writers' group — your Slack access through the agent channel is read-only. If you believe this is a false positive, ask your administrator to add you to the writers group.
+- description: Org group membership change (usergroups_users_update) from a
+    non-writer — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-usergroups_users_update
+      uri: null
+    subject:
+      sub: auth0|reader@example.com
+      claims:
+        groups:
+          - support
+    payload:
+      name: slack-mcp-usergroups_users_update
+      args:
+        usergroup_id: S0123456789
+        users:
+          - U0123456789
+  output:
+    expectedResult: deny
+    expectedReason: Slack write tools are limited to members of the 'slack-writers' group — your Slack access through the agent channel is read-only. If you believe this is a false positive, ask your administrator to add you to the writers group.
+- description: Legacy write (slack_post_message) from a non-writer — deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-legacy-slack_post_message
+      uri: null
+    subject:
+      sub: auth0|reader@example.com
+      claims:
+        groups:
+          - support
+    payload:
+      name: slack-legacy-slack_post_message
+      args:
+        channel_id: C0123456789
+        text: hello
+  output:
+    expectedResult: deny
+    expectedReason: Slack write tools are limited to members of the 'slack-writers' group — your Slack access through the agent channel is read-only. If you believe this is a false positive, ask your administrator to add you to the writers group.
+- description: Legacy reaction write (slack_add_reaction) from a non-writer —
+    deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-legacy-slack_add_reaction
+      uri: null
+    subject:
+      sub: auth0|reader@example.com
+      claims:
+        groups:
+          - support
+    payload:
+      name: slack-legacy-slack_add_reaction
+      args:
+        channel_id: C0123456789
+        timestamp: "1720000000.000100"
+        reaction: eyes
+  output:
+    expectedResult: deny
+    expectedReason: Slack write tools are limited to members of the 'slack-writers' group — your Slack access through the agent channel is read-only. If you believe this is a false positive, ask your administrator to add you to the writers group.
+- description: Write tool with no subject block at all (no IdP identity) —
+    fail-closed deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-slack_send_message
+      uri: null
+    payload:
+      name: slack-mcp-slack_send_message
+      args:
+        channel_id: C0123456789
+        message: anonymous send
+  output:
+    expectedResult: deny
+    expectedReason: Slack write tools are limited to members of the 'slack-writers' group — your Slack access through the agent channel is read-only. If you believe this is a false positive, ask your administrator to add you to the writers group.
+- description: Write tool with claims present but no groups claim — fail-closed
+    deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-slack_send_message
+      uri: null
+    subject:
+      sub: auth0|reader@example.com
+      claims:
+        org_id: org_abc123
+    payload:
+      name: slack-mcp-slack_send_message
+      args:
+        channel_id: C0123456789
+        message: no groups claim
+  output:
+    expectedResult: deny
+    expectedReason: Slack write tools are limited to members of the 'slack-writers' group — your Slack access through the agent channel is read-only. If you believe this is a false positive, ask your administrator to add you to the writers group.
+- description: Groups claim emitted as a single string instead of an array —
+    not iterable, fail-closed deny even though the value equals slack-writers.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-slack_send_message
+      uri: null
+    subject:
+      sub: auth0|writer@example.com
+      claims:
+        groups: slack-writers
+    payload:
+      name: slack-mcp-slack_send_message
+      args:
+        channel_id: C0123456789
+        message: string-shaped groups claim
+  output:
+    expectedResult: deny
+    expectedReason: Slack write tools are limited to members of the 'slack-writers' group — your Slack access through the agent channel is read-only. If you believe this is a false positive, ask your administrator to add you to the writers group.
+- description: Group comparison is exact and case-sensitive — a caller in
+    Slack-Writers (wrong case) is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-slack_send_message
+      uri: null
+    subject:
+      sub: auth0|writer@example.com
+      claims:
+        groups:
+          - Slack-Writers
+    payload:
+      name: slack-mcp-slack_send_message
+      args:
+        channel_id: C0123456789
+        message: wrong-case group
+  output:
+    expectedResult: deny
+    expectedReason: Slack write tools are limited to members of the 'slack-writers' group — your Slack access through the agent channel is read-only. If you believe this is a false positive, ask your administrator to add you to the writers group.
+- description: Tool-name matching is case-insensitive — mixed-case
+    Slack_Send_Message from a non-writer is still denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: Slack-MCP-Slack_Send_Message
+      uri: null
+    subject:
+      sub: auth0|reader@example.com
+      claims:
+        groups:
+          - support
+    payload:
+      name: Slack-MCP-Slack_Send_Message
+      args:
+        channel_id: C0123456789
+        message: mixed case
+  output:
+    expectedResult: deny
+    expectedReason: Slack write tools are limited to members of the 'slack-writers' group — your Slack access through the agent channel is read-only. If you believe this is a false positive, ask your administrator to add you to the writers group.
+- description: "Red-team: write tool named only under the legacy payload.name with
+    resource.name absent. The gate must not collapse to allow — payload.name is
+    also checked, so a non-writer is denied (fail-closed)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      uri: null
+    subject:
+      sub: auth0|reader@example.com
+      claims:
+        groups:
+          - support
+    payload:
+      name: slack-mcp-slack_send_message
+      args:
+        channel_id: C0123456789
+        message: resource name omitted
+  output:
+    expectedResult: deny
+    expectedReason: Slack write tools are limited to members of the 'slack-writers' group — your Slack access through the agent channel is read-only. If you believe this is a false positive, ask your administrator to add you to the writers group.
+- description: "Red-team: resource.name spoofed to a read tool while payload.name is
+    the real write. Because the write is detected from either field, the non-writer
+    is denied."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-slack_read_channel
+      uri: null
+    subject:
+      sub: auth0|reader@example.com
+      claims:
+        groups:
+          - support
+    payload:
+      name: slack-mcp-slack_send_message
+      args:
+        channel_id: C0123456789
+        message: spoofed resource name
+  output:
+    expectedResult: deny
+    expectedReason: Slack write tools are limited to members of the 'slack-writers' group — your Slack access through the agent channel is read-only. If you believe this is a false positive, ask your administrator to add you to the writers group.
+- description: "Regression: write named only under payload.name (resource.name
+    absent) still allows a slack-writers member — the dual-field check must not
+    over-deny legitimate writers."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      uri: null
+    subject:
+      sub: auth0|writer@example.com
+      claims:
+        groups:
+          - slack-writers
+    payload:
+      name: slack-mcp-slack_send_message
+      args:
+        channel_id: C0123456789
+        message: writer via payload name
+  output:
+    expectedResult: allow
+- description: "Regression: a read tool named only under payload.name (resource.name
+    absent) still passes for a non-writer — the dual-field check must not turn
+    reads into writes."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      uri: null
+    subject:
+      sub: auth0|reader@example.com
+      claims:
+        groups:
+          - support
+    payload:
+      name: slack-mcp-slack_read_channel
+      args:
+        channel_id: C0123456789
+  output:
+    expectedResult: allow
+- description: "Red-team: groups claim shaped as an OBJECT/map whose VALUE equals
+    slack-writers. `some x in obj` iterates values, so without the is_array guard
+    this would wrongly grant; the guard makes a non-array claim fail closed — deny."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-slack_send_message
+      uri: null
+    subject:
+      sub: auth0|writer@example.com
+      claims:
+        groups:
+          g1: slack-writers
+          g2: engineering
+    payload:
+      name: slack-mcp-slack_send_message
+      args:
+        channel_id: C0123456789
+        message: object-shaped groups claim
+  output:
+    expectedResult: deny
+    expectedReason: Slack write tools are limited to members of the 'slack-writers' group — your Slack access through the agent channel is read-only. If you believe this is a false positive, ask your administrator to add you to the writers group.
+- description: "Red-team / documented limitation: a request carrying NO tool name
+    under either resource.name or payload.name matches no write suffix, so the call
+    is allowed (there is no tool to gate). Confirms the 'Nameless requests pass'
+    behavior stated in Known limitations."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      uri: null
+    subject:
+      sub: auth0|reader@example.com
+      claims:
+        groups:
+          - support
+    payload:
+      args:
+        channel_id: C0123456789
+  output:
+    expectedResult: allow
+- description: "Red-team (fixed): write name under resource.name while payload.name
+    is a NON-STRING object. The old code let lower() error on the object, making
+    the [resource,payload] name array undefined and DISABLING the write gate
+    (allow). Each field is now normalized independently — the real write on
+    resource.name is still caught, so a non-writer is denied (fail-closed)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-slack_send_message
+      uri: null
+    subject:
+      sub: auth0|reader@example.com
+      claims:
+        groups:
+          - support
+    payload:
+      name:
+        nested: injected
+      args:
+        channel_id: C0123456789
+        message: object-poisoned payload name
+  output:
+    expectedResult: deny
+    expectedReason: Slack write tools are limited to members of the 'slack-writers' group — your Slack access through the agent channel is read-only. If you believe this is a false positive, ask your administrator to add you to the writers group.
+- description: "Red-team (fixed): write name under payload.name while resource.name
+    is a NON-STRING number. Symmetric to the object-poison case — the write on
+    payload.name is still detected and a non-writer is denied."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: 12345
+      uri: null
+    subject:
+      sub: auth0|reader@example.com
+      claims:
+        groups:
+          - support
+    payload:
+      name: slack-mcp-slack_send_message
+      args:
+        channel_id: C0123456789
+        message: number-poisoned resource name
+  output:
+    expectedResult: deny
+    expectedReason: Slack write tools are limited to members of the 'slack-writers' group — your Slack access through the agent channel is read-only. If you believe this is a false positive, ask your administrator to add you to the writers group.
+- description: "Regression: a slack-writers member whose payload.name is a non-string
+    object (write on resource.name) is still allowed — the poison-proof fix must
+    not over-deny legitimate writers."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-slack_send_message
+      uri: null
+    subject:
+      sub: auth0|writer@example.com
+      claims:
+        groups:
+          - slack-writers
+    payload:
+      name:
+        nested: injected
+      args:
+        channel_id: C0123456789
+        message: writer with poisoned payload name
+  output:
+    expectedResult: allow
+- description: "Red-team / documented limitation: BOTH names are non-string values,
+    which each coerce to the empty string, so no write suffix matches and the call
+    is allowed (nameless). Confirms the extended 'Nameless requests pass' behavior."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: 1
+      uri: null
+    subject:
+      sub: auth0|reader@example.com
+      claims:
+        groups:
+          - support
+    payload:
+      name:
+        - a
+        - b
+      args:
+        channel_id: C0123456789
+  output:
+    expectedResult: allow

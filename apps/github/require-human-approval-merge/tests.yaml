@@ -1,0 +1,539 @@
+# Deny reasons reused across cases (must match policy.md verbatim).
+# merge:  "Merging a pull request requires a human. ..."
+# review: "Submitting a pull-request approval requires a human. ..."
+
+- description: merge_pull_request (official server) is always denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-merge_pull_request
+      uri: null
+    payload:
+      name: github-mcp-merge_pull_request
+      args:
+        owner: acme
+        repo: app
+        pullNumber: 42
+        merge_method: squash
+  output:
+    expectedResult: deny
+    expectedReason: Merging a pull request requires a human. This agent can open and update pull requests, but it cannot merge them. Ask a human maintainer to review and merge this pull request. Contact your InfoSec or engineering-lead team if this control is blocking a legitimate automated workflow.
+
+- description: merge_pull_request under a different server prefix (archived server) is also denied via the shared suffix.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: legacy-github-merge_pull_request
+      uri: null
+    payload:
+      name: legacy-github-merge_pull_request
+      args:
+        owner: acme
+        repo: app
+        pull_number: 7
+  output:
+    expectedResult: deny
+    expectedReason: Merging a pull request requires a human. This agent can open and update pull requests, but it cannot merge them. Ask a human maintainer to review and merge this pull request. Contact your InfoSec or engineering-lead team if this control is blocking a legitimate automated workflow.
+
+- description: Tool-name casing does not bypass the merge deny (uppercased name).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: GITHUB-MCP-MERGE_PULL_REQUEST
+      uri: null
+    payload:
+      name: GITHUB-MCP-MERGE_PULL_REQUEST
+      args:
+        owner: acme
+        repo: app
+        pullNumber: 42
+  output:
+    expectedResult: deny
+    expectedReason: Merging a pull request requires a human. This agent can open and update pull requests, but it cannot merge them. Ask a human maintainer to review and merge this pull request. Contact your InfoSec or engineering-lead team if this control is blocking a legitimate automated workflow.
+
+- description: pull_request_review_write submit + APPROVE is denied (confirmed approval).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-pull_request_review_write
+      uri: null
+    payload:
+      name: github-mcp-pull_request_review_write
+      args:
+        owner: acme
+        repo: app
+        method: submit
+        event: APPROVE
+  output:
+    expectedResult: deny
+    expectedReason: Submitting a pull-request approval requires a human. This agent can create draft reviews and leave review comments (COMMENT or REQUEST_CHANGES), but it cannot approve a pull request. Ask a human reviewer to submit the approval and perform the merge. Contact your InfoSec or engineering-lead team if this control is blocking a legitimate automated workflow.
+
+- description: Mixed-case method/event does not bypass the approval deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-pull_request_review_write
+      uri: null
+    payload:
+      name: github-mcp-pull_request_review_write
+      args:
+        owner: acme
+        repo: app
+        method: Submit
+        event: Approve
+  output:
+    expectedResult: deny
+    expectedReason: Submitting a pull-request approval requires a human. This agent can create draft reviews and leave review comments (COMMENT or REQUEST_CHANGES), but it cannot approve a pull request. Ask a human reviewer to submit the approval and perform the merge. Contact your InfoSec or engineering-lead team if this control is blocking a legitimate automated workflow.
+
+- description: submit with a missing event is denied (fail closed on ambiguous submit).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-pull_request_review_write
+      uri: null
+    payload:
+      name: github-mcp-pull_request_review_write
+      args:
+        owner: acme
+        repo: app
+        method: submit
+  output:
+    expectedResult: deny
+    expectedReason: Submitting a pull-request approval requires a human. This agent can create draft reviews and leave review comments (COMMENT or REQUEST_CHANGES), but it cannot approve a pull request. Ask a human reviewer to submit the approval and perform the merge. Contact your InfoSec or engineering-lead team if this control is blocking a legitimate automated workflow.
+
+- description: review_write with a missing method is denied (fail closed on malformed method).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-pull_request_review_write
+      uri: null
+    payload:
+      name: github-mcp-pull_request_review_write
+      args:
+        owner: acme
+        repo: app
+  output:
+    expectedResult: deny
+    expectedReason: Submitting a pull-request approval requires a human. This agent can create draft reviews and leave review comments (COMMENT or REQUEST_CHANGES), but it cannot approve a pull request. Ask a human reviewer to submit the approval and perform the merge. Contact your InfoSec or engineering-lead team if this control is blocking a legitimate automated workflow.
+
+- description: review_write with an unrecognized method is denied (fail closed on malformed method).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-pull_request_review_write
+      uri: null
+    payload:
+      name: github-mcp-pull_request_review_write
+      args:
+        owner: acme
+        repo: app
+        method: approve_and_merge
+  output:
+    expectedResult: deny
+    expectedReason: Submitting a pull-request approval requires a human. This agent can create draft reviews and leave review comments (COMMENT or REQUEST_CHANGES), but it cannot approve a pull request. Ask a human reviewer to submit the approval and perform the merge. Contact your InfoSec or engineering-lead team if this control is blocking a legitimate automated workflow.
+
+- description: Sneaking an approval via method=create + event=APPROVE is denied (defensive event backstop).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-pull_request_review_write
+      uri: null
+    payload:
+      name: github-mcp-pull_request_review_write
+      args:
+        owner: acme
+        repo: app
+        method: create
+        event: APPROVE
+  output:
+    expectedResult: deny
+    expectedReason: Submitting a pull-request approval requires a human. This agent can create draft reviews and leave review comments (COMMENT or REQUEST_CHANGES), but it cannot approve a pull request. Ask a human reviewer to submit the approval and perform the merge. Contact your InfoSec or engineering-lead team if this control is blocking a legitimate automated workflow.
+
+- description: Archived create_pull_request_review with event=APPROVE is denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: legacy-github-create_pull_request_review
+      uri: null
+    payload:
+      name: legacy-github-create_pull_request_review
+      args:
+        owner: acme
+        repo: app
+        event: APPROVE
+  output:
+    expectedResult: deny
+    expectedReason: Submitting a pull-request approval requires a human. This agent can create draft reviews and leave review comments (COMMENT or REQUEST_CHANGES), but it cannot approve a pull request. Ask a human reviewer to submit the approval and perform the merge. Contact your InfoSec or engineering-lead team if this control is blocking a legitimate automated workflow.
+
+- description: submit + COMMENT is allowed (leaving a review comment, not an approval).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-pull_request_review_write
+      uri: null
+    payload:
+      name: github-mcp-pull_request_review_write
+      args:
+        owner: acme
+        repo: app
+        method: submit
+        event: COMMENT
+  output:
+    expectedResult: allow
+
+- description: submit + REQUEST_CHANGES is allowed (non-approving review).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-pull_request_review_write
+      uri: null
+    payload:
+      name: github-mcp-pull_request_review_write
+      args:
+        owner: acme
+        repo: app
+        method: submit
+        event: REQUEST_CHANGES
+  output:
+    expectedResult: allow
+
+- description: method=create (draft a pending review) is allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-pull_request_review_write
+      uri: null
+    payload:
+      name: github-mcp-pull_request_review_write
+      args:
+        owner: acme
+        repo: app
+        method: create
+        body: Looks good, one nit inline.
+  output:
+    expectedResult: allow
+
+- description: method=resolve_thread (manage comment threads) is allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-pull_request_review_write
+      uri: null
+    payload:
+      name: github-mcp-pull_request_review_write
+      args:
+        owner: acme
+        repo: app
+        method: resolve_thread
+  output:
+    expectedResult: allow
+
+- description: Archived create_pull_request_review with event=COMMENT is allowed (leaving comments).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: legacy-github-create_pull_request_review
+      uri: null
+    payload:
+      name: legacy-github-create_pull_request_review
+      args:
+        owner: acme
+        repo: app
+        event: COMMENT
+  output:
+    expectedResult: allow
+
+- description: Archived create_pull_request_review with no event creates a pending (non-approving) review and is allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: legacy-github-create_pull_request_review
+      uri: null
+    payload:
+      name: legacy-github-create_pull_request_review
+      args:
+        owner: acme
+        repo: app
+        body: Draft review comment.
+  output:
+    expectedResult: allow
+
+- description: pull_request_read (read path) passes through untouched.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-pull_request_read
+      uri: null
+    payload:
+      name: github-mcp-pull_request_read
+      args:
+        owner: acme
+        repo: app
+        method: get_reviews
+  output:
+    expectedResult: allow
+
+- description: create_pull_request (agent drafts a PR) is allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-create_pull_request
+      uri: null
+    payload:
+      name: github-mcp-create_pull_request
+      args:
+        owner: acme
+        repo: app
+        title: Fix null deref
+        head: fix/npe
+        base: main
+  output:
+    expectedResult: allow
+
+- description: Unrelated read tool (get_file_contents) is allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-get_file_contents
+      uri: null
+    payload:
+      name: github-mcp-get_file_contents
+      args:
+        owner: acme
+        repo: app
+        path: README.md
+  output:
+    expectedResult: allow
+
+# --- Red-team (standards §10) bypass regression cases ---
+
+- description: "Red-team fix: submit with a non-string event (array) is denied. A non-string value made lower() error, leaving review_event undefined so the approval slipped through; is_string coercion now forces it into the deny branch."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-pull_request_review_write
+      uri: null
+    payload:
+      name: github-mcp-pull_request_review_write
+      args:
+        owner: acme
+        repo: app
+        method: submit
+        event:
+          - APPROVE
+  output:
+    expectedResult: deny
+    expectedReason: Submitting a pull-request approval requires a human. This agent can create draft reviews and leave review comments (COMMENT or REQUEST_CHANGES), but it cannot approve a pull request. Ask a human reviewer to submit the approval and perform the merge. Contact your InfoSec or engineering-lead team if this control is blocking a legitimate automated workflow.
+
+- description: "Red-team fix: submit with a numeric event is denied (non-string coerced to \"\" -> malformed -> fail closed)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-pull_request_review_write
+      uri: null
+    payload:
+      name: github-mcp-pull_request_review_write
+      args:
+        owner: acme
+        repo: app
+        method: submit
+        event: 123
+  output:
+    expectedResult: deny
+    expectedReason: Submitting a pull-request approval requires a human. This agent can create draft reviews and leave review comments (COMMENT or REQUEST_CHANGES), but it cannot approve a pull request. Ask a human reviewer to submit the approval and perform the merge. Contact your InfoSec or engineering-lead team if this control is blocking a legitimate automated workflow.
+
+- description: "Red-team: a non-string method also fails closed (method coerced to \"\" -> unrecognized -> denied)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-pull_request_review_write
+      uri: null
+    payload:
+      name: github-mcp-pull_request_review_write
+      args:
+        owner: acme
+        repo: app
+        method:
+          - submit
+        event: COMMENT
+  output:
+    expectedResult: deny
+    expectedReason: Submitting a pull-request approval requires a human. This agent can create draft reviews and leave review comments (COMMENT or REQUEST_CHANGES), but it cannot approve a pull request. Ask a human reviewer to submit the approval and perform the merge. Contact your InfoSec or engineering-lead team if this control is blocking a legitimate automated workflow.
+
+- description: "Red-team: review_write with no args object at all is denied (missing args fails closed)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-pull_request_review_write
+      uri: null
+    payload:
+      name: github-mcp-pull_request_review_write
+  output:
+    expectedResult: deny
+    expectedReason: Submitting a pull-request approval requires a human. This agent can create draft reviews and leave review comments (COMMENT or REQUEST_CHANGES), but it cannot approve a pull request. Ask a human reviewer to submit the approval and perform the merge. Contact your InfoSec or engineering-lead team if this control is blocking a legitimate automated workflow.
+
+- description: "Red-team fix (fail-open bypass): review_write with a NON-OBJECT args (args is a string) is denied. object.get on a non-object args raised a runtime type error that left official_review_blocked undefined, so `allow if not official_review_blocked` fired on `not undefined`. The is_object guard coerces args to {} -> unrecognized method -> deny."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-pull_request_review_write
+      uri: null
+    payload:
+      name: github-mcp-pull_request_review_write
+      args: submit
+  output:
+    expectedResult: deny
+    expectedReason: Submitting a pull-request approval requires a human. This agent can create draft reviews and leave review comments (COMMENT or REQUEST_CHANGES), but it cannot approve a pull request. Ask a human reviewer to submit the approval and perform the merge. Contact your InfoSec or engineering-lead team if this control is blocking a legitimate automated workflow.
+
+- description: "Red-team fix (fail-open bypass): review_write with args as an ARRAY is denied (non-object args coerced to {} -> fail closed)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-pull_request_review_write
+      uri: null
+    payload:
+      name: github-mcp-pull_request_review_write
+      args:
+        - method
+        - submit
+  output:
+    expectedResult: deny
+    expectedReason: Submitting a pull-request approval requires a human. This agent can create draft reviews and leave review comments (COMMENT or REQUEST_CHANGES), but it cannot approve a pull request. Ask a human reviewer to submit the approval and perform the merge. Contact your InfoSec or engineering-lead team if this control is blocking a legitimate automated workflow.
+
+- description: "Red-team fix (fail-open bypass): review_write with args explicitly null is denied (null coerced to {} -> fail closed)."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-pull_request_review_write
+      uri: null
+    payload:
+      name: github-mcp-pull_request_review_write
+      args: null
+  output:
+    expectedResult: deny
+    expectedReason: Submitting a pull-request approval requires a human. This agent can create draft reviews and leave review comments (COMMENT or REQUEST_CHANGES), but it cannot approve a pull request. Ask a human reviewer to submit the approval and perform the merge. Contact your InfoSec or engineering-lead team if this control is blocking a legitimate automated workflow.
+
+- description: "Red-team fix (fail-open bypass): review_write with NO payload object at all is denied. object.get(input, 'payload', {}) tolerates the absent payload and the args guard fails closed; previously input.payload being undefined cascaded to allow=true."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-pull_request_review_write
+      uri: null
+  output:
+    expectedResult: deny
+    expectedReason: Submitting a pull-request approval requires a human. This agent can create draft reviews and leave review comments (COMMENT or REQUEST_CHANGES), but it cannot approve a pull request. Ask a human reviewer to submit the approval and perform the merge. Contact your InfoSec or engineering-lead team if this control is blocking a legitimate automated workflow.
+
+- description: "Red-team (documented residual): a tool_pre_invoke with no resource.name matches no target suffix and passes through. The gateway always populates resource.name for tool hooks (not caller-supplied), so this is not attacker-controllable; see Known limitations. Front with PF-28 to hard-fail unnamed calls."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      uri: null
+    payload:
+      args:
+        method: submit
+        event: APPROVE
+  output:
+    expectedResult: allow
+
+- description: "Red-team (documented residual): delegation to an autonomous Copilot agent (create_pull_request_with_copilot) is NOT a merge/approve tool, so it passes through. See Known limitations — the human-in-the-loop guarantee only binds the governed agent, not a second agent it hands work to."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-create_pull_request_with_copilot
+      uri: null
+    payload:
+      name: github-mcp-create_pull_request_with_copilot
+      args:
+        owner: acme
+        repo: app
+        title: land it
+        problem_statement: finish and merge this change
+  output:
+    expectedResult: allow

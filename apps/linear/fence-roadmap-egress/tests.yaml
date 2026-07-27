@@ -1,0 +1,507 @@
+- description: Non-guarded read (getIssues) — passes through regardless of group.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: linear-mcp-linear_getIssues
+      uri: null
+    payload:
+      name: linear-mcp-linear_getIssues
+      text:
+        - '[{"id":"iss_1","title":"Fix login bug"}]'
+    subject:
+      claims:
+        groups:
+          - marketing
+  output:
+    expectedResult: allow
+
+- description: getProjects (general project list, not a project-update read) — not
+    fenced, passes through even for an out-of-group caller.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: linear-mcp-linear_getProjects
+      uri: null
+    payload:
+      name: linear-mcp-linear_getProjects
+      text:
+        - '[{"id":"proj_1","name":"Website"}]'
+    subject:
+      claims:
+        groups:
+          - engineering
+  output:
+    expectedResult: allow
+
+- description: getRoadmaps by a caller in the product group — allowed.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: linear-mcp-linear_getRoadmaps
+      uri: null
+    payload:
+      name: linear-mcp-linear_getRoadmaps
+      text:
+        - '[{"id":"road_1","name":"H2 launches"}]'
+    subject:
+      claims:
+        groups:
+          - product
+  output:
+    expectedResult: allow
+
+- description: getInitiatives by a caller in the exec group — allowed.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: linear-mcp-linear_getInitiatives
+      uri: null
+    payload:
+      name: linear-mcp-linear_getInitiatives
+      text:
+        - '[{"id":"init_1","name":"Project Titan"}]'
+    subject:
+      claims:
+        groups:
+          - exec
+          - product
+  output:
+    expectedResult: allow
+
+- description: getInitiatives by a caller outside product/exec — denied.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: linear-mcp-linear_getInitiatives
+      uri: null
+    payload:
+      name: linear-mcp-linear_getInitiatives
+      text:
+        - '[{"id":"init_1","name":"Project Titan (unannounced)"}]'
+    subject:
+      claims:
+        groups:
+          - marketing
+  output:
+    expectedResult: deny
+    expectedReason: This Linear response contains roadmap, initiative, or strategy content (unreleased plans and launch timing that may be material non-public information). It is restricted to the product and exec groups (placeholder IdP group names "product" and "exec"). Ask your administrator to grant you the appropriate group if you need pre-announcement access, and confirm your IdP is emitting the `groups` claim. If you believe you already have this access, ask your admin to verify your IdP group mapping.
+
+- description: getInitiativeUpdates with no subject at all — fail closed, denied.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: linear-mcp-linear_getInitiativeUpdates
+      uri: null
+    payload:
+      name: linear-mcp-linear_getInitiativeUpdates
+      text:
+        - '[{"id":"iu_1","body":"We are pulling the Q3 launch"}]'
+  output:
+    expectedResult: deny
+
+- description: getDocuments (PRDs/specs) by an out-of-group caller — denied.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: linear-mcp-linear_getDocuments
+      uri: null
+    payload:
+      name: linear-mcp-linear_getDocuments
+      text:
+        - '[{"id":"doc_1","title":"Titan PRD"}]'
+    subject:
+      claims:
+        groups:
+          - sales
+  output:
+    expectedResult: deny
+
+- description: getDocumentContentHistory (leaks edited-out draft content) by an out-of-group
+    caller — denied.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: linear-mcp-linear_getDocumentContentHistory
+      uri: null
+    payload:
+      name: linear-mcp-linear_getDocumentContentHistory
+      text:
+        - '[{"version":3,"removed":"pricing was $99, now redacted from doc"}]'
+    subject:
+      claims:
+        groups: []
+  output:
+    expectedResult: deny
+
+- description: searchDocuments (document content reached by search) by an out-of-group
+    caller — denied (search is fenced like getDocuments).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: linear-mcp-linear_searchDocuments
+      uri: null
+    payload:
+      name: linear-mcp-linear_searchDocuments
+      text:
+        - '[{"id":"doc_1","title":"Titan PRD","snippet":"pricing model draft"}]'
+    subject:
+      claims:
+        groups:
+          - sales
+  output:
+    expectedResult: deny
+
+- description: getMilestones (project-milestone reads carry launch/target dates) by
+    an out-of-group caller — denied.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: linear-mcp-linear_getMilestones
+      uri: null
+    payload:
+      name: linear-mcp-linear_getMilestones
+      text:
+        - '[{"id":"mile_1","name":"GA","targetDate":"2026-11-01"}]'
+    subject:
+      claims:
+        groups:
+          - engineering
+  output:
+    expectedResult: deny
+
+- description: getMilestones by a caller in the product group — allowed.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: linear-mcp-linear_getMilestones
+      uri: null
+    payload:
+      name: linear-mcp-linear_getMilestones
+      text:
+        - '[{"id":"mile_1","name":"GA","targetDate":"2026-11-01"}]'
+    subject:
+      claims:
+        groups:
+          - product
+  output:
+    expectedResult: allow
+
+- description: Official snake_case project-update read (get_project_updates) — underscore
+    normalization still matches; out-of-group caller denied.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: linear-mcp-get_project_updates
+      uri: null
+    payload:
+      name: linear-mcp-get_project_updates
+      text:
+        - '[{"id":"pu_1","body":"Milestone slipping to Q4"}]'
+    subject:
+      claims:
+        groups:
+          - engineering
+  output:
+    expectedResult: deny
+
+- description: Official snake_case list_documents read by a privileged (product) caller
+    — allowed (confirms both list/snake spellings resolve).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: linear-mcp-list_documents
+      uri: null
+    payload:
+      name: linear-mcp-list_documents
+      text:
+        - '[{"id":"doc_1","title":"Roadmap notes"}]'
+    subject:
+      claims:
+        groups:
+          - product
+  output:
+    expectedResult: allow
+
+- description: Uppercase / mixed-case tool name (case-insensitive match) — out-of-group
+    caller still denied.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: LINEAR-MCP-LINEAR_GetRoadmaps
+      uri: null
+    payload:
+      name: LINEAR-MCP-LINEAR_GetRoadmaps
+      text:
+        - '[{"id":"road_1","name":"H2 launches"}]'
+    subject:
+      claims:
+        groups:
+          - support
+  output:
+    expectedResult: deny
+
+- description: Red-team — spoofed non-array groups claim (bare string "product") is
+    not iterated, so it fails closed and the guarded response is denied.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: linear-mcp-linear_getRoadmaps
+      uri: null
+    payload:
+      name: linear-mcp-linear_getRoadmaps
+      text:
+        - '[{"id":"road_1","name":"H2 launches"}]'
+    subject:
+      claims:
+        groups: product
+  output:
+    expectedResult: deny
+
+- description: Red-team — guarded read whose name is populated ONLY on tool_metadata.name
+    (resource.name empty). Multi-surface matching still fences it; out-of-group caller
+    denied (would have failed open on a resource.name-only check).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: ""
+      uri: null
+    tool_metadata:
+      name: linear-mcp-linear_getInitiatives
+    payload:
+      name: ""
+      text:
+        - '[{"id":"init_1","name":"Project Titan (unannounced)"}]'
+    subject:
+      claims:
+        groups:
+          - marketing
+  output:
+    expectedResult: deny
+
+- description: Write tool with a similar stem (createInitiativeUpdate) is not a guarded
+    read — passes through even for an out-of-group caller.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: linear-mcp-linear_createInitiativeUpdate
+      uri: null
+    payload:
+      name: linear-mcp-linear_createInitiativeUpdate
+      text:
+        - '{"id":"iu_9","status":"created"}'
+    subject:
+      claims:
+        groups:
+          - marketing
+  output:
+    expectedResult: allow
+
+- description: Red-team (fixed bypass) — official singular by-id read get_initiative
+    (Linear names by-id reads get_<noun>, like get_issue/get_project/get_document)
+    by an out-of-group caller. Before the singular forms were added this leaked the
+    unannounced initiative; now fenced/denied.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: linear-mcp-get_initiative
+      uri: null
+    payload:
+      name: linear-mcp-get_initiative
+      text:
+        - '[{"id":"init_1","name":"Project Titan (unannounced)"}]'
+    subject:
+      claims:
+        groups:
+          - marketing
+  output:
+    expectedResult: deny
+    expectedReason: This Linear response contains roadmap, initiative, or strategy content (unreleased plans and launch timing that may be material non-public information). It is restricted to the product and exec groups (placeholder IdP group names "product" and "exec"). Ask your administrator to grant you the appropriate group if you need pre-announcement access, and confirm your IdP is emitting the `groups` claim. If you believe you already have this access, ask your admin to verify your IdP group mapping.
+
+- description: Singular by-id read get_roadmap by a privileged (product) caller — allowed
+    (confirms the singular get<noun> form resolves and does not over-block privileged
+    callers).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: linear-mcp-get_roadmap
+      uri: null
+    payload:
+      name: linear-mcp-get_roadmap
+      text:
+        - '[{"id":"road_1","name":"H2 launches"}]'
+    subject:
+      claims:
+        groups:
+          - product
+  output:
+    expectedResult: allow
+
+- description: Intentional non-fence — get_project (singular general project read, not
+    a project-UPDATE read) is NOT guarded even for an out-of-group caller. Confirms
+    the singular get<noun> additions did not over-reach onto the general project read.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: linear-mcp-get_project
+      uri: null
+    payload:
+      name: linear-mcp-get_project
+      text:
+        - '[{"id":"proj_1","name":"Website"}]'
+    subject:
+      claims:
+        groups:
+          - engineering
+  output:
+    expectedResult: allow
+
+- description: Red-team (fixed bypass) — tacticlaunch by-id read getDocumentById (get<Noun>ById
+    pattern, verified via linear_getIssueById) by an out-of-group caller. Before the
+    trailing-byid trim was added this ended in "byid", matched no suffix, and leaked a
+    single unannounced document; now fenced/denied.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: linear-mcp-linear_getDocumentById
+      uri: null
+    payload:
+      name: linear-mcp-linear_getDocumentById
+      text:
+        - '[{"id":"doc_1","title":"Titan PRD"}]'
+    subject:
+      claims:
+        groups:
+          - marketing
+  output:
+    expectedResult: deny
+    expectedReason: This Linear response contains roadmap, initiative, or strategy content (unreleased plans and launch timing that may be material non-public information). It is restricted to the product and exec groups (placeholder IdP group names "product" and "exec"). Ask your administrator to grant you the appropriate group if you need pre-announcement access, and confirm your IdP is emitting the `groups` claim. If you believe you already have this access, ask your admin to verify your IdP group mapping.
+
+- description: Red-team (fixed bypass) — by-id read getInitiativeById by an out-of-group
+    caller — fenced/denied via the trailing-byid trim.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: linear-mcp-linear_getInitiativeById
+      uri: null
+    payload:
+      name: linear-mcp-linear_getInitiativeById
+      text:
+        - '[{"id":"init_1","name":"Project Titan (unannounced)"}]'
+    subject:
+      claims:
+        groups:
+          - engineering
+  output:
+    expectedResult: deny
+
+- description: Non-over-block guard — getProjectById (general project by-id read) trims
+    to getproject, which is NOT a guarded suffix, so it passes through for an out-of-group
+    caller exactly like get_project. Confirms the byid trim did not over-reach onto the
+    general project read.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: linear-mcp-linear_getProjectById
+      uri: null
+    payload:
+      name: linear-mcp-linear_getProjectById
+      text:
+        - '[{"id":"proj_1","name":"Website"}]'
+    subject:
+      claims:
+        groups:
+          - engineering
+  output:
+    expectedResult: allow
+
+- description: Documented residual — a comment read (getComments) can surface initiative/project
+    discussion but is a sibling surface this policy does not fence; it passes through
+    for an out-of-group caller (see Known limitations — pair with a comment-surface
+    egress policy).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: linear-mcp-linear_getComments
+      uri: null
+    payload:
+      name: linear-mcp-linear_getComments
+      text:
+        - '[{"id":"cmt_1","body":"initiative Titan slips to Q4"}]'
+    subject:
+      claims:
+        groups:
+          - marketing
+  output:
+    expectedResult: allow

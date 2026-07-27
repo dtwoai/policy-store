@@ -1,0 +1,451 @@
+- description: gdrive_search (isaacphi) with pageSize 100 — over the cap, clamped
+    to 25; query and pageToken preserved.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gdrive-mcp-gdrive_search
+      uri: null
+    payload:
+      name: gdrive-mcp-gdrive_search
+      args:
+        query: "fullText contains 'salary'"
+        pageSize: 100
+        pageToken: tok-123
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    pageSize: 25
+    query: "fullText contains 'salary'"
+    pageToken: tok-123
+- description: gdrive_search with no page-size argument — passes through untouched;
+    the server's own default applies.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gdrive-mcp-gdrive_search
+      uri: null
+    payload:
+      name: gdrive-mcp-gdrive_search
+      args:
+        query: "name contains 'roadmap'"
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: gdrive_search with pageSize exactly 25 — boundary value is allowed
+    unchanged (clamp only fires above the cap).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gdrive-mcp-gdrive_search
+      uri: null
+    payload:
+      name: gdrive-mcp-gdrive_search
+      args:
+        query: "modifiedTime > '2026-01-01'"
+        pageSize: 25
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: gdrive_search with pageSize 10 — under the cap, no transform.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gdrive-mcp-gdrive_search
+      uri: null
+    payload:
+      name: gdrive-mcp-gdrive_search
+      args:
+        query: "'folder-1' in parents"
+        pageSize: 10
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: gdrive_search with pageSize as the numeric string "100" — parsed
+    and clamped to the number 25 (documented type rewrite).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gdrive-mcp-gdrive_search
+      uri: null
+    payload:
+      name: gdrive-mcp-gdrive_search
+      args:
+        query: "fullText contains 'passport'"
+        pageSize: "100"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    pageSize: 25
+    query: "fullText contains 'passport'"
+- description: gdrive_search with a non-numeric pageSize ("everything") — value
+    cannot be interpreted, key is skipped, no transform; the server rejects or
+    defaults it.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gdrive-mcp-gdrive_search
+      uri: null
+    payload:
+      name: gdrive-mcp-gdrive_search
+      args:
+        query: "starred = true"
+        pageSize: everything
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Google official search_files with pageSize 200 — clamped to 25
+    (parameter name is a defensive candidate; unverified upstream).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-drive-search_files
+      uri: null
+    payload:
+      name: google-drive-search_files
+      args:
+        query: "fullText contains 'board deck'"
+        pageSize: 200
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    pageSize: 25
+    query: "fullText contains 'board deck'"
+- description: Google official list_recent_files with maxResults 50 — the
+    maxResults candidate key is clamped to 25.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-drive-list_recent_files
+      uri: null
+    payload:
+      name: google-drive-list_recent_files
+      args:
+        maxResults: 50
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    maxResults: 25
+- description: piotr-agier search (matched via the "-search" gateway-separator
+    suffix) with limit 500 — clamped to 25.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: piotr-drive-search
+      uri: null
+    payload:
+      name: piotr-drive-search
+      args:
+        query: payroll
+        limit: 500
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    limit: 25
+    query: payroll
+- description: piotr-agier listFolder with page_size 100 — the snake_case
+    candidate key is clamped to 25; folderId preserved.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: piotr-drive-listFolder
+      uri: null
+    payload:
+      name: piotr-drive-listFolder
+      args:
+        folderId: folder-hr-1
+        page_size: 100
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    page_size: 25
+    folderId: folder-hr-1
+- description: Uppercase tool name GDRIVE-MCP-GDRIVE_SEARCH with pageSize 100 —
+    tool matching is case-insensitive.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: GDRIVE-MCP-GDRIVE_SEARCH
+      uri: null
+    payload:
+      name: GDRIVE-MCP-GDRIVE_SEARCH
+      args:
+        query: "mimeType = 'application/pdf'"
+        pageSize: 100
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    pageSize: 25
+- description: Two candidate keys both over the cap on one call (pageSize and
+    limit) — both are clamped in a single transform.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gdrive-mcp-gdrive_search
+      uri: null
+    payload:
+      name: gdrive-mcp-gdrive_search
+      args:
+        query: "fullText contains 'ssn'"
+        pageSize: 100
+        limit: 300
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    pageSize: 25
+    limit: 25
+    query: "fullText contains 'ssn'"
+- description: Non-enumeration tool (read_file_content) with an oversized
+    pageSize-looking argument — not a search/listing surface, passes through
+    untouched.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: google-drive-read_file_content
+      uri: null
+    payload:
+      name: google-drive-read_file_content
+      args:
+        fileId: file-42
+        pageSize: 500
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Tool merely containing "search" mid-name (gdrive_search_export
+    does not exist; simulated via research_notes tool) — suffix matching does
+    not fire on substrings, no transform.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: notes-mcp-search_notes
+      uri: null
+    payload:
+      name: notes-mcp-search_notes
+      args:
+        query: anything
+        pageSize: 999
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Enumeration tool call with the args object missing entirely —
+    object.get defaults keep the policy silent; allow with no transform.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gdrive-mcp-gdrive_search
+      uri: null
+    payload:
+      name: gdrive-mcp-gdrive_search
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Red-team — whitespace-padded numeric string " 100" is trimmed
+    before parsing and clamped to 25 (a lenient server would coerce " 100" to
+    100, so the clamp must catch it).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gdrive-mcp-gdrive_search
+      uri: null
+    payload:
+      name: gdrive-mcp-gdrive_search
+      args:
+        query: "fullText contains 'salary'"
+        pageSize: " 100"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    pageSize: 25
+    query: "fullText contains 'salary'"
+- description: Red-team — case-variant key "PageSize" (capital P) is NOT clamped;
+    key matching is case-sensitive (documented residual — all known Drive servers
+    use lowercase pageSize).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gdrive-mcp-gdrive_search
+      uri: null
+    payload:
+      name: gdrive-mcp-gdrive_search
+      args:
+        query: "fullText contains 'ssn'"
+        PageSize: 100
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Red-team — locale-formatted numeric string "1,000" cannot be
+    parsed by to_number, so it is skipped and passes uncapped (documented
+    server-coercion residual).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gdrive-mcp-gdrive_search
+      uri: null
+    payload:
+      name: gdrive-mcp-gdrive_search
+      args:
+        query: "fullText contains 'passport'"
+        pageSize: "1,000"
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Legacy claude.ai built-in google_drive_search with pageSize 100 —
+    the legacy-integration suffix is matched and clamped to 25.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: claude-google_drive_search
+      uri: null
+    payload:
+      name: claude-google_drive_search
+      args:
+        query: "fullText contains 'salary'"
+        pageSize: 100
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    pageSize: 25
+    query: "fullText contains 'salary'"
+- description: Egress hook (tool_post_invoke) on gdrive_search — the action
+    guard keeps the ingress clamp off the output path.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: gdrive-mcp-gdrive_search
+      uri: null
+    payload:
+      name: gdrive-mcp-gdrive_search
+      text:
+        - '{"files": []}'
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Red-team — pageSize 0 is NOT clamped (clamp only fires above the
+    cap). Known servers reject 0, but a lenient server reading 0 as "unbounded"
+    would pass uncapped (documented non-positive residual).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gdrive-mcp-gdrive_search
+      uri: null
+    payload:
+      name: gdrive-mcp-gdrive_search
+      args:
+        query: "fullText contains 'salary'"
+        pageSize: 0
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Red-team — pageSize -1 is NOT clamped (-1 > 25 is false). A server
+    reading -1 as "return everything" would bypass the cap (documented
+    non-positive residual).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gdrive-mcp-gdrive_search
+      uri: null
+    payload:
+      name: gdrive-mcp-gdrive_search
+      args:
+        query: "fullText contains 'ssn'"
+        pageSize: -1
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Red-team — scientific-notation numeric string "1e3" IS parsed by
+    to_number (=1000) and clamped to 25; locks the parser reach so the residual
+    docs are not read as "all non-plain literals pass".
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gdrive-mcp-gdrive_search
+      uri: null
+    payload:
+      name: gdrive-mcp-gdrive_search
+      args:
+        query: "fullText contains 'passport'"
+        pageSize: "1e3"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    pageSize: 25
+    query: "fullText contains 'passport'"

@@ -1,0 +1,296 @@
+# Branch coverage:
+#   allow branch (not is_control_gate_tool): drafting/reading tools + empty name
+#   deny branch (is_control_gate_tool): each of the three control-gate suffixes,
+#     plus casing and suffix-breadth red-team variants.
+
+- description: Drafting a change request is allowed — agents may initiate, not approve.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-create_change_request
+      uri: null
+    payload:
+      name: servicenow-mcp-create_change_request
+      args:
+        short_description: Patch web tier to 1.24.3
+  output:
+    expectedResult: allow
+
+- description: Updating a change request is allowed (draft/update passthrough).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-update_change_request
+      uri: null
+    payload:
+      name: servicenow-mcp-update_change_request
+      args:
+        change_id: CHG0031337
+        work_notes: Rollback plan attached.
+  output:
+    expectedResult: allow
+
+- description: Adding a change task is allowed (draft/update passthrough).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-add_change_task
+      uri: null
+    payload:
+      name: servicenow-mcp-add_change_task
+      args:
+        change_id: CHG0031337
+  output:
+    expectedResult: allow
+
+- description: A read tool passes through — this policy only gates approval.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-get_change_request_details
+      uri: null
+    payload:
+      name: servicenow-mcp-get_change_request_details
+      args:
+        change_id: CHG0031337
+  output:
+    expectedResult: allow
+
+- description: Missing tool name passes through (targeted deny, not a fail-closed allowlist).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      uri: null
+    payload:
+      args: {}
+  output:
+    expectedResult: allow
+
+- description: approve_change is denied unconditionally with the human-approval reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-approve_change
+      uri: null
+    payload:
+      name: servicenow-mcp-approve_change
+      args:
+        change_id: CHG0031337
+  output:
+    expectedResult: deny
+    expectedReason: "ServiceNow change approval is a separation-of-duties control gate and must not be actuated by an agent. Open the change request record in the ServiceNow UI and approve or reject it there, so the audit trail records a human approver. Agents may still draft and update change requests. If you believe this step should be automated, raise it with your change-management or GRC team instead of routing it through the agent."
+
+- description: reject_change is denied — rejection is also a control-gate decision.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-reject_change
+      uri: null
+    payload:
+      name: servicenow-mcp-reject_change
+      args:
+        change_id: CHG0031337
+  output:
+    expectedResult: deny
+    expectedReason: "ServiceNow change approval is a separation-of-duties control gate and must not be actuated by an agent. Open the change request record in the ServiceNow UI and approve or reject it there, so the audit trail records a human approver. Agents may still draft and update change requests. If you believe this step should be automated, raise it with your change-management or GRC team instead of routing it through the agent."
+
+- description: submit_change_for_approval is denied — routing a change into approval is agent-off-limits.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-submit_change_for_approval
+      uri: null
+    payload:
+      name: servicenow-mcp-submit_change_for_approval
+      args:
+        change_id: CHG0031337
+  output:
+    expectedResult: deny
+
+- description: Red-team casing — mixed-case approve_change is still denied (lower() match).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: ServiceNow-MCP-Approve_Change
+      uri: null
+    payload:
+      name: ServiceNow-MCP-Approve_Change
+      args:
+        change_id: CHG0031337
+  output:
+    expectedResult: deny
+
+- description: Red-team bare name (no gateway prefix) — approve_change still denied by suffix match.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: approve_change
+      uri: null
+    payload:
+      name: approve_change
+      args:
+        change_id: CHG0031337
+  output:
+    expectedResult: deny
+
+- description: Red-team suffix breadth — a bulk_approve_change variant is intentionally denied (fail-safe for the SoD gate).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-bulk_approve_change
+      uri: null
+    payload:
+      name: servicenow-mcp-bulk_approve_change
+      args:
+        change_ids:
+          - CHG0031337
+          - CHG0031338
+  output:
+    expectedResult: deny
+
+- description: Red-team trailing newline — a name ending in "approve_change\n" is trimmed and still denied (fix for endswith fail-open).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "servicenow-mcp-approve_change\n"
+      uri: null
+    payload:
+      name: "servicenow-mcp-approve_change\n"
+      args:
+        change_id: CHG0031337
+  output:
+    expectedResult: deny
+
+- description: Red-team trailing space — a name ending in "approve_change " is trimmed and still denied (fix for endswith fail-open).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "servicenow-mcp-approve_change "
+      uri: null
+    payload:
+      name: "servicenow-mcp-approve_change "
+      args:
+        change_id: CHG0031337
+  output:
+    expectedResult: deny
+
+- description: Red-team plural/trailing-token residual — "approve_changes" does not end with the exact suffix and passes through (documented; PF-28 must catch it).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-approve_changes
+      uri: null
+    payload:
+      name: servicenow-mcp-approve_changes
+      args:
+        change_id: CHG0031337
+  output:
+    expectedResult: allow
+
+- description: Red-team noun_verb rename residual — "change_approve" does not match by suffix and passes through (documented; PF-28 must catch it).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-change_approve
+      uri: null
+    payload:
+      name: servicenow-mcp-change_approve
+      args:
+        change_id: CHG0031337
+  output:
+    expectedResult: allow
+
+- description: Red-team escape-hatch residual — natural_language_update can approve via free text but invokes no named approval verb, so it passes through (documented; PF-22 must catch it).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-natural_language_update
+      uri: null
+    payload:
+      name: servicenow-mcp-natural_language_update
+      args:
+        query: approve change CHG0031337
+  output:
+    expectedResult: allow
+
+- description: Red-team state-field consummation residual — update_change_request setting state/approval advances the change without any approve_change verb, so it passes through (documented; role-gate-writes/PF-12 field gating must catch it).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: servicenow-mcp-update_change_request
+      uri: null
+    payload:
+      name: servicenow-mcp-update_change_request
+      args:
+        change_id: CHG0031337
+        state: scheduled
+        approval: approved
+  output:
+    expectedResult: allow
+
+- description: Red-team zero-width suffix evasion — a name ending in a zero-width space (U+200B) after approve_change is not trimmed by trim_space and passes through (documented; PF-28 must catch it).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "servicenow-mcp-approve_change​"
+      uri: null
+    payload:
+      name: "servicenow-mcp-approve_change​"
+      args:
+        change_id: CHG0031337
+  output:
+    expectedResult: allow

@@ -1,0 +1,455 @@
+# create_gist branch --------------------------------------------------------
+
+- description: create_gist with public:false (secret gist) — allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-create_gist
+      uri: null
+    payload:
+      name: github-mcp-create_gist
+      args:
+        description: scratch
+        public: false
+        files: {}
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: create_gist with no public flag at all — GitHub defaults gists to secret, allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-create_gist
+      uri: null
+    payload:
+      name: github-mcp-create_gist
+      args:
+        description: scratch
+        files: {}
+  output:
+    expectedResult: allow
+
+- description: create_gist with recognized-private string public "secret" — allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-create_gist
+      uri: null
+    payload:
+      name: github-mcp-create_gist
+      args:
+        public: secret
+  output:
+    expectedResult: allow
+
+- description: create_gist with public:true — denied with the gist reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-create_gist
+      uri: null
+    payload:
+      name: github-mcp-create_gist
+      args:
+        description: leak
+        public: true
+        files: {}
+  output:
+    expectedResult: deny
+    expectedReason: "Creating a public gist is blocked to prevent private code from being exposed publicly. Create a secret gist instead (set public: false), or share the snippet through a repository inside your company org. Contact your InfoSec team if this gist genuinely needs to be public."
+
+- description: create_gist with string visibility "public" — denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-create_gist
+      uri: null
+    payload:
+      name: github-mcp-create_gist
+      args:
+        public: public
+  output:
+    expectedResult: deny
+    expectedReason: "Creating a public gist is blocked to prevent private code from being exposed publicly. Create a secret gist instead (set public: false), or share the snippet through a repository inside your company org. Contact your InfoSec team if this gist genuinely needs to be public."
+
+- description: "Fail-closed: create_gist with an unrecognized public value ('yes') — treated as public and denied."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-create_gist
+      uri: null
+    payload:
+      name: github-mcp-create_gist
+      args:
+        public: "yes"
+  output:
+    expectedResult: deny
+
+- description: "Fail-closed: create_gist with public:null (present but not a recognized private value) — denied."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-create_gist
+      uri: null
+    payload:
+      name: github-mcp-create_gist
+      args:
+        public: null
+  output:
+    expectedResult: deny
+
+- description: "Fail-closed: create_gist with a numeric public flag (1) — not a recognized private value, denied."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-create_gist
+      uri: null
+    payload:
+      name: github-mcp-create_gist
+      args:
+        public: 1
+  output:
+    expectedResult: deny
+
+- description: "Red-team: mixed-case padded private string ' Secret ' — trim_space + lower treat it as private, allowed."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-create_gist
+      uri: null
+    payload:
+      name: github-mcp-create_gist
+      args:
+        public: " Secret "
+  output:
+    expectedResult: allow
+
+# fork_repository branch ------------------------------------------------------
+
+- description: fork_repository into an organization namespace — allowed.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-fork_repository
+      uri: null
+    payload:
+      name: github-mcp-fork_repository
+      args:
+        owner: acme-inc
+        repo: billing
+        organization: acme-labs
+  output:
+    expectedResult: allow
+
+- description: fork_repository with no organization (personal namespace) — denied with the fork reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-fork_repository
+      uri: null
+    payload:
+      name: github-mcp-fork_repository
+      args:
+        owner: acme-inc
+        repo: billing
+  output:
+    expectedResult: deny
+    expectedReason: "Forking into a personal namespace is blocked because it copies repository content outside your organization's controls. Re-run the fork with an organization set to a sanctioned company org so the fork stays inside the org boundary. Contact your InfoSec team if you need a personal fork for a legitimate reason."
+
+- description: "Fail-closed: fork_repository with an empty-string organization — treated as personal-namespace, denied."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-fork_repository
+      uri: null
+    payload:
+      name: github-mcp-fork_repository
+      args:
+        owner: acme-inc
+        repo: billing
+        organization: ""
+  output:
+    expectedResult: deny
+
+- description: "Fail-closed: fork_repository with a non-string organization (an object) — denied."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-fork_repository
+      uri: null
+    payload:
+      name: github-mcp-fork_repository
+      args:
+        owner: acme-inc
+        repo: billing
+        organization:
+          login: acme-labs
+  output:
+    expectedResult: deny
+
+# create_repository branch ----------------------------------------------------
+
+- description: create_repository with private:false — force-rewritten to private:true, other args preserved.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-create_repository
+      uri: null
+    payload:
+      name: github-mcp-create_repository
+      args:
+        name: new-service
+        private: false
+        autoInit: true
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    name: new-service
+    private: true
+    autoInit: true
+
+- description: create_repository with private omitted — transform pins private:true.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-create_repository
+      uri: null
+    payload:
+      name: github-mcp-create_repository
+      args:
+        name: another-service
+        description: internal tooling
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    name: another-service
+    description: internal tooling
+    private: true
+
+- description: create_repository already private:true — transform still applied (idempotent), stays private.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-create_repository
+      uri: null
+    payload:
+      name: github-mcp-create_repository
+      args:
+        name: safe-repo
+        private: true
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    name: safe-repo
+    private: true
+
+- description: "Red-team (documented residual): create_repository with malformed non-object args (a bare string) — object.union is undefined, so no transform fires; the call passes through and fails at the GitHub server. Cannot create a public repo."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-create_repository
+      uri: null
+    payload:
+      name: github-mcp-create_repository
+      args: "oops-not-an-object"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+# pass-through & red-team tool matching ---------------------------------------
+
+- description: Unrelated read tool (get_file_contents) — not a governed tool, passes through untouched.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-get_file_contents
+      uri: null
+    payload:
+      name: github-mcp-get_file_contents
+      args:
+        owner: acme-inc
+        repo: billing
+        path: README.md
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: "Red-team: mixed-case tool name (CREATE_GIST) with public:true — matching is case-insensitive, still denied."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: GitHub-Prod-CREATE_GIST
+      uri: null
+    payload:
+      name: GitHub-Prod-CREATE_GIST
+      args:
+        public: true
+  output:
+    expectedResult: deny
+
+- description: "Red-team: bare create_repository with no server prefix — suffix match still catches it and forces private."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: create_repository
+      uri: null
+    payload:
+      name: create_repository
+      args:
+        name: bare
+        private: false
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    name: bare
+    private: true
+
+- description: "Red-team: resource.name absent, only the legacy payload.name carries the tool name — the payload.name branch still matches a public gist and denies."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      uri: null
+    payload:
+      name: github-mcp-create_gist
+      args:
+        public: true
+  output:
+    expectedResult: deny
+
+- description: "Red-team: fork_repository via legacy payload.name only, no organization — still denied on the payload.name branch."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      uri: null
+    payload:
+      name: github-mcp-fork_repository
+      args:
+        owner: acme-inc
+        repo: billing
+  output:
+    expectedResult: deny
+
+- description: "Red-team (FIXED bypass): real tool is create_gist with public:true, but the legacy payload.name carries a create_repository suffix. The never-denied create_repository arm must NOT override the public-gist denial — allow is derived from the deny conditions, so this is still denied."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-create_gist
+      uri: null
+    payload:
+      name: github-mcp-create_repository
+      args:
+        public: true
+        description: leak
+  output:
+    expectedResult: deny
+    expectedReason: "Creating a public gist is blocked to prevent private code from being exposed publicly. Create a secret gist instead (set public: false), or share the snippet through a repository inside your company org. Contact your InfoSec team if this gist genuinely needs to be public."
+
+- description: "Red-team (FIXED bypass): real tool is fork_repository with no organization, but the legacy payload.name carries a create_repository suffix. The create_repository allow arm must NOT override the personal-namespace-fork denial — still denied."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-fork_repository
+      uri: null
+    payload:
+      name: github-mcp-create_repository
+      args:
+        owner: acme-inc
+        repo: billing
+  output:
+    expectedResult: deny
+    expectedReason: "Forking into a personal namespace is blocked because it copies repository content outside your organization's controls. Re-run the fork with an organization set to a sanctioned company org so the fork stays inside the org boundary. Contact your InfoSec team if you need a personal fork for a legitimate reason."
+
+- description: "Red-team (documented residual): fork_repository into an arbitrary attacker-controlled org — organization is present and non-empty, so the presence-only check allows it. Enforcement is presence, not an org allowlist; pair with fence-scopes-org-allowlist (PF-23) to fence the destination."
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: github-mcp-fork_repository
+      uri: null
+    payload:
+      name: github-mcp-fork_repository
+      args:
+        owner: acme-inc
+        repo: billing
+        organization: attacker-personal-org
+  output:
+    expectedResult: allow

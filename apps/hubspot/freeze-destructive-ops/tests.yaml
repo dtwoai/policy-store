@@ -1,0 +1,335 @@
+- description: Read tool (crm_list_objects) is not destructive. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: hubspot-mcp-crm_list_objects
+      uri: null
+    payload:
+      name: hubspot-mcp-crm_list_objects
+      args:
+        objectType: contacts
+        limit: 10
+  output:
+    expectedResult: allow
+- description: The word "archive" inside an argument value does not trigger the
+    policy — the decision is made on the tool name only. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: hubspot-mcp-crm_update_object
+      uri: null
+    payload:
+      name: hubspot-mcp-crm_update_object
+      args:
+        objectType: contacts
+        objectId: "12345"
+        properties:
+          notes: please archive this contact later
+  output:
+    expectedResult: allow
+- description: communications_subscribe_contact (legitimate opt-in) must NOT match
+    the unsubscribe suffix. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: hubspot-mcp-communications_subscribe_contact
+      uri: null
+    payload:
+      name: hubspot-mcp-communications_subscribe_contact
+      args:
+        contactEmail: lead@example.com
+        subscriptionId: "7890"
+  output:
+    expectedResult: allow
+- description: communications_update_subscription_status is a documented residual
+    (not blocked by this policy — pair with a consent-protection policy). Policy
+    should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: hubspot-mcp-communications_update_subscription_status
+      uri: null
+    payload:
+      name: hubspot-mcp-communications_update_subscription_status
+      args:
+        contactEmail: lead@example.com
+        subscriptionId: "7890"
+        status: UNSUBSCRIBED
+  output:
+    expectedResult: allow
+- description: Engagement archive tool (calls_archive) — the `_archive` suffix form.
+    Policy should deny with the archive reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: hubspot-mcp-calls_archive
+      uri: null
+    payload:
+      name: hubspot-mcp-calls_archive
+      args:
+        callId: "555"
+  output:
+    expectedResult: deny
+    expectedReason: Agent-initiated deletion or archival of HubSpot records is disabled on the MCP path. Delete or archive records in the HubSpot UI, where the action is audited and can be undone. Contact your admin if this blocks a legitimate workflow.
+- description: crm_archive_object — the mid-name `_archive_` token form. Policy
+    should deny even with empty args (fail-closed on the name alone).
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: hubspot-mcp-crm_archive_object
+      uri: null
+    payload:
+      name: hubspot-mcp-crm_archive_object
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: Agent-initiated deletion or archival of HubSpot records is disabled on the MCP path. Delete or archive records in the HubSpot UI, where the action is audited and can be undone. Contact your admin if this blocks a legitimate workflow.
+- description: crm_batch_archive_objects — the batch archive variant. Policy should
+    deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: hubspot-mcp-crm_batch_archive_objects
+      uri: null
+    payload:
+      name: hubspot-mcp-crm_batch_archive_objects
+      args:
+        objectType: deals
+        objectIds:
+          - "111"
+          - "222"
+  output:
+    expectedResult: deny
+    expectedReason: Agent-initiated deletion or archival of HubSpot records is disabled on the MCP path. Delete or archive records in the HubSpot UI, where the action is audited and can be undone. Contact your admin if this blocks a legitimate workflow.
+- description: crm_archive_association — association destruction. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: hubspot-mcp-crm_archive_association
+      uri: null
+    payload:
+      name: hubspot-mcp-crm_archive_association
+      args:
+        fromObjectType: contacts
+        fromObjectId: "12345"
+        toObjectType: companies
+        toObjectId: "678"
+  output:
+    expectedResult: deny
+    expectedReason: Agent-initiated deletion or archival of HubSpot records is disabled on the MCP path. Delete or archive records in the HubSpot UI, where the action is audited and can be undone. Contact your admin if this blocks a legitimate workflow.
+- description: Uppercase tool name (TASKS_BATCH_ARCHIVE) — matching must be
+    case-insensitive. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: HubSpot-MCP-TASKS_BATCH_ARCHIVE
+      uri: null
+    payload:
+      name: HubSpot-MCP-TASKS_BATCH_ARCHIVE
+      args:
+        taskIds:
+          - "42"
+  output:
+    expectedResult: deny
+    expectedReason: Agent-initiated deletion or archival of HubSpot records is disabled on the MCP path. Delete or archive records in the HubSpot UI, where the action is audited and can be undone. Contact your admin if this blocks a legitimate workflow.
+- description: Kebab-case archive rendering (products-archive) — hypothetical
+    portability variant of shinzo's snake_case products_archive. Policy should deny.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: hubspot-mcp-products-archive
+      uri: null
+    payload:
+      name: hubspot-mcp-products-archive
+      args:
+        productId: "999"
+  output:
+    expectedResult: deny
+    expectedReason: Agent-initiated deletion or archival of HubSpot records is disabled on the MCP path. Delete or archive records in the HubSpot UI, where the action is audited and can be undone. Contact your admin if this blocks a legitimate workflow.
+- description: communications_unsubscribe_contact — irreversible consent
+    destruction. Policy should deny with the unsubscribe reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: hubspot-mcp-communications_unsubscribe_contact
+      uri: null
+    payload:
+      name: hubspot-mcp-communications_unsubscribe_contact
+      args:
+        contactEmail: lead@example.com
+        subscriptionId: "7890"
+  output:
+    expectedResult: deny
+    expectedReason: Agent-initiated unsubscribes are disabled on the MCP path because they irreversibly destroy a contact's consent state. Manage subscription preferences in the HubSpot UI, where the change is audited. Contact your admin if this blocks a legitimate workflow.
+- description: RED-TEAM (fixed) delete-verb forward guard — a swapped server that
+    names deletion crm_delete_object must be denied, not just the archive verb.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: hubspot-mcp-crm_delete_object
+      uri: null
+    payload:
+      name: hubspot-mcp-crm_delete_object
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: Agent-initiated deletion or archival of HubSpot records is disabled on the MCP path. Delete or archive records in the HubSpot UI, where the action is audited and can be undone. Contact your admin if this blocks a legitimate workflow.
+- description: RED-TEAM (fixed) batch delete variant (crm_batch_delete_objects)
+    must be denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: hubspot-mcp-crm_batch_delete_objects
+      uri: null
+    payload:
+      name: hubspot-mcp-crm_batch_delete_objects
+      args:
+        objectIds:
+          - "1"
+  output:
+    expectedResult: deny
+    expectedReason: Agent-initiated deletion or archival of HubSpot records is disabled on the MCP path. Delete or archive records in the HubSpot UI, where the action is audited and can be undone. Contact your admin if this blocks a legitimate workflow.
+- description: RED-TEAM (fixed) purge-verb tool (crm_purge_object) must be denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: hubspot-mcp-crm_purge_object
+      uri: null
+    payload:
+      name: hubspot-mcp-crm_purge_object
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: Agent-initiated deletion or archival of HubSpot records is disabled on the MCP path. Delete or archive records in the HubSpot UI, where the action is audited and can be undone. Contact your admin if this blocks a legitimate workflow.
+- description: RED-TEAM (fixed) void-verb tool (deals-void) — kebab-case forward
+    guard must be denied.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: hubspot-mcp-deals-void
+      uri: null
+    payload:
+      name: hubspot-mcp-deals-void
+      args:
+        dealId: "42"
+  output:
+    expectedResult: deny
+    expectedReason: Agent-initiated deletion or archival of HubSpot records is disabled on the MCP path. Delete or archive records in the HubSpot UI, where the action is audited and can be undone. Contact your admin if this blocks a legitimate workflow.
+- description: RED-TEAM regex edge — a read tool whose name embeds the word
+    "archived" (crm_list_archived_objects) must NOT match; the verb token is
+    delimiter-bounded. Policy should allow.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: hubspot-mcp-crm_list_archived_objects
+      uri: null
+    payload:
+      name: hubspot-mcp-crm_list_archived_objects
+      args: {}
+  output:
+    expectedResult: allow
+- description: RED-TEAM (documented known limitation) server-prefix over-match — a
+    server literally named "archive-mcp" makes the leading archive- segment match,
+    so a benign read is denied. This asserts the current (documented) false-positive
+    behavior; name the HubSpot server neutrally to avoid it.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: archive-mcp-crm_list_objects
+      uri: null
+    payload:
+      name: archive-mcp-crm_list_objects
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: Agent-initiated deletion or archival of HubSpot records is disabled on the MCP path. Delete or archive records in the HubSpot UI, where the action is audited and can be undone. Contact your admin if this blocks a legitimate workflow.
+- description: RED-TEAM (documented known limitation) obfuscated name — a trailing
+    newline on communications_unsubscribe_contact defeats the exact suffix match
+    and is allowed. Inert in practice — the upstream server routes only exact tool
+    names, so the mangled name cannot invoke the real unsubscribe tool. Documents
+    the exact-name reliance.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: "hubspot-mcp-communications_unsubscribe_contact\n"
+      uri: null
+    payload:
+      name: "hubspot-mcp-communications_unsubscribe_contact\n"
+      args:
+        contactEmail: lead@example.com
+        subscriptionId: "7890"
+  output:
+    expectedResult: allow
+- description: Kebab-case unsubscribe rendering (unsubscribe-contact) —
+    hypothetical portability variant. Policy should deny with the unsubscribe
+    reason.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: hubspot-mcp-communications-unsubscribe-contact
+      uri: null
+    payload:
+      name: hubspot-mcp-communications-unsubscribe-contact
+      args:
+        contactEmail: lead@example.com
+        subscriptionId: "7890"
+  output:
+    expectedResult: deny
+    expectedReason: Agent-initiated unsubscribes are disabled on the MCP path because they irreversibly destroy a contact's consent state. Manage subscription preferences in the HubSpot UI, where the change is audited. Contact your admin if this blocks a legitimate workflow.
