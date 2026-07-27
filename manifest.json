@@ -3332,6 +3332,73 @@
       "minimumGatewayVersion": "1.0.0b24"
     },
     {
+      "path": "apps/onboarding/deny-email",
+      "name": "Deny Email PII",
+      "direction": "ingress",
+      "publishedAt": "2026-07-23",
+      "apps": [
+        "onboarding"
+      ],
+      "industries": [],
+      "bundles": [],
+      "experimental": false,
+      "tags": [
+        "onboarding",
+        "pii",
+        "email",
+        "dlp",
+        "ingress"
+      ],
+      "policyChecksum": "sha256:777822968820adb4c61b12eb3c3410bc53bb7c6dd20f98d58687098b53b00920",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/onboarding/detect-email-allow",
+      "name": "Detect Email PII (Allow with Reason)",
+      "direction": "ingress",
+      "publishedAt": "2026-07-23",
+      "apps": [
+        "onboarding"
+      ],
+      "industries": [],
+      "bundles": [],
+      "experimental": false,
+      "tags": [
+        "onboarding",
+        "pii",
+        "email",
+        "observability",
+        "ingress"
+      ],
+      "policyChecksum": "sha256:0df1b62128aadb82c9491c6fa8ce4776640b586a4cc4bf001240291b271b8617",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/onboarding/redact-email",
+      "name": "Redact Email PII",
+      "direction": "egress",
+      "publishedAt": "2026-07-23",
+      "apps": [
+        "onboarding"
+      ],
+      "industries": [],
+      "bundles": [],
+      "experimental": false,
+      "tags": [
+        "onboarding",
+        "pii",
+        "email",
+        "dlp",
+        "redaction",
+        "egress"
+      ],
+      "policyChecksum": "sha256:fba1ca0fb65b6922cf51c1eacfb707b69129e565302ac4763d3806d9f7750c3e",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
       "path": "apps/power-bi/block-rls-bypass-service-principal",
       "name": "Block Power BI RLS-Bypass Service-Principal Queries",
       "direction": "ingress",
@@ -5066,6 +5133,7 @@
     "ms365": "apps/ms365",
     "netsuite": "apps/netsuite",
     "notion": "apps/notion",
+    "onboarding": "apps/onboarding",
     "power-bi": "apps/power-bi",
     "quickbooks": "apps/quickbooks",
     "salesforce": "apps/salesforce",

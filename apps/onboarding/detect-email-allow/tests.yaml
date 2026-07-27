@@ -1,0 +1,51 @@
+- description: Email address in the request arguments. The policy allows the call
+    to proceed but attaches the "Email Detected" reason for observability.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-slack-post-message
+      uri: null
+    payload:
+      name: slack-mcp-slack-post-message
+      args:
+        text: ping jane@example.com about the invoice
+  output:
+    expectedResult: allow
+    expectedReason: Email Detected
+- description: Email nested deep inside the request arguments. The whole-body walk
+    still finds it, so the call is allowed with the "Email Detected" reason.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: jira-mcp-createissue
+      uri: null
+    payload:
+      name: jira-mcp-createissue
+      args:
+        fields:
+          summary: New ticket
+          watchers:
+            - name: Jane
+              contact: jane.doe@example.co.uk
+  output:
+    expectedResult: allow
+    expectedReason: Email Detected
+- description: No email anywhere in the request arguments. The policy allows the
+    call with no reason attached — a clean pass-through.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-slack-post-message
+      uri: null
+    payload:
+      name: slack-mcp-slack-post-message
+      args:
+        text: standup starts in five minutes
+  output:
+    expectedResult: allow
