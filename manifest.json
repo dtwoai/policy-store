@@ -220,6 +220,73 @@
       "minimumGatewayVersion": "1.0.0b24"
     },
     {
+      "path": "apps/onboarding/deny-email",
+      "name": "Deny Email PII",
+      "direction": "ingress",
+      "publishedAt": "2026-07-23",
+      "apps": [
+        "onboarding"
+      ],
+      "industries": [],
+      "bundles": [],
+      "experimental": false,
+      "tags": [
+        "onboarding",
+        "pii",
+        "email",
+        "dlp",
+        "ingress"
+      ],
+      "policyChecksum": "sha256:777822968820adb4c61b12eb3c3410bc53bb7c6dd20f98d58687098b53b00920",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/onboarding/detect-email-allow",
+      "name": "Detect Email PII (Allow with Reason)",
+      "direction": "ingress",
+      "publishedAt": "2026-07-23",
+      "apps": [
+        "onboarding"
+      ],
+      "industries": [],
+      "bundles": [],
+      "experimental": false,
+      "tags": [
+        "onboarding",
+        "pii",
+        "email",
+        "observability",
+        "ingress"
+      ],
+      "policyChecksum": "sha256:0df1b62128aadb82c9491c6fa8ce4776640b586a4cc4bf001240291b271b8617",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/onboarding/redact-email",
+      "name": "Redact Email PII",
+      "direction": "egress",
+      "publishedAt": "2026-07-23",
+      "apps": [
+        "onboarding"
+      ],
+      "industries": [],
+      "bundles": [],
+      "experimental": false,
+      "tags": [
+        "onboarding",
+        "pii",
+        "email",
+        "dlp",
+        "redaction",
+        "egress"
+      ],
+      "policyChecksum": "sha256:fba1ca0fb65b6922cf51c1eacfb707b69129e565302ac4763d3806d9f7750c3e",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
       "path": "apps/salesforce/protect-contact-fields",
       "name": "Salesforce Protect Contact Fields",
       "direction": "ingress",
@@ -437,6 +504,7 @@
   "apps": {
     "hubspot": "apps/hubspot",
     "jira": "apps/jira",
+    "onboarding": "apps/onboarding",
     "salesforce": "apps/salesforce",
     "slack": "apps/slack"
   },

@@ -1,0 +1,34 @@
+- description: Tool response on the output path. The policy returns a redaction
+    transform that masks email addresses in the response body.
+  input:
+    action: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: salesforce-soqlquery
+      uri: null
+    payload:
+      name: salesforce-soqlquery
+      text:
+        - '{"records":[{"Name":"Jane Doe","Email":"jane@example.com"}]}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transform:
+    replacement: "[REDACTED]"
+- description: Not the output path (an ingress call). The transform does not apply
+    and the request passes through unchanged.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: salesforce-soqlquery
+      uri: null
+    payload:
+      name: salesforce-soqlquery
+      args:
+        query: SELECT Id, Name FROM Contact
+  output:
+    expectedResult: allow
+  transformApplied: false

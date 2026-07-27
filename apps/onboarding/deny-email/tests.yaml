@@ -1,0 +1,50 @@
+- description: Email address in the request arguments. The policy blocks the call
+    before it reaches the MCP server.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-slack-post-message
+      uri: null
+    payload:
+      name: slack-mcp-slack-post-message
+      args:
+        text: forward this to jane@example.com
+  output:
+    expectedResult: deny
+    expectedReason: "Blocked: an email address (PII) was detected in the request."
+- description: Email nested deep inside the request arguments. The whole-body walk
+    still finds it, so the call is blocked.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: jira-mcp-createissue
+      uri: null
+    payload:
+      name: jira-mcp-createissue
+      args:
+        fields:
+          summary: New ticket
+          reporter:
+            email: dev@example.org
+  output:
+    expectedResult: deny
+    expectedReason: "Blocked: an email address (PII) was detected in the request."
+- description: No email anywhere in the request arguments. The call passes through
+    unchanged.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: slack-mcp-slack-post-message
+      uri: null
+    payload:
+      name: slack-mcp-slack-post-message
+      args:
+        text: standup starts in five minutes
+  output:
+    expectedResult: allow
