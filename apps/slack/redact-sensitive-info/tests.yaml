@@ -33,6 +33,7 @@
         text: "deploy creds: AKIAIOSFODNN7EXAMPLE"
   output:
     expectedResult: allow
+    expectedReason: Sensitive content redacted from Slack message
   transformedArgsContain:
     channel: C0123456789
     text: "deploy creds: [REDACTED]"

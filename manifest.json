@@ -1874,6 +1874,7 @@
       "bundles": [
         "crm"
       ],
+      "experimental": false,
       "tags": [
         "hubspot",
         "deals",
@@ -1953,6 +1954,7 @@
       "bundles": [
         "crm"
       ],
+      "experimental": false,
       "tags": [
         "hubspot",
         "associations",
@@ -1976,6 +1978,7 @@
       "bundles": [
         "crm"
       ],
+      "experimental": false,
       "tags": [
         "hubspot",
         "deals",
@@ -1999,6 +2002,7 @@
       "bundles": [
         "crm"
       ],
+      "experimental": false,
       "tags": [
         "hubspot",
         "contacts",
@@ -2025,6 +2029,7 @@
         "soc2",
         "gdpr-ccpa"
       ],
+      "experimental": false,
       "tags": [
         "hubspot",
         "access-control",
@@ -2053,6 +2058,7 @@
         "hipaa",
         "gdpr-ccpa"
       ],
+      "experimental": false,
       "tags": [
         "hubspot",
         "pii",
@@ -2063,7 +2069,7 @@
         "hipaa",
         "gdpr-ccpa"
       ],
-      "policyChecksum": "sha256:e3d625ade165040504699ef68968a4216ee16ebb5bce8626126c07dfaaef27e6",
+      "policyChecksum": "sha256:6d01e4aadb8ca920e3118d6be38a4ab8f5733575955170ce5f10900c01c4835f",
       "schemaVersion": "1.0.0",
       "minimumGatewayVersion": "1.0.0b24"
     },
@@ -2330,6 +2336,7 @@
         "soc2",
         "gdpr-ccpa"
       ],
+      "experimental": false,
       "tags": [
         "jira",
         "atlassian",
@@ -2359,6 +2366,7 @@
         "soc2",
         "gdpr-ccpa"
       ],
+      "experimental": false,
       "tags": [
         "jira",
         "atlassian",
@@ -2441,6 +2449,7 @@
         "soc2",
         "gdpr-ccpa"
       ],
+      "experimental": false,
       "tags": [
         "jira",
         "atlassian",
@@ -2453,7 +2462,7 @@
         "gdpr-ccpa",
         "iso27001-nist"
       ],
-      "policyChecksum": "sha256:945085e97f36c83fd82b1f0f98e19a8f3aa20da8c5cfdaea859207aad6463a15",
+      "policyChecksum": "sha256:8d1f6a48db9d9572ec3f8ef34c4afd991dd1d9bb1cd9834febdec88f3716e600",
       "schemaVersion": "1.0.0",
       "minimumGatewayVersion": "1.0.0b24"
     },
@@ -3575,6 +3584,7 @@
       "bundles": [
         "crm"
       ],
+      "experimental": false,
       "tags": [
         "salesforce",
         "opportunity",
@@ -3633,6 +3643,7 @@
         "pci-dss",
         "gdpr-ccpa"
       ],
+      "experimental": false,
       "tags": [
         "salesforce",
         "access-control",
@@ -3662,6 +3673,7 @@
         "soc2",
         "gdpr-ccpa"
       ],
+      "experimental": false,
       "tags": [
         "salesforce",
         "access-control",
@@ -3691,6 +3703,7 @@
         "hipaa",
         "gdpr-ccpa"
       ],
+      "experimental": false,
       "tags": [
         "salesforce",
         "pii",
@@ -3702,7 +3715,7 @@
         "gdpr-ccpa",
         "iso27001-nist"
       ],
-      "policyChecksum": "sha256:d700be6a442140fe01b25e7f50b089f086007a6d92691ae19a54133261913a08",
+      "policyChecksum": "sha256:c3aa10e98fcac51fcdab8d099177f8e0d2275eb0251313d68e7fb992d091bed3",
       "schemaVersion": "1.0.0",
       "minimumGatewayVersion": "1.0.0b24"
     },
@@ -3899,6 +3912,7 @@
         "im-messaging",
         "soc2"
       ],
+      "experimental": false,
       "tags": [
         "slack",
         "secrets",
@@ -3924,6 +3938,7 @@
         "slack",
         "soc2"
       ],
+      "experimental": false,
       "tags": [
         "slack",
         "access-control",
@@ -3949,6 +3964,7 @@
         "slack",
         "soc2"
       ],
+      "experimental": false,
       "tags": [
         "slack",
         "access-control",
@@ -3977,6 +3993,7 @@
         "hipaa",
         "gdpr-ccpa"
       ],
+      "experimental": false,
       "tags": [
         "slack",
         "access-control",
@@ -4117,6 +4134,7 @@
         "hipaa",
         "gdpr-ccpa"
       ],
+      "experimental": false,
       "tags": [
         "slack",
         "pii",
@@ -4129,7 +4147,7 @@
         "gdpr-ccpa",
         "iso27001-nist"
       ],
-      "policyChecksum": "sha256:976bdeff0896b95f7de65af46091da56b58785028a747d64d87855b78ca72a60",
+      "policyChecksum": "sha256:77ad4d9fd33a830df6c976a3dbcb351e9774b652e48deaf1dd8b84727786679e",
       "schemaVersion": "1.0.0",
       "minimumGatewayVersion": "1.0.0b24"
     },

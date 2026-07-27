@@ -111,7 +111,9 @@ description: |
   ```
 
   The `text` argument is rewritten to `here's the [REDACTED]`; `channel` is
-  untouched. `allow = true`.
+  untouched. `allow = true`, plus
+  `reason = "Sensitive content redacted from Slack message"` so the redaction
+  is explained in the dashboard.
 
   ### Passthrough
 
@@ -291,6 +293,13 @@ patches[k] := v if {
 transform := {
     "transformed_payload": object.union(input.payload.args, patches)
 } if {
+    is_slack_tool
+    count(patches) > 0
+}
+
+# Surfaced on the decision event whenever a patch is applied, so the dashboard
+# can explain the rewrite.
+reason := "Sensitive content redacted from Slack message" if {
     is_slack_tool
     count(patches) > 0
 }

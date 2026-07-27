@@ -108,6 +108,7 @@ function buildPolicyEntry(policyFilePath) {
     apps: parsedPolicy.metadata.apps,
     industries: parsedPolicy.metadata.industries ?? [],
     bundles: parsedPolicy.metadata.bundles ?? [],
+    experimental: parsedPolicy.metadata.experimental ?? false,
     tags: parsedPolicy.metadata.tags,
     policyChecksum: `sha256:${sha256(parsedPolicy.rego.trim())}`,
     schemaVersion: parsedPolicy.metadata.schemaVersion,
@@ -170,6 +171,7 @@ function validatePolicyMetadata(metadata, context) {
   validateStringArray(metadata.apps, `${context}: apps`);
   validateOptionalStringArray(metadata.industries, `${context}: industries`);
   validateOptionalStringArray(metadata.bundles, `${context}: bundles`);
+  validateOptionalBoolean(metadata.experimental, `${context}: experimental`);
   validateString(metadata.schemaVersion, `${context}: schemaVersion`);
   validateOptionalString(metadata.minimumGatewayVersion, `${context}: minimumGatewayVersion`);
 
@@ -220,6 +222,7 @@ function validateManifestPolicyEntry(entry, context) {
   validateStringArray(entry.apps, `${context}: apps`);
   validateOptionalStringArray(entry.industries, `${context}: industries`);
   validateOptionalStringArray(entry.bundles, `${context}: bundles`);
+  validateBoolean(entry.experimental, `${context}: experimental`);
   validateChecksum(entry.policyChecksum, `${context}: policyChecksum`);
   validateString(entry.schemaVersion, `${context}: schemaVersion`);
   validateOptionalString(entry.minimumGatewayVersion, `${context}: minimumGatewayVersion`);
@@ -290,6 +293,18 @@ function validateString(value, context) {
 function validateOptionalString(value, context) {
   if (value !== undefined) {
     validateString(value, context);
+  }
+}
+
+function validateBoolean(value, context) {
+  if (typeof value !== "boolean") {
+    errors.push(`${context}: must be a boolean`);
+  }
+}
+
+function validateOptionalBoolean(value, context) {
+  if (value !== undefined) {
+    validateBoolean(value, context);
   }
 }
 

@@ -37,6 +37,7 @@
             Phone: 555-666-7777
   output:
     expectedResult: allow
+    expectedReason: PII redacted from Salesforce response
   transformApplied: true
   transform:
     replacement: "[REDACTED]"
