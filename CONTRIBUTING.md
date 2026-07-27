@@ -121,13 +121,22 @@ apps/<app>/<policy-slug>/
 
 ## Registering a new policy
 
-1. **`policy.md` frontmatter** — add all required fields from [`schema.json`](./schema.json): `name`, `tags`, `publishedAt`, `description`, `direction`, `apps`, and `schemaVersion`. Include `industries`, `bundles`, and `minimumGatewayVersion` when they apply.
+1. **`policy.md` frontmatter** — add all required fields from [`schema.json`](./schema.json): `name`, `tags`, `publishedAt`, `description`, `direction`, `apps`, and `schemaVersion`. Include `industries`, `bundles`, and `minimumGatewayVersion` when they apply. Set `experimental: true` if the policy has not been manually validated against a test setup of the app (see [Experimental policies](#experimental-policies)).
 2. **App landing page** — add a row to `apps/<app>/README.md` linking to the new policy.
 3. **Industry / bundle landing pages** — if the policy fits an existing industry or bundle, list `<industry>` / `<bundle>` slugs in the policy's frontmatter **and** add a link from the matching landing page. Do not duplicate the policy body.
 4. **New apps, industries, or bundles** — create the corresponding directory and `README.md`; the manifest generator will add the top-level map entry.
 5. **Tests** — add at least one positive and one negative test case to the policy's `tests.yaml` (see [Testing](#testing)).
 6. **Manifest generation** — run `pnpm manifest` and commit the generated `manifest.json`, then run `pnpm manifest:check` to confirm it is current (this is what CI enforces).
 7. **Run the policy tests** — `pnpm test` (requires the OPA CLI on your `PATH`). CI runs the same command.
+
+## Experimental policies
+
+A policy is **experimental** when it compiles and passes its `tests.yaml`, but has **not been manually validated against a test setup of the app** — it is a reviewed starting point whose behavior has not been confirmed end-to-end against a running instance of the app (typically its tool-name suffixes and argument shapes come from research or documentation rather than a captured `tools/list` from a live gateway). Experimental policies are still reviewed and still ship in the catalog; the flag is an honesty signal, not a lower quality bar.
+
+- **Marking one:** add `experimental: true` to the `policy.md` frontmatter. Omit the field (or set `experimental: false`) once the policy has been validated against a test setup of the app.
+- **Manifest:** the generator always writes an explicit `experimental` boolean into each `manifest.json` entry (defaulting to `false`), so downstream consumers (Hub, `dtwo-mcp`, the discovery site) can badge or filter experimental policies without guessing.
+- **Documentation:** note the experimental status and what still needs live validation in the policy's `description` **Known limitations** section, so a reader sees it without opening the manifest.
+- **Graduating:** when a policy is validated against a test setup of the app, drop the flag, regenerate the manifest, and note the change in the `description` frontmatter.
 
 ## A note on the manifest schema
 

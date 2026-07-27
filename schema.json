@@ -80,6 +80,12 @@
           "type": "string[]",
           "required": false
         },
+        "experimental": {
+          "name": "experimental",
+          "description": "Whether the policy is experimental: a reviewed starting point that has not been manually validated against a test setup of the app (it compiles and passes its unit tests, but confirm it against your instance of the app before relying on it). Always present in the manifest; defaults to false when the policy markdown omits it.",
+          "type": "boolean",
+          "required": true
+        },
         "policyChecksum": {
           "name": "policyChecksum",
           "description": "Checksum of the policy body, in the form sha256:<hex>. Used to verify the integrity of the policy markdown file; it must equal the SHA-256 of the (trimmed) Rego body.",
@@ -150,6 +156,12 @@
         "name": "bundles",
         "description": "An optional list of use-case bundles this policy is a part of.",
         "type": "string[]",
+        "required": false
+      },
+      "experimental": {
+        "name": "experimental",
+        "description": "Optional. When true, marks the policy as experimental: a reviewed starting point that has not been manually validated against a test setup of the app. It compiles and passes its unit tests; confirm it behaves as intended against your instance of the app before relying on it. Omit or set false for validated policies. Defaults to false.",
+        "type": "boolean",
         "required": false
       },
       "schemaVersion": {
