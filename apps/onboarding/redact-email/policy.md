@@ -1,5 +1,5 @@
 ---
-name: Redact Email PII
+name: Email Address Redaction
 tags:
   - onboarding
   - pii

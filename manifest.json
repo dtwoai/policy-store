@@ -3333,7 +3333,7 @@
     },
     {
       "path": "apps/onboarding/deny-email",
-      "name": "Deny Email PII",
+      "name": "Email Address Block",
       "direction": "ingress",
       "publishedAt": "2026-07-23",
       "apps": [
@@ -3355,7 +3355,7 @@
     },
     {
       "path": "apps/onboarding/detect-email-allow",
-      "name": "Detect Email PII (Allow with Reason)",
+      "name": "Email Address Alert",
       "direction": "ingress",
       "publishedAt": "2026-07-23",
       "apps": [
@@ -3377,7 +3377,7 @@
     },
     {
       "path": "apps/onboarding/redact-email",
-      "name": "Redact Email PII",
+      "name": "Email Address Redaction",
       "direction": "egress",
       "publishedAt": "2026-07-23",
       "apps": [
