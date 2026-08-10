@@ -1,5 +1,5 @@
 ---
-name: Deny Email PII
+name: Email Address Block
 tags:
   - onboarding
   - pii

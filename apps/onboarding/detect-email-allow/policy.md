@@ -1,5 +1,5 @@
 ---
-name: Detect Email PII (Allow with Reason)
+name: Email Address Alert
 tags:
   - onboarding
   - pii
