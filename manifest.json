@@ -1404,6 +1404,75 @@
       "minimumGatewayVersion": "1.0.0b24"
     },
     {
+      "path": "apps/gmail/filter-blocked-senders",
+      "name": "Strip Blocked Senders from Gmail Reads",
+      "direction": "egress",
+      "publishedAt": "2026-08-28",
+      "apps": [
+        "gmail"
+      ],
+      "industries": [],
+      "bundles": [],
+      "experimental": false,
+      "tags": [
+        "gmail",
+        "filter-blocked-senders",
+        "egress",
+        "email",
+        "sender-blocklist",
+        "data-minimization"
+      ],
+      "policyChecksum": "sha256:08342e5ff5bd0930b7135ef25e126c822860bfaa42a7fba0caa4b22f089d4988",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/gmail/filter-dormant-threads",
+      "name": "Filter Dormant Conversations Out of Gmail Reads",
+      "direction": "egress",
+      "publishedAt": "2026-08-28",
+      "apps": [
+        "gmail"
+      ],
+      "industries": [],
+      "bundles": [],
+      "experimental": false,
+      "tags": [
+        "gmail",
+        "filter-dormant-threads",
+        "egress",
+        "email",
+        "recency",
+        "data-minimization"
+      ],
+      "policyChecksum": "sha256:9631710b9e3d20147084e33d4ab274be4ca2201d624179af3be5b675211e66ee",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/gmail/filter-labeled-threads",
+      "name": "Hide Threads Carrying a Restricted Gmail Label",
+      "direction": "egress",
+      "publishedAt": "2026-08-28",
+      "apps": [
+        "gmail"
+      ],
+      "industries": [],
+      "bundles": [],
+      "experimental": false,
+      "tags": [
+        "gmail",
+        "filter-labeled-threads",
+        "egress",
+        "email",
+        "label-filter",
+        "confidentiality"
+      ],
+      "policyChecksum": "sha256:fe54835c1233baa0f765d088c55be2a16198026d48c4334d2e83108710454d11",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
       "path": "apps/gmail/freeze-destructive-ops",
       "name": "Freeze Destructive Gmail Operations",
       "direction": "ingress",
@@ -1507,6 +1576,29 @@
         "gdpr-ccpa"
       ],
       "policyChecksum": "sha256:879ee13a0594096f178508fd7569014f342d1e43e87ef96a86818554b85cbc7e",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/gmail/recent-search-only",
+      "name": "Restrict Gmail Thread Searches to Recent Mail",
+      "direction": "ingress",
+      "publishedAt": "2026-08-28",
+      "apps": [
+        "gmail"
+      ],
+      "industries": [],
+      "bundles": [],
+      "experimental": false,
+      "tags": [
+        "gmail",
+        "recent-search-only",
+        "ingress",
+        "email",
+        "recency",
+        "data-minimization"
+      ],
+      "policyChecksum": "sha256:1f6a8b089d906a582c4d3c098c94645fff6a6b9da84e1be6bdfb38adec928b0c",
       "schemaVersion": "1.0.0",
       "minimumGatewayVersion": "1.0.0b24"
     },
@@ -1670,6 +1762,30 @@
         "gdpr-ccpa"
       ],
       "policyChecksum": "sha256:2d8f86deafa5b239539f29e322abd233c66f03b1beec1b1ee201ce917f022898",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/google-drive/exclude-personal-drives",
+      "name": "Exclude Personal Drives from Agent Reads",
+      "direction": "egress",
+      "publishedAt": "2026-08-28",
+      "apps": [
+        "google-drive"
+      ],
+      "industries": [],
+      "bundles": [],
+      "experimental": false,
+      "tags": [
+        "google-drive",
+        "exclude-personal-drives",
+        "egress",
+        "drive",
+        "scoping",
+        "confidentiality",
+        "data-minimization"
+      ],
+      "policyChecksum": "sha256:463392a770555f8c0b19b6e03227512159728187e09d8690054c8839bf490d2d",
       "schemaVersion": "1.0.0",
       "minimumGatewayVersion": "1.0.0b24"
     },

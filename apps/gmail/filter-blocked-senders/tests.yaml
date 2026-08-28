@@ -1,0 +1,148 @@
+- description: Search result where a blocked-domain sender took part in an
+    otherwise clean thread — only their message is scrubbed, the thread
+    survives, and the notice is added. Asserts the exact rewritten block.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: mail-search-threads
+      uri: null
+    payload:
+      name: mail-search-threads
+      text:
+        - '{"threads":[{"id":"t1","messages":[{"date":"2026-01-01T00:00:00Z","sender":"Vendor Support <support@vendor.example>"},{"date":"2026-01-02T00:00:00Z","sender":"colleague@partner.example"}]}]}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - '{"notice":"Messages from addresses on the gateway''s blocked-sender list were removed by policy.","threads":[{"id":"t1","messages":[{"date":"2026-01-02T00:00:00Z","sender":"colleague@partner.example"}]}]}'
+- description: A thread consisting entirely of blocked-domain mail is scrubbed
+    to nothing and dropped from the listing rather than returned as an empty
+    husk; the clean thread is untouched.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: mail-search-threads
+      uri: null
+    payload:
+      name: mail-search-threads
+      text:
+        - '{"threads":[{"id":"t2","messages":[{"sender":"billing@vendor.example"}]},{"id":"t3","messages":[{"sender":"colleague@partner.example"}]}]}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - '{"notice":"Messages from addresses on the gateway''s blocked-sender list were removed by policy.","threads":[{"id":"t3","messages":[{"sender":"colleague@partner.example"}]}]}'
+- description: get-thread response — the exact-address entry
+    (old-address@example.com) is matched case-insensitively and its messages
+    removed; the rest of the conversation is returned.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: mail-get-thread
+      uri: null
+    payload:
+      name: mail-get-thread
+      text:
+        - '{"id":"t4","messages":[{"sender":"Old-Address@Example.com"},{"sender":"colleague@partner.example"}]}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - '{"id":"t4","messages":[{"sender":"colleague@partner.example"}],"notice":"Messages from addresses on the gateway''s blocked-sender list were removed by policy."}'
+- description: Clean response with no blocked participant passes through
+    byte-identical — no transform is emitted at all.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: mail-search-threads
+      uri: null
+    payload:
+      name: mail-search-threads
+      text:
+        - '{"threads":[{"id":"t5","messages":[{"sender":"colleague@partner.example"}]}]}'
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: snake_case vocabulary (gmail-mcp-get_message) is matched by the
+    suffix variants.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: gmail-mcp-get_message
+      uri: null
+    payload:
+      name: gmail-mcp-get_message
+      text:
+        - '{"messages":[{"sender":"support@vendor.example"},{"sender":"colleague@partner.example"}]}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+- description: Ungoverned tool (drive search) is never inspected, even when the
+    payload happens to mention a blocked address.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: drive-search-files
+      uri: null
+    payload:
+      name: drive-search-files
+      text:
+        - '{"files":[{"name":"support@vendor.example correspondence.pdf"}]}'
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Governed response where nothing parses as JSON — denied (fail
+    closed) with the documented reason rather than returned unfiltered.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: mail-get-thread
+      uri: null
+    payload:
+      name: mail-get-thread
+      text:
+        - "plain text mail export"
+  output:
+    expectedResult: deny
+    expectedReason: "Blocked: this mail response could not be parsed, so messages from blocked senders could not be filtered out of it."
+- description: Thread objects with no messages array (metadata-only listing)
+    are left alone — there is nothing in them for this policy to filter.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: mail-search-threads
+      uri: null
+    payload:
+      name: mail-search-threads
+      text:
+        - '{"threads":[{"id":"t6","snippet":"quarterly numbers"}]}'
+  output:
+    expectedResult: allow
+  transformApplied: false

@@ -1,0 +1,171 @@
+- description: Thread search with a caller query. The recency term is prepended,
+    the caller's query is parenthesised, and other args (pageSize) survive the
+    rewrite.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: mail-search-threads
+      uri: null
+    payload:
+      name: mail-search-threads
+      args:
+        query: "from:alice@example.com"
+        pageSize: 10
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    query: "newer_than:14d (from:alice@example.com)"
+    pageSize: 10
+- description: Caller tries to widen the window with its own newer_than term.
+    The rewrite is unconditional, so the policy's term is still prepended and
+    Gmail ANDs the two — the narrower window wins.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: mail-search-threads
+      uri: null
+    payload:
+      name: mail-search-threads
+      args:
+        query: "newer_than:365d"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    query: "newer_than:14d (newer_than:365d)"
+- description: Blank query is replaced by the recency filter alone.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: mail-search-threads
+      uri: null
+    payload:
+      name: mail-search-threads
+      args:
+        query: "   "
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    query: "newer_than:14d"
+- description: Missing query key — the search would otherwise run unconstrained,
+    so the recency filter is injected on its own.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: mail-search-threads
+      uri: null
+    payload:
+      name: mail-search-threads
+      args:
+        pageSize: 5
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    query: "newer_than:14d"
+    pageSize: 5
+- description: Malformed (non-string) query yields the tightest filter rather
+    than leaving the transform undefined and the search unconstrained.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: mail-search-threads
+      uri: null
+    payload:
+      name: mail-search-threads
+      args:
+        query: 12345
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    query: "newer_than:14d"
+- description: snake_case tool vocabulary (gmail-mcp-search_threads) is matched
+    by the second suffix variant.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: gmail-mcp-search_threads
+      uri: null
+    payload:
+      name: gmail-mcp-search_threads
+      args:
+        query: "subject:invoice"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    query: "newer_than:14d (subject:invoice)"
+- description: Non-search Gmail tool (get-thread) has no query to rewrite —
+    passes through untouched. Direct reads are the companion egress policy's
+    job.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: mail-get-thread
+      uri: null
+    payload:
+      name: mail-get-thread
+      args:
+        threadId: "19f0542c7bec711c"
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Unrelated tool whose name merely ends in the search characters
+    (crm-research_threads) does not match — the suffix includes the leading
+    hyphen separator.
+  input:
+    action: tool_pre_invoke
+    kind: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: crm-research_threads
+      uri: null
+    payload:
+      name: crm-research_threads
+      args:
+        query: "quarterly report"
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Egress hook of the same search tool carries no args to rewrite —
+    the transform is gated on tool_pre_invoke.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: mail-search-threads
+      uri: null
+    payload:
+      name: mail-search-threads
+      text:
+        - '{"threads":[]}'
+  output:
+    expectedResult: allow
+  transformApplied: false
