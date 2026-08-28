@@ -1,0 +1,192 @@
+# Recency is evaluated against time.now_ns() at test run time, so these cases
+# use a far-future date (2099) for "recent" and a far-past date (2001) for
+# "old" to stay deterministic no matter when the suite runs.
+- description: get-thread response where every message is old — the whole
+    conversation is withheld and the notice is added; other top-level fields
+    (id) are preserved. Asserts the exact rewritten block.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: mail-get-thread
+      uri: null
+    payload:
+      name: mail-get-thread
+      text:
+        - '{"id":"t1","messages":[{"date":"2001-01-01T00:00:00Z","sender":"alice@example.com"},{"date":"2001-02-01T00:00:00Z","sender":"bob@example.com"}]}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - '{"id":"t1","messages":[],"notice":"Conversations with no activity in the last 14 days were removed by gateway policy."}'
+- description: get-thread response with one recent message among old ones — the
+    entire thread passes through untouched, old messages included. One recent
+    message keeps the whole conversation.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: mail-get-thread
+      uri: null
+    payload:
+      name: mail-get-thread
+      text:
+        - '{"id":"t2","messages":[{"date":"2001-01-01T00:00:00Z","sender":"alice@example.com"},{"date":"2099-01-01T00:00:00Z","sender":"bob@example.com"}]}'
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: get-message (single dormant message) is governed by the same
+    branch and comes back emptied with the notice.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: mail-get-message
+      uri: null
+    payload:
+      name: mail-get-message
+      text:
+        - '{"messages":[{"date":"2001-01-01T00:00:00Z","sender":"alice@example.com"}]}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - '{"messages":[],"notice":"Conversations with no activity in the last 14 days were removed by gateway policy."}'
+- description: snake_case vocabulary (gmail-mcp-get_thread) is matched by the
+    suffix variants — dormant conversation withheld.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: gmail-mcp-get_thread
+      uri: null
+    payload:
+      name: gmail-mcp-get_thread
+      text:
+        - '{"messages":[{"date":"2001-03-01T00:00:00Z","sender":"carol@example.com"}]}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+- description: search-threads is deliberately NOT governed — a search preview
+    full of old messages passes through untouched, because the preview is
+    truncated and cannot be recency-tested reliably. Search recency belongs to
+    the ingress companion policy. This is the regression test for the
+    active-thread-wrongly-dropped bug the scope note describes.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: mail-search-threads
+      uri: null
+    payload:
+      name: mail-search-threads
+      text:
+        - '{"threads":[{"id":"t3","messages":[{"date":"2001-01-01T00:00:00Z","sender":"alice@example.com"}]}]}'
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Empty messages array has nothing to judge — passes through
+    untouched.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: mail-get-thread
+      uri: null
+    payload:
+      name: mail-get-thread
+      text:
+        - '{"id":"t4","messages":[]}'
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Mixed blocks — a dormant JSON conversation plus a non-JSON block.
+    The JSON block is rewritten, the unparseable block passes through
+    byte-identical (a single unparseable block among several is tolerated).
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: mail-get-thread
+      uri: null
+    payload:
+      name: mail-get-thread
+      text:
+        - '{"messages":[{"date":"2001-01-01T00:00:00Z","sender":"alice@example.com"}]}'
+        - "3 messages in thread"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - '{"messages":[],"notice":"Conversations with no activity in the last 14 days were removed by gateway policy."}'
+      - "3 messages in thread"
+- description: Governed response where nothing parses as JSON — the signature of
+    an upstream schema change. Denied (fail closed) rather than returned
+    unfiltered.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: mail-get-thread
+      uri: null
+    payload:
+      name: mail-get-thread
+      text:
+        - "From: alice@example.com — plain text export"
+  output:
+    expectedResult: deny
+    expectedReason: "Blocked: this mail response could not be parsed, so dormant conversations could not be filtered out of it."
+- description: Ungoverned tool (list-labels) is never inspected — even an
+    unparseable response passes through with no transform and no deny.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: mail-list-labels
+      uri: null
+    payload:
+      name: mail-list-labels
+      text:
+        - "INBOX, SENT, IMPORTANT"
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Unrelated tool whose name merely ends in the governed characters
+    (crm-forget-message) does not match — the suffix includes the leading
+    hyphen separator.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: crm-forget-message
+      uri: null
+    payload:
+      name: crm-forget-message
+      text:
+        - '{"messages":[{"date":"2001-01-01T00:00:00Z","sender":"alice@example.com"}]}'
+  output:
+    expectedResult: allow
+  transformApplied: false

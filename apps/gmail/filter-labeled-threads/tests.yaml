@@ -1,0 +1,132 @@
+# target_labels ships with the placeholder Label_XXXXXXXXXXXXXXXXX; the tests
+# use that literal so they keep passing until it is replaced at import time.
+- description: Search listing where one thread carries the restricted label (via
+    labelIds on a message) — that thread is dropped whole, the clean thread
+    passes, and the notice is added. Asserts the exact rewritten block.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: mail-search-threads
+      uri: null
+    payload:
+      name: mail-search-threads
+      text:
+        - '{"threads":[{"id":"t1","messages":[{"labelIds":["INBOX","Label_XXXXXXXXXXXXXXXXX"],"sender":"alice@example.com"}]},{"id":"t2","messages":[{"labelIds":["INBOX"],"sender":"bob@example.com"}]}]}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - '{"notice":"Threads carrying a label on the gateway''s restricted-label list were removed by policy.","threads":[{"id":"t2","messages":[{"labelIds":["INBOX"],"sender":"bob@example.com"}]}]}'
+- description: Direct get-thread fetch of a conversation where any message
+    carries the restricted label — the whole conversation is emptied, not just
+    the labeled message.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: mail-get-thread
+      uri: null
+    payload:
+      name: mail-get-thread
+      text:
+        - '{"id":"t3","messages":[{"labelIds":["INBOX"],"sender":"alice@example.com"},{"labelIds":["Label_XXXXXXXXXXXXXXXXX"],"sender":"bob@example.com"}]}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - '{"id":"t3","messages":[],"notice":"Threads carrying a label on the gateway''s restricted-label list were removed by policy."}'
+- description: Label carried on the thread object itself (rather than a message)
+    also restricts the thread in search listings.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: mail-search-threads
+      uri: null
+    payload:
+      name: mail-search-threads
+      text:
+        - '{"threads":[{"id":"t4","labelIds":["Label_XXXXXXXXXXXXXXXXX"],"messages":[{"sender":"alice@example.com"}]}]}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - '{"notice":"Threads carrying a label on the gateway''s restricted-label list were removed by policy.","threads":[]}'
+- description: Labels arriving as objects ({"id","name"} shape) are matched via
+    the id token; matching is case-insensitive.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: gmail-mcp-get_thread
+      uri: null
+    payload:
+      name: gmail-mcp-get_thread
+      text:
+        - '{"messages":[{"labels":[{"id":"label_xxxxxxxxxxxxxxxxx","name":"Confidential"}],"sender":"alice@example.com"}]}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+- description: Ordinary system labels (INBOX, IMPORTANT) are not restricted —
+    the response passes through byte-identical with no transform.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: mail-get-thread
+      uri: null
+    payload:
+      name: mail-get-thread
+      text:
+        - '{"id":"t5","messages":[{"labelIds":["INBOX","IMPORTANT"],"sender":"alice@example.com"}]}'
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Governed response where nothing parses as JSON — denied (fail
+    closed) with the documented reason rather than returned unfiltered.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: mail-get-message
+      uri: null
+    payload:
+      name: mail-get-message
+      text:
+        - "plain text export"
+  output:
+    expectedResult: deny
+    expectedReason: "Blocked: this mail response could not be parsed, so threads carrying restricted labels could not be filtered out of it."
+- description: Ungoverned tool (calendar events) is never inspected, even when
+    the payload happens to carry the restricted token.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: calendar-list-events
+      uri: null
+    payload:
+      name: calendar-list-events
+      text:
+        - '{"events":[{"summary":"Label_XXXXXXXXXXXXXXXXX planning"}]}'
+  output:
+    expectedResult: allow
+  transformApplied: false

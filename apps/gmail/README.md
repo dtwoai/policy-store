@@ -7,10 +7,14 @@ Reusable DTwo policies for Gmail MCP servers. The Gmail MCP surface spans three 
 | Policy | Direction | Purpose | Framework bundles |
 | --- | --- | --- | --- |
 | [cap-bulk-export](./cap-bulk-export/policy.md) | ingress | Deny batch content reads above the ID-array cap and clamp search `maxResults`, throttling mass mailbox harvesting. | soc2, hipaa, gdpr-ccpa |
+| [filter-blocked-senders](./filter-blocked-senders/policy.md) | egress | Strip messages from listed senders or domains out of mailbox reads; a thread left with nothing is dropped (transform-only). | — |
+| [filter-dormant-threads](./filter-dormant-threads/policy.md) | egress | Empty direct thread/message reads of conversations with no recent activity; one recent message keeps the whole thread (transform-only). | — |
+| [filter-labeled-threads](./filter-labeled-threads/policy.md) | egress | Withhold whole threads carrying a restricted Gmail label — a one-click manual override for sensitive conversations (transform-only). | — |
 | [freeze-destructive-ops](./freeze-destructive-ops/policy.md) | ingress | Deny permanent email, label, and filter deletion for every caller; reversible label/archive operations pass through. | soc2, hipaa, gdpr-ccpa, sox |
 | [guard-external-send](./guard-external-send/policy.md) | ingress | Deny send-class calls when any `to`/`cc`/`bcc` recipient falls outside the corporate-domain allowlist; the agent is told to draft instead. | soc2, hipaa, gdpr-ccpa, sox |
 | [guard-mailbox-persistence](./guard-mailbox-persistence/policy.md) | ingress | Block Gmail filter creation, the classic auto-forward / auto-delete exfiltration-persistence primitive. | — |
 | [mask-pan-egress](./mask-pan-egress/policy.md) | egress | Mask payment-card-number shapes in email content returned to agents by mailbox-read tools (transform-only). | pci-dss, gdpr-ccpa |
+| [recent-search-only](./recent-search-only/policy.md) | ingress | Rewrite thread searches to prepend a `newer_than:` recency term, so Gmail itself returns only recent correspondence (transform-only). | — |
 | [role-gate-writes](./role-gate-writes/policy.md) | ingress | Make Gmail read-only by default: verified read tools pass for everyone, every write/send/label/filter/delete tool is denied. | soc2, hipaa, pci-dss, gdpr-ccpa, sox |
 
 ## Tool naming on the DTwo gateway

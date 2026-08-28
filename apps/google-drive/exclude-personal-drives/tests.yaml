@@ -1,0 +1,151 @@
+# personal_owner_domains ships with the placeholder example.com; the tests use
+# that literal so they keep passing until it is replaced at import time.
+- description: Search listing mixing a personal-Drive file (owner at the listed
+    domain) with a shared-drive file (no owner) — the personal file is dropped,
+    the shared file passes, and the notice is added. Asserts the exact
+    rewritten block.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: drive-search-files
+      uri: null
+    payload:
+      name: drive-search-files
+      text:
+        - '{"files":[{"id":"f1","name":"Board deck","owner":"alice@example.com"},{"id":"f2","name":"Employee handbook"}]}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - '{"files":[{"id":"f2","name":"Employee handbook"}],"notice":"Files in a personal Drive were removed by gateway policy."}'
+- description: Owner matching is case-insensitive — an uppercased owner address
+    at the listed domain is still excluded.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: drive-list-recent-files
+      uri: null
+    payload:
+      name: drive-list-recent-files
+      text:
+        - '{"files":[{"id":"f3","name":"Comp plan","owner":"ALICE@EXAMPLE.COM"},{"id":"f4","name":"Brand guide"}]}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - '{"files":[{"id":"f4","name":"Brand guide"}],"notice":"Files in a personal Drive were removed by gateway policy."}'
+- description: Lookalike domain does not match — the "@" is part of the compared
+    suffix, so a file owned at notexample.com passes through untouched.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: drive-search-files
+      uri: null
+    payload:
+      name: drive-search-files
+      text:
+        - '{"files":[{"id":"f5","name":"Partner doc","owner":"bob@notexample.com"}]}'
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: get-file-metadata on a personal-Drive file returns one flat
+    object — there is nothing to filter down to, so the lookup is denied
+    outright with the documented reason.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: drive-get-file-metadata
+      uri: null
+    payload:
+      name: drive-get-file-metadata
+      text:
+        - '{"id":"f6","name":"Board deck","owner":"alice@example.com"}'
+  output:
+    expectedResult: deny
+    expectedReason: "Blocked: this Drive result is in a personal Drive, or could not be inspected to determine whose Drive it is in."
+- description: get-file-metadata on a shared-drive file (no owner field) is
+    allowed and untouched.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: drive-get-file-metadata
+      uri: null
+    payload:
+      name: drive-get-file-metadata
+      text:
+        - '{"id":"f7","name":"Employee handbook"}'
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: snake_case vocabulary (gdrive-search_files) is matched by the
+    suffix variants.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: gdrive-search_files
+      uri: null
+    payload:
+      name: gdrive-search_files
+      text:
+        - '{"files":[{"id":"f8","name":"Resume","owner":"carol@example.com"}]}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - '{"files":[],"notice":"Files in a personal Drive were removed by gateway policy."}'
+- description: Content-read tools are deliberately ungoverned — their responses
+    carry no owner to test, so they pass through even when the text mentions
+    one.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: drive-read-file-content
+      uri: null
+    payload:
+      name: drive-read-file-content
+      text:
+        - "Quarterly numbers drafted by alice@example.com ..."
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Governed response where nothing parses as JSON — denied (fail
+    closed) with the documented reason rather than returned unfiltered.
+  input:
+    action: tool_post_invoke
+    kind: tool_post_invoke
+    mode: output
+    resource:
+      type: tool
+      name: drive-search-files
+      uri: null
+    payload:
+      name: drive-search-files
+      text:
+        - "results: 12 files found"
+  output:
+    expectedResult: deny
+    expectedReason: "Blocked: this Drive result is in a personal Drive, or could not be inspected to determine whose Drive it is in."
