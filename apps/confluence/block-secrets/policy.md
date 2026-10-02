@@ -206,9 +206,6 @@ description: |
     published through the web UI or native API — outside the gateway's reach —
     are masked when an agent reads them back.
 
-  See the [`bundles/atlassian`](../../../bundles/atlassian/README.md) bundle for
-  the curated set.
-
   ## Known limitations
 
   - **Regex over text.** Secrets that do not match a known shape (rotating
@@ -261,7 +258,6 @@ apps:
   - confluence
 industries: []
 bundles:
-  - atlassian
   - soc2
 experimental: true
 schemaVersion: 1.0.0

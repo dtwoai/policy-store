@@ -80,7 +80,7 @@ description: |
 
   These SOC 2, HIPAA, and GDPR/CCPA rows list families such as PF-02/PF-04/PF-05/PF-01/PF-08/PF-23 in
   the coverage matrix; this policy contributes to the same controls by the disclosure-prevention
-  effect of PF-26, not by being named in those rows. The `atlassian` tag is the thematic app bundle.
+  effect of PF-26, not by being named in those rows.
 
   ## Why ingress and not egress
 
@@ -305,7 +305,6 @@ apps:
 industries: []
 bundles:
   - soc2
-  - atlassian
 experimental: true
 schemaVersion: 1.0.0
 minimumGatewayVersion: 1.0.0b24

@@ -141,8 +141,7 @@ description: |
   ## Composition
 
   This policy covers the write surface for the configured projects. Useful
-  companions in the same [`atlassian`](../../../bundles/atlassian/README.md)
-  bundle:
+  companions:
 
   - [`deny-view-search-sensitive-projects`](../deny-view-search-sensitive-projects/policy.md) — ingress
     read/search restriction for the same projects.
@@ -168,7 +167,6 @@ apps:
   - jira
 industries: []
 bundles:
-  - atlassian
   - soc2
   - gdpr-ccpa
 schemaVersion: 1.0.0

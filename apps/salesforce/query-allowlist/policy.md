@@ -111,7 +111,6 @@ apps:
   - salesforce
 industries: []
 bundles:
-  - crm
   - soc2
   - pci-dss
   - gdpr-ccpa

@@ -144,8 +144,7 @@ description: |
   - An ingress policy that blocks *writing* secrets into JIRA in the first place
     (so new issues don't accumulate credentials).
   - Equivalent egress redaction policies for other Atlassian apps (Confluence,
-    Bitbucket). See the [`bundles/atlassian`](../../../bundles/atlassian/README.md)
-    bundle for the curated Atlassian set.
+    Bitbucket).
 
   ## Known limitations
 
@@ -165,7 +164,6 @@ apps:
   - jira
 industries: []
 bundles:
-  - atlassian
   - soc2
   - gdpr-ccpa
 schemaVersion: 1.0.0

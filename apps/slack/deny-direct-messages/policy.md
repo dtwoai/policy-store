@@ -133,7 +133,6 @@ apps:
   - slack
 industries: []
 bundles:
-  - slack
   - soc2
 schemaVersion: 1.0.0
 minimumGatewayVersion: 1.0.0b24

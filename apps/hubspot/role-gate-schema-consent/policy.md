@@ -162,8 +162,6 @@ description: |
     policy owns the unsubscribe; this one owns the reversible consent mutations.
   - [`hubspot/redact-pii`](../redact-pii/policy.md) — egress masking of contact PII.
 
-  See the [`bundles/crm`](../../../bundles/crm/README.md) bundle for the curated set.
-
   ## Known limitations
 
   - **Group name is a placeholder.** Replace `hubspot-admins` (the `admin_group`
@@ -200,7 +198,6 @@ apps:
   - hubspot
 industries: []
 bundles:
-  - crm
   - soc2
 experimental: true
 schemaVersion: 1.0.0

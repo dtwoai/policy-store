@@ -186,7 +186,6 @@ apps:
   - jira
 industries: []
 bundles:
-  - atlassian
   - soc2
   - gdpr-ccpa
 schemaVersion: 1.0.0

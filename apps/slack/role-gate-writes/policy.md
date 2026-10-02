@@ -169,10 +169,6 @@ description: |
   - [`slack/redact-sensitive-info`](../redact-sensitive-info/policy.md) —
     egress masking on what comes back.
 
-  See the [`bundles/slack`](../../../bundles/slack/README.md) and
-  [`bundles/im-messaging`](../../../bundles/im-messaging/README.md) bundles
-  for the curated sets.
-
   ## Known limitations
 
   - **Group name is a placeholder.** Replace `slack-writers` (the
@@ -223,8 +219,6 @@ apps:
   - slack
 industries: []
 bundles:
-  - slack
-  - im-messaging
   - soc2
   - gdpr-ccpa
 experimental: true

@@ -184,7 +184,6 @@ apps:
   - hubspot
 industries: []
 bundles:
-  - crm
   - soc2
 experimental: true
 schemaVersion: 1.0.0

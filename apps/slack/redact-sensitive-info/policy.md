@@ -158,7 +158,6 @@ apps:
   - slack
 industries: []
 bundles:
-  - slack
   - soc2
   - hipaa
   - gdpr-ccpa

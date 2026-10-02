@@ -212,8 +212,7 @@ description: |
 
   ## Composition
 
-  Single-purpose by design. Useful companions in the
-  [`atlassian`](../../../bundles/atlassian/README.md) bundle:
+  Single-purpose by design. Useful companions:
 
   - [`confluence/freeze-page-deletion`](../freeze-page-deletion/policy.md) —
     freezes the irreversible Confluence deletion tools.
@@ -310,7 +309,6 @@ apps:
   - confluence
 industries: []
 bundles:
-  - atlassian
   - soc2
   - gdpr-ccpa
 experimental: true

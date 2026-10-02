@@ -148,9 +148,6 @@ description: |
     response-level guards that only work because this policy closes the paths
     around them.
 
-  See the [`bundles/crm`](../../../bundles/crm/README.md) bundle for the
-  curated set.
-
   ## Known limitations
 
   - **Blocklist, not allowlist.** A new escape-hatch tool added upstream (or a
@@ -195,7 +192,6 @@ apps:
   - salesforce
 industries: []
 bundles:
-  - crm
   - soc2
 experimental: true
 schemaVersion: 1.0.0

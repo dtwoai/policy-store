@@ -223,8 +223,7 @@ description: |
   - The Atlassian **block-secrets** ingress policy so credentials aren't written
     into pages/comments in the first place.
   - The Jira `redact-sensitive-info` egress policy for the sibling Atlassian
-    product. See the [`bundles/atlassian`](../../../bundles/atlassian/README.md)
-    bundle for the curated Atlassian set.
+    product.
 
   ## Known limitations
 
@@ -328,7 +327,6 @@ bundles:
   - soc2
   - hipaa
   - gdpr-ccpa
-  - atlassian
 experimental: true
 schemaVersion: 1.0.0
 minimumGatewayVersion: 1.0.0b24

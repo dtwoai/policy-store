@@ -258,7 +258,6 @@ apps:
   - confluence
 industries: []
 bundles:
-  - atlassian
   - soc2
   - hipaa
   - gdpr-ccpa

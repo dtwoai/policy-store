@@ -183,8 +183,7 @@ description: |
 
   ## Composition
 
-  Single-purpose by design. Useful companions in the
-  [`atlassian`](../../../bundles/atlassian/README.md) bundle:
+  Single-purpose by design. Useful companions:
 
   - [`jira/deny-write-sensitive-projects`](../deny-write-sensitive-projects/policy.md)
     — write-side fencing for designated Jira projects (see above).
@@ -232,7 +231,6 @@ apps:
   - jira
 industries: []
 bundles:
-  - atlassian
   - soc2
 experimental: true
 schemaVersion: 1.0.0

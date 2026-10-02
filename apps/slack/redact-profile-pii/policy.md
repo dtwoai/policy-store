@@ -216,7 +216,6 @@ apps:
   - slack
 industries: []
 bundles:
-  - slack
   - soc2
   - gdpr-ccpa
 experimental: true

@@ -17,8 +17,6 @@ Reusable DTwo policies for HubSpot MCP servers — the HubSpot-hosted remote MCP
 | [cap-bulk-export](./cap-bulk-export/policy.md) | ingress | Clamp bulk-read page size to 50 and truncate ids-style batch reads (transform-only) to cut off the mass-PII export channel. | soc2, hipaa, gdpr-ccpa |
 | [redact-pii](./redact-pii/policy.md) | egress | Redact contact PII (phone, email, fax, SSN) from HubSpot tool responses to `[REDACTED]`. Transform-only — never denies. | soc2, hipaa, gdpr-ccpa |
 
-All policies also belong to the thematic [`bundles/crm`](../../bundles/crm/README.md) bundle.
-
 ## Tool naming on the DTwo gateway
 
 DTwo prefixes tool names with the MCP server name configured on the gateway. A HubSpot MCP server registered as `hubspot` surfaces tools like `hubspot-manage-crm-objects`, while one registered under another name (e.g. `hubspot-mcp`) would surface `hubspot-mcp-manage-crm-objects`. The policies in this directory match on the *suffix* (`-manage-crm-objects`, `_create_property`, `_archive`, etc.) so they stay portable across the remote, local-beta, and community naming conventions — but the remote server collapses all writes into one tool (`manage_crm_objects`), so create-vs-update and which-object distinctions can only be made by inspecting arguments. Always confirm the exact tool name your gateway sends using the dump-input debug technique before deploying.
@@ -34,7 +32,7 @@ To add a HubSpot policy:
 1. Create `apps/hubspot/<policy-slug>/` with `policy.md` and a `tests.yaml` test file.
 2. Add a row to the table above.
 3. Declare `apps: ["hubspot"]` in the policy frontmatter, plus any industry / bundle slugs that apply.
-4. If the policy fits an industry or bundle (e.g. [`bundles/crm`](../../bundles/crm/README.md)), link to it from the matching landing page.
+4. If the policy fits an industry or bundle (e.g. [`bundles/soc2`](../../bundles/soc2/README.md)), link to it from the matching landing page.
 5. Run `pnpm manifest` from the repo root.
 
 See [CONTRIBUTING.md](../../CONTRIBUTING.md) for the full process.

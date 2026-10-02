@@ -194,7 +194,6 @@ apps:
   - hubspot
 industries: []
 bundles:
-  - crm
   - soc2
   - hipaa
   - pci-dss
