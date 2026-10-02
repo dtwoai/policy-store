@@ -157,7 +157,7 @@ description: |
 
   ## Composition
 
-  Companion Salesforce policies (see [`bundles/crm`](../../../bundles/crm/README.md)):
+  Companion Salesforce policies:
 
   - **`protect-contact-fields`** — the same object-scoped write guard for the
     `Contact` object (ownership, PII, consent). No overlap: this policy governs
@@ -206,8 +206,7 @@ direction: ingress
 apps:
   - salesforce
 industries: []
-bundles:
-  - crm
+bundles: []
 experimental: true
 schemaVersion: 1.0.0
 minimumGatewayVersion: 1.0.0b24

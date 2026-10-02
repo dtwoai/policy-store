@@ -29,7 +29,7 @@ industries/
     README.md                 # landing page linking to relevant policies in apps/
 
 bundles/
-  <bundle>/                   # one directory per themed bundle (e.g. im-messaging, devtools)
+  <bundle>/                   # one directory per themed bundle (e.g. soc2, hipaa)
     README.md                 # landing page linking to policies in apps/
 
 manifest.json                 # generated policy index consumed by downstream APIs
@@ -38,7 +38,7 @@ schema.json                   # schema contract for policy markdown and manifest
 
 ### Where policies live
 
-**Policy bodies live exclusively under `apps/<app>/<policy>/`.** Industry and bundle directories never duplicate policy files — they only link to the canonical location under `apps/`. For example: A Slack secrets-redaction policy that fits both the `finance` industry and the `im-messaging` bundle has one definition and is referenced from both landing pages.
+**Policy bodies live exclusively under `apps/<app>/<policy>/`.** Industry and bundle directories never duplicate policy files — they only link to the canonical location under `apps/`. For example: A Slack secrets-redaction policy that fits both the `finance` industry and the `soc2` bundle has one definition and is referenced from both landing pages.
 
 ### Where policy metadata lives
 
@@ -46,7 +46,7 @@ schema.json                   # schema contract for policy markdown and manifest
 
 A policy may be marked **experimental** with `experimental: true` in its frontmatter. An experimental policy is a reviewed starting point that has not been manually validated against a test setup of the app — it compiles and passes its unit tests, but confirm it behaves as intended against your instance of the app before relying on it. The field is optional and defaults to `false`; the generated `manifest.json` always carries an explicit `experimental` boolean so downstream consumers can filter or badge on it.
 
-A policy declares its grouping by listing app/industry/bundle slugs in its frontmatter (e.g. `bundles: ["im-messaging"]`). The same policy can belong to multiple apps, industries, and bundles without being duplicated.
+A policy declares its grouping by listing app/industry/bundle slugs in its frontmatter (e.g. `bundles: ["soc2"]`). The same policy can belong to multiple apps, industries, and bundles without being duplicated.
 
 ## Browsing model
 

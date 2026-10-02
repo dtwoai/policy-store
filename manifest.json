@@ -517,7 +517,6 @@
       ],
       "industries": [],
       "bundles": [
-        "atlassian",
         "soc2"
       ],
       "experimental": true,
@@ -543,7 +542,6 @@
       ],
       "industries": [],
       "bundles": [
-        "atlassian",
         "soc2",
         "gdpr-ccpa"
       ],
@@ -574,7 +572,6 @@
       ],
       "industries": [],
       "bundles": [
-        "atlassian",
         "soc2",
         "hipaa",
         "gdpr-ccpa"
@@ -604,7 +601,6 @@
       ],
       "industries": [],
       "bundles": [
-        "atlassian",
         "soc2"
       ],
       "experimental": true,
@@ -632,8 +628,7 @@
       "bundles": [
         "soc2",
         "hipaa",
-        "gdpr-ccpa",
-        "atlassian"
+        "gdpr-ccpa"
       ],
       "experimental": true,
       "tags": [
@@ -2059,9 +2054,7 @@
         "hubspot"
       ],
       "industries": [],
-      "bundles": [
-        "crm"
-      ],
+      "bundles": [],
       "experimental": false,
       "tags": [
         "hubspot",
@@ -2084,7 +2077,6 @@
       ],
       "industries": [],
       "bundles": [
-        "crm",
         "soc2",
         "hipaa",
         "pci-dss",
@@ -2116,7 +2108,6 @@
       ],
       "industries": [],
       "bundles": [
-        "crm",
         "soc2"
       ],
       "experimental": true,
@@ -2141,9 +2132,7 @@
         "hubspot"
       ],
       "industries": [],
-      "bundles": [
-        "crm"
-      ],
+      "bundles": [],
       "experimental": false,
       "tags": [
         "hubspot",
@@ -2165,9 +2154,7 @@
         "hubspot"
       ],
       "industries": [],
-      "bundles": [
-        "crm"
-      ],
+      "bundles": [],
       "experimental": false,
       "tags": [
         "hubspot",
@@ -2189,9 +2176,7 @@
         "hubspot"
       ],
       "industries": [],
-      "bundles": [
-        "crm"
-      ],
+      "bundles": [],
       "experimental": false,
       "tags": [
         "hubspot",
@@ -2215,7 +2200,6 @@
       ],
       "industries": [],
       "bundles": [
-        "crm",
         "soc2",
         "gdpr-ccpa"
       ],
@@ -2243,7 +2227,6 @@
       ],
       "industries": [],
       "bundles": [
-        "crm",
         "soc2",
         "hipaa",
         "gdpr-ccpa"
@@ -2273,7 +2256,6 @@
       ],
       "industries": [],
       "bundles": [
-        "crm",
         "soc2"
       ],
       "experimental": true,
@@ -2301,7 +2283,6 @@
       ],
       "industries": [],
       "bundles": [
-        "crm",
         "soc2",
         "gdpr-ccpa"
       ],
@@ -2478,8 +2459,7 @@
       "industries": [],
       "bundles": [
         "soc2",
-        "gdpr-ccpa",
-        "atlassian"
+        "gdpr-ccpa"
       ],
       "experimental": true,
       "tags": [
@@ -2505,7 +2485,6 @@
       ],
       "industries": [],
       "bundles": [
-        "atlassian",
         "soc2"
       ],
       "experimental": true,
@@ -2531,7 +2510,6 @@
       ],
       "industries": [],
       "bundles": [
-        "atlassian",
         "soc2",
         "gdpr-ccpa"
       ],
@@ -2561,7 +2539,6 @@
       ],
       "industries": [],
       "bundles": [
-        "atlassian",
         "soc2",
         "gdpr-ccpa"
       ],
@@ -2591,8 +2568,7 @@
       ],
       "industries": [],
       "bundles": [
-        "soc2",
-        "atlassian"
+        "soc2"
       ],
       "experimental": true,
       "tags": [
@@ -2619,7 +2595,6 @@
       ],
       "industries": [],
       "bundles": [
-        "atlassian",
         "soc2"
       ],
       "experimental": true,
@@ -2646,7 +2621,6 @@
       ],
       "industries": [],
       "bundles": [
-        "atlassian",
         "soc2",
         "gdpr-ccpa"
       ],
@@ -2677,7 +2651,6 @@
       ],
       "industries": [],
       "bundles": [
-        "atlassian",
         "soc2",
         "gdpr-ccpa"
       ],
@@ -3811,7 +3784,6 @@
       ],
       "industries": [],
       "bundles": [
-        "crm",
         "soc2",
         "hipaa",
         "pci-dss",
@@ -3843,7 +3815,6 @@
       ],
       "industries": [],
       "bundles": [
-        "crm",
         "soc2"
       ],
       "experimental": true,
@@ -3869,8 +3840,7 @@
       ],
       "industries": [],
       "bundles": [
-        "soc2",
-        "crm"
+        "soc2"
       ],
       "experimental": true,
       "tags": [
@@ -3893,9 +3863,7 @@
         "salesforce"
       ],
       "industries": [],
-      "bundles": [
-        "crm"
-      ],
+      "bundles": [],
       "experimental": true,
       "tags": [
         "salesforce",
@@ -3921,7 +3889,6 @@
       ],
       "industries": [],
       "bundles": [
-        "crm",
         "soc2",
         "gdpr-ccpa"
       ],
@@ -3951,7 +3918,6 @@
       ],
       "industries": [],
       "bundles": [
-        "crm",
         "soc2",
         "pci-dss",
         "gdpr-ccpa"
@@ -3982,7 +3948,6 @@
       ],
       "industries": [],
       "bundles": [
-        "crm",
         "soc2",
         "gdpr-ccpa"
       ],
@@ -4011,7 +3976,6 @@
       ],
       "industries": [],
       "bundles": [
-        "crm",
         "soc2",
         "hipaa",
         "gdpr-ccpa"
@@ -4042,7 +4006,6 @@
       ],
       "industries": [],
       "bundles": [
-        "crm",
         "soc2",
         "gdpr-ccpa"
       ],
@@ -4229,7 +4192,6 @@
       ],
       "industries": [],
       "bundles": [
-        "im-messaging",
         "soc2"
       ],
       "experimental": false,
@@ -4255,7 +4217,6 @@
       ],
       "industries": [],
       "bundles": [
-        "slack",
         "soc2"
       ],
       "experimental": false,
@@ -4281,7 +4242,6 @@
       ],
       "industries": [],
       "bundles": [
-        "slack",
         "soc2"
       ],
       "experimental": false,
@@ -4308,7 +4268,6 @@
       ],
       "industries": [],
       "bundles": [
-        "slack",
         "soc2",
         "hipaa",
         "gdpr-ccpa"
@@ -4365,8 +4324,6 @@
       ],
       "industries": [],
       "bundles": [
-        "slack",
-        "im-messaging",
         "soc2",
         "gdpr-ccpa",
         "hipaa"
@@ -4425,7 +4382,6 @@
       ],
       "industries": [],
       "bundles": [
-        "slack",
         "soc2",
         "gdpr-ccpa"
       ],
@@ -4453,7 +4409,6 @@
       ],
       "industries": [],
       "bundles": [
-        "slack",
         "soc2",
         "hipaa",
         "gdpr-ccpa"
@@ -4485,8 +4440,6 @@
       ],
       "industries": [],
       "bundles": [
-        "slack",
-        "im-messaging",
         "soc2",
         "gdpr-ccpa"
       ],
@@ -5263,13 +5216,9 @@
   },
   "industries": {},
   "bundles": {
-    "atlassian": "bundles/atlassian",
-    "crm": "bundles/crm",
     "gdpr-ccpa": "bundles/gdpr-ccpa",
     "hipaa": "bundles/hipaa",
-    "im-messaging": "bundles/im-messaging",
     "pci-dss": "bundles/pci-dss",
-    "slack": "bundles/slack",
     "soc2": "bundles/soc2",
     "sox": "bundles/sox"
   }

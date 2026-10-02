@@ -165,8 +165,7 @@ description: |
 
   ## Composition
 
-  Single-purpose by design. Useful companions in the
-  [`atlassian`](../../../bundles/atlassian/README.md) bundle:
+  Single-purpose by design. Useful companions:
 
   - A parallel Jira freeze policy for `jira_delete_issue` /
     `jira_remove_issue_link` (this policy allows those through — it only fences
@@ -223,7 +222,6 @@ apps:
   - confluence
 industries: []
 bundles:
-  - atlassian
   - soc2
 experimental: true
 schemaVersion: 1.0.0

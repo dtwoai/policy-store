@@ -254,7 +254,6 @@ apps:
   - salesforce
 industries: []
 bundles:
-  - crm
   - soc2
   - gdpr-ccpa
 experimental: true

@@ -111,8 +111,6 @@ description: |
   - A separate ingress policy that **redacts** rather than blocks (for environments where rejecting the call is too disruptive — replace this policy with a transform-only version that rewrites `text`).
   - An egress PII redaction policy on Slack search/history tools so previously-posted secrets are masked when read back.
 
-  See the [`bundles/im-messaging`](../../../bundles/im-messaging/README.md) bundle for the curated set.
-
   ## Known limitations
 
   - **Regex over plain text.** Secrets concatenated into longer sentences may still match; secrets that don't match a known shape (rotating short-lived tokens, custom-format keys) will not. Treat this as a high-signal first line of defense, not a complete DLP solution.
@@ -125,7 +123,6 @@ apps:
   - slack
 industries: []
 bundles:
-  - im-messaging
   - soc2
 schemaVersion: 1.0.0
 minimumGatewayVersion: 1.0.0b24

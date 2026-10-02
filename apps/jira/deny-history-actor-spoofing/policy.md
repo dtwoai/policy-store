@@ -194,8 +194,7 @@ description: |
   ## Composition
 
   This policy is single-purpose — it protects change-history integrity on
-  transitions. Useful companions in the same
-  [`atlassian`](../../../bundles/atlassian/README.md) bundle:
+  transitions. Useful companions:
 
   - [`deny-write-sensitive-projects`](../deny-write-sensitive-projects/policy.md) —
     fences writes (including transitions) to designated sensitive projects.
@@ -257,7 +256,6 @@ apps:
   - jira
 industries: []
 bundles:
-  - atlassian
   - soc2
 experimental: true
 schemaVersion: 1.0.0

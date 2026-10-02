@@ -157,9 +157,6 @@ description: |
     and [`hubspot/block-deal-closure`](../block-deal-closure/policy.md) to
     constrain *what* the writers group can change.
 
-  See the [`bundles/crm`](../../../bundles/crm/README.md) bundle for the
-  curated set.
-
   ## Known limitations
 
   - **Group name is a placeholder.** Replace `crm-writers` (the
@@ -192,7 +189,6 @@ apps:
   - hubspot
 industries: []
 bundles:
-  - crm
   - soc2
   - gdpr-ccpa
 experimental: true

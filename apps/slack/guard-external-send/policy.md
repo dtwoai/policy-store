@@ -228,8 +228,6 @@ apps:
   - slack
 industries: []
 bundles:
-  - slack
-  - im-messaging
   - soc2
   - gdpr-ccpa
   - hipaa

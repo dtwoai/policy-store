@@ -27,7 +27,7 @@ To add a Confluence policy:
 1. Create `apps/confluence/<policy-slug>/` with `policy.md` and a `tests.yaml` test file.
 2. Add a row to the table above.
 3. Declare `apps: ["confluence"]` in the policy frontmatter, plus any industry / bundle slugs that apply.
-4. If the policy fits a bundle (e.g. [`bundles/atlassian`](../../bundles/atlassian/README.md)), link to it from the matching landing page.
+4. If the policy fits a bundle (e.g. [`bundles/soc2`](../../bundles/soc2/README.md)), link to it from the matching landing page.
 5. Run `pnpm manifest` from the repo root.
 
 See [CONTRIBUTING.md](../../CONTRIBUTING.md) for the full process.

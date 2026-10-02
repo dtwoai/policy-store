@@ -110,7 +110,6 @@ apps:
   - salesforce
 industries: []
 bundles:
-  - crm
   - soc2
   - gdpr-ccpa
 schemaVersion: 1.0.0

@@ -174,8 +174,7 @@ description: |
   ## Composition
 
   This policy is the Jira least-privilege baseline; it gates *who* may write, not
-  *what* they may write. Useful companions in the same
-  [`atlassian`](../../../bundles/atlassian/README.md) bundle:
+  *what* they may write. Useful companions:
 
   - [`deny-write-sensitive-projects`](../deny-write-sensitive-projects/policy.md)
     — even for authorized writers, keeps designated projects (HR, LEGAL, SEC)
@@ -235,7 +234,6 @@ apps:
   - jira
 industries: []
 bundles:
-  - atlassian
   - soc2
   - gdpr-ccpa
 experimental: true
