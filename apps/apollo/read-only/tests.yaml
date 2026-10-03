@@ -1,0 +1,118 @@
+- description: People search is a read — allow.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: apollo-apollo_mixed_people_api_search, uri: null }
+    payload:
+      args: { person_titles: ["VP Sales"], per_page: 25 }
+  output:
+    expectedResult: allow
+- description: Company search is a read — allow.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: apollo-apollo_mixed_companies_search, uri: null }
+    payload:
+      args: { q_organization_domains_list: ["acme.com"] }
+  output:
+    expectedResult: allow
+- description: People enrichment doesn't change Apollo records — allow.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: apollo-apollo_people_bulk_match, uri: null }
+    payload:
+      args: { details: [{ email: "jane@acme.com" }] }
+  output:
+    expectedResult: allow
+- description: Sequence search is a read — allow.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: apollo-apollo_emailer_campaigns_search, uri: null }
+    payload:
+      args: { q_name: "Q4 outbound" }
+  output:
+    expectedResult: allow
+- description: Non-Apollo tool with a write verb is out of scope — allow.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: hubspot-manage-crm-objects, uri: null }
+    payload:
+      args: {}
+  output:
+    expectedResult: allow
+- description: "'address' contains 'add' but isn't the token — allow."
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: apollo-apollo_address_lookup, uri: null }
+    payload:
+      args: {}
+  output:
+    expectedResult: allow
+- description: Creating a contact — deny.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: apollo-apollo_contacts_create, uri: null }
+    payload:
+      args: { first_name: Jane, last_name: Doe, organization_name: Acme }
+  output:
+    expectedResult: deny
+    expectedReason: "Blocked: Apollo is read-only through this gateway. You can search and enrich, but creating or changing records, adding people to sequences, and sending emails have to be done in Apollo by a person."
+- description: Updating an account — deny.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: apollo-apollo_accounts_update, uri: null }
+    payload:
+      args: { id: "acc_1", name: "Acme Inc" }
+  output:
+    expectedResult: deny
+- description: Adding contacts to a sequence — deny.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: apollo-apollo_emailer_campaigns_add_contact_ids, uri: null }
+    payload:
+      args: { id: "seq_123", contact_ids: ["c_1", "c_2"] }
+  output:
+    expectedResult: deny
+- description: Removing or stopping contacts in a sequence — deny.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: apollo-apollo_emailer_campaigns_remove_or_stop_contact_ids, uri: null }
+    payload:
+      args: { emailer_campaign_ids: ["seq_123"], contact_ids: ["c_1"], mode: stop }
+  output:
+    expectedResult: deny
+- description: Sending a one-off email — deny.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: apollo-apollo_emailer_messages_send, uri: null }
+    payload:
+      args: { contact_id: "c_1", subject: "Quick question" }
+  output:
+    expectedResult: deny
+- description: Bulk-creating accounts — deny.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: apollo-apollo_accounts_bulk_create, uri: null }
+    payload:
+      args: { accounts: [{ name: Acme }] }
+  output:
+    expectedResult: deny
+- description: Mixed-case tool name with a write verb — deny.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: Apollo-Apollo_Tasks_Create, uri: null }
+    payload:
+      args: { contact_ids: ["c_1"], type: call }
+  output:
+    expectedResult: deny

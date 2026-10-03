@@ -1,0 +1,94 @@
+- description: People search with per_page 100 — clamped to 50; other args preserved.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: apollo-apollo_mixed_people_api_search, uri: null }
+    payload:
+      args: { person_titles: ["VP Sales"], per_page: 100, page: 2 }
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain: { per_page: 50, page: 2, person_titles: ["VP Sales"] }
+- description: Company search with no per_page — 50 injected.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: apollo-apollo_mixed_companies_search, uri: null }
+    payload:
+      args: { q_organization_domains_list: ["acme.com"] }
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain: { per_page: 50 }
+- description: Contact search with per_page 0 — set to 50.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: apollo-apollo_contacts_search, uri: null }
+    payload:
+      args: { q_keywords: acme, per_page: 0 }
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain: { per_page: 50 }
+- description: per_page as a string — replaced with 50.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: apollo-apollo_mixed_people_api_search, uri: null }
+    payload:
+      args: { per_page: "500" }
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain: { per_page: 50 }
+- description: per_page exactly 50 — untouched (boundary).
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: apollo-apollo_mixed_people_api_search, uri: null }
+    payload:
+      args: { person_titles: ["CRO"], per_page: 50 }
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: per_page 25 — untouched.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: apollo-apollo_mixed_companies_search, uri: null }
+    payload:
+      args: { per_page: 25 }
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Non-search Apollo tool (bulk enrich) — untouched.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: apollo-apollo_people_bulk_match, uri: null }
+    payload:
+      args: { details: [{ email: "jane@acme.com" }] }
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: Non-Apollo search tool — untouched.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: clay-search-companies, uri: null }
+    payload:
+      args: { per_page: 500 }
+  output:
+    expectedResult: allow
+  transformApplied: false
+- description: "'research' contains 'search' but isn't the token — untouched."
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: apollo-apollo_research_notes, uri: null }
+    payload:
+      args: {}
+  output:
+    expectedResult: allow
+  transformApplied: false

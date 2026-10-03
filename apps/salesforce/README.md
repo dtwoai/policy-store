@@ -7,9 +7,10 @@ Reusable DTwo policies for Salesforce MCP servers — the Salesforce-hosted `sob
 | Policy | Direction | Purpose | Framework bundles |
 | ------ | --------- | ------- | ----------------- |
 | [read-only](./read-only/policy.md) | ingress | Allowlist Salesforce read tools and deny all writes (fail-closed); non-Salesforce tools pass through. | soc2, hipaa, pci-dss, gdpr-ccpa, sox |
+| [read-only-except-call-notes](./read-only-except-call-notes/policy.md) | ingress | Read-only Salesforce, except the agent can log a call note on a contact (call Task or classic Note); every other write, delete, and unrecognised tool is denied. | gtm-stack-salesforce |
 | [role-gate-writes](./role-gate-writes/policy.md) | ingress | Allow reads for everyone, gate create/update writes behind an IdP group, and fail closed on unrecognized Salesforce tools; deletes pass to `freeze-record-deletes`. | soc2, hipaa, pci-dss, gdpr-ccpa, sox |
 | [query-allowlist](./query-allowlist/policy.md) | ingress | Restrict SOQL queries to Account, Contact, and Opportunity objects; other Salesforce and non-Salesforce tools pass through. | soc2, hipaa, pci-dss, gdpr-ccpa |
-| [cap-bulk-export](./cap-bulk-export/policy.md) | ingress | Require a `LIMIT` ≤ 1000 on SOQL reads of Contact/Lead/Account and gate org-wide SOSL search behind an IdP group, to block bulk PII extraction. | soc2, hipaa, gdpr-ccpa |
+| [cap-bulk-export](./cap-bulk-export/policy.md) | ingress | Require a `LIMIT` ≤ 200 on every SOQL query and ≤ 50 on org-wide SOSL search, to block bulk extraction. | soc2, hipaa, gdpr-ccpa, gtm-stack-salesforce |
 | [protect-contact-fields](./protect-contact-fields/policy.md) | ingress | Deny Contact updates that modify protected fields (ownership, account linkage, PII, name, consent flags); other field updates and tools pass through. | soc2, hipaa, gdpr-ccpa |
 | [guard-opportunity-pipeline](./guard-opportunity-pipeline/policy.md) | ingress | Deny Opportunity updates that move `StageName`, `Amount`, or `CloseDate` unless the caller is in a sales-managers IdP group; other fields and objects pass through. | soc2, sox, gdpr-ccpa |
 | [freeze-record-deletes](./freeze-record-deletes/policy.md) | ingress | Deny all record-delete capability (hosted, community, and the `salesforce_dml_records` delete verb) unless the caller is in an `sf-admins` IdP group. | soc2, hipaa, gdpr-ccpa, sox |
@@ -22,7 +23,7 @@ DTwo prefixes tool names with the MCP server name configured on the gateway. A S
 
 ## Identity claims
 
-Several policies are single-purpose and require no IdP claims (`read-only`, `query-allowlist`, `protect-contact-fields`, `deny-escape-hatches`, `redact-pii`). The identity-gated ones read `input.subject.claims.groups` with **placeholder** group names: `role-gate-writes` and `cap-bulk-export` use `sales` / `support`, `guard-opportunity-pipeline` uses `sales-managers`, and `freeze-record-deletes` uses `sf-admins`. Replace these with your own IdP group names at import time. Missing or non-array claims fail closed for grants (no group → not exempt). `deny-escape-hatches` has **no** group exemption by design — an identity carve-out there would hand that identity a bypass of every other Salesforce policy.
+Several policies are single-purpose and require no IdP claims (`read-only`, `read-only-except-call-notes`, `query-allowlist`, `cap-bulk-export`, `protect-contact-fields`, `deny-escape-hatches`, `redact-pii`). The identity-gated ones read `input.subject.claims.groups` with **placeholder** group names: `role-gate-writes` uses `sales` / `support`, `guard-opportunity-pipeline` uses `sales-managers`, and `freeze-record-deletes` uses `sf-admins`. Replace these with your own IdP group names at import time. Missing or non-array claims fail closed for grants (no group → not exempt). `deny-escape-hatches` has **no** group exemption by design — an identity carve-out there would hand that identity a bypass of every other Salesforce policy.
 
 ## Contributing
 

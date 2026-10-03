@@ -127,6 +127,57 @@
       "minimumGatewayVersion": "1.0.0b24"
     },
     {
+      "path": "apps/apollo/cap-search",
+      "name": "Apollo Cap Search",
+      "direction": "ingress",
+      "publishedAt": "2026-10-03",
+      "apps": [
+        "apollo"
+      ],
+      "industries": [],
+      "bundles": [
+        "gtm-stack-hubspot",
+        "gtm-stack-salesforce"
+      ],
+      "experimental": false,
+      "tags": [
+        "apollo",
+        "data-protection",
+        "governance",
+        "bulk-data",
+        "ingress"
+      ],
+      "policyChecksum": "sha256:2c068c401da6c0bf9377cfb45146d044da52c5cf1aea5857cc40a7209440a32e",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/apollo/read-only",
+      "name": "Apollo Read-Only",
+      "direction": "ingress",
+      "publishedAt": "2026-10-03",
+      "apps": [
+        "apollo"
+      ],
+      "industries": [],
+      "bundles": [
+        "gtm-stack-hubspot",
+        "gtm-stack-salesforce"
+      ],
+      "experimental": false,
+      "tags": [
+        "apollo",
+        "access-control",
+        "governance",
+        "read-only",
+        "outreach",
+        "ingress"
+      ],
+      "policyChecksum": "sha256:fd6d046a26da2dc44f797b23119fa5b352b566b75e9e884e039eddca2348801c",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
       "path": "apps/asana/cap-batch-mutation",
       "name": "Cap Asana Batch Task Mutations",
       "direction": "ingress",
@@ -504,6 +555,57 @@
         "gdpr-ccpa"
       ],
       "policyChecksum": "sha256:402fdf79b6e7b9fd5df7fe444218b926ed74c5d7c7748b0b41c33c0df2be5d1a",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/clay/cap-enrichment",
+      "name": "Clay Cap Enrichment",
+      "direction": "ingress",
+      "publishedAt": "2026-10-03",
+      "apps": [
+        "clay"
+      ],
+      "industries": [],
+      "bundles": [
+        "gtm-stack-hubspot",
+        "gtm-stack-salesforce"
+      ],
+      "experimental": false,
+      "tags": [
+        "clay",
+        "cost-control",
+        "governance",
+        "enrichment",
+        "bulk-data",
+        "ingress"
+      ],
+      "policyChecksum": "sha256:7850296492ac44ecb150d1f07419d2b1165722eed99d45bdd52490eb4b525ea6",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/clay/subroutine-allowlist",
+      "name": "Clay Subroutine Allowlist",
+      "direction": "ingress",
+      "publishedAt": "2026-10-03",
+      "apps": [
+        "clay"
+      ],
+      "industries": [],
+      "bundles": [
+        "gtm-stack-hubspot",
+        "gtm-stack-salesforce"
+      ],
+      "experimental": false,
+      "tags": [
+        "clay",
+        "access-control",
+        "governance",
+        "enrichment",
+        "ingress"
+      ],
+      "policyChecksum": "sha256:d29e5e639097b2b543542ea7a3cc908bb9ba806e5d9d1c7b9848dd8303e85f73",
       "schemaVersion": "1.0.0",
       "minimumGatewayVersion": "1.0.0b24"
     },
@@ -2080,9 +2182,10 @@
         "soc2",
         "hipaa",
         "pci-dss",
-        "gdpr-ccpa"
+        "gdpr-ccpa",
+        "gtm-stack-hubspot"
       ],
-      "experimental": true,
+      "experimental": false,
       "tags": [
         "hubspot",
         "cap-bulk-export",
@@ -2094,7 +2197,7 @@
         "pci-dss",
         "gdpr-ccpa"
       ],
-      "policyChecksum": "sha256:dde664fd7b43b6fe4187d2b623b2b3ada8376c469f1e45455ca5a435f3325bc2",
+      "policyChecksum": "sha256:cbe9da3eb76be42203529e50e0b6e53badcf0245eb554adda81be2b9d0c86d0f",
       "schemaVersion": "1.0.0",
       "minimumGatewayVersion": "1.0.0b24"
     },
@@ -2214,6 +2317,31 @@
         "gdpr-ccpa"
       ],
       "policyChecksum": "sha256:c4ef50764a959af252cfbd5474bfea02a57b207fa3d352636dc70b8f11b45de0",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/hubspot/read-only-except-call-notes",
+      "name": "HubSpot Read-Only Except Call Notes",
+      "direction": "ingress",
+      "publishedAt": "2026-10-03",
+      "apps": [
+        "hubspot"
+      ],
+      "industries": [],
+      "bundles": [
+        "gtm-stack-hubspot"
+      ],
+      "experimental": false,
+      "tags": [
+        "hubspot",
+        "access-control",
+        "governance",
+        "read-only",
+        "call-notes",
+        "ingress"
+      ],
+      "policyChecksum": "sha256:30d2ef294a20e65e4710974411c0f8d1a5b759d3aa20bfe57c71a0e777a167d2",
       "schemaVersion": "1.0.0",
       "minimumGatewayVersion": "1.0.0b24"
     },
@@ -3787,9 +3915,10 @@
         "soc2",
         "hipaa",
         "pci-dss",
-        "gdpr-ccpa"
+        "gdpr-ccpa",
+        "gtm-stack-salesforce"
       ],
-      "experimental": true,
+      "experimental": false,
       "tags": [
         "salesforce",
         "cap-bulk-export",
@@ -3801,7 +3930,7 @@
         "pci-dss",
         "gdpr-ccpa"
       ],
-      "policyChecksum": "sha256:753cf879feab22a8813df3861a2c69f898289c594370b2d06457d2e73c09f1cc",
+      "policyChecksum": "sha256:47b5dfa3a16f415194165c1c564eda5956627b23c318f09580d83774c30744cf",
       "schemaVersion": "1.0.0",
       "minimumGatewayVersion": "1.0.0b24"
     },
@@ -3963,6 +4092,31 @@
         "iso27001-nist"
       ],
       "policyChecksum": "sha256:e66f0db4e835bc2684182230aea05bed5200658e4db8b81f27ffaa8134e5e696",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/salesforce/read-only-except-call-notes",
+      "name": "Salesforce Read-Only Except Call Notes",
+      "direction": "ingress",
+      "publishedAt": "2026-10-03",
+      "apps": [
+        "salesforce"
+      ],
+      "industries": [],
+      "bundles": [
+        "gtm-stack-salesforce"
+      ],
+      "experimental": false,
+      "tags": [
+        "salesforce",
+        "access-control",
+        "governance",
+        "read-only",
+        "call-notes",
+        "ingress"
+      ],
+      "policyChecksum": "sha256:22c3884dafbeeff6ac1719114fb3b269573791846d3d518dba75065cab4f4777",
       "schemaVersion": "1.0.0",
       "minimumGatewayVersion": "1.0.0b24"
     },
@@ -5181,9 +5335,11 @@
   ],
   "apps": {
     "airtable": "apps/airtable",
+    "apollo": "apps/apollo",
     "asana": "apps/asana",
     "bigquery": "apps/bigquery",
     "box": "apps/box",
+    "clay": "apps/clay",
     "confluence": "apps/confluence",
     "databricks": "apps/databricks",
     "docusign": "apps/docusign",
@@ -5217,6 +5373,8 @@
   "industries": {},
   "bundles": {
     "gdpr-ccpa": "bundles/gdpr-ccpa",
+    "gtm-stack-hubspot": "bundles/gtm-stack-hubspot",
+    "gtm-stack-salesforce": "bundles/gtm-stack-salesforce",
     "hipaa": "bundles/hipaa",
     "pci-dss": "bundles/pci-dss",
     "soc2": "bundles/soc2",

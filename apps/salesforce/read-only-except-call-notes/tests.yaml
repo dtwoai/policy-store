@@ -1,0 +1,222 @@
+- description: Hosted SOQL read — allow.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: salesforce-soqlQuery, uri: null }
+    payload:
+      args: { q: "SELECT Id, Name FROM Contact LIMIT 10" }
+  output:
+    expectedResult: allow
+- description: Hosted related-records read — allow.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: salesforce-getRelatedRecords, uri: null }
+    payload:
+      args: { sobject-name: Account, record-id: 001Ak00000Ab1CdIAJ, relationship-path: Contacts }
+  output:
+    expectedResult: allow
+- description: Non-Salesforce tool with a write verb is out of scope — allow.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: hubspot-manage-crm-objects, uri: null }
+    payload:
+      args: { updateRequest: { objects: [ { objectType: deals, objectId: 5 } ] } }
+  output:
+    expectedResult: allow
+- description: Hosted create of a call Task (TaskSubtype Call) on a contact — allow.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: salesforce-createSobjectRecord, uri: null }
+    payload:
+      args:
+        sobject-name: Task
+        body:
+          Subject: Call with Jane
+          TaskSubtype: Call
+          Status: Completed
+          WhoId: 003Ak00000Ab1CdIAJ
+          Description: Call recap
+  output:
+    expectedResult: allow
+- description: Call Task using Type instead of TaskSubtype, 15-char contact Id, odd key casing — allow.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: salesforce-createSobjectRecord, uri: null }
+    payload:
+      args:
+        sobject-name: " task "
+        body:
+          type: call
+          WHOID: 003Ak00000Ab1Cd
+          Subject: Quick check-in
+  output:
+    expectedResult: allow
+- description: Classic Note whose parent is a contact — allow.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: salesforce-createSobjectRecord, uri: null }
+    payload:
+      args:
+        sobject-name: Note
+        body: { Title: Call notes, Body: "Discussed renewal", ParentId: 003Ak00000Ab1CdIAJ }
+  output:
+    expectedResult: allow
+- description: smn2gnt create_record of a call Task on a contact — allow.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: sf-community-create_record, uri: null }
+    payload:
+      args:
+        object_type: Task
+        data: { Subject: Call, TaskSubtype: Call, WhoId: 003Ak00000Ab1CdIAJ }
+  output:
+    expectedResult: allow
+- description: tsmztech insert of two call Tasks on contacts — allow.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: sf-salesforce_dml_records, uri: null }
+    payload:
+      args:
+        operation: insert
+        objectName: Task
+        records:
+          - { Subject: Call 1, TaskSubtype: Call, WhoId: 003Ak00000Ab1CdIAJ }
+          - { Subject: Call 2, TaskSubtype: Call, WhoId: 003Ak00000Zz9YxIAJ }
+  output:
+    expectedResult: allow
+- description: Contact update — deny with the read-only reason.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: salesforce-updateSobjectRecord, uri: null }
+    payload:
+      args: { sobject-name: Contact, record-id: 003Ak00000Ab1CdIAJ, body: { Title: VP } }
+  output:
+    expectedResult: deny
+    expectedReason: "Blocked: Salesforce is read-only through this gateway. The only change allowed is logging a call note on a contact (a Task with type Call, or a Note, attached to a Contact). Ask your admin if you need anything else changed in Salesforce."
+- description: Updating an existing call Task — deny (only creates are allowed).
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: salesforce-updateSobjectRecord, uri: null }
+    payload:
+      args: { sobject-name: Task, record-id: 00TAk00000Ab1CdIAJ, body: { Description: edited } }
+  output:
+    expectedResult: deny
+- description: Record delete — deny.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: salesforce-deleteSobjectRecord, uri: null }
+    payload:
+      args: { sobject-name: Contact, id: 003Ak00000Ab1CdIAJ }
+  output:
+    expectedResult: deny
+- description: Creating an Opportunity — deny.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: salesforce-createSobjectRecord, uri: null }
+    payload:
+      args: { sobject-name: Opportunity, body: { Name: New deal, StageName: Prospecting } }
+  output:
+    expectedResult: deny
+- description: Non-call Task (a to-do) on a contact — deny.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: salesforce-createSobjectRecord, uri: null }
+    payload:
+      args: { sobject-name: Task, body: { Subject: Send pricing, WhoId: 003Ak00000Ab1CdIAJ } }
+  output:
+    expectedResult: deny
+- description: Call Task whose WhoId is a Lead (00Q), not a Contact — deny.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: salesforce-createSobjectRecord, uri: null }
+    payload:
+      args: { sobject-name: Task, body: { Subject: Call, TaskSubtype: Call, WhoId: 00QAk00000Ab1CdIAJ } }
+  output:
+    expectedResult: deny
+- description: Call Task on a contact that is also linked to an Opportunity via WhatId — deny.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: salesforce-createSobjectRecord, uri: null }
+    payload:
+      args:
+        sobject-name: Task
+        body: { Subject: Call, TaskSubtype: Call, WhoId: 003Ak00000Ab1CdIAJ, WhatId: 006Ak00000Ab1CdIAJ }
+  output:
+    expectedResult: deny
+- description: Note whose parent is an Account — deny.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: salesforce-createSobjectRecord, uri: null }
+    payload:
+      args: { sobject-name: Note, body: { Title: Notes, ParentId: 001Ak00000Ab1CdIAJ } }
+  output:
+    expectedResult: deny
+- description: tsmztech insert mixing a valid call Task with a Contact create — deny (every record must be a call note).
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: sf-salesforce_dml_records, uri: null }
+    payload:
+      args:
+        operation: insert
+        objectName: Task
+        records:
+          - { Subject: Call, TaskSubtype: Call, WhoId: 003Ak00000Ab1CdIAJ }
+          - { Subject: To-do, WhoId: 003Ak00000Ab1CdIAJ }
+  output:
+    expectedResult: deny
+- description: tsmztech update of a Task (not insert) — deny.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: sf-salesforce_dml_records, uri: null }
+    payload:
+      args:
+        operation: update
+        objectName: Task
+        records:
+          - { Id: 00TAk00000Ab1CdIAJ, Subject: Call, TaskSubtype: Call, WhoId: 003Ak00000Ab1CdIAJ }
+  output:
+    expectedResult: deny
+- description: Community escape hatch (execute_anonymous) under another server name — deny.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: sf-community-execute_anonymous, uri: null }
+    payload:
+      args: { apexCode: "delete [SELECT Id FROM Contact];" }
+  output:
+    expectedResult: deny
+- description: Unrecognised Salesforce tool — deny (fail closed).
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: salesforce-mergeRecords, uri: null }
+    payload:
+      args: {}
+  output:
+    expectedResult: deny
+- description: Hosted create whose body is a JSON string instead of a field map — deny (fail closed).
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: salesforce-createSobjectRecord, uri: null }
+    payload:
+      args: { sobject-name: Task, body: '{"TaskSubtype":"Call","WhoId":"003Ak00000Ab1CdIAJ"}' }
+  output:
+    expectedResult: deny

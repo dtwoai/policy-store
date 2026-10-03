@@ -18,8 +18,8 @@ Clamp bulk reads, exports, and search fan-out so a single agent call can't harve
 |---|---|---|---|
 | [cap-bulk-export](../../apps/gmail/cap-bulk-export/) | gmail | ingress | Cap batch content reads and clamp search `maxResults` to throttle mass mailbox harvesting. |
 | [cap-bulk-export](../../apps/google-drive/cap-bulk-export/) | google-drive | ingress | Clamp Drive search/listing page sizes to a ceiling (transform-only, never denies). |
-| [cap-bulk-export](../../apps/salesforce/cap-bulk-export/) | salesforce | ingress | Cap SOQL row limits and gate org-wide SOSL search by IdP group. |
-| [cap-bulk-export](../../apps/hubspot/cap-bulk-export/) | hubspot | ingress | Clamp bulk-read page sizes and batch-read arrays to 50 records. |
+| [cap-bulk-export](../../apps/salesforce/cap-bulk-export/) | salesforce | ingress | Require a `LIMIT` of 200 or less on every SOQL query and 50 or less on org-wide SOSL search. |
+| [cap-bulk-export](../../apps/hubspot/cap-bulk-export/) | hubspot | ingress | Clamp reads to 200 records per call (lists, batch reads, SQL) and 50 for free-text search. |
 | [cap-search-export](../../apps/glean/cap-search-export/) | glean | ingress | Clamp bulk-export params (result ceiling, strip exhaustive) on Glean search. |
 | [cap-contact-enumeration](../../apps/intercom/cap-contact-enumeration/) | intercom | ingress | Deny bulk-enumeration query shapes on contact search and clamp page size. |
 

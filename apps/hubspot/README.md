@@ -11,10 +11,11 @@ Reusable DTwo policies for HubSpot MCP servers — the HubSpot-hosted remote MCP
 | [protect-deal-owner](./protect-deal-owner/policy.md) | ingress | Deny deal-update calls that set or change `hubspot_owner_id`; deal creates and other fields pass through. | soc2, sox |
 | [protect-lifecycle-stage](./protect-lifecycle-stage/policy.md) | ingress | Deny contact create/update calls that set or change `lifecyclestage`; all other calls pass through. | soc2, gdpr-ccpa |
 | [read-only](./read-only/policy.md) | ingress | Block all HubSpot writes (the `*-manage-crm-objects` tool); read/search/list tools pass through. | soc2, hipaa, pci-dss, gdpr-ccpa, sox |
+| [read-only-except-call-notes](./read-only-except-call-notes/policy.md) | ingress | Read-only HubSpot, except the agent can log a call note (Note or Call record) on a contact; every other write is denied. | gtm-stack-hubspot |
 | [role-gate-writes](./role-gate-writes/policy.md) | ingress | Gate every HubSpot write tool behind an IdP `crm-writers` group; read-only by default, fail-closed on missing claims. | soc2, hipaa, pci-dss, gdpr-ccpa, sox |
 | [role-gate-schema-consent](./role-gate-schema-consent/policy.md) | ingress | Reserve the two highest-blast-radius write classes — portal-schema (property-definition) edits and marketing-consent mutations — for a `hubspot-admins` group. | soc2, gdpr-ccpa |
 | [freeze-destructive-ops](./freeze-destructive-ops/policy.md) | ingress | Deny every archive/delete/void/purge-class tool plus the consent-destroying contact unsubscribe; no identity exemption. | soc2, hipaa, gdpr-ccpa, sox |
-| [cap-bulk-export](./cap-bulk-export/policy.md) | ingress | Clamp bulk-read page size to 50 and truncate ids-style batch reads (transform-only) to cut off the mass-PII export channel. | soc2, hipaa, gdpr-ccpa |
+| [cap-bulk-export](./cap-bulk-export/policy.md) | ingress | Clamp reads to 200 records per call (search/list `limit`, batch-read ID arrays, `query_crm_data` SQL `LIMIT`) and 50 for free-text search; transform-only. | soc2, hipaa, gdpr-ccpa, gtm-stack-hubspot |
 | [redact-pii](./redact-pii/policy.md) | egress | Redact contact PII (phone, email, fax, SSN) from HubSpot tool responses to `[REDACTED]`. Transform-only — never denies. | soc2, hipaa, gdpr-ccpa |
 
 ## Tool naming on the DTwo gateway
