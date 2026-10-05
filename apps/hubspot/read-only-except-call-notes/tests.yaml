@@ -1,0 +1,209 @@
+- description: Remote read tool (search_crm_objects). Reads pass — allow.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: hubspot-search-crm-objects, uri: null }
+    payload:
+      args: { objectType: CONTACT, query: acme }
+  output:
+    expectedResult: allow
+- description: Non-HubSpot tool with a write verb is out of scope — allow.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: ms365-create-calendar-event, uri: null }
+    payload:
+      args: { subject: sync }
+  output:
+    expectedResult: allow
+- description: Note created and associated with a contact (remote server shape) — allow.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: hubspot-manage-crm-objects, uri: null }
+    payload:
+      args:
+        confirmationStatus: CONFIRMED
+        createRequest:
+          objects:
+            - objectType: notes
+              properties: { hs_note_body: "Call recap", hs_timestamp: "2026-10-03T14:20:00Z" }
+              associations:
+                - { targetObjectType: CONTACT, targetObjectId: 546680647389 }
+  output:
+    expectedResult: allow
+- description: Call record associated with a contact via HubSpot v4 association type 194 — allow.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: hubspot-manage-crm-objects, uri: null }
+    payload:
+      args:
+        createRequest:
+          objects:
+            - objectType: calls
+              properties: { hs_call_body: "Discovery call notes" }
+              associations:
+                - to: { id: "101" }
+                  types: [ { associationCategory: HUBSPOT_DEFINED, associationTypeId: 194 } ]
+  output:
+    expectedResult: allow
+- description: Local-beta create-engagement of type NOTE on contacts only — allow.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: hubspot-create-engagement, uri: null }
+    payload:
+      args:
+        type: NOTE
+        associations: { contactIds: [101], companyIds: [], dealIds: [] }
+        metadata: { body: "Call recap" }
+  output:
+    expectedResult: allow
+- description: Contact update — deny with the read-only reason.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: hubspot-manage-crm-objects, uri: null }
+    payload:
+      args:
+        updateRequest:
+          objects:
+            - { objectType: contacts, objectId: 1, properties: { jobtitle: VP } }
+  output:
+    expectedResult: deny
+    expectedReason: "Blocked: HubSpot is read-only through this gateway. The only change allowed is adding a call note (a new note or call record) to a contact. Ask your admin if you need anything else changed in HubSpot."
+- description: Mixed-case tool name on an update is still denied (case-insensitive match).
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: HubSpot-Manage-CRM-Objects, uri: null }
+    payload:
+      args:
+        updateRequest:
+          objects:
+            - { objectType: deals, objectId: 5, properties: { amount: "500" } }
+  output:
+    expectedResult: deny
+- description: Creating a contact (not a note or call) — deny.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: hubspot-manage-crm-objects, uri: null }
+    payload:
+      args:
+        createRequest:
+          objects:
+            - objectType: contacts
+              properties: { email: jane@example.com }
+  output:
+    expectedResult: deny
+- description: Note with no associations — deny (must be attached to a contact).
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: hubspot-manage-crm-objects, uri: null }
+    payload:
+      args:
+        createRequest:
+          objects:
+            - objectType: notes
+              properties: { hs_note_body: "Orphan note" }
+  output:
+    expectedResult: deny
+- description: Note associated with a company — deny.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: hubspot-manage-crm-objects, uri: null }
+    payload:
+      args:
+        createRequest:
+          objects:
+            - objectType: notes
+              properties: { hs_note_body: "Account note" }
+              associations:
+                - { targetObjectType: COMPANY, targetObjectId: 1 }
+  output:
+    expectedResult: deny
+- description: Note associated with a contact AND a deal — deny (every association must be a contact).
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: hubspot-manage-crm-objects, uri: null }
+    payload:
+      args:
+        createRequest:
+          objects:
+            - objectType: notes
+              properties: { hs_note_body: "Call recap" }
+              associations:
+                - { targetObjectType: CONTACT, targetObjectId: 101 }
+                - { targetObjectType: DEAL, targetObjectId: 202 }
+  output:
+    expectedResult: deny
+- description: Valid note create smuggled alongside a non-empty updateRequest — deny.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: hubspot-manage-crm-objects, uri: null }
+    payload:
+      args:
+        createRequest:
+          objects:
+            - objectType: notes
+              properties: { hs_note_body: "Call recap" }
+              associations:
+                - { targetObjectType: CONTACT, targetObjectId: 101 }
+        updateRequest:
+          objects:
+            - { objectType: deals, objectId: 5, properties: { dealstage: closedwon } }
+  output:
+    expectedResult: deny
+- description: USER_DEFINED association label category with a contact type id — deny (only HubSpot-defined contact associations count).
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: hubspot-manage-crm-objects, uri: null }
+    payload:
+      args:
+        createRequest:
+          objects:
+            - objectType: notes
+              properties: { hs_note_body: "Call recap" }
+              associations:
+                - to: { id: "101" }
+                  types: [ { associationCategory: USER_DEFINED, associationTypeId: 202 } ]
+  output:
+    expectedResult: deny
+- description: Other remote manage-* tool (campaigns) — deny.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: hubspot-manage-campaign-objects, uri: null }
+    payload:
+      args: { action: update }
+  output:
+    expectedResult: deny
+- description: Local-beta create-engagement NOTE that also attaches a deal — deny.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: hubspot-create-engagement, uri: null }
+    payload:
+      args:
+        type: NOTE
+        associations: { contactIds: [101], dealIds: [5] }
+  output:
+    expectedResult: deny
+- description: Local-beta create-engagement of type TASK — deny (only NOTE and CALL are call notes).
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: hubspot-create-engagement, uri: null }
+    payload:
+      args:
+        type: TASK
+        associations: { contactIds: [101] }
+  output:
+    expectedResult: deny

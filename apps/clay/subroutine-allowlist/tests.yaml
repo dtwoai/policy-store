@@ -1,0 +1,105 @@
+- description: Company search isn't a subroutine call — allow.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: clay-search-companies, uri: null }
+    payload:
+      args: { dslQuery: "select from companies where company_size = \"51-200\"" }
+  output:
+    expectedResult: allow
+- description: Adding contact data points isn't a subroutine call — allow.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: clay-add-contact-data-points, uri: null }
+    payload:
+      args: { taskId: mcp-task-1, dataPoints: [{ type: Email }] }
+  output:
+    expectedResult: allow
+- description: Built-in Work Email via run-subroutine-direct — allow.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: clay-run-subroutine-direct, uri: null }
+    payload:
+      args:
+        subroutine_id: t_0tm6n9mtip5BqhnMv5d
+        inputs: [{ "Full Name": "Jane Doe", "Company Domain": "acme.com" }]
+  output:
+    expectedResult: allow
+- description: Built-in Person Job Title via run-subroutine on a search — allow.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: clay-run-subroutine, uri: null }
+    payload:
+      args: { subroutine_id: t_0tm6n9mkCFSdffP4HwB, taskId: mcp-task-1, fieldMapping: { name: "Full Name" } }
+  output:
+    expectedResult: allow
+- description: Built-in Enrich Company via run-subroutine-no-mapping, snake_case upstream name — allow.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: clay-run_subroutine_no_mapping, uri: null }
+    payload:
+      args: { subroutine_id: t_0tm6n9hxVZpR4Cy6eYh, taskId: mcp-task-1 }
+  output:
+    expectedResult: allow
+- description: Non-Clay tool with a run-subroutine name is out of scope — allow.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: other-run-subroutine, uri: null }
+    payload:
+      args: { subroutine_id: anything }
+  output:
+    expectedResult: allow
+- description: Custom function that pushes contacts to a Salesforce campaign — deny.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: clay-run-subroutine, uri: null }
+    payload:
+      args:
+        subroutine_id: t_custom_push_to_sfdc
+        taskId: mcp-task-1
+        inputs: { "Salesforce Campaign ID": "7018b00000ABCDEF" }
+  output:
+    expectedResult: deny
+    expectedReason: "Blocked: only Clay's built-in enrichment functions can run through this gateway. Custom Clay functions can push data into other systems, so ask your admin to add this one to the allowlist if you need it."
+- description: Unknown function via run-subroutine-direct — deny.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: clay-run-subroutine-direct, uri: null }
+    payload:
+      args: { subroutine_id: t_unknown, inputs: [{ Domain: acme.com }] }
+  output:
+    expectedResult: deny
+- description: Missing subroutine_id — deny (fail closed).
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: clay-run-subroutine-no-mapping, uri: null }
+    payload:
+      args: { taskId: mcp-task-1 }
+  output:
+    expectedResult: deny
+- description: Non-string subroutine_id — deny.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: clay-run-subroutine, uri: null }
+    payload:
+      args: { subroutine_id: ["t_0tm6n9mtip5BqhnMv5d"], taskId: mcp-task-1 }
+  output:
+    expectedResult: deny
+- description: Allowed ID in a different case is not the same ID — deny.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: Clay-Run-Subroutine-Direct, uri: null }
+    payload:
+      args: { subroutine_id: T_0TM6N9MTIP5BQHNMV5D, inputs: [{ x: y }] }
+  output:
+    expectedResult: deny

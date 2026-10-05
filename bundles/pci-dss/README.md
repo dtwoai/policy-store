@@ -45,7 +45,7 @@ Ingress controls that clamp bulk-read levers — page sizes, unbounded list/sear
 | [cap-bulk-export](../../apps/quickbooks/cap-bulk-export/policy.md) | quickbooks | ingress | Clamp the bulk-read levers on QBO `search_*` tools so the agent cannot pull the whole general ledger or full lists. |
 | [cap-bulk-export](../../apps/netsuite/cap-bulk-export/policy.md) | netsuite | ingress | Clamp or require `pageSize` on `ns_runCustomSuiteQL`, capping bulk SuiteQL reads over the ERP. |
 | [cap-bulk-export](../../apps/salesforce/cap-bulk-export/policy.md) | salesforce | ingress | Block bulk PII extraction by inspecting the SOQL/SOSL query string on Salesforce query tools. |
-| [cap-bulk-export](../../apps/hubspot/cap-bulk-export/policy.md) | hubspot | ingress | Clamp the page size of covered HubSpot bulk-read tools so one call can never return more than 50 records. |
+| [cap-bulk-export](../../apps/hubspot/cap-bulk-export/policy.md) | hubspot | ingress | Clamp covered HubSpot read tools so one call returns at most 200 records (50 for free-text search). |
 | [cap-contact-enumeration](../../apps/intercom/cap-contact-enumeration/policy.md) | intercom | ingress | Cap Intercom contact enumeration on `search_contacts` and generic contact search to stop full-base sweeps. |
 
 ### Least-privilege access to card-data-adjacent apps

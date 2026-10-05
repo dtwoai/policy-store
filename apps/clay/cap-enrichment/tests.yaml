@@ -1,0 +1,210 @@
+- description: Search is out of scope — allow.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: clay-search-companies
+      uri: null
+    payload:
+      args:
+        dslQuery: select from companies
+  output:
+    expectedResult: allow
+- description: run-subroutine-direct with 20 inputs — allow.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: clay-run-subroutine-direct
+      uri: null
+    payload:
+      args:
+        subroutine_id: t_x
+        inputs: [{Domain: co0.com}, {Domain: co1.com}, {Domain: co2.com}, {Domain: co3.com}, {Domain: co4.com}, {Domain: co5.com},
+          {Domain: co6.com}, {Domain: co7.com}, {Domain: co8.com}, {Domain: co9.com}, {Domain: co10.com}, {Domain: co11.com},
+          {Domain: co12.com}, {Domain: co13.com}, {Domain: co14.com}, {Domain: co15.com}, {Domain: co16.com}, {Domain: co17.com},
+          {Domain: co18.com}, {Domain: co19.com}]
+  output:
+    expectedResult: allow
+- description: run-subroutine-direct with exactly 50 inputs — allow (boundary).
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: clay-run-subroutine-direct
+      uri: null
+    payload:
+      args:
+        subroutine_id: t_x
+        inputs: [{Domain: co0.com}, {Domain: co1.com}, {Domain: co2.com}, {Domain: co3.com}, {Domain: co4.com}, {Domain: co5.com},
+          {Domain: co6.com}, {Domain: co7.com}, {Domain: co8.com}, {Domain: co9.com}, {Domain: co10.com}, {Domain: co11.com},
+          {Domain: co12.com}, {Domain: co13.com}, {Domain: co14.com}, {Domain: co15.com}, {Domain: co16.com}, {Domain: co17.com},
+          {Domain: co18.com}, {Domain: co19.com}, {Domain: co20.com}, {Domain: co21.com}, {Domain: co22.com}, {Domain: co23.com},
+          {Domain: co24.com}, {Domain: co25.com}, {Domain: co26.com}, {Domain: co27.com}, {Domain: co28.com}, {Domain: co29.com},
+          {Domain: co30.com}, {Domain: co31.com}, {Domain: co32.com}, {Domain: co33.com}, {Domain: co34.com}, {Domain: co35.com},
+          {Domain: co36.com}, {Domain: co37.com}, {Domain: co38.com}, {Domain: co39.com}, {Domain: co40.com}, {Domain: co41.com},
+          {Domain: co42.com}, {Domain: co43.com}, {Domain: co44.com}, {Domain: co45.com}, {Domain: co46.com}, {Domain: co47.com},
+          {Domain: co48.com}, {Domain: co49.com}]
+  output:
+    expectedResult: allow
+- description: run-subroutine on a whole search page (no entityIds) — allow.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: clay-run-subroutine
+      uri: null
+    payload:
+      args:
+        subroutine_id: t_x
+        taskId: mcp-task-1
+        fieldMapping:
+          name: Full Name
+  output:
+    expectedResult: allow
+- description: add-contact-data-points with 5 data points on 10 entities — allow.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: clay-add-contact-data-points
+      uri: null
+    payload:
+      args:
+        taskId: mcp-task-1
+        dataPoints: [{type: Custom, dataPointName: q0}, {type: Custom, dataPointName: q1}, {type: Custom, dataPointName: q2},
+          {type: Custom, dataPointName: q3}, {type: Custom, dataPointName: q4}]
+        entityIds: [e0, e1, e2, e3, e4, e5, e6, e7, e8, e9]
+  output:
+    expectedResult: allow
+- description: Non-Clay tool with a large inputs array — allow.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: other-run-subroutine-direct
+      uri: null
+    payload:
+      args:
+        inputs: [{Domain: co0.com}, {Domain: co1.com}, {Domain: co2.com}, {Domain: co3.com}, {Domain: co4.com}, {Domain: co5.com},
+          {Domain: co6.com}, {Domain: co7.com}, {Domain: co8.com}, {Domain: co9.com}, {Domain: co10.com}, {Domain: co11.com},
+          {Domain: co12.com}, {Domain: co13.com}, {Domain: co14.com}, {Domain: co15.com}, {Domain: co16.com}, {Domain: co17.com},
+          {Domain: co18.com}, {Domain: co19.com}, {Domain: co20.com}, {Domain: co21.com}, {Domain: co22.com}, {Domain: co23.com},
+          {Domain: co24.com}, {Domain: co25.com}, {Domain: co26.com}, {Domain: co27.com}, {Domain: co28.com}, {Domain: co29.com},
+          {Domain: co30.com}, {Domain: co31.com}, {Domain: co32.com}, {Domain: co33.com}, {Domain: co34.com}, {Domain: co35.com},
+          {Domain: co36.com}, {Domain: co37.com}, {Domain: co38.com}, {Domain: co39.com}, {Domain: co40.com}, {Domain: co41.com},
+          {Domain: co42.com}, {Domain: co43.com}, {Domain: co44.com}, {Domain: co45.com}, {Domain: co46.com}, {Domain: co47.com},
+          {Domain: co48.com}, {Domain: co49.com}, {Domain: co50.com}, {Domain: co51.com}, {Domain: co52.com}, {Domain: co53.com},
+          {Domain: co54.com}, {Domain: co55.com}, {Domain: co56.com}, {Domain: co57.com}, {Domain: co58.com}, {Domain: co59.com}]
+  output:
+    expectedResult: allow
+- description: run-subroutine-direct with 51 inputs — deny.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: clay-run-subroutine-direct
+      uri: null
+    payload:
+      args:
+        subroutine_id: t_x
+        inputs: [{Domain: co0.com}, {Domain: co1.com}, {Domain: co2.com}, {Domain: co3.com}, {Domain: co4.com}, {Domain: co5.com},
+          {Domain: co6.com}, {Domain: co7.com}, {Domain: co8.com}, {Domain: co9.com}, {Domain: co10.com}, {Domain: co11.com},
+          {Domain: co12.com}, {Domain: co13.com}, {Domain: co14.com}, {Domain: co15.com}, {Domain: co16.com}, {Domain: co17.com},
+          {Domain: co18.com}, {Domain: co19.com}, {Domain: co20.com}, {Domain: co21.com}, {Domain: co22.com}, {Domain: co23.com},
+          {Domain: co24.com}, {Domain: co25.com}, {Domain: co26.com}, {Domain: co27.com}, {Domain: co28.com}, {Domain: co29.com},
+          {Domain: co30.com}, {Domain: co31.com}, {Domain: co32.com}, {Domain: co33.com}, {Domain: co34.com}, {Domain: co35.com},
+          {Domain: co36.com}, {Domain: co37.com}, {Domain: co38.com}, {Domain: co39.com}, {Domain: co40.com}, {Domain: co41.com},
+          {Domain: co42.com}, {Domain: co43.com}, {Domain: co44.com}, {Domain: co45.com}, {Domain: co46.com}, {Domain: co47.com},
+          {Domain: co48.com}, {Domain: co49.com}, {Domain: co50.com}]
+  output:
+    expectedResult: deny
+    expectedReason: 'Blocked: Clay enrichment is limited to 50 records per call (this call has 51). Split the list into batches
+      of 50.'
+- description: run-subroutine-direct with 60 inputs, snake_case name — deny.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: clay-run_subroutine_direct
+      uri: null
+    payload:
+      args:
+        subroutine_id: t_x
+        inputs: [{Domain: co0.com}, {Domain: co1.com}, {Domain: co2.com}, {Domain: co3.com}, {Domain: co4.com}, {Domain: co5.com},
+          {Domain: co6.com}, {Domain: co7.com}, {Domain: co8.com}, {Domain: co9.com}, {Domain: co10.com}, {Domain: co11.com},
+          {Domain: co12.com}, {Domain: co13.com}, {Domain: co14.com}, {Domain: co15.com}, {Domain: co16.com}, {Domain: co17.com},
+          {Domain: co18.com}, {Domain: co19.com}, {Domain: co20.com}, {Domain: co21.com}, {Domain: co22.com}, {Domain: co23.com},
+          {Domain: co24.com}, {Domain: co25.com}, {Domain: co26.com}, {Domain: co27.com}, {Domain: co28.com}, {Domain: co29.com},
+          {Domain: co30.com}, {Domain: co31.com}, {Domain: co32.com}, {Domain: co33.com}, {Domain: co34.com}, {Domain: co35.com},
+          {Domain: co36.com}, {Domain: co37.com}, {Domain: co38.com}, {Domain: co39.com}, {Domain: co40.com}, {Domain: co41.com},
+          {Domain: co42.com}, {Domain: co43.com}, {Domain: co44.com}, {Domain: co45.com}, {Domain: co46.com}, {Domain: co47.com},
+          {Domain: co48.com}, {Domain: co49.com}, {Domain: co50.com}, {Domain: co51.com}, {Domain: co52.com}, {Domain: co53.com},
+          {Domain: co54.com}, {Domain: co55.com}, {Domain: co56.com}, {Domain: co57.com}, {Domain: co58.com}, {Domain: co59.com}]
+  output:
+    expectedResult: deny
+    expectedReason: 'Blocked: Clay enrichment is limited to 50 records per call (this call has 60). Split the list into batches
+      of 50.'
+- description: run-subroutine-no-mapping on 60 entityIds — deny.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: clay-run-subroutine-no-mapping
+      uri: null
+    payload:
+      args:
+        subroutine_id: t_x
+        taskId: mcp-task-1
+        entityIds: [e0, e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11, e12, e13, e14, e15, e16, e17, e18, e19, e20, e21, e22,
+          e23, e24, e25, e26, e27, e28, e29, e30, e31, e32, e33, e34, e35, e36, e37, e38, e39, e40, e41, e42, e43, e44, e45,
+          e46, e47, e48, e49, e50, e51, e52, e53, e54, e55, e56, e57, e58, e59]
+  output:
+    expectedResult: deny
+- description: add-company-data-points with 6 data points — deny.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: clay-add-company-data-points
+      uri: null
+    payload:
+      args:
+        taskId: mcp-task-1
+        dataPoints: [{type: Custom, dataPointName: q0}, {type: Custom, dataPointName: q1}, {type: Custom, dataPointName: q2},
+          {type: Custom, dataPointName: q3}, {type: Custom, dataPointName: q4}, {type: Custom, dataPointName: q5}]
+  output:
+    expectedResult: deny
+    expectedReason: 'Blocked: add at most 5 data points per call (this call has 6). Split them across calls.'
+- description: add-contact-data-points over both limits — deny with both reasons.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource:
+      type: tool
+      name: clay-add-contact-data-points
+      uri: null
+    payload:
+      args:
+        taskId: mcp-task-1
+        dataPoints: [{type: Custom, dataPointName: q0}, {type: Custom, dataPointName: q1}, {type: Custom, dataPointName: q2},
+          {type: Custom, dataPointName: q3}, {type: Custom, dataPointName: q4}, {type: Custom, dataPointName: q5}, {type: Custom,
+            dataPointName: q6}, {type: Custom, dataPointName: q7}]
+        entityIds: [e0, e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11, e12, e13, e14, e15, e16, e17, e18, e19, e20, e21, e22,
+          e23, e24, e25, e26, e27, e28, e29, e30, e31, e32, e33, e34, e35, e36, e37, e38, e39, e40, e41, e42, e43, e44, e45,
+          e46, e47, e48, e49, e50, e51, e52, e53, e54, e55, e56, e57, e58, e59, e60, e61, e62, e63, e64, e65, e66, e67, e68,
+          e69]
+  output:
+    expectedResult: deny
+    expectedReason: 'Blocked: Clay enrichment is limited to 50 records per call (this call has 70). Split the list into batches
+      of 50.; Blocked: add at most 5 data points per call (this call has 8). Split them across calls.'

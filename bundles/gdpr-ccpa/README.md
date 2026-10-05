@@ -18,10 +18,10 @@ Clamp bulk reads, exports, and search fan-out, and hold agents to read-only or a
 |---|---|---|---|
 | [cap-bulk-export](../../apps/gmail/cap-bulk-export/) | gmail | ingress | Cap batch content reads and clamp search `maxResults` to throttle mass mailbox harvesting. |
 | [cap-bulk-export](../../apps/google-drive/cap-bulk-export/) | google-drive | ingress | Clamp Drive search/listing page sizes to a ceiling (transform-only, never denies). |
-| [cap-bulk-export](../../apps/salesforce/cap-bulk-export/) | salesforce | ingress | Cap SOQL row limits and gate org-wide SOSL search by IdP group. |
+| [cap-bulk-export](../../apps/salesforce/cap-bulk-export/) | salesforce | ingress | Require a `LIMIT` of 200 or less on every SOQL query and 50 or less on org-wide SOSL search. |
 | [query-allowlist](../../apps/salesforce/query-allowlist/) | salesforce | ingress | Restrict the SOQL `FROM` object to an allowlist (Account/Contact/Opportunity). |
 | [read-only](../../apps/salesforce/read-only/) | salesforce | ingress | Allowlist-based read-only posture; all write tools fail closed. |
-| [cap-bulk-export](../../apps/hubspot/cap-bulk-export/) | hubspot | ingress | Clamp bulk-read page sizes and batch-read arrays to 50 records. |
+| [cap-bulk-export](../../apps/hubspot/cap-bulk-export/) | hubspot | ingress | Clamp reads to 200 records per call (lists, batch reads, SQL) and 50 for free-text search. |
 | [read-only](../../apps/hubspot/read-only/) | hubspot | ingress | Deny the write tool to enforce a read-only HubSpot posture. |
 | [cap-read-field-exposure](../../apps/jira/cap-read-field-exposure/) | jira | ingress | Strip over-broad field tokens and clamp search `maxResults` to 50. |
 | [cap-directory-and-document-egress](../../apps/docusign/cap-directory-and-document-egress/) | docusign | egress | Truncate account-wide user-directory listings for non-admins and gate signed-document downloads. |

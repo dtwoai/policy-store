@@ -98,9 +98,9 @@ CC6.7 is the strongest DLP hook in SOC 2 — restrict the transmission, movement
 | [deny-direct-messages](../../apps/slack/deny-direct-messages/) | slack | ingress | Deny message-write calls whose destination resolves to a DM/group DM. |
 | [guard-external-send](../../apps/slack/guard-external-send/) | slack | ingress | Deny agent posts to externally shared Slack Connect channels. |
 | [redact-sensitive-info](../../apps/slack/redact-sensitive-info/) | slack | ingress | Redact PII/secrets/card numbers from outbound Slack message args. |
-| [cap-bulk-export](../../apps/salesforce/cap-bulk-export/) | salesforce | ingress | Cap SOQL row limits and gate org-wide SOSL search by IdP group. |
+| [cap-bulk-export](../../apps/salesforce/cap-bulk-export/) | salesforce | ingress | Require a LIMIT of 200 or less on every SOQL query and 50 or less on org-wide SOSL search. |
 | [guard-share-links-external](../../apps/box/guard-share-links-external/) | box | ingress | Block external collaborations to non-corp domains and anonymous public share links. |
-| [cap-bulk-export](../../apps/hubspot/cap-bulk-export/) | hubspot | ingress | Clamp bulk-read page sizes and batch-read arrays to 50 records. |
+| [cap-bulk-export](../../apps/hubspot/cap-bulk-export/) | hubspot | ingress | Clamp reads to 200 records per call (lists, batch reads, SQL) and 50 for free-text search. |
 | [cap-read-field-exposure](../../apps/jira/cap-read-field-exposure/) | jira | ingress | Strip over-broad field tokens and clamp search maxResults to 50 (data minimisation). |
 | [force-internal-jsm-comments](../../apps/jira/force-internal-jsm-comments/) | jira | ingress | Inject a restrictive commentVisibility so agent-drafted JSM notes stay off the customer portal. |
 | [force-internal-comments](../../apps/servicenow/force-internal-comments/) | servicenow | ingress | Rewrite add_comment to an internal work note for non service-desk callers (keeps agent notes off the customer-visible journal). |

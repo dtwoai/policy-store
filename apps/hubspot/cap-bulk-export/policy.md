@@ -20,30 +20,34 @@ description: |
 
   ## What it does
 
-  Clamps the page size of HubSpot bulk-read tool calls before they reach the
-  HubSpot MCP server, so a single agent request to a **covered** bulk-read tool
-  can never pull more than 50 CRM records. (Coverage is by tool-name suffix —
-  see Tool name matching and Known limitations for what is and isn't clamped.)
-  Contact, company, deal, and ticket records carry names, emails,
-  phones, and addresses — search/list pagination is the mass-PII export channel
-  in every HubSpot MCP implementation.
+  Caps how many records a single agent call can pull out of HubSpot, so an agent
+  (or a prompt injection steering one) can't bulk-export the CRM. Instead of
+  blocking an over-broad read, it **rewrites the request** down to the cap and
+  lets it run, so reads keep working — just in bounded pages.
 
-  Two clamps are applied:
+  | Read | Cap per call |
+  |---|---|
+  | Free-text search (`search_crm_objects` etc. with a `query` term) | **50** |
+  | Filtered search / list (no `query` term) | **200** |
+  | Batch read by ID (`get_crm_objects`, `hubspot-batch-read-objects`) | **200** IDs |
+  | SQL over CRM data (`query_crm_data`) | **200** rows |
 
-  - **Page-size clamp** — on search/list tools, any numeric `limit` outside the
-    range 1–50 is rewritten to 50: values above the cap, and non-positive values
-    (`limit: 0` / negatives, which some servers treat as "unbounded"). `limit: 50`
-    is also injected when the field is absent or non-numeric (the remote server
-    otherwise defaults up to 200 records per page). Calls that already request
-    between 1 and 50 pass through untouched.
-  - **Batch-read truncation** — on ids-style batch reads (`get_crm_objects`
-    accepts up to 100 IDs; `hubspot-batch-read-objects` takes an `inputs`
-    array), any `ids` / `objectIds` / `inputs` array longer than 50 entries is
-    truncated to its first 50.
+  - **Search / list** — a missing `limit`, a `limit` above the cap, a
+    non-positive `limit`, or a non-numeric `limit` is rewritten to the cap. The
+    remote server otherwise defaults to 100 and allows up to 200 per page; a
+    free-text `query` matches broadly across name/email/phone/company fields, so
+    it gets the tighter 50.
+  - **Batch read** — an `ids` / `objectIds` / `inputs` array longer than 200 is
+    truncated to its first 200 entries. (The remote server already caps
+    `get_crm_objects` at 100 IDs; the clamp matters on the local beta.)
+  - **SQL** — a query with no trailing `LIMIT` gets `LIMIT 200` appended on its
+    own line; a trailing `LIMIT` above 200 is lowered to 200 (any `OFFSET` is
+    kept). A query that already asks for 200 or fewer is untouched.
 
-  The policy never denies, so read workflows keep functioning — just at bounded
-  page sizes. Every possibly-missing field is read with `object.get`, so
-  malformed or minimal calls pass through rather than erroring.
+  The caps match [`salesforce/cap-bulk-export`](../../salesforce/cap-bulk-export/policy.md)
+  (200 per query, 50 per search) and are sized for how reps actually use an
+  assistant: call prep and account research return a handful of records,
+  pipeline reviews a few dozen to a couple hundred.
 
   ## Compliance alignment
 
@@ -58,87 +62,84 @@ description: |
     query can retrieve keeps an over-broad agent read from mass-extracting
     card-adjacent CRM data.
   - **GDPR Art. 5(1)(c)** — data minimisation on the agent channel: the query is
-    minimised *before* it reaches HubSpot; **Art. 5(1)(d)** — smaller read/write
-    surfaces reduce mass-corruption blast radius on downstream batch workflows.
+    minimised *before* it reaches HubSpot.
   - **CCPA 11 CCR §7002** — supports proportionality: collection and use of
     personal information stays proportionate to the disclosed purpose rather
     than defaulting to bulk retrieval.
 
   ## Why ingress
 
-  The over-broad request itself is the problem: once HubSpot has returned 200
+  The over-broad request itself is the problem: once HubSpot has returned the
   records, an egress policy can only mask fields — the volume has already been
-  fetched, logged, and counted against rate limits. Rewriting `limit` at ingress
-  enforces minimisation before the query executes, which is the only place the
-  record *count* can be controlled.
+  fetched. Rewriting the request at ingress enforces minimisation before the
+  query executes, which is the only place the record *count* can be controlled.
 
   ## Tool name matching
 
-  The DTwo gateway prefixes tool names with the configured MCP server name
-  (e.g. `hubspot-mcp-hubspot-list-objects`), so matching is by case-insensitive
-  suffix to stay portable across deployments. Covered names, per server family:
+  The tool name is lowercased and `-` is normalised to `_`, then matched by
+  suffix. That covers the remote server's two spellings — kebab-case on the
+  gateway (`hubspot-search-crm-objects`) and snake_case in HubSpot's docs
+  (`search_crm_objects`) — and any server-name prefix the gateway adds.
 
-  - **Remote server / Claude connector** (verified): `search_crm_objects`,
-    `get_crm_objects`
-  - **`@hubspot/mcp-server` local beta** (verified): `hubspot-search-objects`,
-    `hubspot-list-objects`, `hubspot-batch-read-objects`
-  - **shinzo-labs community server** (verified names): `crm_list_objects`,
-    `crm_search_objects`, `crm_search_contacts`, `crm_search_companies`
-
-  Verify the exact names your gateway sends with the dump-input debug technique
-  before relying on this in production, and extend the suffix lists if your
-  server exposes additional list/search tools.
+  - **Search / list:** `search_crm_objects` (remote), `hubspot-search-objects`,
+    `hubspot-list-objects` (local beta), `crm_list_objects`,
+    `crm_search_objects`, `crm_search_contacts`, `crm_search_companies` (shinzo).
+  - **Batch read:** `get_crm_objects` (remote), `hubspot-batch-read-objects`
+    (local beta).
+  - **SQL:** `query_crm_data` (remote).
 
   ## Argument shape
 
-  - Search/list tools take a top-level numeric `limit` (verified for
-    `search_crm_objects` / `hubspot-search-objects`, alongside `objectType`,
-    `query`, `filterGroups`, `properties`, `after`). All other arguments are
-    preserved unchanged by the rewrite.
-  - `hubspot-batch-read-objects` takes `objectType` + an `inputs` array
-    (verified pattern for the local-beta batch tools).
-  - `get_crm_objects` accepts up to 100 IDs, but HubSpot does not fully publish
-    the parameter name — the policy truncates both common shapes (`ids` and
-    `objectIds`) when present as arrays. Confirm the live shape from
-    `tools/list` before relying on this clamp.
+  - **Search / list:** page size in `limit`; free-text term in `query`
+    (verified on the remote server).
+  - **Batch read:** ID array in `objectIds` (remote, verified), `inputs` (local
+    beta), or `ids`.
+  - **SQL:** statement in `sql` (remote, verified). HubSpot's SQL dialect
+    supports a trailing `LIMIT n [OFFSET n]`.
 
   ## Examples
 
-  ### Passed through unchanged
+  ### Free-text search clamped to 50
 
   ```jsonc
   {
     "input": {
       "action": "tool_pre_invoke",
-      "resource": { "name": "hubspot-remote-search_crm_objects", "type": "tool" },
-      "payload": {
-        "name": "hubspot-remote-search_crm_objects",
-        "args": { "objectType": "contacts", "query": "smith", "limit": 25 }
-      }
+      "resource": { "name": "hubspot-search-crm-objects", "type": "tool" },
+      "payload": { "args": { "objectType": "CONTACT", "query": "acme", "limit": 200 } }
     }
   }
   ```
 
-  `allow = true`, no transform — the requested page size is already within the cap.
+  `allow = true`; `transform.transformed_payload.limit = 50`.
 
-  ### Transformed
+  ### Filtered list with no limit set to 200
 
   ```jsonc
   {
     "input": {
       "action": "tool_pre_invoke",
-      "resource": { "name": "hubspot-remote-search_crm_objects", "type": "tool" },
-      "payload": {
-        "name": "hubspot-remote-search_crm_objects",
-        "args": { "objectType": "contacts", "query": "smith", "limit": 200 }
-      }
+      "resource": { "name": "hubspot-search-crm-objects", "type": "tool" },
+      "payload": { "args": { "objectType": "DEAL", "filterGroups": [ { "filters": [ { "propertyName": "dealstage", "operator": "EQ", "value": "qualifiedtobuy" } ] } ] } }
     }
   }
   ```
 
-  `allow = true`, transform rewrites the args to
-  `{ "objectType": "contacts", "query": "smith", "limit": 50 }`. A call with no
-  `limit` at all gets `limit: 50` injected the same way.
+  `allow = true`; `transform.transformed_payload.limit = 200`.
+
+  ### SQL gets a LIMIT
+
+  ```jsonc
+  {
+    "input": {
+      "action": "tool_pre_invoke",
+      "resource": { "name": "hubspot-query-crm-data", "type": "tool" },
+      "payload": { "args": { "sql": "SELECT firstname, email FROM CONTACT WHERE lifecyclestage = 'lead'" } }
+    }
+  }
+  ```
+
+  `allow = true`; `transform.transformed_payload.sql` ends with `LIMIT 200`.
 
   ## Composition
 
@@ -146,49 +147,34 @@ description: |
   with:
 
   - [`apps/hubspot/redact-pii`](../redact-pii/policy.md) — egress masking of
-    contact identifiers in whatever records are returned. Together they enforce
-    minimisation on both the query and the response.
-  - [`apps/hubspot/read-only`](../read-only/policy.md) — if agents should not
-    write to the CRM at all.
+    contact identifiers in whatever records are returned.
+  - [`apps/hubspot/read-only`](../read-only/policy.md) or
+    [`apps/hubspot/read-only-except-call-notes`](../read-only-except-call-notes/policy.md)
+    — write governance.
 
   ## Known limitations
 
-  - **Per-request caps do not stop patient pagination.** An agent that walks the
-    `after` cursor page by page can still enumerate the full dataset — it just
-    takes 4× as many calls at `limit: 50`. Detecting cursor-driven crawls
-    requires cross-request state the policy engine does not have; use gateway
-    audit logs / alerting to spot high-frequency paging.
-  - **shinzo per-engagement read tools are not clamped.** The shinzo server
-    exposes `calls_/emails_/meetings_/notes_/tasks_` `list` / `search` /
-    `batch_read` tools — bulk-read channels for engagement bodies, which
-    frequently carry customer PII/PHI verbatim — but their argument shapes (the
-    `limit` key and the batch array key) are not verified, so this policy does
-    **not** clamp them. An agent that calls `emails_search`, `calls_list`, etc.
-    can still request large pages. Add their suffixes to `limit_tool_suffixes` /
-    `batch_array_keys` once you have confirmed the live shape from `tools/list`.
+  - **Per call, not per session.** An agent that walks the paging cursor (or
+    `OFFSET` in SQL) can still enumerate the full dataset — it just takes more
+    calls. Use gateway audit logs to spot high-frequency paging, or add a
+    per-session record counter on egress.
+  - **SQL is matched by regex, not parsed.** Only a `LIMIT` at the very end of
+    the statement counts. Aggregate queries (`COUNT`, `GROUP BY`) also get
+    `LIMIT 200` appended, which caps the number of result rows, not the records
+    counted — harmless for typical reporting.
+  - **shinzo per-engagement read tools are not clamped.** The shinzo server's
+    `calls_/emails_/meetings_/notes_/tasks_` `list` / `search` / `batch_read`
+    tools have unverified argument shapes and are not covered. Add their
+    suffixes once you have confirmed the live shape from `tools/list`.
   - **The baryhuang community server is not covered.** Its bulk reads
     (`hubspot_get_active_contacts`, `hubspot_get_active_companies`,
-    `hubspot_search_data`) use a distinct name family and are not clamped;
-    `hubspot_search_data` additionally vectorises CRM data into a local store
-    *outside* HubSpot. The 50-record bound holds for the remote and local-beta
-    families plus the four shinzo CRM search/list names listed above — not for
-    every conceivable HubSpot MCP server. Extend the suffix lists per server.
-  - **`get_crm_objects` ID parameter name is partially verified.** The 100-ID
-    capacity is documented, the exact key is not; the policy covers `ids` and
-    `objectIds`. An implementation using a different key passes through
-    unclamped until you add it.
-  - **Only the listed argument keys are clamped.** A server that spells the page
-    size differently (`pageSize`, `maxResults`, `count`) is not covered — extend
-    the policy if your `tools/list` shows other shapes.
-  - **No identity-based exemptions.** All callers are clamped equally. If a
-    data-ops group legitimately needs full-page reads, add an
-    `input.subject.claims`-gated bypass as a separate rule.
+    `hubspot_search_data`) use a distinct name family.
+  - **Other page-size keys are not covered.** `search_owners` (`limit`, max 100)
+    and `search_intent_signals` (`pageLength`, max 100) are already bounded below
+    200 by HubSpot and are left alone.
+  - **No identity-based exemptions.** All callers are clamped equally.
 
-  > **Compliance note.** This policy supports alignment with the cited framework
-  > controls **on the MCP path only**. No policy or bundle makes an organization
-  > compliant with any framework; web-UI, native-API, and in-app access are
-  > outside the gateway's reach by design. Validate against your own compliance
-  > program before relying on it.
+  > **Compliance note.** This policy supports alignment with the cited framework controls **on the MCP path only**. No policy or bundle makes an organization compliant with any framework; web-UI, native-API, and in-app access are outside the gateway's reach by design. Validate against your own compliance program before relying on it.
 direction: ingress
 apps:
   - hubspot
@@ -198,7 +184,7 @@ bundles:
   - hipaa
   - pci-dss
   - gdpr-ccpa
-experimental: true
+  - gtm-stack-hubspot
 schemaVersion: 1.0.0
 minimumGatewayVersion: 1.0.0b24
 ---
@@ -206,85 +192,87 @@ minimumGatewayVersion: 1.0.0b24
 ```rego
 package hubspot.ingress.cap_bulk_export
 
-# Transform-only policy — never denies, only clamps bulk-read page sizes.
+# Transform-only policy — never denies, only clamps how many records a single
+# read can return.
 default allow := true
 
-# Maximum records a single agent call may request.
-max_records := 50
+# Maximum records per call for lists, filtered searches, batch reads, and SQL.
+max_records := 200
+
+# Maximum records per call for free-text search (a `query` term), which matches
+# broadly across fields and is the closest thing to an org-wide search.
+max_search_records := 50
 
 # --- Tool matching -----------------------------------------------------------
-# The gateway prefixes tool names with the configured MCP server name, so we
-# match case-insensitively by suffix to stay portable. Verify the exact names
-# your gateway sends with the dump-input debug technique before production use.
+# The gateway prefixes tool names with the configured MCP server name, and the
+# remote server's tools surface kebab-case (`hubspot-search-crm-objects`) while
+# its own docs use snake_case (`search_crm_objects`). Normalise `-` to `_` and
+# match by suffix so both spellings, and any server-name prefix, match.
+tool := replace(lower(object.get(object.get(input, "resource", {}), "name", "")), "-", "_")
+
+args := object.get(object.get(input, "payload", {}), "args", {})
 
 # Search/list tools that take a numeric `limit` argument.
-# Remote server family: search_crm_objects
-# Local beta family:    hubspot-search-objects, hubspot-list-objects
-# shinzo family:        crm_list_objects, crm_search_objects,
-#                       crm_search_contacts, crm_search_companies
 limit_tool_suffixes := [
-    "search_crm_objects",
-    "hubspot-search-objects",
-    "hubspot-list-objects",
-    "crm_list_objects",
-    "crm_search_objects",
-    "crm_search_contacts",
-    "crm_search_companies",
+    "search_crm_objects",     # remote server (Claude connector)
+    "hubspot_search_objects", # @hubspot/mcp-server local beta
+    "hubspot_list_objects",   # local beta
+    "crm_list_objects",       # shinzo
+    "crm_search_objects",     # shinzo
+    "crm_search_contacts",    # shinzo
+    "crm_search_companies",   # shinzo
 ]
 
 is_limit_tool if {
     some suffix in limit_tool_suffixes
-    endswith(lower(input.resource.name), suffix)
+    endswith(tool, suffix)
 }
 
-# Ids-style batch reads: get_crm_objects (remote, <=100 IDs) and
-# hubspot-batch-read-objects (local beta, `inputs` array).
-is_batch_tool if {
-    endswith(lower(input.resource.name), "get_crm_objects")
+# ID-list batch reads.
+is_batch_tool if endswith(tool, "get_crm_objects")
+
+is_batch_tool if endswith(tool, "hubspot_batch_read_objects")
+
+# SQL reads over CRM data (remote server).
+is_sql_tool if endswith(tool, "query_crm_data")
+
+# --- Search / list: clamp `limit` -----------------------------------------------
+
+# A free-text `query` term makes it a search; filters alone make it a list.
+is_text_search if {
+    q := object.get(args, "query", "")
+    is_string(q)
+    trim_space(q) != ""
 }
 
-is_batch_tool if {
-    endswith(lower(input.resource.name), "hubspot-batch-read-objects")
-}
+limit_cap := max_search_records if is_text_search
 
-# --- Argument access (object.get everywhere — fields may be missing) ---------
-
-args := object.get(input.payload, "args", {})
+limit_cap := max_records if not is_text_search
 
 limit_value := object.get(args, "limit", null)
 
-# Clamp when `limit` is absent (the remote server otherwise defaults up to
-# 200 records per page).
-needs_limit_clamp if {
-    limit_value == null
-}
+# Missing: the remote server otherwise defaults to 100 per page.
+needs_limit_clamp if limit_value == null
 
-# Clamp when a numeric `limit` exceeds the cap.
 needs_limit_clamp if {
     is_number(limit_value)
-    limit_value > max_records
+    limit_value > limit_cap
 }
 
-# Clamp when a numeric `limit` is below 1 (0 or negative). Some servers treat a
-# non-positive `limit` as "unbounded" or silently fall back to their large
-# default page, so `limit: 0` / `limit: -1` would otherwise be a fail-open
-# bypass of the cap. Any numeric limit outside [1, max_records] is normalised.
+# 0 or negative: some servers treat a non-positive limit as "unbounded".
 needs_limit_clamp if {
     is_number(limit_value)
     limit_value < 1
 }
 
-# Clamp when `limit` is present but not a number (fail safe: replace an
-# unparseable value with the cap rather than letting the server default win).
+# Present but not a number: replace rather than let the server default win.
 needs_limit_clamp if {
     limit_value != null
     not is_number(limit_value)
 }
 
-# --- Batch truncation --------------------------------------------------------
-# `inputs` is the verified key for hubspot-batch-read-objects; `ids` and
-# `objectIds` cover the common shapes for get_crm_objects (exact key not
-# fully published by HubSpot — see Known limitations).
+# --- Batch reads: truncate ID arrays ------------------------------------------
+
 batch_array_keys := ["ids", "objectIds", "inputs"]
 
 oversized_batch_keys contains key if {
@@ -299,21 +287,53 @@ truncated_batch_args := {key: truncated |
     truncated := array.slice(object.get(args, key, []), 0, max_records)
 }
 
-# --- Transforms ---------------------------------------------------------------
-# Only one of these can fire per call: the limit-tool and batch-tool suffix
-# sets are disjoint, so the complete `transform` rule never conflicts.
+# --- SQL: append or lower the trailing LIMIT -----------------------------------
 
-# Rewrite (or inject) `limit` on search/list tools.
-transform := {"transformed_payload": object.union(args, {"limit": max_records})} if {
+sql_raw := object.get(args, "sql", "")
+
+# Statement without trailing whitespace or semicolons.
+sql_body := trim_right(trim_space(sql_raw), "; \t\r\n") if is_string(sql_raw)
+
+# Trailing `LIMIT n` (optionally followed by `OFFSET n`). Anchored to the end so
+# a LIMIT inside a string literal or comment is not mistaken for the cap.
+sql_limit_re := `(?i)\blimit\s+(\d+)(\s+offset\s+\d+)?\s*$`
+
+sql_limit := n if {
+    m := regex.find_all_string_submatch_n(sql_limit_re, sql_body, 1)
+    count(m) == 1
+    n := to_number(m[0][1])
+}
+
+# No trailing LIMIT: append one on its own line (a newline also ends any
+# trailing `--` comment, so the LIMIT is never swallowed by it).
+new_sql := concat("\n", [sql_body, sprintf("LIMIT %d", [max_records])]) if {
+    sql_body != ""
+    not sql_limit
+}
+
+# Trailing LIMIT above the cap: lower it, keeping any OFFSET.
+new_sql := regex.replace(sql_body, sql_limit_re, sprintf("LIMIT %d${2}", [max_records])) if {
+    sql_limit > max_records
+}
+
+# --- Transforms ---------------------------------------------------------------
+# The three tool families are disjoint, so at most one transform fires.
+
+transform := {"transformed_payload": object.union(args, {"limit": limit_cap})} if {
     input.action == "tool_pre_invoke"
     is_limit_tool
     needs_limit_clamp
 }
 
-# Truncate oversized ID/inputs arrays on batch-read tools.
 transform := {"transformed_payload": object.union(args, truncated_batch_args)} if {
     input.action == "tool_pre_invoke"
     is_batch_tool
     count(oversized_batch_keys) > 0
+}
+
+transform := {"transformed_payload": object.union(args, {"sql": new_sql})} if {
+    input.action == "tool_pre_invoke"
+    is_sql_tool
+    new_sql
 }
 ```
