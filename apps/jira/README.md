@@ -14,6 +14,8 @@ Reusable DTwo policies for Jira MCP servers — the official Atlassian Rovo MCP 
 | [force-internal-jsm-comments](./force-internal-jsm-comments/policy.md) | ingress | Rewrite `addCommentToJiraIssue` calls to carry internal-only visibility, keeping agent-drafted JSM comments off the customer portal (transform-only). | soc2, gdpr-ccpa |
 | [cap-read-field-exposure](./cap-read-field-exposure/policy.md) | ingress | Cap field selection and page size on issue reads and JQL searches — strips wildcard field tokens (`*all`, `*navigable`) and clamps result counts (transform-only). | soc2, hipaa, gdpr-ccpa |
 | [redact-sensitive-info](./redact-sensitive-info/policy.md) | egress | Redact PII, credentials, and secrets from Jira issue-view responses (issues, JQL search, comments, worklogs, remote links); transform-only, never denies. | soc2, hipaa, pci-dss, gdpr-ccpa |
+| [redact-secrets-writes](./redact-secrets-writes/policy.md) | ingress | Mask credentials in the text of issue creates and edits, comments, worklogs, and transition comments before they're written (hosted Rovo and community names); transform-only. | engineering-stack-jira |
+| [redact-secrets-egress](./redact-secrets-egress/policy.md) | egress | Mask credentials in Jira tool responses (and Rovo `fetch` / `search`), keeping JSON structure; credentials only, no PII. Transform-only. | engineering-stack-jira |
 
 ## Tool naming on the DTwo gateway
 

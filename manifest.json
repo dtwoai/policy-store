@@ -917,6 +917,82 @@
       "minimumGatewayVersion": "1.0.0b24"
     },
     {
+      "path": "apps/datadog/cap-search-window",
+      "name": "Cap the Time Window of Datadog Searches",
+      "direction": "ingress",
+      "publishedAt": "2026-10-11",
+      "apps": [
+        "datadog"
+      ],
+      "industries": [],
+      "bundles": [
+        "engineering-stack-jira",
+        "engineering-stack-linear"
+      ],
+      "experimental": true,
+      "tags": [
+        "datadog",
+        "observability",
+        "data-minimization",
+        "cost-control",
+        "ingress"
+      ],
+      "policyChecksum": "sha256:a8f154d80315f9efd7a4b0cc90442f00bb67ba763249244240bfa336ffcac0cf",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/datadog/read-only-except-notebooks",
+      "name": "Datadog Read-Only Except Notebooks",
+      "direction": "ingress",
+      "publishedAt": "2026-10-11",
+      "apps": [
+        "datadog"
+      ],
+      "industries": [],
+      "bundles": [
+        "engineering-stack-jira",
+        "engineering-stack-linear"
+      ],
+      "experimental": true,
+      "tags": [
+        "datadog",
+        "observability",
+        "access-control",
+        "read-only",
+        "ingress"
+      ],
+      "policyChecksum": "sha256:9e162a6ffa5a40c48077f59607bbf2ee46b0474e1e6016320c807eb166911adc",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/datadog/redact-secrets-egress",
+      "name": "Datadog: Redact Secrets and Emails from Responses",
+      "direction": "egress",
+      "publishedAt": "2026-10-11",
+      "apps": [
+        "datadog"
+      ],
+      "industries": [],
+      "bundles": [
+        "engineering-stack-jira",
+        "engineering-stack-linear"
+      ],
+      "experimental": true,
+      "tags": [
+        "datadog",
+        "observability",
+        "secrets",
+        "pii",
+        "redaction",
+        "egress"
+      ],
+      "policyChecksum": "sha256:2ea583642253797299251ba42fed02c1a5ec1f45c05b9eb61a184b488aaa3e2d",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
       "path": "apps/docusign/cap-directory-and-document-egress",
       "name": "Cap Docusign Directory and Document Egress",
       "direction": "egress",
@@ -1192,7 +1268,9 @@
       ],
       "industries": [],
       "bundles": [
-        "soc2"
+        "soc2",
+        "engineering-stack-jira",
+        "engineering-stack-linear"
       ],
       "experimental": true,
       "tags": [
@@ -1207,6 +1285,31 @@
       "minimumGatewayVersion": "1.0.0b24"
     },
     {
+      "path": "apps/github/block-workflow-edits",
+      "name": "Block Agent Edits to GitHub Actions Workflows",
+      "direction": "ingress",
+      "publishedAt": "2026-10-11",
+      "apps": [
+        "github"
+      ],
+      "industries": [],
+      "bundles": [
+        "engineering-stack-jira",
+        "engineering-stack-linear"
+      ],
+      "experimental": true,
+      "tags": [
+        "github",
+        "supply-chain",
+        "ci-cd",
+        "access-control",
+        "ingress"
+      ],
+      "policyChecksum": "sha256:99fdc2e6de8b501421be33215754f09d0084364866a4b6f0372916908fa793b9",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
       "path": "apps/github/deny-public-exposure-repos",
       "name": "Prevent Public Exposure of GitHub Repos, Gists & Forks",
       "direction": "ingress",
@@ -1216,7 +1319,9 @@
       ],
       "industries": [],
       "bundles": [
-        "soc2"
+        "soc2",
+        "engineering-stack-jira",
+        "engineering-stack-linear"
       ],
       "experimental": true,
       "tags": [
@@ -1258,6 +1363,31 @@
       "minimumGatewayVersion": "1.0.0b24"
     },
     {
+      "path": "apps/github/protect-default-branch",
+      "name": "Protect the Default Branch from Direct Agent Commits",
+      "direction": "ingress",
+      "publishedAt": "2026-10-11",
+      "apps": [
+        "github"
+      ],
+      "industries": [],
+      "bundles": [
+        "engineering-stack-jira",
+        "engineering-stack-linear"
+      ],
+      "experimental": true,
+      "tags": [
+        "github",
+        "access-control",
+        "code-review",
+        "branch-protection",
+        "ingress"
+      ],
+      "policyChecksum": "sha256:52290d582789f6b5c2c34ab73a17640a239dcc73cf889dc55a2af54bc4edaa56",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
       "path": "apps/github/redact-secrets-egress",
       "name": "GitHub: Redact Secrets from Read Responses",
       "direction": "egress",
@@ -1267,7 +1397,9 @@
       ],
       "industries": [],
       "bundles": [
-        "soc2"
+        "soc2",
+        "engineering-stack-jira",
+        "engineering-stack-linear"
       ],
       "experimental": true,
       "tags": [
@@ -1294,7 +1426,9 @@
       "industries": [],
       "bundles": [
         "soc2",
-        "sox"
+        "sox",
+        "engineering-stack-jira",
+        "engineering-stack-linear"
       ],
       "experimental": true,
       "tags": [
@@ -2740,6 +2874,54 @@
       "minimumGatewayVersion": "1.0.0b24"
     },
     {
+      "path": "apps/jira/redact-secrets-egress",
+      "name": "JIRA: Redact Secrets from Ticket Reads",
+      "direction": "egress",
+      "publishedAt": "2026-10-11",
+      "apps": [
+        "jira"
+      ],
+      "industries": [],
+      "bundles": [
+        "engineering-stack-jira"
+      ],
+      "experimental": true,
+      "tags": [
+        "jira",
+        "atlassian",
+        "secrets",
+        "redaction",
+        "egress"
+      ],
+      "policyChecksum": "sha256:5812909978a4936556857adc4c1674839a248c08b715d918dc119e76084f8802",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/jira/redact-secrets-writes",
+      "name": "JIRA: Redact Secrets from Ticket Writes",
+      "direction": "ingress",
+      "publishedAt": "2026-10-11",
+      "apps": [
+        "jira"
+      ],
+      "industries": [],
+      "bundles": [
+        "engineering-stack-jira"
+      ],
+      "experimental": true,
+      "tags": [
+        "jira",
+        "atlassian",
+        "secrets",
+        "redaction",
+        "ingress"
+      ],
+      "policyChecksum": "sha256:5b296627b4b625be221fd4847887669ced67ed299f40986df8663a744b5913d0",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
       "path": "apps/jira/redact-sensitive-info",
       "name": "JIRA: Redact Sensitive Information from Issue Views",
       "direction": "egress",
@@ -2919,6 +3101,52 @@
         "soc2"
       ],
       "policyChecksum": "sha256:6d1736a372ac5e9534d04bd847cf125225eaa957c95d9f81b6dd0f1d7ab49c6a",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/linear/redact-secrets-egress",
+      "name": "Linear: Redact Secrets from Ticket Reads",
+      "direction": "egress",
+      "publishedAt": "2026-10-11",
+      "apps": [
+        "linear"
+      ],
+      "industries": [],
+      "bundles": [
+        "engineering-stack-linear"
+      ],
+      "experimental": true,
+      "tags": [
+        "linear",
+        "secrets",
+        "redaction",
+        "egress"
+      ],
+      "policyChecksum": "sha256:83a7e3b48f28330adeb16bc33849f4df0b72e0c6839b08db322f62bb04864ee7",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/linear/redact-secrets-writes",
+      "name": "Linear: Redact Secrets from Ticket Writes",
+      "direction": "ingress",
+      "publishedAt": "2026-10-11",
+      "apps": [
+        "linear"
+      ],
+      "industries": [],
+      "bundles": [
+        "engineering-stack-linear"
+      ],
+      "experimental": true,
+      "tags": [
+        "linear",
+        "secrets",
+        "redaction",
+        "ingress"
+      ],
+      "policyChecksum": "sha256:3c8a423198de134ca43372372c778a1afb9e259f8ed5a56a1cd1b17659d72412",
       "schemaVersion": "1.0.0",
       "minimumGatewayVersion": "1.0.0b24"
     },
@@ -4780,6 +5008,82 @@
       "minimumGatewayVersion": "1.0.0b24"
     },
     {
+      "path": "apps/splunk/block-write-commands",
+      "name": "Block SPL Commands That Write or Send Data",
+      "direction": "ingress",
+      "publishedAt": "2026-10-11",
+      "apps": [
+        "splunk"
+      ],
+      "industries": [],
+      "bundles": [
+        "engineering-stack-jira",
+        "engineering-stack-linear"
+      ],
+      "experimental": true,
+      "tags": [
+        "splunk",
+        "observability",
+        "access-control",
+        "exfiltration",
+        "ingress"
+      ],
+      "policyChecksum": "sha256:a79e7c946615638231fe1f7a413c7b924ac327c1db01e042b23148fa52b76749",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/splunk/cap-search",
+      "name": "Bound the Time Range of Splunk Searches",
+      "direction": "ingress",
+      "publishedAt": "2026-10-11",
+      "apps": [
+        "splunk"
+      ],
+      "industries": [],
+      "bundles": [
+        "engineering-stack-jira",
+        "engineering-stack-linear"
+      ],
+      "experimental": true,
+      "tags": [
+        "splunk",
+        "observability",
+        "data-minimization",
+        "cost-control",
+        "ingress"
+      ],
+      "policyChecksum": "sha256:8c7c2c7f804ebe59dceeff6d1af17acfb0e83fbfddfd0df69b23c617d7a7ede1",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
+      "path": "apps/splunk/redact-secrets-egress",
+      "name": "Splunk: Redact Secrets and Emails from Responses",
+      "direction": "egress",
+      "publishedAt": "2026-10-11",
+      "apps": [
+        "splunk"
+      ],
+      "industries": [],
+      "bundles": [
+        "engineering-stack-jira",
+        "engineering-stack-linear"
+      ],
+      "experimental": true,
+      "tags": [
+        "splunk",
+        "observability",
+        "secrets",
+        "pii",
+        "redaction",
+        "egress"
+      ],
+      "policyChecksum": "sha256:82d8b9cd10a905b89b8cd1327294f8fe13f08d9820c6a8b7d55c76aee844eb11",
+      "schemaVersion": "1.0.0",
+      "minimumGatewayVersion": "1.0.0b24"
+    },
+    {
       "path": "apps/stripe/deny-escape-hatches-api-write",
       "name": "Deny Stripe API-Write Escape Hatch",
       "direction": "ingress",
@@ -5342,6 +5646,7 @@
     "clay": "apps/clay",
     "confluence": "apps/confluence",
     "databricks": "apps/databricks",
+    "datadog": "apps/datadog",
     "docusign": "apps/docusign",
     "dropbox": "apps/dropbox",
     "github": "apps/github",
@@ -5365,6 +5670,7 @@
     "servicenow": "apps/servicenow",
     "slack": "apps/slack",
     "snowflake": "apps/snowflake",
+    "splunk": "apps/splunk",
     "stripe": "apps/stripe",
     "tableau": "apps/tableau",
     "zapier": "apps/zapier",
@@ -5372,6 +5678,8 @@
   },
   "industries": {},
   "bundles": {
+    "engineering-stack-jira": "bundles/engineering-stack-jira",
+    "engineering-stack-linear": "bundles/engineering-stack-linear",
     "gdpr-ccpa": "bundles/gdpr-ccpa",
     "gtm-stack-hubspot": "bundles/gtm-stack-hubspot",
     "gtm-stack-salesforce": "bundles/gtm-stack-salesforce",

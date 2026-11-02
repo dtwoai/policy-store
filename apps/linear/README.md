@@ -11,6 +11,8 @@ Reusable DTwo policies for Linear MCP servers — the official Linear remote MCP
 | [guard-webhook-persistence](./guard-webhook-persistence/policy.md) | ingress | Deny every Linear webhook create/update/delete call for everyone; a standing webhook is an out-of-band exfiltration channel the gateway cannot inspect. | soc2, gdpr-ccpa |
 | [fence-roadmap-egress](./fence-roadmap-egress/policy.md) | egress | Withhold roadmap, initiative, milestone, project-update, and document read responses from callers outside the `product`/`exec` IdP groups (pre-announcement/MNPI leak control). | soc2, sox |
 | [redact-customer-pii-egress](./redact-customer-pii-egress/policy.md) | egress | Mask customer revenue, tier, and external contact-email fields in Customers read responses (transform-only); other fields and other tools pass through. | gdpr-ccpa, soc2 |
+| [redact-secrets-writes](./redact-secrets-writes/policy.md) | ingress | Mask credentials in issue, comment, and project writes on the official hosted server before they're saved; transform-only. | engineering-stack-linear |
+| [redact-secrets-egress](./redact-secrets-egress/policy.md) | egress | Mask credentials in every Linear tool response, keeping JSON structure. Transform-only. | engineering-stack-linear |
 
 ## Tool naming on the DTwo gateway
 
@@ -18,7 +20,7 @@ DTwo prefixes tool names with the MCP server name configured on the gateway, and
 
 ## Identity claims
 
-Some of these policies are single-purpose and require no IdP claims (`default-deny-unknown-tools`, `guard-webhook-persistence`, `redact-customer-pii-egress`). The identity-gated ones read `input.subject.claims.groups` with **placeholder** group names: `freeze-destructive-ops` exempts `linear-admins`, and `fence-roadmap-egress` exempts `product` and `exec`. Replace these with your own IdP group names at import time. Missing claims fail closed for grants (no group → not exempt / not privileged).
+Some of these policies are single-purpose and require no IdP claims (`default-deny-unknown-tools`, `guard-webhook-persistence`, `redact-customer-pii-egress`, `redact-secrets-writes`, `redact-secrets-egress`). The identity-gated ones read `input.subject.claims.groups` with **placeholder** group names: `freeze-destructive-ops` exempts `linear-admins`, and `fence-roadmap-egress` exempts `product` and `exec`. Replace these with your own IdP group names at import time. Missing claims fail closed for grants (no group → not exempt / not privileged).
 
 ## Contributing
 

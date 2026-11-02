@@ -1,0 +1,98 @@
+# Egress transform policy (default allow := true): allow is always true; the
+# meaningful assertions are transformApplied / transformedArgsContain. JSON
+# text blocks come back minified with sorted keys when changed.
+
+- description: get_issue JSON with an AWS key in the description — masked, JSON kept.
+  input:
+    action: tool_post_invoke
+    mode: output
+    resource: { type: tool, name: linear-get_issue, uri: null }
+    payload:
+      text:
+        - '{"identifier": "ENG-42", "description": "use AKIAIOSFODNN7EXAMPLE", "assignee": {"email": "jane@acme.com"}}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - '{"assignee":{"email":"jane@acme.com"},"description":"use [REDACTED-SECRET]","identifier":"ENG-42"}'
+
+- description: Clean list_issues response — no transform.
+  input:
+    action: tool_post_invoke
+    mode: output
+    resource: { type: tool, name: linear-list_issues, uri: null }
+    payload:
+      text:
+        - '[{"identifier": "ENG-1", "title": "Fix checkout"}]'
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: list_comments array with a token in one comment — only that value changes.
+  input:
+    action: tool_post_invoke
+    mode: output
+    resource: { type: tool, name: linear-list_comments, uri: null }
+    payload:
+      text:
+        - '[{"body": "token=abc123def"}, {"body": "thanks"}]'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - '[{"body":"[REDACTED-SECRET]"},{"body":"thanks"}]'
+
+- description: Plain-text response — masked in place.
+  input:
+    action: tool_post_invoke
+    mode: output
+    resource: { type: tool, name: linear-get_document, uri: null }
+    payload:
+      text:
+        - "Runbook: connect with redis://default:p4ss@cache:6379"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "Runbook: connect with redis://default:[REDACTED-SECRET]@cache:6379"
+
+- description: Non-string structured block is redacted in place.
+  input:
+    action: tool_post_invoke
+    mode: output
+    resource: { type: tool, name: linear-get_issue, uri: null }
+    payload:
+      text:
+        - { description: "password: s3cr3t" }
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - { description: "[REDACTED-SECRET]" }
+
+- description: Non-Linear server response is out of scope.
+  input:
+    action: tool_post_invoke
+    mode: output
+    resource: { type: tool, name: github-get_issue, uri: null }
+    payload:
+      text:
+        - "token=abc123"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Ingress call to a Linear tool is ignored (egress only).
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: linear-get_issue, uri: null }
+    payload:
+      args: { id: ENG-42 }
+  output:
+    expectedResult: allow
+  transformApplied: false

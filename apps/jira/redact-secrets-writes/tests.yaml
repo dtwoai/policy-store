@@ -1,0 +1,168 @@
+# Transform-only policy (default allow := true): allow is always true; the
+# meaningful assertions are transformApplied / transformedArgsContain. Nested
+# expected objects list keys in sorted order (OPA's output order).
+
+- description: createJiraIssue with a token in the description — masked; other args kept.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: atlassian-createJiraIssue, uri: null }
+    payload:
+      args: { cloudId: acme, projectKey: PLAT, issueTypeName: Bug, summary: "Checkout 500s", description: "Repro with token=abc123def456 against prod" }
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    description: "Repro with [REDACTED-SECRET] against prod"
+    summary: "Checkout 500s"
+    projectKey: PLAT
+
+- description: createJiraIssue with no secrets — no transform.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: atlassian-createJiraIssue, uri: null }
+    payload:
+      args: { cloudId: acme, projectKey: PLAT, issueTypeName: Bug, summary: "Checkout 500s", description: "Timeout cut from 3s to 300ms in a41f9c." }
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: ADF description — the secret inside a text node is masked, structure kept.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: atlassian-createJiraIssue, uri: null }
+    payload:
+      args:
+        cloudId: acme
+        projectKey: PLAT
+        issueTypeName: Bug
+        summary: Leak
+        contentFormat: adf
+        description:
+          type: doc
+          version: 1
+          content:
+            - type: paragraph
+              content:
+                - { type: text, text: "key AKIAIOSFODNN7EXAMPLE in logs" }
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    description:
+      content:
+        - content:
+            - { text: "key [REDACTED-SECRET] in logs", type: text }
+          type: paragraph
+      type: doc
+      version: 1
+
+- description: editJiraIssue fields.description with a connection string — password masked, user kept.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: atlassian-editJiraIssue, uri: null }
+    payload:
+      args: { cloudId: acme, issueIdOrKey: PLAT-412, fields: { description: "DB is postgres://app:hunter2@db:5432/main", priority: { name: High } } }
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    fields: { description: "DB is postgres://app:[REDACTED-SECRET]@db:5432/main", priority: { name: High } }
+
+- description: addCommentToJiraIssue with a Bearer token — masked.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: atlassian-addCommentToJiraIssue, uri: null }
+    payload:
+      args: { cloudId: acme, issueIdOrKey: PLAT-412, commentBody: "curl -H 'Authorization: Bearer 9f8e7d6c5b4a39281706f5e4d3c2b1a0' https://api" }
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    commentBody: "curl -H 'Authorization: [REDACTED-SECRET]' https://api"
+
+- description: addWorklogToJiraIssue comment with a GitHub token — masked.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: atlassian-addWorklogToJiraIssue, uri: null }
+    payload:
+      args: { cloudId: acme, issueIdOrKey: PLAT-412, timeSpent: 1h, commentBody: "rotated ghp_abcdefghijklmnopqrstuvwxyz0123456789" }
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    commentBody: "rotated [REDACTED-SECRET]"
+
+- description: transitionJiraIssue with a comment in update — the comment body is masked.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: atlassian-transitionJiraIssue, uri: null }
+    payload:
+      args:
+        cloudId: acme
+        issueIdOrKey: PLAT-412
+        transition: { id: "31" }
+        update:
+          comment:
+            - add: { body: "fixed, password: s3cr3t!" }
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    update:
+      comment:
+        - add: { body: "fixed, [REDACTED-SECRET]" }
+
+- description: PEM private key block in a description — the whole block is masked.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: atlassian-createJiraIssue, uri: null }
+    payload:
+      args: { cloudId: acme, projectKey: SEC, issueTypeName: Task, summary: Rotate, description: "old key:\n-----BEGIN RSA PRIVATE KEY-----\nMIIEow\nabc\n-----END RSA PRIVATE KEY-----\ndone" }
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    description: "old key:\n[REDACTED-SECRET]\ndone"
+
+- description: Community mcp-atlassian jira_add_comment — masked.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: mcp-atlassian-jira_add_comment, uri: null }
+    payload:
+      args: { issue_key: PLAT-1, comment: "api_key=sk-abcdefghijklmnopqrstuvwxyz" }
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    comment: "[REDACTED-SECRET]"
+
+- description: Read tool (getJiraIssue) is out of scope even if args look secret.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: atlassian-getJiraIssue, uri: null }
+    payload:
+      args: { cloudId: acme, issueIdOrKey: "token=abc123" }
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Non-Jira write tool is out of scope.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: github-create_issue, uri: null }
+    payload:
+      args: { title: x, body: "token=abc123" }
+  output:
+    expectedResult: allow
+  transformApplied: false

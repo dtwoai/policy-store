@@ -1,0 +1,165 @@
+# Coverage for splunk.ingress.block_write_commands: read-only searches, each
+# blocked command family, subsearch/map nesting, case and spacing, look-alike
+# commands, argument names, and out-of-scope tools.
+
+- description: Read-only search with stats. Allow.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: splunk-splunk_run_query, uri: null }
+    payload:
+      args: { query: "search index=payments error earliest=-1h | stats count by host" }
+  output:
+    expectedResult: allow
+
+- description: outputlookup writes a lookup. Deny with the command named.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: splunk-splunk_run_query, uri: null }
+    payload:
+      args: { query: "search index=payments user=* | table user email | outputlookup users.csv" }
+  output:
+    expectedResult: deny
+    expectedReason: "Blocked: this Splunk search uses a command that writes, deletes, or sends data (outputlookup). Agents can run read-only searches here. Ask a Splunk admin if you need data changed or exported."
+
+- description: delete. Deny.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: splunk-splunk_run_query, uri: null }
+    payload:
+      args: { query: "search index=main sourcetype=debug | delete" }
+  output:
+    expectedResult: deny
+
+- description: collect into another index. Deny.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: splunk-splunk_run_query, uri: null }
+    payload:
+      args: { query: "search index=main | collect index=summary" }
+  output:
+    expectedResult: deny
+
+- description: sendemail. Deny.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: splunk-splunk_run_query, uri: null }
+    payload:
+      args: { query: "search index=hr | sendemail to=outside@example.com" }
+  output:
+    expectedResult: deny
+
+- description: script / run. Deny.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: splunk-splunk_run_query, uri: null }
+    payload:
+      args: { query: "| makeresults | run myscript.py" }
+  output:
+    expectedResult: deny
+
+- description: dbxquery against a connected database. Deny.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: splunk-splunk_run_query, uri: null }
+    payload:
+      args: { query: "| dbxquery connection=prod query=\"DELETE FROM users\"" }
+  output:
+    expectedResult: deny
+
+- description: Two blocked commands are both named, sorted.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: splunk-splunk_run_query, uri: null }
+    payload:
+      args: { query: "search index=main | outputcsv out.csv | sendemail to=a@b.co" }
+  output:
+    expectedResult: deny
+    expectedReason: "Blocked: this Splunk search uses a command that writes, deletes, or sends data (outputcsv, sendemail). Agents can run read-only searches here. Ask a Splunk admin if you need data changed or exported."
+
+- description: Blocked command hidden in a subsearch. Deny.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: splunk-splunk_run_query, uri: null }
+    payload:
+      args: { query: "search index=main [search index=users | outputlookup leak.csv | fields user]" }
+  output:
+    expectedResult: deny
+
+- description: Blocked command inside a map search string. Deny.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: splunk-splunk_run_query, uri: null }
+    payload:
+      args: { query: "| inputlookup hosts.csv | map search=\"search index=main host=$host$ | delete\"" }
+  output:
+    expectedResult: deny
+
+- description: Uppercase and no space after the pipe. Deny.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: splunk-splunk_run_query, uri: null }
+    payload:
+      args: { query: "search index=main |OUTPUTLOOKUP x.csv" }
+  output:
+    expectedResult: deny
+
+- description: Look-alike read commands (inputlookup, collectd sourcetype, runtime field) are allowed.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: splunk-splunk_run_query, uri: null }
+    payload:
+      args: { query: "| inputlookup hosts.csv | search sourcetype=collectd runtime>5 | runanomaly field=x" }
+  output:
+    expectedResult: allow
+
+- description: The word delete as a search term (not after a pipe) is allowed.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: splunk-splunk_run_query, uri: null }
+    payload:
+      args: { query: "search index=audit action=delete | stats count by user" }
+  output:
+    expectedResult: allow
+
+- description: Community server shape with a `search` argument. Deny.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: splunk-run_splunk_search, uri: null }
+    payload:
+      args: { search: "index=main | collect index=x", earliest_time: "-1h" }
+  output:
+    expectedResult: deny
+
+- description: Non-Splunk tool with SPL-looking text is out of scope. Allow.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: linear-create_issue, uri: null }
+    payload:
+      args: { title: "Fix", query: "| delete" }
+  output:
+    expectedResult: allow
+
+- description: Splunk tool without SPL arguments (get_indexes). Allow.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: splunk-splunk_get_indexes, uri: null }
+    payload:
+      args: {}
+  output:
+    expectedResult: allow

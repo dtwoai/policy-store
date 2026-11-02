@@ -1,0 +1,128 @@
+# Coverage for github.ingress.block_workflow_edits: each write tool on a normal
+# path (allow) and on a workflow/action path (deny), multi-file pushes, path
+# normalization, look-alike paths, and out-of-scope tools.
+
+- description: create_or_update_file on a docs path. Allow.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: github-create_or_update_file, uri: null }
+    payload:
+      args: { owner: acme, repo: app, branch: docs, path: docs/ci.md, message: m, content: c }
+  output:
+    expectedResult: allow
+
+- description: create_or_update_file on .github/workflows/ci.yml. Deny.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: github-create_or_update_file, uri: null }
+    payload:
+      args: { owner: acme, repo: app, branch: fix, path: .github/workflows/ci.yml, message: m, content: "on: push" }
+  output:
+    expectedResult: deny
+    expectedReason: "Blocked: agents can't create, change, or delete GitHub Actions workflows or actions (.github/workflows, .github/actions). Ask a maintainer to make CI changes."
+
+- description: push_files with a workflow hidden as the second file. Deny.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: github-push_files, uri: null }
+    payload:
+      args:
+        owner: acme
+        repo: app
+        branch: fix/tests
+        message: fix
+        files:
+          - { path: src/a.ts, content: a }
+          - { path: .github/workflows/deploy.yaml, content: b }
+  output:
+    expectedResult: deny
+
+- description: push_files where no file is under .github. Allow.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: github-push_files, uri: null }
+    payload:
+      args:
+        owner: acme
+        repo: app
+        branch: fix/tests
+        message: fix
+        files:
+          - { path: src/a.ts, content: a }
+          - { path: test/a.test.ts, content: b }
+  output:
+    expectedResult: allow
+
+- description: delete_file on a local composite action. Deny.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: github-delete_file, uri: null }
+    payload:
+      args: { owner: acme, repo: app, branch: fix, path: .github/actions/setup/action.yml, message: m }
+  output:
+    expectedResult: deny
+
+- description: Mixed case and a leading ./ are normalized. Deny.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: github-create_or_update_file, uri: null }
+    payload:
+      args: { owner: acme, repo: app, branch: fix, path: ./.GitHub/Workflows/CI.yml, message: m, content: c }
+  output:
+    expectedResult: deny
+
+- description: Leading slash is normalized. Deny.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: github-create_or_update_file, uri: null }
+    payload:
+      args: { owner: acme, repo: app, branch: fix, path: /.github/workflows/ci.yml, message: m, content: c }
+  output:
+    expectedResult: deny
+
+- description: Other files under .github (CODEOWNERS, issue templates) are allowed.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: github-create_or_update_file, uri: null }
+    payload:
+      args: { owner: acme, repo: app, branch: fix, path: .github/ISSUE_TEMPLATE/bug.md, message: m, content: c }
+  output:
+    expectedResult: allow
+
+- description: A look-alike folder outside .github (docs/.github/workflows) is allowed.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: github-create_or_update_file, uri: null }
+    payload:
+      args: { owner: acme, repo: app, branch: fix, path: docs/.github/workflows/example.yml, message: m, content: c }
+  output:
+    expectedResult: allow
+
+- description: Reading a workflow file is out of scope. Allow.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: github-get_file_contents, uri: null }
+    payload:
+      args: { owner: acme, repo: app, path: .github/workflows/ci.yml }
+  output:
+    expectedResult: allow
+
+- description: push_files with a malformed files value passes (nothing to inspect). Allow.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: github-push_files, uri: null }
+    payload:
+      args: { owner: acme, repo: app, branch: fix, message: m, files: "not-an-array" }
+  output:
+    expectedResult: allow

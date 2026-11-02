@@ -1,0 +1,136 @@
+# Coverage for github.ingress.protect_default_branch: each commit tool on a
+# feature branch (allow) and on main/master (deny), branch normalization,
+# missing/empty branch, configured names, and out-of-scope tools.
+
+- description: push_files to a feature branch. Allow.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: github-push_files, uri: null }
+    payload:
+      args:
+        owner: acme
+        repo: app
+        branch: fix/payments-timeout
+        message: Revert payments timeout
+        files:
+          - { path: src/client.ts, content: "export const TIMEOUT = 3000;" }
+  output:
+    expectedResult: allow
+
+- description: create_or_update_file to main. Deny.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: github-create_or_update_file, uri: null }
+    payload:
+      args: { owner: acme, repo: app, branch: main, path: src/client.ts, message: hotfix, content: "x" }
+  output:
+    expectedResult: deny
+    expectedReason: "Blocked: agents can't commit directly to the main or master branch. Push to a new branch and open a pull request instead."
+
+- description: push_files to master. Deny.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: gh-mcp-push_files, uri: null }
+    payload:
+      args:
+        owner: acme
+        repo: app
+        branch: master
+        message: batch
+        files:
+          - { path: a.txt, content: a }
+  output:
+    expectedResult: deny
+
+- description: delete_file on main. Deny.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: github-delete_file, uri: null }
+    payload:
+      args: { owner: acme, repo: app, branch: main, path: old.txt, message: cleanup }
+  output:
+    expectedResult: deny
+
+- description: Branch given as refs/heads/Main with whitespace is normalized and denied.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: github-create_or_update_file, uri: null }
+    payload:
+      args: { owner: acme, repo: app, branch: "  refs/heads/Main ", path: a.txt, message: m, content: c }
+  output:
+    expectedResult: deny
+
+- description: No branch argument — GitHub would write to the default branch. Deny.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: github-create_or_update_file, uri: null }
+    payload:
+      args: { owner: acme, repo: app, path: a.txt, message: m, content: c }
+  output:
+    expectedResult: deny
+
+- description: Empty branch string. Deny.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: github-push_files, uri: null }
+    payload:
+      args: { owner: acme, repo: app, branch: "", message: m, files: [] }
+  output:
+    expectedResult: deny
+
+- description: Non-string branch value is treated as missing. Deny.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: github-push_files, uri: null }
+    payload:
+      args: { owner: acme, repo: app, branch: 7, message: m, files: [] }
+  output:
+    expectedResult: deny
+
+- description: A branch whose name merely contains "main" (main-hotfix) is allowed.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: github-create_or_update_file, uri: null }
+    payload:
+      args: { owner: acme, repo: app, branch: main-hotfix, path: a.txt, message: m, content: c }
+  output:
+    expectedResult: allow
+
+- description: Read tool against main is out of scope. Allow.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: github-get_file_contents, uri: null }
+    payload:
+      args: { owner: acme, repo: app, path: README.md, ref: main }
+  output:
+    expectedResult: allow
+
+- description: create_branch from main is out of scope. Allow.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: github-create_branch, uri: null }
+    payload:
+      args: { owner: acme, repo: app, branch: feature/x, from_branch: main }
+  output:
+    expectedResult: allow
+
+- description: Non-GitHub tool with a branch arg of main is unaffected (no commit-tool suffix). Allow.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: linear-create_issue, uri: null }
+    payload:
+      args: { title: x, branch: main }
+  output:
+    expectedResult: allow

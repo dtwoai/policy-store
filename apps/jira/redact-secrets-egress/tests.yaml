@@ -1,0 +1,129 @@
+# Egress transform policy (default allow := true): allow is always true; the
+# meaningful assertions are transformApplied / transformedArgsContain. JSON
+# text blocks come back minified with sorted keys when changed.
+
+- description: getJiraIssue JSON with a connection string in the description — password masked, JSON kept.
+  input:
+    action: tool_post_invoke
+    mode: output
+    resource: { type: tool, name: atlassian-getJiraIssue, uri: null }
+    payload:
+      text:
+        - '{"key": "PLAT-412", "fields": {"description": "DB is postgres://app:hunter2@db:5432", "assignee": {"emailAddress": "jane@acme.com"}}}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - '{"fields":{"assignee":{"emailAddress":"jane@acme.com"},"description":"DB is postgres://app:[REDACTED-SECRET]@db:5432"},"key":"PLAT-412"}'
+
+- description: Clean JSON issue — no transform, response untouched.
+  input:
+    action: tool_post_invoke
+    mode: output
+    resource: { type: tool, name: atlassian-getJiraIssue, uri: null }
+    payload:
+      text:
+        - '{"key": "PLAT-412", "fields": {"summary": "Checkout 500s"}}'
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: JQL search returning issues with a token in a comment — masked inside the array.
+  input:
+    action: tool_post_invoke
+    mode: output
+    resource: { type: tool, name: atlassian-searchJiraIssuesUsingJql, uri: null }
+    payload:
+      text:
+        - '{"issues": [{"key": "PLAT-1", "comment": "use xoxb-1234567890-abcdefghij"}, {"key": "PLAT-2", "comment": "ok"}]}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - '{"issues":[{"comment":"use [REDACTED-SECRET]","key":"PLAT-1"},{"comment":"ok","key":"PLAT-2"}]}'
+
+- description: A generic value never eats past its JSON string (quote boundary respected).
+  input:
+    action: tool_post_invoke
+    mode: output
+    resource: { type: tool, name: atlassian-getJiraIssue, uri: null }
+    payload:
+      text:
+        - '{"a": "token=abc123", "b": "keep me"}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - '{"a":"[REDACTED-SECRET]","b":"keep me"}'
+
+- description: Markdown (plain text) response from getJiraIssue — masked in place.
+  input:
+    action: tool_post_invoke
+    mode: output
+    resource: { type: tool, name: atlassian-getJiraIssue, uri: null }
+    payload:
+      text:
+        - "## PLAT-412\nRepro: export AWS_KEY=AKIAIOSFODNN7EXAMPLE"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "## PLAT-412\nRepro: export AWS_KEY=[REDACTED-SECRET]"
+
+- description: Rovo generic fetch tool is in scope.
+  input:
+    action: tool_post_invoke
+    mode: output
+    resource: { type: tool, name: atlassian-fetch, uri: null }
+    payload:
+      text:
+        - "page body with api_key=abcdef123456"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "page body with [REDACTED-SECRET]"
+
+- description: Tool name only in tool_metadata — still in scope.
+  input:
+    action: tool_post_invoke
+    mode: output
+    resource: { type: tool, name: "", uri: null }
+    tool_metadata: { name: atlassian-getJiraIssue }
+    payload:
+      text:
+        - "token: abc123"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "[REDACTED-SECRET]"
+
+- description: Non-Atlassian server response is out of scope.
+  input:
+    action: tool_post_invoke
+    mode: output
+    resource: { type: tool, name: glean-search, uri: null }
+    payload:
+      text:
+        - "token=abc123"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Ingress call to a Jira tool is ignored (egress only).
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: atlassian-getJiraIssue, uri: null }
+    payload:
+      args: { issueIdOrKey: PLAT-1 }
+  output:
+    expectedResult: allow
+  transformApplied: false

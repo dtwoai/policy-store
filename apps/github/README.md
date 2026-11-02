@@ -7,11 +7,13 @@ Reusable DTwo policies for the GitHub MCP server — the official `github/github
 | Policy | Direction | Purpose | Framework bundles |
 | ------ | --------- | ------- | ----------------- |
 | [role-gate-writes-engineering](./role-gate-writes-engineering/policy.md) | ingress | Gate every write-class and destructive GitHub tool behind an IdP engineering group; read-only by default. | soc2, sox |
-| [require-human-approval-merge](./require-human-approval-merge/policy.md) | ingress | Deny agent-initiated pull-request merges and approval submissions, keeping a human in the code-review loop. | soc2, sox |
+| [require-human-approval-merge](./require-human-approval-merge/policy.md) | ingress | Deny agent-initiated pull-request merges and approval submissions, keeping a human in the code-review loop. | soc2, sox, engineering-stack-jira, engineering-stack-linear |
 | [fence-scopes-org-allowlist](./fence-scopes-org-allowlist/policy.md) | ingress | Deny any GitHub call whose `owner` is not in the tenant's company-org allowlist. | soc2, gdpr-ccpa |
-| [block-secrets-commits](./block-secrets-commits/policy.md) | ingress | Deny GitHub write calls whose file content, commit message, PR/issue/comment body, or gist carries a live credential. | soc2, pci-dss, gdpr-ccpa |
-| [deny-public-exposure-repos](./deny-public-exposure-repos/policy.md) | ingress | Force new repos private, deny public-gist creation, and block personal-namespace forks that would expose org code. | — |
-| [redact-secrets-egress](./redact-secrets-egress/policy.md) | egress | Redact known credential shapes from file-content, code-search, job-log, commit, and PR read responses before they enter agent context. | soc2, gdpr-ccpa |
+| [block-secrets-commits](./block-secrets-commits/policy.md) | ingress | Deny GitHub write calls whose file content, commit message, PR/issue/comment body, or gist carries a live credential. | soc2, pci-dss, gdpr-ccpa, engineering-stack-jira, engineering-stack-linear |
+| [deny-public-exposure-repos](./deny-public-exposure-repos/policy.md) | ingress | Force new repos private, deny public-gist creation, and block personal-namespace forks that would expose org code. | engineering-stack-jira, engineering-stack-linear |
+| [redact-secrets-egress](./redact-secrets-egress/policy.md) | egress | Redact known credential shapes from file-content, code-search, job-log, commit, and PR read responses before they enter agent context. | soc2, gdpr-ccpa, engineering-stack-jira, engineering-stack-linear |
+| [protect-default-branch](./protect-default-branch/policy.md) | ingress | Deny agent commits (`create_or_update_file`, `push_files`, `delete_file`) straight to `main` / `master` or with no branch given, so changes go through a pull request. | engineering-stack-jira, engineering-stack-linear |
+| [block-workflow-edits](./block-workflow-edits/policy.md) | ingress | Deny agent writes and deletes under `.github/workflows/` and `.github/actions/`, so CI definitions (which run with repo secrets) stay with people. | engineering-stack-jira, engineering-stack-linear |
 
 ## Tool naming on the DTwo gateway
 

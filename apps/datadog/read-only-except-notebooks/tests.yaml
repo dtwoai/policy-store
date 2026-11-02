@@ -1,0 +1,124 @@
+# Coverage for datadog.ingress.readonly_except_notebooks: reads, the notebook
+# exception, blocked writes, destructive notebook ops, separator variants, and
+# out-of-scope servers.
+
+- description: search_datadog_logs is a read. Allow.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: datadog-search_datadog_logs, uri: null }
+    payload:
+      args: { query: "service:checkout-api status:error", from: now-1h }
+  output:
+    expectedResult: allow
+
+- description: aggregate_spans is a read. Allow.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: datadog-aggregate_spans, uri: null }
+    payload:
+      args: { query: "service:checkout-api", computes: [{ field: "*", aggregation: COUNT, output: n }] }
+  output:
+    expectedResult: allow
+
+- description: get_datadog_dashboard is a read. Allow.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: datadog-get_datadog_dashboard, uri: null }
+    payload:
+      args: { dashboard_id: abc-123 }
+  output:
+    expectedResult: allow
+
+- description: create_datadog_notebook is the allowed write.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: datadog-create_datadog_notebook, uri: null }
+    payload:
+      args: { name: "checkout-api 5xx spike" }
+  output:
+    expectedResult: allow
+
+- description: edit_datadog_notebook is the allowed write (hyphenated tool name variant).
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: datadog-edit-datadog-notebook, uri: null }
+    payload:
+      args: { notebook_id: 42 }
+  output:
+    expectedResult: allow
+
+- description: upsert_datadog_dashboard is a write. Deny.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: datadog-upsert_datadog_dashboard, uri: null }
+    payload:
+      args: { title: Checkout }
+  output:
+    expectedResult: deny
+    expectedReason: "Blocked: Datadog is read-only through this gateway. The only change allowed is creating or editing a notebook. Ask your admin if you need a dashboard, monitor, or setting changed."
+
+- description: A monitor mute tool is a write. Deny.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: datadog-mute_datadog_monitor, uri: null }
+    payload:
+      args: { monitor_id: 7 }
+  output:
+    expectedResult: deny
+
+- description: A monitor update tool is a write. Deny.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: datadog-update_datadog_monitor, uri: null }
+    payload:
+      args: { monitor_id: 7, query: "avg(last_5m):x > 1" }
+  output:
+    expectedResult: deny
+
+- description: Deleting a notebook is not part of the exception. Deny.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: datadog-delete_datadog_notebook, uri: null }
+    payload:
+      args: { notebook_id: 42 }
+  output:
+    expectedResult: deny
+
+- description: Uppercase server prefix still in scope. Deny.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: Datadog-Upsert_Datadog_Dashboard, uri: null }
+    payload:
+      args: {}
+  output:
+    expectedResult: deny
+
+- description: Unrecognized tool without a write verb (dd_gff) passes. Allow.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: datadog-dd_gff, uri: null }
+    payload:
+      args: {}
+  output:
+    expectedResult: allow
+
+- description: Non-Datadog write tool is out of scope. Allow.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: github-create_pull_request, uri: null }
+    payload:
+      args: { title: x }
+  output:
+    expectedResult: allow

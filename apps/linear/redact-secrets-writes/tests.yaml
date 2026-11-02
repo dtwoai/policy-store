@@ -1,0 +1,102 @@
+# Transform-only policy (default allow := true): allow is always true; the
+# meaningful assertions are transformApplied / transformedArgsContain.
+
+- description: create_issue with a Bearer token in the description — masked; other args kept.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: linear-create_issue, uri: null }
+    payload:
+      args: { team: Platform, title: "Checkout 500s", description: "Failing call used Authorization: Bearer 9f8e7d6c5b4a39281706f5e4d3c2b1a0" }
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    description: "Failing call used Authorization: [REDACTED-SECRET]"
+    title: "Checkout 500s"
+    team: Platform
+
+- description: create_issue with no secrets — no transform.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: linear-create_issue, uri: null }
+    payload:
+      args: { team: Platform, title: "Checkout 500s", description: "Revert the payments timeout." }
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: update_issue with a Stripe live key in the title — masked.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: linear-update_issue, uri: null }
+    payload:
+      args: { id: ENG-42, title: "sk_live_abcdefghijklmnopqrstuvwx leaked in logs" }
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    title: "[REDACTED-SECRET] leaked in logs"
+
+- description: create_comment with a connection string — password masked.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: linear-create_comment, uri: null }
+    payload:
+      args: { issueId: ENG-42, body: "repro against mysql://root:toor@10.0.0.5/app" }
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    body: "repro against mysql://root:[REDACTED-SECRET]@10.0.0.5/app"
+
+- description: create_project summary with a JWT — masked (hyphenated tool name).
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: linear-create-project, uri: null }
+    payload:
+      args: { name: Auth, summary: "test token eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U" }
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    summary: "test token [REDACTED-SECRET]"
+
+- description: update_project — masked.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: linear-update_project, uri: null }
+    payload:
+      args: { id: p1, description: "password=hunter2" }
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    description: "[REDACTED-SECRET]"
+
+- description: GitHub's create_issue is out of scope (not the Linear server).
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: github-create_issue, uri: null }
+    payload:
+      args: { title: x, body: "token=abc123" }
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Linear read tool is out of scope for the write policy.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: linear-list_issues, uri: null }
+    payload:
+      args: { query: "token=abc123" }
+  output:
+    expectedResult: allow
+  transformApplied: false
