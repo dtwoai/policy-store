@@ -166,3 +166,44 @@
   output:
     expectedResult: allow
   transformApplied: false
+
+# --- Quoted values (PR #33 review) ---
+
+- description: Double-quoted password assignment in the description — masked.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: atlassian-createJiraIssue, uri: null }
+    payload:
+      args: { cloudId: acme, projectKey: PLAT, issueTypeName: Bug, summary: Rotate creds, description: 'Set DB_PASSWORD="Tr0ub4dor&3" and restart' }
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    description: "Set [REDACTED-SECRET] and restart"
+
+- description: Single-quoted api_key in the description — masked.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: atlassian-createJiraIssue, uri: null }
+    payload:
+      args: { cloudId: acme, projectKey: PLAT, issueTypeName: Bug, summary: Rotate creds, description: "client built with api_key='k-8812-short'" }
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    description: "client built with [REDACTED-SECRET]"
+
+- description: Pasted JSON config (quoted client_secret field) in the description — masked, rest kept.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: atlassian-createJiraIssue, uri: null }
+    payload:
+      args: { cloudId: acme, projectKey: PLAT, issueTypeName: Bug, summary: Rotate creds, description: 'config: {"client_secret": "abc-def", "region": "us-east-1"}' }
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    description: 'config: {[REDACTED-SECRET], "region": "us-east-1"}'

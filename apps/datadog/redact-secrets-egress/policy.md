@@ -35,6 +35,12 @@ description: |
   Applies to every tool on the Datadog server — logs, spans, events, RUM, incidents,
   notebooks — since any of them can carry log text.
 
+  **Quoted values and credential fields.** `key="value"` and `key: 'value'` pairs are masked
+  the same as unquoted ones, including JSON-style `"password": "..."` inside a log line or
+  comment. In JSON responses, a string under a credential-named field (`password`,
+  `apiKey`, `client_secret`, `accessToken`, `db.password`, …) is masked whatever its value
+  looks like. Pagination cursors such as `nextPageToken` are left alone.
+
   ## Compliance alignment
 
   - **SOC 2 CC6.7** — restricts movement of confidential information (credentials) into a new
@@ -110,15 +116,18 @@ email_marker := "[REDACTED-EMAIL]"
 email_pattern := `[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}`
 
 # Credential shapes, applied in order. JWT and Bearer come before the generic
-# key=value pair so a token is masked whole. The generic value stops at quotes,
-# commas, and semicolons so it never eats into neighbouring text.
+# key=value pair so a token is masked whole. The generic pair takes a quoted
+# value ("..." or '...', on one line) or an unquoted one that stops at quotes,
+# commas, and semicolons so it never eats into neighbouring text. The key may be
+# quoted and carry a prefix (`"db_password": "x"`, `client.secret='x'`).
 secret_patterns := [
     # JSON Web Tokens
     `eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}`,
     # Bearer tokens
     `(?i)bearer\s+[A-Za-z0-9._~+/-]{16,}=*`,
-    # Generic password / token / api_key / secret in `key: value` or `key=value` form
-    `(?i)(?:password|passwd|secret|token|api[_-]?key|secret[_-]?key|access[_-]?key|client[_-]?secret)\s*[:=]\s*[^\s"'<>,;]+`,
+    # Generic password / token / api_key / secret in `key: value` or `key=value` form,
+    # quoted or not
+    `(?i)["']?[A-Za-z0-9_.-]*(?:password|passwd|secret|token|api[_-]?key|secret[_-]?key|access[_-]?key|client[_-]?secret)["']?\s*[:=]\s*(?:"[^"\r\n]+"|'[^'\r\n]+'|[^\s"'<>,;]+)`,
     # AWS access key IDs (long-term and temporary)
     `(?:AKIA|ASIA)[0-9A-Z]{16}`,
     # AWS secret access keys (40-char base64-ish, anchored near the word "aws")
@@ -176,10 +185,42 @@ _escape_segment(seg) := replace(replace(sprintf("%v", [seg]), "~", "~0"), "/", "
 
 _pointer(path) := concat("", [concat("", ["/", _escape_segment(seg)]) | some seg in path])
 
+# Field names that hold credentials. Compared lowercased with `_`, `-` and `.`
+# removed, so apiKey, api_key, client-secret, db.password and accessToken all
+# match. Pagination and sync cursors (nextPageToken, cursor_token) are not
+# credentials and are left alone.
+_credential_field_suffixes := {
+    "password", "passwd", "passphrase", "secret", "token", "apikey",
+    "accesskey", "secretkey", "privatekey", "credential", "credentials",
+}
+
+_cursor_words := {"page", "cursor", "next", "sync", "continuation"}
+
+_credential_field(k) if {
+    is_string(k)
+    n := replace(replace(replace(lower(k), "_", ""), "-", ""), ".", "")
+    some s in _credential_field_suffixes
+    endswith(n, s)
+    not _is_cursor_field(n)
+}
+
+_is_cursor_field(n) if {
+    some w in _cursor_words
+    contains(n, w)
+}
+
+# A non-empty string under a credential-named field is masked whole, whatever
+# its value looks like. Any other string goes through the shape patterns.
+_redact_at(path, v) := secret_marker if {
+    count(path) > 0
+    _credential_field(path[count(path) - 1])
+    v != ""
+} else := _redact(v)
+
 _patches_for(doc) := [{"op": "replace", "path": _pointer(path), "value": r} |
     walk(doc, [path, v])
     is_string(v)
-    r := _redact(v)
+    r := _redact_at(path, v)
     r != v
 ]
 

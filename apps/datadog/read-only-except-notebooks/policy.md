@@ -23,9 +23,11 @@ description: |
 
   - **Reads pass.** Searching and aggregating logs, spans, metrics, events, RUM, monitors,
     incidents, hosts, and dashboards is untouched.
-  - **Writes are denied.** Any Datadog tool whose name contains a mutating verb (`create`,
-    `edit`, `update`, `upsert`, `delete`, `mute`, `resolve`, …) is blocked — for example
-    `upsert_datadog_dashboard`.
+  - **Everything else is denied.** A Datadog tool only goes through if its name reads as a
+    lookup (`search`, `get`, `list`, `aggregate`, `analyze`, `query`, …) and has no
+    state-changing verb in it. So `upsert_datadog_dashboard`, `execute_datadog_workflow`,
+    `move_datadog_log_pipeline`, `reorder_…_rules`, and `run_datadog_bits_agent` are all
+    blocked, and so is any new tool whose name doesn't clearly say it only reads.
   - **Notebook create and edit are allowed.** `create_datadog_notebook` and
     `edit_datadog_notebook` go through. Deleting a notebook is still blocked.
 
@@ -44,10 +46,18 @@ description: |
   ## How it matches
 
   A tool is in scope when its lowercased name starts with `datadog` (the MCP server name on
-  the gateway). It is a write when any `-` / `_`-separated token in its name is a mutating
-  verb. Matching verbs instead of a fixed tool list means new Datadog write tools are blocked
-  without a policy edit. The notebook exception requires the token `notebook` plus `create`,
-  `edit`, or `update`, and no destructive verb.
+  the gateway). Its name is split into `-` / `_`-separated tokens, and it is allowed only when:
+
+  - at least one token is a read verb from `_read_verbs` (`search`, `get`, `list`, `query`,
+    `aggregate`, `analyze`, `describe`, `validate`, …), **and**
+  - no token is a state-changing verb from `_write_verbs` (`create`, `update`, `execute`,
+    `move`, `reorder`, `recover`, `link`, `sync`, `start`, …).
+
+  This fails closed: the Datadog server has well over a hundred tools and keeps adding write
+  tools with new verbs, so a tool is denied unless its name clearly says it only reads. The
+  notebook exception requires the token `notebook` plus `create`, `edit`, or `update`, and no
+  destructive verb. A few short helper tools with no verb in their name (`dd_gff`, `dd_guc`,
+  `dd_rfw`) are allowed by name in `_helper_tools`.
 
   Datadog ships **MCP Write Access** switched off. Even with it off this policy is a useful
   safety net, and it is what lets you turn write access on for notebooks without also handing
@@ -93,8 +103,11 @@ description: |
 
   - **Server name prefix.** Scope is tools whose name starts with `datadog`. If your Datadog
     MCP server is registered under another name, change `_is_datadog`.
-  - **Verb-token heuristic.** A future Datadog tool that changes state without a verb from
-    `_write_verbs` in its name would pass. Add the verb if that happens.
+  - **Verb-token heuristic.** A new read tool whose name uses a verb that isn't in
+    `_read_verbs` is denied until you add the verb. A write tool would only pass if its name
+    has a read verb and none of the `_write_verbs` — add the verb if that happens.
+  - **Code execution.** `execute_code` and similar tools are denied, even though some of
+    what they run only reads.
   - **Notebook content is not inspected.** Notebooks are shared inside your Datadog org; pair
     with an egress or DLP policy if what gets written matters.
 
@@ -114,8 +127,8 @@ minimumGatewayVersion: 1.0.0b24
 ```rego
 package datadog.ingress.readonly_except_notebooks
 
-# Allow by default; deny Datadog write tools except notebook create/edit.
-# Non-Datadog tools are never touched.
+# Allow by default; deny any Datadog tool that isn't clearly a read, except
+# notebook create/edit. Non-Datadog tools are never touched.
 default allow := true
 
 _tool := lower(object.get(input.resource, "name", ""))
@@ -125,22 +138,62 @@ _is_datadog if startswith(_tool, "datadog")
 
 _tokens := {t | some t in regex.split(`[-_]`, _tool)}
 
-# Verbs that change state in Datadog.
+# Verbs that mark a tool as a lookup. A Datadog tool needs one of these to pass.
+_read_verbs := {
+    "search", "get", "list", "aggregate", "analyze", "analyse", "query", "describe",
+    "find", "discover", "read", "validate", "estimate", "check", "diagnose", "explore",
+    "rank", "summarize", "summary", "suggest", "build", "ask", "optimize", "load",
+    "recommendations",
+}
+
+# Verbs that change state in Datadog. Any one of these denies the tool, even if
+# it also has a read verb. ("run" is left out: ddsql_run_query only reads, and
+# run_datadog_bits_agent is still denied because it has no read verb.)
 _write_verbs := {
     "create", "edit", "update", "upsert", "delete", "remove", "add", "set",
     "patch", "write", "mute", "unmute", "resolve", "cancel", "schedule",
     "enable", "disable", "submit", "send", "trigger", "archive", "import",
     "clone", "assign", "unassign", "snooze", "acknowledge", "ack", "restore",
-    "revoke", "rotate", "publish",
+    "revoke", "rotate", "publish", "execute", "exec", "move", "reorder",
+    "recover", "attach", "detach", "link", "unlink", "start", "stop", "conclude",
+    "sync", "mitigate", "manage", "steer", "apply", "approve", "merge", "invite",
+    "pause", "resume", "install", "uninstall", "register", "deploy", "rollback",
+    "promote", "reset", "retry", "rerun", "restart", "terminate", "kill", "purge",
+    "upload", "post", "put", "save", "toggle",
 }
+
+# Short Datadog helper tools with no verb in their name, allowed by name.
+_helper_tools := {"dd_gff", "dd_guc", "dd_rfw"}
 
 # Verbs that destroy or hide data — never part of the notebook exception.
 _destructive_verbs := {"delete", "remove", "archive", "revoke"}
 
-_is_write_tool if {
-    _is_datadog
+_has_read_verb if {
+    some t in _tokens
+    _read_verbs[t]
+}
+
+_has_write_verb if {
     some t in _tokens
     _write_verbs[t]
+}
+
+_is_helper_tool if {
+    some h in _helper_tools
+    endswith(replace(_tool, "-", "_"), h)
+}
+
+_is_read_tool if {
+    _has_read_verb
+    not _has_write_verb
+}
+
+_is_read_tool if _is_helper_tool
+
+# Fail closed: every Datadog tool that isn't clearly a read counts as a write.
+_is_write_tool if {
+    _is_datadog
+    not _is_read_tool
 }
 
 _is_notebook_write if {

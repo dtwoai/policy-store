@@ -100,3 +100,122 @@
   output:
     expectedResult: allow
   transformApplied: false
+
+# --- Quoted values (PR #33 review) ---
+
+- description: Double-quoted password assignment in the description — masked.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: linear-save_issue, uri: null }
+    payload:
+      args: { team: Platform, title: Rotate creds, description: 'Set DB_PASSWORD="Tr0ub4dor&3" and restart' }
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    description: "Set [REDACTED-SECRET] and restart"
+
+- description: Single-quoted api_key in the description — masked.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: linear-save_issue, uri: null }
+    payload:
+      args: { team: Platform, title: Rotate creds, description: "client built with api_key='k-8812-short'" }
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    description: "client built with [REDACTED-SECRET]"
+
+- description: Pasted JSON config (quoted client_secret field) in the description — masked, rest kept.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: linear-save_issue, uri: null }
+    payload:
+      args: { team: Platform, title: Rotate creds, description: 'config: {"client_secret": "abc-def", "region": "us-east-1"}' }
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    description: 'config: {[REDACTED-SECRET], "region": "us-east-1"}'
+
+# --- Current hosted Linear tool names (PR #33 review) ---
+
+- description: save_issue (hosted server's create/update tool) with a credential in the description — masked.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: linear-save_issue, uri: null }
+    payload:
+      args: { team: Platform, title: "Checkout 500s", description: "Failing call used Authorization: Bearer 9f8e7d6c5b4a39281706f5e4d3c2b1a0" }
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    description: "Failing call used Authorization: [REDACTED-SECRET]"
+    title: "Checkout 500s"
+
+- description: save_issue updating an existing issue with a credential-shaped value — masked.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: linear-save_issue, uri: null }
+    payload:
+      args: { id: ENG-42, description: "token=abc123def456" }
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    id: ENG-42
+    description: "[REDACTED-SECRET]"
+
+- description: save_issue with no secrets — no transform.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: linear-save_issue, uri: null }
+    payload:
+      args: { team: Platform, title: "Checkout 500s", description: "Revert the payments timeout." }
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: save_project summary with a GitHub token — masked.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: linear-save_project, uri: null }
+    payload:
+      args: { name: Auth, summary: "CI uses ghp_abcdefghijklmnopqrstuvwxyz0123456789" }
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    summary: "CI uses [REDACTED-SECRET]"
+
+- description: save_comment body with a connection string — password masked.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: linear-save_comment, uri: null }
+    payload:
+      args: { issueId: ENG-42, body: "repro against mysql://root:toor@10.0.0.5/app" }
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    body: "repro against mysql://root:[REDACTED-SECRET]@10.0.0.5/app"
+
+- description: GitHub's save-style tool is out of scope (not the Linear server).
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: github-save_issue, uri: null }
+    payload:
+      args: { title: x, body: "token=abc123" }
+  output:
+    expectedResult: allow
+  transformApplied: false

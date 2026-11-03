@@ -127,3 +127,77 @@
   output:
     expectedResult: allow
   transformApplied: false
+
+# --- Quoted values and credential fields (PR #33 review) ---
+
+- description: Plain-text log line with a double-quoted password assignment — masked.
+  input:
+    action: tool_post_invoke
+    mode: output
+    resource: { type: tool, name: atlassian-getJiraIssue, uri: null }
+    payload:
+      text:
+        - 'config loaded: db_password="Tr0ub4dor&3" host=db1'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - 'config loaded: [REDACTED-SECRET] host=db1'
+
+- description: Plain-text line with a single-quoted api_key — masked.
+  input:
+    action: tool_post_invoke
+    mode: output
+    resource: { type: tool, name: atlassian-getJiraIssue, uri: null }
+    payload:
+      text:
+        - "retrying with api_key: 'k-8812-short' after 401"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - 'retrying with [REDACTED-SECRET] after 401'
+
+- description: JSON fragment inside a text line (quoted password field) — masked, rest kept.
+  input:
+    action: tool_post_invoke
+    mode: output
+    resource: { type: tool, name: atlassian-getJiraIssue, uri: null }
+    payload:
+      text:
+        - 'startup config {"password": "hunter2", "port": 5432}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - 'startup config {[REDACTED-SECRET], "port": 5432}'
+
+- description: JSON response with a credential-named field whose value has no known shape — masked by field name.
+  input:
+    action: tool_post_invoke
+    mode: output
+    resource: { type: tool, name: atlassian-getJiraIssue, uri: null }
+    payload:
+      text:
+        - '{"key": "PLAT-9", "fields": {"customfield_10020": {"clientSecret": "s3cr3t-value", "env": "prod"}}}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - '{"fields":{"customfield_10020":{"clientSecret":"[REDACTED-SECRET]","env":"prod"}},"key":"PLAT-9"}'
+
+- description: Pagination cursor field (nextPageToken) is not a credential — untouched.
+  input:
+    action: tool_post_invoke
+    mode: output
+    resource: { type: tool, name: atlassian-getJiraIssue, uri: null }
+    payload:
+      text:
+        - '{"issues": [{"key": "PLAT-1"}], "nextPageToken": "CiAKGjBpNDd2"}'
+  output:
+    expectedResult: allow
+  transformApplied: false

@@ -962,7 +962,7 @@
         "read-only",
         "ingress"
       ],
-      "policyChecksum": "sha256:9e162a6ffa5a40c48077f59607bbf2ee46b0474e1e6016320c807eb166911adc",
+      "policyChecksum": "sha256:ef86b572b423b3bb36a79b86e3f8d2fcbfa7700cc11300ed04341fe5f5568c4c",
       "schemaVersion": "1.0.0",
       "minimumGatewayVersion": "1.0.0b24"
     },
@@ -988,7 +988,7 @@
         "redaction",
         "egress"
       ],
-      "policyChecksum": "sha256:2ea583642253797299251ba42fed02c1a5ec1f45c05b9eb61a184b488aaa3e2d",
+      "policyChecksum": "sha256:74c1c246e425491cce8280a2b400a5885cf69432d57969fc25cb64eb97c6b348",
       "schemaVersion": "1.0.0",
       "minimumGatewayVersion": "1.0.0b24"
     },
@@ -2893,7 +2893,7 @@
         "redaction",
         "egress"
       ],
-      "policyChecksum": "sha256:5812909978a4936556857adc4c1674839a248c08b715d918dc119e76084f8802",
+      "policyChecksum": "sha256:0ef2336648e16aaf1c8544f658ecd1a429b69eda5efb5bf6089b2a6432bf7a9a",
       "schemaVersion": "1.0.0",
       "minimumGatewayVersion": "1.0.0b24"
     },
@@ -2917,7 +2917,7 @@
         "redaction",
         "ingress"
       ],
-      "policyChecksum": "sha256:5b296627b4b625be221fd4847887669ced67ed299f40986df8663a744b5913d0",
+      "policyChecksum": "sha256:ed64fd38ed9f98c59f723be603a15f8e9c301ab0326db6723f3477d3d1af748b",
       "schemaVersion": "1.0.0",
       "minimumGatewayVersion": "1.0.0b24"
     },
@@ -3123,7 +3123,7 @@
         "redaction",
         "egress"
       ],
-      "policyChecksum": "sha256:83a7e3b48f28330adeb16bc33849f4df0b72e0c6839b08db322f62bb04864ee7",
+      "policyChecksum": "sha256:acf51f9761316ce323664ddabc4a3f40d679b61dbec2226a859077f510ae7f70",
       "schemaVersion": "1.0.0",
       "minimumGatewayVersion": "1.0.0b24"
     },
@@ -3146,7 +3146,7 @@
         "redaction",
         "ingress"
       ],
-      "policyChecksum": "sha256:3c8a423198de134ca43372372c778a1afb9e259f8ed5a56a1cd1b17659d72412",
+      "policyChecksum": "sha256:d585ff466af8746d54ec991b96f019ca0df048aff49dc2bee5e9b7395bc26817",
       "schemaVersion": "1.0.0",
       "minimumGatewayVersion": "1.0.0b24"
     },
@@ -5053,7 +5053,7 @@
         "cost-control",
         "ingress"
       ],
-      "policyChecksum": "sha256:8c7c2c7f804ebe59dceeff6d1af17acfb0e83fbfddfd0df69b23c617d7a7ede1",
+      "policyChecksum": "sha256:309cedb4bb79ffde5a943a9ea545a0d3a09c53ed652f04e9c871e7ffc290f12c",
       "schemaVersion": "1.0.0",
       "minimumGatewayVersion": "1.0.0b24"
     },
@@ -5079,7 +5079,7 @@
         "redaction",
         "egress"
       ],
-      "policyChecksum": "sha256:82d8b9cd10a905b89b8cd1327294f8fe13f08d9820c6a8b7d55c76aee844eb11",
+      "policyChecksum": "sha256:555ab1be5559d00dfcab85fa0fdc739b19e1c92d5ec1aae14f3dbcfa147a592c",
       "schemaVersion": "1.0.0",
       "minimumGatewayVersion": "1.0.0b24"
     },

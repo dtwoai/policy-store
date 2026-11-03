@@ -20,11 +20,16 @@ description: |
   `earliest=` runs over all time, which is slow, expensive, and pulls far more data than an
   investigation needs. This policy rewrites the SPL before it reaches Splunk:
 
-  - **No time range given** → `earliest=-24h` is added.
+  - **No time range given** → `earliest=-24h` is added. The main search and every subsearch
+    are checked separately, because Splunk gives each one its own time range: a bounded
+    subsearch doesn't bound the main search, and the other way round.
   - **A relative range longer than 7 days** (`earliest=-30d`, `earliest=-1y@y`) → replaced with
-    `earliest=-7d`.
+    `earliest=-7d`. Snapping counts: `@y`, `@q`, `@mon`, or `-1d@w` can reach back further than
+    the number in front of it, so the policy assumes the furthest it could go.
   - **All time or an old epoch** (`earliest=0`, `earliest=1`, an epoch more than 7 days ago) →
     replaced with `earliest=-7d`.
+  - **A relative expression it can't read** (an unknown unit, chained offsets) → replaced with
+    `earliest=-7d`, so it is always bounded.
   - Ranges of 7 days or less are left alone.
 
   If the tool takes a separate `earliest_time` argument (custom Splunk tools and community
@@ -46,12 +51,21 @@ description: |
   Scope is tools whose lowercased name starts with `splunk`. The policy edits the first of the
   `query`, `search`, or `spl` arguments that is present (`splunk_run_query` on Splunk's
   official MCP Server app uses `query`). Each `earliest=` in the SPL, including inside
-  subsearches, is checked on its own. When none is present, `earliest=-24h` goes right after a
-  leading `search` keyword, or at the very start of the query.
+  subsearches, is checked on its own.
+
+  The main search and each subsearch (`[ ... ]`, nested or not) is a separate scope. Brackets
+  inside double-quoted strings, like a `rex` character class, are not subsearches. A scope with
+  no `earliest=` of its own gets `earliest=-24h` right after its leading `search` keyword, or
+  at its start. Subsearches that start with a generating command (`[| inputlookup …]`) are
+  skipped. When the tool has an `earliest_time` argument, it sets the range for the whole job,
+  so nothing is added to the SPL.
 
   Relative units understood: seconds, minutes, hours, days, weeks, months (30 days), quarters
-  (90 days), and years (365 days), in Splunk's short and long spellings, with an optional
-  `@` snap.
+  (90 days), and years (365 days), in Splunk's short and long spellings. A relative time is
+  read as `[offset][@snap][offset]` (`-1d@d`, `@y`, `@d-3h`). Its lookback is the offset back,
+  plus the most a snap can add (a full unit: up to 31 days for `@mon`, 92 for `@q`, 366 for
+  `@y`, 7 for `@w0`–`@w7`), plus any offset back after the snap. So `-7d@d` counts as 8 days
+  and is trimmed, and `-6d@d` is left alone.
 
   ## Configuration
 
@@ -103,6 +117,11 @@ description: |
     parsed and are left as written.
   - **`latest=` is not checked.** A search like `earliest=-7d latest=-6d` is narrower, not
     wider, so only `earliest` matters for the cap.
+  - **Snaps are counted at their widest.** The policy doesn't know the time of day or your
+    Splunk timezone, so `-7d@d` (at most 8 days) is trimmed to `-7d` even when it would have
+    reached back only a few hours past 7 days.
+  - **Unbalanced brackets.** If the unquoted `[` and `]` in a query don't pair up, the whole
+    query is treated as one search, as before.
   - **Server name prefix.** Scope is tools whose name starts with `splunk`. Change
     `_is_splunk` if your server is registered under another name.
 
@@ -165,12 +184,56 @@ _spl := object.get(_args, _spl_key, "")
 
 # --- Is an earliest value too wide? ---
 
-# Relative, e.g. -30d or -1y@y.
-_too_wide(v) if {
-    m := regex.find_all_string_submatch_n(`^-(\d+)([a-z]+)(@.*)?$`, lower(v), 1)
+# Most a snap to the start of a unit can reach back. Calendar units use their
+# longest length; a week snap (@w, @w0–@w7) reaches back at most 7 days.
+_snap_seconds(u) := 2678400 if _unit_seconds[u] == 2592000 # month: 31 days
+
+_snap_seconds(u) := 7948800 if _unit_seconds[u] == 7776000 # quarter: 92 days
+
+_snap_seconds(u) := 31622400 if _unit_seconds[u] == 31536000 # year: 366 days
+
+_snap_seconds(u) := secs if {
+    secs := _unit_seconds[u]
+    not secs in {2592000, 7776000, 31536000}
+}
+
+# A relative time: [offset][@snap[digit]][offset], e.g. -30d, -1y@y, @mon, @d-3h, -1d@w0.
+_relative_pattern := `^(?:([+-])(\d*)([a-z]+))?(?:@([a-z]+?)(\d?))?(?:([+-])(\d*)([a-z]+))?$`
+
+_amount(n) := 1 if n == ""
+
+_amount(n) := to_number(n) if n != ""
+
+# Seconds an offset moves back in time. Forward offsets (+) count as zero.
+_back("", _, _) := 0
+
+_back("+", _, u) := 0 if _unit_seconds[u]
+
+_back("-", n, u) := _amount(n) * _unit_seconds[u]
+
+_snap_back("") := 0
+
+_snap_back(u) := _snap_seconds(u) if u != ""
+
+# Furthest a relative time can reach back, in seconds. Undefined when the value
+# isn't a relative time this policy can read (an unknown unit, chained offsets).
+_lookback(v) := pre + snap + post if {
+    m := regex.find_all_string_submatch_n(_relative_pattern, lower(v), 1)
     count(m) == 1
-    secs := _unit_seconds[m[0][2]]
-    to_number(m[0][1]) * secs > _max_seconds
+    g := m[0]
+    concat("", [g[1], g[4]]) != "" # needs an offset or a snap
+    pre := _back(g[1], g[2], g[3])
+    snap := _snap_back(g[4])
+    post := _back(g[6], g[7], g[8])
+}
+
+# Relative (offset and/or snap) and reaching back further than the cap.
+_too_wide(v) if _lookback(v) > _max_seconds
+
+# Looks relative but can't be read: bound it rather than let it through.
+_too_wide(v) if {
+    regex.match(`^[-+@]`, v)
+    not _lookback(v)
 }
 
 # All time, or an epoch more than the cap in the past.
@@ -199,27 +262,115 @@ _wide_tokens := {tok[0]: sprintf("earliest=%s", [_cap]) |
 
 _has_earliest_arg if is_string(object.get(_args, "earliest_time", null))
 
-_new_spl := strings.replace_n(_wide_tokens, _spl) if {
-    not _skip_spl
-    count(_earliest_tokens) > 0
-    count(_wide_tokens) > 0
+# --- Search scopes: the main search and each [subsearch] ---
+
+_chars := split(_spl, "")
+
+_n := count(_chars)
+
+# Double quotes that open or close a string (not escaped with a backslash).
+_quotes := [i | some i, c in _chars; c == "\""; not _escaped(i)]
+
+_escaped(i) if {
+    i > 0
+    _chars[i - 1] == "\\"
 }
 
-_new_spl := spl if {
-    not _skip_spl
-    not _has_earliest_arg
-    count(_earliest_tokens) == 0
-    m := regex.find_all_string_submatch_n(`(?i)^(\s*search\s+)(.*)$`, _spl, 1)
+_in_quotes(i) if count([q | some q in _quotes; q < i]) % 2 == 1
+
+# Unquoted brackets, in position order. Brackets inside a quoted string (a rex
+# character class, say) are not subsearches.
+_brackets := sort([[i, c] |
+    some i, c in _chars
+    c in {"[", "]"}
+    not _in_quotes(i)
+])
+
+# Subsearch depth just before position i.
+_depth_before(i) := count([1 | some b in _brackets; b[0] < i; b[1] == "["]) - count([1 | some b in _brackets; b[0] < i; b[1] == "]"])
+
+_balanced if {
+    _depth_before(_n) == 0
+    every b in _brackets {
+        _depth_before(b[0] + 1) >= 0
+    }
+}
+
+# [content start, content end, depth] for each subsearch.
+_subsearches contains [s, e, d] if {
+    _balanced
+    some b in _brackets
+    b[1] == "["
+    d := _depth_before(b[0]) + 1
+    closes := [c[0] | some c in _brackets; c[1] == "]"; c[0] > b[0]; _depth_before(c[0]) == d]
+    count(closes) > 0
+    e := min(closes)
+    s := b[0] + 1
+}
+
+_scopes := array.concat([[0, _n, 0]], [sc | some sc in _subsearches])
+
+# A scope's own text, with nested subsearches left out.
+_own_text(sc) := _spl if {
+    sc[2] == 0
+    not _balanced
+}
+
+_own_text(sc) := concat("", [_chars[k] | some k in numbers.range(sc[0], sc[1] - 1); _depth_before(k) == sc[2]]) if {
+    _balanced
+    sc[1] > sc[0]
+}
+
+_own_text(sc) := "" if {
+    _balanced
+    sc[1] <= sc[0]
+}
+
+_needs_default(own) if {
+    t := trim_space(own)
+    t != ""
+    not startswith(t, "|")
+    not startswith(lower(t), "@spl2")
+    not regex.match(`(?i)\bearliest\s*=`, own)
+}
+
+# Where earliest= goes in a scope: after a leading "search" keyword, or at the
+# first non-space character.
+_insert_offset(content) := count(m[0][0]) if {
+    m := regex.find_all_string_submatch_n(`(?i)^\s*search\s+`, content, 1)
     count(m) == 1
-    spl := sprintf("%searliest=%s %s", [m[0][1], default_earliest, m[0][2]])
 }
 
-_new_spl := spl if {
-    not _skip_spl
+_insert_offset(content) := count(content) - count(trim_left(content, " \t\r\n")) if {
+    not regex.match(`(?i)^\s*search\s+`, content)
+}
+
+_default_positions := sort([p |
     not _has_earliest_arg
-    count(_earliest_tokens) == 0
-    not regex.match(`(?i)^\s*search\s+`, _spl)
-    spl := sprintf("earliest=%s %s", [default_earliest, trim_left(_spl, " \t\n")])
+    some sc in _scopes
+    _needs_default(_own_text(sc))
+    p := sc[0] + _insert_offset(substring(_spl, sc[0], sc[1] - sc[0]))
+])
+
+_insert_text := sprintf("earliest=%s ", [default_earliest])
+
+_with_defaults := _spl if count(_default_positions) == 0
+
+_with_defaults := concat(_insert_text, parts) if {
+    ps := _default_positions
+    count(ps) > 0
+    starts := array.concat([0], ps)
+    ends := array.concat(ps, [_n])
+    parts := [substring(_spl, starts[i], ends[i] - starts[i]) | some i in numbers.range(0, count(ps))]
+}
+
+_spl_changed if count(_wide_tokens) > 0
+
+_spl_changed if count(_default_positions) > 0
+
+_new_spl := strings.replace_n(_wide_tokens, _with_defaults) if {
+    not _skip_spl
+    _spl_changed
 }
 
 # --- earliest_time argument (custom / community tools) ---

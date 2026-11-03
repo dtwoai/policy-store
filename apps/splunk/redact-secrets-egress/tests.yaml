@@ -219,3 +219,77 @@
   output:
     expectedResult: allow
   transformApplied: false
+
+# --- Quoted values and credential fields (PR #33 review) ---
+
+- description: Plain-text log line with a double-quoted password assignment — masked.
+  input:
+    action: tool_post_invoke
+    mode: output
+    resource: { type: tool, name: splunk-splunk_run_query, uri: null }
+    payload:
+      text:
+        - 'config loaded: db_password="Tr0ub4dor&3" host=db1'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - 'config loaded: [REDACTED-SECRET] host=db1'
+
+- description: Plain-text line with a single-quoted api_key — masked.
+  input:
+    action: tool_post_invoke
+    mode: output
+    resource: { type: tool, name: splunk-splunk_run_query, uri: null }
+    payload:
+      text:
+        - "retrying with api_key: 'k-8812-short' after 401"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - 'retrying with [REDACTED-SECRET] after 401'
+
+- description: JSON fragment inside a text line (quoted password field) — masked, rest kept.
+  input:
+    action: tool_post_invoke
+    mode: output
+    resource: { type: tool, name: splunk-splunk_run_query, uri: null }
+    payload:
+      text:
+        - 'startup config {"password": "hunter2", "port": 5432}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - 'startup config {[REDACTED-SECRET], "port": 5432}'
+
+- description: JSON response with a credential-named field whose value has no known shape — masked by field name.
+  input:
+    action: tool_post_invoke
+    mode: output
+    resource: { type: tool, name: splunk-splunk_run_query, uri: null }
+    payload:
+      text:
+        - '{"results": [{"_raw": "boot", "db.password": "hunter2", "access_token": "opaque-123"}]}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - '{"results":[{"_raw":"boot","access_token":"[REDACTED-SECRET]","db.password":"[REDACTED-SECRET]"}]}'
+
+- description: Pagination cursor field (nextPageToken) is not a credential — untouched.
+  input:
+    action: tool_post_invoke
+    mode: output
+    resource: { type: tool, name: splunk-splunk_run_query, uri: null }
+    payload:
+      text:
+        - '{"results": [{"_raw": "ok"}], "next_page_token": "CiAKGjBpNDd2"}'
+  output:
+    expectedResult: allow
+  transformApplied: false

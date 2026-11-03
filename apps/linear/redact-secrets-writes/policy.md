@@ -20,9 +20,11 @@ description: |
   everything the agent writes to Linear before it's saved, so a token never lands in an issue
   the whole workspace can read. The issue is still created; only the secret is replaced.
 
-  It covers `create_issue`, `update_issue`, `create_comment`, `create_project`, and
-  `update_project` on Linear's hosted MCP server. Every string in the request is scanned
-  (title, description, comment body, project summary); IDs pass through unchanged.
+  It covers Linear's hosted MCP server write tools: `save_issue` (which replaced
+  `create_issue` and `update_issue`), `save_project`, and `save_comment`, plus the older
+  `create_*` / `update_*` names for servers that still expose them. Every string in the
+  request is scanned (title, description, comment body, project summary); IDs pass through
+  unchanged.
 
   ## What gets masked
 
@@ -31,6 +33,12 @@ description: |
   keys, Google API keys, OpenAI-style keys, JWTs, `Bearer` tokens, PEM private keys, and the
   password part of connection strings (`postgres://app:[REDACTED-SECRET]@db`). Email
   addresses and names are left alone, so assignees, reporters, and mentions still work.
+
+  **Quoted values and credential fields.** `key="value"` and `key: 'value'` pairs are masked
+  the same as unquoted ones, including JSON-style `"password": "..."` inside a log line or
+  comment. In JSON arguments the agent sends, a string under a credential-named field (`password`,
+  `apiKey`, `client_secret`, `accessToken`, `db.password`, …) is masked whatever its value
+  looks like. Pagination cursors such as `nextPageToken` are left alone.
 
   ## Compliance alignment
 
@@ -57,7 +65,7 @@ description: |
   {
     "input": {
       "action": "tool_pre_invoke",
-      "resource": { "name": "linear-create_issue", "type": "tool" },
+      "resource": { "name": "linear-save_issue", "type": "tool" },
       "payload": { "args": { "team": "Platform", "title": "Checkout 500s",
         "description": "Failing call used Authorization: Bearer 9f8e7d6c5b4a39281706f5e4d3c2b1a0" } }
     }
@@ -99,15 +107,18 @@ default allow := true
 secret_marker := "[REDACTED-SECRET]"
 
 # Credential shapes, applied in order. JWT and Bearer come before the generic
-# key=value pair so a token is masked whole. The generic value stops at quotes,
-# commas, and semicolons so it never eats into neighbouring text.
+# key=value pair so a token is masked whole. The generic pair takes a quoted
+# value ("..." or '...', on one line) or an unquoted one that stops at quotes,
+# commas, and semicolons so it never eats into neighbouring text. The key may be
+# quoted and carry a prefix (`"db_password": "x"`, `client.secret='x'`).
 secret_patterns := [
     # JSON Web Tokens
     `eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}`,
     # Bearer tokens
     `(?i)bearer\s+[A-Za-z0-9._~+/-]{16,}=*`,
-    # Generic password / token / api_key / secret in `key: value` or `key=value` form
-    `(?i)(?:password|passwd|secret|token|api[_-]?key|secret[_-]?key|access[_-]?key|client[_-]?secret)\s*[:=]\s*[^\s"'<>,;]+`,
+    # Generic password / token / api_key / secret in `key: value` or `key=value` form,
+    # quoted or not
+    `(?i)["']?[A-Za-z0-9_.-]*(?:password|passwd|secret|token|api[_-]?key|secret[_-]?key|access[_-]?key|client[_-]?secret)["']?\s*[:=]\s*(?:"[^"\r\n]+"|'[^'\r\n]+'|[^\s"'<>,;]+)`,
     # AWS access key IDs (long-term and temporary)
     `(?:AKIA|ASIA)[0-9A-Z]{16}`,
     # AWS secret access keys (40-char base64-ish, anchored near the word "aws")
@@ -164,10 +175,42 @@ _escape_segment(seg) := replace(replace(sprintf("%v", [seg]), "~", "~0"), "/", "
 
 _pointer(path) := concat("", [concat("", ["/", _escape_segment(seg)]) | some seg in path])
 
+# Field names that hold credentials. Compared lowercased with `_`, `-` and `.`
+# removed, so apiKey, api_key, client-secret, db.password and accessToken all
+# match. Pagination and sync cursors (nextPageToken, cursor_token) are not
+# credentials and are left alone.
+_credential_field_suffixes := {
+    "password", "passwd", "passphrase", "secret", "token", "apikey",
+    "accesskey", "secretkey", "privatekey", "credential", "credentials",
+}
+
+_cursor_words := {"page", "cursor", "next", "sync", "continuation"}
+
+_credential_field(k) if {
+    is_string(k)
+    n := replace(replace(replace(lower(k), "_", ""), "-", ""), ".", "")
+    some s in _credential_field_suffixes
+    endswith(n, s)
+    not _is_cursor_field(n)
+}
+
+_is_cursor_field(n) if {
+    some w in _cursor_words
+    contains(n, w)
+}
+
+# A non-empty string under a credential-named field is masked whole, whatever
+# its value looks like. Any other string goes through the shape patterns.
+_redact_at(path, v) := secret_marker if {
+    count(path) > 0
+    _credential_field(path[count(path) - 1])
+    v != ""
+} else := _redact(v)
+
 _patches_for(doc) := [{"op": "replace", "path": _pointer(path), "value": r} |
     walk(doc, [path, v])
     is_string(v)
-    r := _redact(v)
+    r := _redact_at(path, v)
     r != v
 ]
 
@@ -176,8 +219,13 @@ _patches_for(doc) := [{"op": "replace", "path": _pointer(path), "value": r} |
 # Normalize separators so create_issue and create-issue match alike.
 _tool := replace(lower(object.get(input.resource, "name", "")), "-", "_")
 
-# Official hosted Linear MCP server (mcp.linear.app) write tools.
-_write_suffixes := {"create_issue", "update_issue", "create_comment", "create_project", "update_project"}
+# Official hosted Linear MCP server (mcp.linear.app) write tools. Linear merged
+# create/update into save_* tools; the older names are kept for servers that
+# still expose them.
+_write_suffixes := {
+    "save_issue", "save_project", "save_comment",
+    "create_issue", "update_issue", "create_comment", "create_project", "update_project",
+}
 
 # Scope to the Linear server: GitHub has a create_issue tool too.
 _is_write_tool if {

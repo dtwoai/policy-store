@@ -122,3 +122,166 @@
       args: { title: x }
   output:
     expectedResult: allow
+
+# --- Write verbs beyond the original list, and fail-closed matching (PR #33 review) ---
+
+- description: execute_datadog_workflow (execute verb) is denied.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: datadog-execute_datadog_workflow, uri: null }
+    payload:
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "Blocked: Datadog is read-only through this gateway. The only change allowed is creating or editing a notebook. Ask your admin if you need a dashboard, monitor, or setting changed."
+
+- description: move_datadog_log_pipeline (move verb) is denied.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: datadog-move_datadog_log_pipeline, uri: null }
+    payload:
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "Blocked: Datadog is read-only through this gateway. The only change allowed is creating or editing a notebook. Ask your admin if you need a dashboard, monitor, or setting changed."
+
+- description: reorder_datadog_security_findings_automation_rules (reorder verb) is denied.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: datadog-reorder_datadog_security_findings_automation_rules, uri: null }
+    payload:
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "Blocked: Datadog is read-only through this gateway. The only change allowed is creating or editing a notebook. Ask your admin if you need a dashboard, monitor, or setting changed."
+
+- description: reorder_apm_service_remapping_rules is denied.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: datadog-reorder_apm_service_remapping_rules, uri: null }
+    payload:
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "Blocked: Datadog is read-only through this gateway. The only change allowed is creating or editing a notebook. Ask your admin if you need a dashboard, monitor, or setting changed."
+
+- description: recover_datadog_notebook is denied (not part of the notebook exception).
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: datadog-recover_datadog_notebook, uri: null }
+    payload:
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "Blocked: Datadog is read-only through this gateway. The only change allowed is creating or editing a notebook. Ask your admin if you need a dashboard, monitor, or setting changed."
+
+- description: run_datadog_bits_agent has no read verb — denied.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: datadog-run_datadog_bits_agent, uri: null }
+    payload:
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "Blocked: Datadog is read-only through this gateway. The only change allowed is creating or editing a notebook. Ask your admin if you need a dashboard, monitor, or setting changed."
+
+- description: execute_code is denied.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: datadog-execute_code, uri: null }
+    payload:
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "Blocked: Datadog is read-only through this gateway. The only change allowed is creating or editing a notebook. Ask your admin if you need a dashboard, monitor, or setting changed."
+
+- description: link_jira_issue_to_datadog_case is denied.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: datadog-link_jira_issue_to_datadog_case, uri: null }
+    payload:
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "Blocked: Datadog is read-only through this gateway. The only change allowed is creating or editing a notebook. Ask your admin if you need a dashboard, monitor, or setting changed."
+
+- description: sync_datadog_feature_flag_allocations is denied.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: datadog-sync_datadog_feature_flag_allocations, uri: null }
+    payload:
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "Blocked: Datadog is read-only through this gateway. The only change allowed is creating or editing a notebook. Ask your admin if you need a dashboard, monitor, or setting changed."
+
+- description: manage_metric_tag_configuration is denied (write verb wins over nothing to read).
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: datadog-manage_metric_tag_configuration, uri: null }
+    payload:
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "Blocked: Datadog is read-only through this gateway. The only change allowed is creating or editing a notebook. Ask your admin if you need a dashboard, monitor, or setting changed."
+
+- description: Unknown tool with no read verb is denied (fail closed).
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: datadog-frobnicate_datadog_widget, uri: null }
+    payload:
+      args: {}
+  output:
+    expectedResult: deny
+    expectedReason: "Blocked: Datadog is read-only through this gateway. The only change allowed is creating or editing a notebook. Ask your admin if you need a dashboard, monitor, or setting changed."
+
+- description: ddsql_run_query only reads — allowed.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: datadog-ddsql_run_query, uri: null }
+    payload:
+      args: {}
+  output:
+    expectedResult: allow
+
+- description: apm_latency_bottleneck_summary is a read — allowed.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: datadog-apm_latency_bottleneck_summary, uri: null }
+    payload:
+      args: {}
+  output:
+    expectedResult: allow
+
+- description: describe-datadog-k8s-resource (hyphenated) is a read — allowed.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: datadog-describe-datadog-k8s-resource, uri: null }
+    payload:
+      args: {}
+  output:
+    expectedResult: allow
+
+- description: dd_guc helper tool — allowed by name.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: datadog-dd-guc, uri: null }
+    payload:
+      args: {}
+  output:
+    expectedResult: allow
