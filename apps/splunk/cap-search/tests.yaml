@@ -1,0 +1,450 @@
+# Transform-only policy (default allow := true): allow is always true; the
+# meaningful assertions are transformApplied / transformedArgsContain. Cases
+# cover default injection, trimming each unit family, all-time/epoch values,
+# subsearches, skipped query shapes, the earliest_time argument, and scope.
+
+- description: No time range, leading search keyword — earliest=-24h added after it.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: splunk-splunk_run_query, uri: null }
+    payload:
+      args: { query: "search index=payments timeout | stats count by host" }
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain: { query: "search earliest=-24h index=payments timeout | stats count by host" }
+
+- description: No time range, no search keyword — earliest=-24h prepended.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: splunk-splunk_run_query, uri: null }
+    payload:
+      args: { query: "index=payments timeout" }
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain: { query: "earliest=-24h index=payments timeout" }
+
+- description: earliest=-90d trimmed to -7d; rest of the query untouched.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: splunk-splunk_run_query, uri: null }
+    payload:
+      args: { query: "index=payments earliest=-90d timeout" }
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain: { query: "index=payments earliest=-7d timeout" }
+
+- description: earliest=-4h is within the cap — untouched.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: splunk-splunk_run_query, uri: null }
+    payload:
+      args: { query: "search index=payments earliest=-4h | stats count" }
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: earliest=-6d@d (6 days plus at most 1 for the snap) — untouched.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: splunk-splunk_run_query, uri: null }
+    payload:
+      args: { query: "index=main earliest=-6d@d" }
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: earliest=-7d@d can reach back up to 8 days with the snap — trimmed.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: splunk-splunk_run_query, uri: null }
+    payload:
+      args: { query: "index=main earliest=-7d@d" }
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain: { query: "index=main earliest=-7d" }
+
+- description: Long unit spelling and snap (earliest=-2weeks@w) — trimmed.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: splunk-splunk_run_query, uri: null }
+    payload:
+      args: { query: "index=main EARLIEST=-2weeks@w error" }
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain: { query: "index=main earliest=-7d error" }
+
+- description: Year unit (earliest=-1y@y) — trimmed.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: splunk-splunk_run_query, uri: null }
+    payload:
+      args: { query: "index=main earliest=-1y@y" }
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain: { query: "index=main earliest=-7d" }
+
+- description: Minutes are not months — earliest=-90m is within the cap.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: splunk-splunk_run_query, uri: null }
+    payload:
+      args: { query: "index=main earliest=-90m" }
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Month unit (earliest=-1mon) — trimmed.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: splunk-splunk_run_query, uri: null }
+    payload:
+      args: { query: "index=main earliest=-1mon" }
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain: { query: "index=main earliest=-7d" }
+
+- description: All time (earliest=0) — replaced with -7d.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: splunk-splunk_run_query, uri: null }
+    payload:
+      args: { query: "search index=main earliest=0 error" }
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain: { query: "search index=main earliest=-7d error" }
+
+- description: Quoted all-time value (earliest="1") — replaced.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: splunk-splunk_run_query, uri: null }
+    payload:
+      args: { query: "index=main earliest=\"1\" error" }
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain: { query: "index=main earliest=-7d error" }
+
+- description: Wide range inside a subsearch is trimmed; the narrow outer range is kept.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: splunk-splunk_run_query, uri: null }
+    payload:
+      args: { query: "search index=web earliest=-1h [search index=users earliest=-30d | fields user]" }
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain: { query: "search index=web earliest=-1h [search index=users earliest=-7d | fields user]" }
+
+- description: Absolute date earliest is left as written.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: splunk-splunk_run_query, uri: null }
+    payload:
+      args: { query: "index=main earliest=10/01/2026:00:00:00" }
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Generating command (| tstats) is skipped.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: splunk-splunk_run_query, uri: null }
+    payload:
+      args: { query: "| tstats count where index=* by sourcetype" }
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: SPL2 query is skipped.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: splunk-splunk_run_query, uri: null }
+    payload:
+      args: { query: "@spl2 from main | where status=500" }
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Community tool with earliest_time arg of -30d — the argument is bounded, SPL left alone.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: splunk-run_splunk_search, uri: null }
+    payload:
+      args: { search: "index=main error", earliest_time: "-30d", latest_time: "now" }
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain: { earliest_time: "-7d", search: "index=main error" }
+
+- description: Community tool with earliest_time -1h — nothing to change.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: splunk-run_splunk_search, uri: null }
+    payload:
+      args: { search: "index=main error", earliest_time: "-1h" }
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Splunk tool without SPL (get_indexes) is untouched.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: splunk-splunk_get_indexes, uri: null }
+    payload:
+      args: {}
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Non-Splunk tool with a query arg is out of scope.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: datadog-search_datadog_logs, uri: null }
+    payload:
+      args: { query: "service:web" }
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+# --- Snapping (PR #33 review) ---
+
+- description: Short offset snapped to the start of the year (-1d@y) — trimmed.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: splunk-splunk_run_query, uri: null }
+    payload:
+      args: { query: "index=main earliest=-1d@y error" }
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain: { query: "index=main earliest=-7d error" }
+
+- description: Snap-only start of year (@y) — trimmed.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: splunk-splunk_run_query, uri: null }
+    payload:
+      args: { query: "index=main earliest=@y" }
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain: { query: "index=main earliest=-7d" }
+
+- description: Snap-only start of month (@mon) — trimmed.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: splunk-splunk_run_query, uri: null }
+    payload:
+      args: { query: "index=main earliest=@mon" }
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain: { query: "index=main earliest=-7d" }
+
+- description: Snap-only start of quarter, quoted (\"@q\") — trimmed.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: splunk-splunk_run_query, uri: null }
+    payload:
+      args: { query: "index=main earliest=\"@q\"" }
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain: { query: "index=main earliest=-7d" }
+
+- description: Snap-only start of today (@d) — untouched.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: splunk-splunk_run_query, uri: null }
+    payload:
+      args: { query: "index=main earliest=@d" }
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Week snap with weekday (-1d@w1) can reach back 8 days — trimmed.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: splunk-splunk_run_query, uri: null }
+    payload:
+      args: { query: "index=main earliest=-1d@w1" }
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain: { query: "index=main earliest=-7d" }
+
+- description: Offset after the snap (@d-30d) — trimmed.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: splunk-splunk_run_query, uri: null }
+    payload:
+      args: { query: "index=main earliest=@d-30d" }
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain: { query: "index=main earliest=-7d" }
+
+- description: Offset after the snap within the cap (@d-3h) — untouched.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: splunk-splunk_run_query, uri: null }
+    payload:
+      args: { query: "index=main earliest=@d-3h" }
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Relative value with an unknown unit — bounded to -7d.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: splunk-splunk_run_query, uri: null }
+    payload:
+      args: { query: "index=main earliest=-3fortnights" }
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain: { query: "index=main earliest=-7d" }
+
+- description: earliest_time argument snapped to start of year (@y) — bounded.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: splunk-run_splunk_search, uri: null }
+    payload:
+      args: { search: "index=main error", earliest_time: "@y" }
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain: { earliest_time: "-7d", search: "index=main error" }
+
+# --- Each search scope bounded on its own (PR #33 review) ---
+
+- description: Outer search unbounded, subsearch bounded — default added to the outer search only.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: splunk-splunk_run_query, uri: null }
+    payload:
+      args: { query: "search index=web [search index=users earliest=-1h | fields user] | stats count" }
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain: { query: "search earliest=-24h index=web [search index=users earliest=-1h | fields user] | stats count" }
+
+- description: Outer search bounded, subsearch unbounded — default added to the subsearch only.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: splunk-splunk_run_query, uri: null }
+    payload:
+      args: { query: "search index=web earliest=-1h [search index=users | fields user]" }
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain: { query: "search index=web earliest=-1h [search earliest=-24h index=users | fields user]" }
+
+- description: Neither bounded — default added to both.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: splunk-splunk_run_query, uri: null }
+    payload:
+      args: { query: "index=web [search index=users | fields user]" }
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain: { query: "earliest=-24h index=web [search earliest=-24h index=users | fields user]" }
+
+- description: Nested subsearches — each scope checked on its own.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: splunk-splunk_run_query, uri: null }
+    payload:
+      args: { query: "index=web [search index=a [search index=b earliest=-2h | fields id] | fields user]" }
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain: { query: "earliest=-24h index=web [search earliest=-24h index=a [search index=b earliest=-2h | fields id] | fields user]" }
+
+- description: Two sibling subsearches, one bounded and one too wide — default added, wide one trimmed.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: splunk-splunk_run_query, uri: null }
+    payload:
+      args: { query: "search index=web earliest=-1h [search index=a | fields x] [search index=b earliest=-30d | fields y]" }
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain: { query: "search index=web earliest=-1h [search earliest=-24h index=a | fields x] [search index=b earliest=-7d | fields y]" }
+
+- description: Generating-command subsearch ([| inputlookup]) is skipped.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: splunk-splunk_run_query, uri: null }
+    payload:
+      args: { query: "index=web earliest=-1h [| inputlookup users.csv | fields user]" }
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Brackets inside a quoted rex pattern are not a subsearch.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: splunk-splunk_run_query, uri: null }
+    payload:
+      args: { query: "index=web earliest=-1h | rex \"user=(?<u>[^ ]+)\"" }
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: earliest_time argument sets the job range — no default added to a subsearch.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: splunk-run_splunk_search, uri: null }
+    payload:
+      args: { search: "index=web [search index=users | fields user]", earliest_time: "-1h" }
+  output:
+    expectedResult: allow
+  transformApplied: false

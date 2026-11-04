@@ -1,0 +1,295 @@
+# Egress transform policy (default allow := true): allow is always true; the
+# meaningful assertions are transformApplied / transformedArgsContain. Cases
+# cover each pattern family, clean passthrough, non-string blocks, scope by
+# server prefix, tool_metadata fallback, and the ingress guard.
+
+- description: Log line with an email and a token= pair — both masked.
+  input:
+    action: tool_post_invoke
+    mode: output
+    resource: { type: tool, name: splunk-splunk_run_query, uri: null }
+    payload:
+      text:
+        - "ERROR auth failed for jane@acme.com token=abc123def456"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "ERROR auth failed for [REDACTED-EMAIL] [REDACTED-SECRET]"
+
+- description: Clean log line — no transform, response passes through unchanged.
+  input:
+    action: tool_post_invoke
+    mode: output
+    resource: { type: tool, name: splunk-splunk_run_query, uri: null }
+    payload:
+      text:
+        - "INFO checkout-api request completed in 120ms status=200"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Bearer token in a request header dump — masked.
+  input:
+    action: tool_post_invoke
+    mode: output
+    resource: { type: tool, name: splunk-splunk_run_query, uri: null }
+    payload:
+      text:
+        - "DEBUG headers Authorization: Bearer 9f8e7d6c5b4a39281706f5e4d3c2b1a0"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "DEBUG headers Authorization: [REDACTED-SECRET]"
+
+- description: JWT in a span attribute — masked whole.
+  input:
+    action: tool_post_invoke
+    mode: output
+    resource: { type: tool, name: splunk-splunk_run_query, uri: null }
+    payload:
+      text:
+        - "session=eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "session=[REDACTED-SECRET]"
+
+- description: AWS access key ID in an event — masked.
+  input:
+    action: tool_post_invoke
+    mode: output
+    resource: { type: tool, name: splunk-splunk_run_query, uri: null }
+    payload:
+      text:
+        - "deploy used key AKIAIOSFODNN7EXAMPLE"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "deploy used key [REDACTED-SECRET]"
+
+- description: GitHub PAT and Stripe live key in one block — both masked.
+  input:
+    action: tool_post_invoke
+    mode: output
+    resource: { type: tool, name: splunk-splunk_run_query, uri: null }
+    payload:
+      text:
+        - "gh ghp_abcdefghijklmnopqrstuvwxyz0123456789 stripe sk_live_abcdefghijklmnopqrstuvwx"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "gh [REDACTED-SECRET] stripe [REDACTED-SECRET]"
+
+- description: PEM header in a stack trace — masked.
+  input:
+    action: tool_post_invoke
+    mode: output
+    resource: { type: tool, name: splunk-splunk_run_query, uri: null }
+    payload:
+      text:
+        - "loaded -----BEGIN RSA PRIVATE KEY----- from disk"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "loaded [REDACTED-SECRET] from disk"
+
+- description: Only the dirty block changes; the clean block and non-string block are kept.
+  input:
+    action: tool_post_invoke
+    mode: output
+    resource: { type: tool, name: splunk-splunk_run_query, uri: null }
+    payload:
+      text:
+        - "all good"
+        - "password: hunter2"
+        - { structured: true }
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "all good"
+      - "[REDACTED-SECRET]"
+      - { structured: true }
+
+- description: Tool name found only in tool_metadata (resource name empty) — still in scope.
+  input:
+    action: tool_post_invoke
+    mode: output
+    resource: { type: tool, name: "", uri: null }
+    tool_metadata: { name: splunk-splunk_run_query }
+    payload:
+      text:
+        - "user bob@acme.com logged in"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "user [REDACTED-EMAIL] logged in"
+
+- description: Non-Splunk server response is out of scope.
+  input:
+    action: tool_post_invoke
+    mode: output
+    resource: { type: tool, name: datadog-search_datadog_logs, uri: null }
+    payload:
+      text:
+        - "reporter jane@acme.com token=abc123"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Ingress call to a Splunk tool is ignored (egress only).
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: splunk-splunk_run_query, uri: null }
+    payload:
+      args: { query: "token=abc123" }
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: JSON response — secret and email masked inside string values; structure kept (minified, sorted keys).
+  input:
+    action: tool_post_invoke
+    mode: output
+    resource: { type: tool, name: splunk-splunk_run_query, uri: null }
+    payload:
+      text:
+        - '{"results": [{"message": "login jane@acme.com token=abc123", "host": "web-1"}], "count": 1}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - '{"count":1,"results":[{"host":"web-1","message":"login [REDACTED-EMAIL] [REDACTED-SECRET]"}]}'
+
+- description: A generic value never eats past its JSON string (quote boundary respected).
+  input:
+    action: tool_post_invoke
+    mode: output
+    resource: { type: tool, name: splunk-splunk_run_query, uri: null }
+    payload:
+      text:
+        - '{"a": "password=hunter2", "b": "keep me"}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - '{"a":"[REDACTED-SECRET]","b":"keep me"}'
+
+- description: Connection string password masked, user and host kept.
+  input:
+    action: tool_post_invoke
+    mode: output
+    resource: { type: tool, name: splunk-splunk_run_query, uri: null }
+    payload:
+      text:
+        - "connecting to postgres://app:hunter2@db:5432/main"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "connecting to postgres://app:[REDACTED-SECRET]@db:5432/main"
+
+- description: Clean JSON response — untouched.
+  input:
+    action: tool_post_invoke
+    mode: output
+    resource: { type: tool, name: splunk-splunk_run_query, uri: null }
+    payload:
+      text:
+        - '{"results": [{"message": "ok", "status": 200}]}'
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+# --- Quoted values and credential fields (PR #33 review) ---
+
+- description: Plain-text log line with a double-quoted password assignment — masked.
+  input:
+    action: tool_post_invoke
+    mode: output
+    resource: { type: tool, name: splunk-splunk_run_query, uri: null }
+    payload:
+      text:
+        - 'config loaded: db_password="Tr0ub4dor&3" host=db1'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - 'config loaded: [REDACTED-SECRET] host=db1'
+
+- description: Plain-text line with a single-quoted api_key — masked.
+  input:
+    action: tool_post_invoke
+    mode: output
+    resource: { type: tool, name: splunk-splunk_run_query, uri: null }
+    payload:
+      text:
+        - "retrying with api_key: 'k-8812-short' after 401"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - 'retrying with [REDACTED-SECRET] after 401'
+
+- description: JSON fragment inside a text line (quoted password field) — masked, rest kept.
+  input:
+    action: tool_post_invoke
+    mode: output
+    resource: { type: tool, name: splunk-splunk_run_query, uri: null }
+    payload:
+      text:
+        - 'startup config {"password": "hunter2", "port": 5432}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - 'startup config {[REDACTED-SECRET], "port": 5432}'
+
+- description: JSON response with a credential-named field whose value has no known shape — masked by field name.
+  input:
+    action: tool_post_invoke
+    mode: output
+    resource: { type: tool, name: splunk-splunk_run_query, uri: null }
+    payload:
+      text:
+        - '{"results": [{"_raw": "boot", "db.password": "hunter2", "access_token": "opaque-123"}]}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - '{"results":[{"_raw":"boot","access_token":"[REDACTED-SECRET]","db.password":"[REDACTED-SECRET]"}]}'
+
+- description: Pagination cursor field (nextPageToken) is not a credential — untouched.
+  input:
+    action: tool_post_invoke
+    mode: output
+    resource: { type: tool, name: splunk-splunk_run_query, uri: null }
+    payload:
+      text:
+        - '{"results": [{"_raw": "ok"}], "next_page_token": "CiAKGjBpNDd2"}'
+  output:
+    expectedResult: allow
+  transformApplied: false

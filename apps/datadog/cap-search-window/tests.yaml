@@ -1,0 +1,187 @@
+# Transform-only policy (default allow := true): allow is always true; the
+# meaningful assertions are transformApplied / transformedArgsContain. Cases
+# cover each time format, the window boundary, the limit argument passing
+# through untouched, and out-of-scope tools.
+
+- description: Logs search over 30 days with limit 1000 — window trimmed to now-7d; limit passes through unchanged.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: datadog-search_datadog_logs, uri: null }
+    payload:
+      args: { query: "service:checkout-api status:error", from: now-30d, limit: 1000 }
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain: { from: now-7d, limit: 1000, query: "service:checkout-api status:error" }
+
+- description: Logs search over the last hour with limit 50 — untouched.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: datadog-search_datadog_logs, uri: null }
+    payload:
+      args: { query: "service:checkout-api", from: now-1h, limit: 50 }
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Exactly 7 days (now-7d) is within the cap — untouched.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: datadog-search_datadog_logs, uri: null }
+    payload:
+      args: { query: "*", from: now-7d, limit: 100 }
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Two weeks given in weeks (now-2w) on aggregate_spans — trimmed.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: datadog-aggregate_spans, uri: null }
+    payload:
+      args: { query: "service:checkout-api", from: now-2w, computes: [{ field: "*", aggregation: COUNT, output: n }] }
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain: { from: now-7d }
+
+- description: Aggregation within the window — untouched.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: datadog-aggregate_spans, uri: null }
+    payload:
+      args: { query: "service:checkout-api", from: now-4h }
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Absolute RFC 3339 range of 31 days — from moved to 7 days before to.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: datadog-analyze_datadog_logs, uri: null }
+    payload:
+      args: { sql_query: "SELECT count(*) FROM logs", from: "2026-09-01T00:00:00Z", to: "2026-10-02T00:00:00Z" }
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain: { from: "2026-09-25T00:00:00Z", to: "2026-10-02T00:00:00Z" }
+
+- description: Date-only range of 3 days — untouched.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: datadog-search_datadog_events, uri: null }
+    payload:
+      args: { query: "source:deploys", from: "2026-10-01", to: "2026-10-04" }
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Date-only range of 20 days — trimmed to 7 days before to.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: datadog-search_datadog_events, uri: null }
+    payload:
+      args: { query: "source:deploys", from: "2026-09-10", to: "2026-09-30" }
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain: { from: "2026-09-23T00:00:00Z" }
+
+- description: Unix-seconds range of 10 days — trimmed.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: datadog-aggregate_events, uri: null }
+    payload:
+      args: { query: "*", from: "1790000000", to: "1790864000" }
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain: { from: "2026-09-24T14:13:20Z" }
+
+- description: Unix-milliseconds range of 1 day — untouched.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: datadog-aggregate_events, uri: null }
+    payload:
+      args: { query: "*", from: "1790000000000", to: "1790086400000" }
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Old absolute from with to omitted (now) — from rewritten to now-7d.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: datadog-search_datadog_rum_events, uri: null }
+    payload:
+      args: { query: "@type:error", from: "2020-01-01T00:00:00Z" }
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain: { from: now-7d }
+
+- description: Hyphenated tool name variant is matched.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: datadog-search-datadog-rum-events, uri: null }
+    payload:
+      args: { query: "@type:error", from: now-90d }
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain: { from: now-7d }
+
+- description: Unparseable from is left alone.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: datadog-search_datadog_logs, uri: null }
+    payload:
+      args: { query: "*", from: "last month", limit: 10 }
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Non-search Datadog tool (get_datadog_metric) is out of scope.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: datadog-get_datadog_metric, uri: null }
+    payload:
+      args: { queries: ["avg:system.cpu.user{*}"], from: now-90d }
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Non-Datadog tool with a wide from is out of scope.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: splunk-splunk_run_query, uri: null }
+    payload:
+      args: { query: "index=main", from: now-90d }
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Logs search with no from and a large limit — nothing to change.
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: datadog-search_datadog_logs, uri: null }
+    payload:
+      args: { query: "status:error", limit: 1000 }
+  output:
+    expectedResult: allow
+  transformApplied: false

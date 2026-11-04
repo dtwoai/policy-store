@@ -1,0 +1,203 @@
+# Egress transform policy (default allow := true): allow is always true; the
+# meaningful assertions are transformApplied / transformedArgsContain. JSON
+# text blocks come back minified with sorted keys when changed.
+
+- description: getJiraIssue JSON with a connection string in the description — password masked, JSON kept.
+  input:
+    action: tool_post_invoke
+    mode: output
+    resource: { type: tool, name: atlassian-getJiraIssue, uri: null }
+    payload:
+      text:
+        - '{"key": "PLAT-412", "fields": {"description": "DB is postgres://app:hunter2@db:5432", "assignee": {"emailAddress": "jane@acme.com"}}}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - '{"fields":{"assignee":{"emailAddress":"jane@acme.com"},"description":"DB is postgres://app:[REDACTED-SECRET]@db:5432"},"key":"PLAT-412"}'
+
+- description: Clean JSON issue — no transform, response untouched.
+  input:
+    action: tool_post_invoke
+    mode: output
+    resource: { type: tool, name: atlassian-getJiraIssue, uri: null }
+    payload:
+      text:
+        - '{"key": "PLAT-412", "fields": {"summary": "Checkout 500s"}}'
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: JQL search returning issues with a token in a comment — masked inside the array.
+  input:
+    action: tool_post_invoke
+    mode: output
+    resource: { type: tool, name: atlassian-searchJiraIssuesUsingJql, uri: null }
+    payload:
+      text:
+        - '{"issues": [{"key": "PLAT-1", "comment": "use xoxb-1234567890-abcdefghij"}, {"key": "PLAT-2", "comment": "ok"}]}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - '{"issues":[{"comment":"use [REDACTED-SECRET]","key":"PLAT-1"},{"comment":"ok","key":"PLAT-2"}]}'
+
+- description: A generic value never eats past its JSON string (quote boundary respected).
+  input:
+    action: tool_post_invoke
+    mode: output
+    resource: { type: tool, name: atlassian-getJiraIssue, uri: null }
+    payload:
+      text:
+        - '{"a": "token=abc123", "b": "keep me"}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - '{"a":"[REDACTED-SECRET]","b":"keep me"}'
+
+- description: Markdown (plain text) response from getJiraIssue — masked in place.
+  input:
+    action: tool_post_invoke
+    mode: output
+    resource: { type: tool, name: atlassian-getJiraIssue, uri: null }
+    payload:
+      text:
+        - "## PLAT-412\nRepro: export AWS_KEY=AKIAIOSFODNN7EXAMPLE"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "## PLAT-412\nRepro: export AWS_KEY=[REDACTED-SECRET]"
+
+- description: Rovo generic fetch tool is in scope.
+  input:
+    action: tool_post_invoke
+    mode: output
+    resource: { type: tool, name: atlassian-fetch, uri: null }
+    payload:
+      text:
+        - "page body with api_key=abcdef123456"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "page body with [REDACTED-SECRET]"
+
+- description: Tool name only in tool_metadata — still in scope.
+  input:
+    action: tool_post_invoke
+    mode: output
+    resource: { type: tool, name: "", uri: null }
+    tool_metadata: { name: atlassian-getJiraIssue }
+    payload:
+      text:
+        - "token: abc123"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - "[REDACTED-SECRET]"
+
+- description: Non-Atlassian server response is out of scope.
+  input:
+    action: tool_post_invoke
+    mode: output
+    resource: { type: tool, name: glean-search, uri: null }
+    payload:
+      text:
+        - "token=abc123"
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+- description: Ingress call to a Jira tool is ignored (egress only).
+  input:
+    action: tool_pre_invoke
+    mode: input
+    resource: { type: tool, name: atlassian-getJiraIssue, uri: null }
+    payload:
+      args: { issueIdOrKey: PLAT-1 }
+  output:
+    expectedResult: allow
+  transformApplied: false
+
+# --- Quoted values and credential fields (PR #33 review) ---
+
+- description: Plain-text log line with a double-quoted password assignment — masked.
+  input:
+    action: tool_post_invoke
+    mode: output
+    resource: { type: tool, name: atlassian-getJiraIssue, uri: null }
+    payload:
+      text:
+        - 'config loaded: db_password="Tr0ub4dor&3" host=db1'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - 'config loaded: [REDACTED-SECRET] host=db1'
+
+- description: Plain-text line with a single-quoted api_key — masked.
+  input:
+    action: tool_post_invoke
+    mode: output
+    resource: { type: tool, name: atlassian-getJiraIssue, uri: null }
+    payload:
+      text:
+        - "retrying with api_key: 'k-8812-short' after 401"
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - 'retrying with [REDACTED-SECRET] after 401'
+
+- description: JSON fragment inside a text line (quoted password field) — masked, rest kept.
+  input:
+    action: tool_post_invoke
+    mode: output
+    resource: { type: tool, name: atlassian-getJiraIssue, uri: null }
+    payload:
+      text:
+        - 'startup config {"password": "hunter2", "port": 5432}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - 'startup config {[REDACTED-SECRET], "port": 5432}'
+
+- description: JSON response with a credential-named field whose value has no known shape — masked by field name.
+  input:
+    action: tool_post_invoke
+    mode: output
+    resource: { type: tool, name: atlassian-getJiraIssue, uri: null }
+    payload:
+      text:
+        - '{"key": "PLAT-9", "fields": {"customfield_10020": {"clientSecret": "s3cr3t-value", "env": "prod"}}}'
+  output:
+    expectedResult: allow
+  transformApplied: true
+  transformedArgsContain:
+    text:
+      - '{"fields":{"customfield_10020":{"clientSecret":"[REDACTED-SECRET]","env":"prod"}},"key":"PLAT-9"}'
+
+- description: Pagination cursor field (nextPageToken) is not a credential — untouched.
+  input:
+    action: tool_post_invoke
+    mode: output
+    resource: { type: tool, name: atlassian-getJiraIssue, uri: null }
+    payload:
+      text:
+        - '{"issues": [{"key": "PLAT-1"}], "nextPageToken": "CiAKGjBpNDd2"}'
+  output:
+    expectedResult: allow
+  transformApplied: false
