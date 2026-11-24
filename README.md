@@ -32,6 +32,10 @@ bundles/
   <bundle>/                   # one directory per themed bundle (e.g. soc2, hipaa)
     README.md                 # landing page linking to policies in apps/
 
+groups/
+  <group>/                    # one directory per policy group: policies that only work together
+    README.md                 # frontmatter with the group's name and description
+
 manifest.json                 # generated policy index consumed by downstream APIs
 schema.json                   # schema contract for policy markdown and manifest entries
 ```
@@ -42,7 +46,7 @@ schema.json                   # schema contract for policy markdown and manifest
 
 ### Where policy metadata lives
 
-**All policy metadata — name, description, direction, tags, apps/industries/bundles membership, experimental status, schema version, and minimum gateway version — lives in each policy's `policy.md` frontmatter.** The generated `manifest.json` is the machine-readable index; do not edit it by hand except through the manifest generator.
+**All policy metadata — name, description, direction, tags, apps/industries/bundles/groups membership, experimental status, schema version, and minimum gateway version — lives in each policy's `policy.md` frontmatter.** The generated `manifest.json` is the machine-readable index; do not edit it by hand except through the manifest generator. See [Policy groups](CONTRIBUTING.md#policy-groups) for grouping policies that only work together.
 
 A policy may be marked **experimental** with `experimental: true` in its frontmatter. An experimental policy is a reviewed starting point that has not been manually validated against a test setup of the app — it compiles and passes its unit tests, but confirm it behaves as intended against your instance of the app before relying on it. The field is optional and defaults to `false`; the generated `manifest.json` always carries an explicit `experimental` boolean so downstream consumers can filter or badge on it.
 

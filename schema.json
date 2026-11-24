@@ -2,7 +2,7 @@
   "schemaVersion": "1.0.0",
   "description": "Describes the expected fields for the policy-store manifest.json index, the individual policy markdown files, and the optional per-policy tests file. Policy entries, md files, or tests which do not follow this schema will not be accepted into the repository.",
   "manifest": {
-    "description": "The top-level manifest.json file: the searchable index of every published policy and the folder maps for apps, industries and bundles.",
+    "description": "The top-level manifest.json file: the searchable index of every published policy, the folder maps for apps, industries and bundles, and the optional policy groups.",
     "fields": {
       "policies": {
         "name": "policies",
@@ -27,6 +27,12 @@
         "description": "Map of bundle slug to the relative path of the bundle's folder. Each folder includes, at least, a README.md file.",
         "type": "Record<string, string>",
         "required": true
+      },
+      "groups": {
+        "name": "groups",
+        "description": "Optional. Groups of policies that work together; see policyGroup for the shape of each group. Defaults to none.",
+        "type": "PolicyGroup[]",
+        "required": false
       }
     },
     "policyEntry": {
@@ -100,9 +106,38 @@
         },
         "minimumGatewayVersion": {
           "name": "minimumGatewayVersion",
-          "description": "The minimum DTwo Gateway version required to use this policy.",
+          "description": "The minimum Dtwo Gateway version required to use this policy.",
           "type": "string",
           "required": false
+        }
+      }
+    },
+    "policyGroup": {
+      "description": "The shape of each object in manifest.groups: a named set of policies that work together. Groups are advisory; the product warns when only part of a group is added or removed, and never blocks it.",
+      "fields": {
+        "id": {
+          "name": "id",
+          "description": "Stable identifier of the group, unique in the manifest. Tenants that import the group keep a link to it by this id, so do not change it once published.",
+          "type": "string",
+          "required": true
+        },
+        "name": {
+          "name": "name",
+          "description": "User-visible name of the group.",
+          "type": "string",
+          "required": true
+        },
+        "description": {
+          "name": "description",
+          "description": "Optional. What the policies in the group achieve together.",
+          "type": "string",
+          "required": false
+        },
+        "policies": {
+          "name": "policies",
+          "description": "The paths (relative to manifest.json, as in a policy entry's `path`) of the policies in the group. Each must be an entry of this manifest. A policy may be in several groups.",
+          "type": "string[]",
+          "required": true
         }
       }
     }
@@ -158,6 +193,12 @@
         "type": "string[]",
         "required": false
       },
+      "groups": {
+        "name": "groups",
+        "description": "Optional. The ids of the policy groups this policy is in: policies that only work together. Each id names a groups/<id> directory whose README.md frontmatter holds the group's name and description. The manifest generator collects the policies that list a group into that group's entry in manifest.groups.",
+        "type": "string[]",
+        "required": false
+      },
       "experimental": {
         "name": "experimental",
         "description": "Optional. When true, marks the policy as experimental: a reviewed starting point that has not been manually validated against a test setup of the app. It compiles and passes its unit tests; confirm it behaves as intended against your instance of the app before relying on it. Omit or set false for validated policies. Defaults to false.",
@@ -172,7 +213,7 @@
       },
       "minimumGatewayVersion": {
         "name": "minimumGatewayVersion",
-        "description": "The minimum DTwo Gateway version required to use this policy.",
+        "description": "The minimum Dtwo Gateway version required to use this policy.",
         "type": "string",
         "required": false
       },

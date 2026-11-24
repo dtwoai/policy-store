@@ -121,9 +121,10 @@ apps/<app>/<policy-slug>/
 
 ## Registering a new policy
 
-1. **`policy.md` frontmatter** — add all required fields from [`schema.json`](./schema.json): `name`, `tags`, `publishedAt`, `description`, `direction`, `apps`, and `schemaVersion`. Include `industries`, `bundles`, and `minimumGatewayVersion` when they apply. Set `experimental: true` if the policy has not been manually validated against a test setup of the app (see [Experimental policies](#experimental-policies)).
+1. **`policy.md` frontmatter** — add all required fields from [`schema.json`](./schema.json): `name`, `tags`, `publishedAt`, `description`, `direction`, `apps`, and `schemaVersion`. Include `industries`, `bundles`, `groups`, and `minimumGatewayVersion` when they apply. Set `experimental: true` if the policy has not been manually validated against a test setup of the app (see [Experimental policies](#experimental-policies)).
 2. **App landing page** — add a row to `apps/<app>/README.md` linking to the new policy.
 3. **Industry / bundle landing pages** — if the policy fits an existing industry or bundle, list `<industry>` / `<bundle>` slugs in the policy's frontmatter **and** add a link from the matching landing page. Do not duplicate the policy body.
+   If the policy only works together with other policies, list their group in its frontmatter too (see [Policy groups](#policy-groups)).
 4. **New apps, industries, or bundles** — create the corresponding directory and `README.md`; the manifest generator will add the top-level map entry.
 5. **Tests** — add at least one positive and one negative test case to the policy's `tests.yaml` (see [Testing](#testing)).
 6. **Manifest generation** — run `pnpm manifest` and commit the generated `manifest.json`, then run `pnpm manifest:check` to confirm it is current (this is what CI enforces).
@@ -138,9 +139,58 @@ A policy is **experimental** when it compiles and passes its `tests.yaml`, but h
 - **Documentation:** note the experimental status and what still needs live validation in the policy's `description` **Known limitations** section, so a reader sees it without opening the manifest.
 - **Graduating:** when a policy is validated against a test setup of the app, drop the flag, regenerate the manifest, and note the change in the `description` frontmatter.
 
+## Policy groups
+
+Some outcomes take more than one policy. One policy might write a session marker that another reads, or block the one tool that would let an agent get around the other policies for an app. A **policy group** names those policies, so the Hub and `dtwo-mcp` can show that they work together and suggest adding or removing them together. Groups are advisory: they never block adding or removing one policy on its own.
+
+Groups work like bundles: a policy lists the groups it is in under `groups` in its `policy.md` frontmatter, and each group has its own directory under `groups/`.
+
+### Adding a group
+
+1. **Create the group directory.** Make `groups/<group>/README.md`. The directory name is the group's id: lowercase kebab-case starting with a letter, like a bundle slug. The README frontmatter holds the group's `name`, shown to users, and an optional `description` of what its policies achieve together. The rest of the README can explain the group to readers:
+
+   ```markdown
+   ---
+   name: Example marker pair
+   description: The writer marks the session and the reader acts on the mark.
+   ---
+
+   # Example marker pair
+
+   The writer policy marks the session when it sees a sensitive response, and
+   the reader policy blocks outbound tools once the mark is set. Either one
+   alone does nothing useful.
+   ```
+
+2. **List the group on each of its policies.** Add the group's id to `groups` in the `policy.md` frontmatter of every policy in the group. A group needs at least two policies, and a policy can be in several groups:
+
+   ```yaml
+   groups:
+     - example-marker-pair
+   ```
+
+3. **Regenerate the manifest.** Run `pnpm install --frozen-lockfile` once in a fresh clone, then run `pnpm manifest` and commit the updated `manifest.json`, then run `pnpm manifest:check`. The generator adds the group to the top-level `groups` list in `manifest.json`, with the paths of the policies that list it:
+
+   ```json
+   "groups": [
+     {
+       "id": "example-marker-pair",
+       "name": "Example marker pair",
+       "description": "The writer marks the session and the reader acts on the mark.",
+       "policies": ["apps/example/read-marker", "apps/example/write-marker"]
+     }
+   ]
+   ```
+
+   The check fails when a policy lists a group with no directory, when a group has fewer than two policies, or when `manifest.json` is out of date.
+
+To add a policy to an existing group, do step 2 for that policy, then step 3. To take a policy out of a group, remove the id from its `groups` and regenerate. If that would leave the group with one policy, either add another policy to it in the same change, or retire the group: delete its directory and remove its id from the remaining policy.
+
+Don't rename a group's directory once it is published. Accounts that imported the group stay linked to it by its id, so a renamed group shows up as a new one.
+
 ## A note on the manifest schema
 
-`manifest.json` is the generated policy index for both this repo and downstream consumers (Hub, `dtwo-mcp`). It is built from policy markdown frontmatter and validated against [`schema.json`](./schema.json). Until CI enforces this automatically:
+`manifest.json` is the generated policy index for both this repo and downstream consumers (Hub, `dtwo-mcp`). It is built from policy markdown frontmatter and the group READMEs, and validated against [`schema.json`](./schema.json). Until CI enforces this automatically:
 
 - Match the shape of existing policy frontmatter when adding new policies.
 - Don't invent new manifest fields. Open an issue first if something is missing.
