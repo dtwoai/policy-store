@@ -149,7 +149,7 @@ function recordGroupMemberships(groups, policyPath, context) {
   }
 
   for (const slug of new Set(groups)) {
-    if (typeof slug !== "string") {
+    if (typeof slug !== "string" || slug.trim() === "") {
       continue;
     }
     validateSlug(slug, `${context}: groups`);
@@ -161,49 +161,45 @@ function recordGroupMemberships(groups, policyPath, context) {
   }
 }
 
+// Returns the parsed mapping (null when it is missing or invalid, after
+// recording the one error) and the length of the frontmatter block, so callers
+// can read the body after it.
 function parseFrontmatter(markdown, context) {
   const frontmatterMatch = markdown.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/);
   if (!frontmatterMatch) {
     errors.push(`${context}: missing YAML frontmatter delimited by ---`);
-    return {};
+    return { metadata: null, end: 0 };
   }
 
+  const end = frontmatterMatch[0].length;
   try {
     const metadata = parse(frontmatterMatch[1]) ?? {};
     if (isPlainObject(metadata)) {
-      return metadata;
+      return { metadata, end };
     }
     errors.push(`${context}: frontmatter must be a YAML mapping`);
   } catch (error) {
     errors.push(`${context}: invalid YAML frontmatter: ${error.message}`);
   }
-  return {};
+  return { metadata: null, end };
 }
 
 function parsePolicyMarkdown(markdown, relativePolicyPath) {
-  const frontmatterMatch = markdown.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n/);
-  if (!frontmatterMatch) {
-    errors.push(`${relativePolicyPath}: missing YAML frontmatter delimited by ---`);
+  const { metadata, end } = parseFrontmatter(markdown, relativePolicyPath);
+  if (end === 0) {
     return { metadata: {}, rego: "" };
-  }
-
-  let metadata = {};
-  try {
-    metadata = parse(frontmatterMatch[1]) ?? {};
-  } catch (error) {
-    errors.push(`${relativePolicyPath}: invalid YAML frontmatter: ${error.message}`);
   }
 
   // Only look for the policy body AFTER the frontmatter, so a ```rego example
   // inside the `description` field can't be miscounted as the policy.
-  const body = markdown.slice(frontmatterMatch[0].length);
+  const body = markdown.slice(end);
   const regoBlocks = [...body.matchAll(/```rego\r?\n([\s\S]*?)\r?\n```/g)];
   if (regoBlocks.length !== 1) {
     errors.push(`${relativePolicyPath}: expected exactly one fenced rego block in the policy body, found ${regoBlocks.length}`);
   }
 
   return {
-    metadata,
+    metadata: metadata ?? {},
     rego: regoBlocks[0]?.[1] ?? "",
   };
 }
@@ -302,13 +298,22 @@ function buildGroups(members) {
       continue;
     }
 
-    const metadata = parseFrontmatter(readFileSync(readmePath, "utf8"), `${context}/README.md`);
-    validateString(metadata.name, `${context}/README.md: name`);
-    validateOptionalString(metadata.description, `${context}/README.md: description`);
-
     const policies = [...(members.get(slug) ?? [])].sort(compareStrings);
     if (policies.length < 2) {
       errors.push(`${context}: needs at least two policies listing '${slug}' in their groups, found ${policies.length}`);
+    }
+
+    const { metadata } = parseFrontmatter(readFileSync(readmePath, "utf8"), `${context}/README.md`);
+    if (metadata === null) {
+      continue;
+    }
+    // Skip a group whose README fields are invalid, so the manifest checks
+    // below don't report the same cause again.
+    const errorCount = errors.length;
+    validateString(metadata.name, `${context}/README.md: name`);
+    validateOptionalString(metadata.description, `${context}/README.md: description`);
+    if (errors.length > errorCount) {
+      continue;
     }
 
     const group = { id: slug, name: metadata.name };

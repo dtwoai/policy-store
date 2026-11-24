@@ -124,8 +124,8 @@ apps/<app>/<policy-slug>/
 1. **`policy.md` frontmatter** — add all required fields from [`schema.json`](./schema.json): `name`, `tags`, `publishedAt`, `description`, `direction`, `apps`, and `schemaVersion`. Include `industries`, `bundles`, `groups`, and `minimumGatewayVersion` when they apply. Set `experimental: true` if the policy has not been manually validated against a test setup of the app (see [Experimental policies](#experimental-policies)).
 2. **App landing page** — add a row to `apps/<app>/README.md` linking to the new policy.
 3. **Industry / bundle landing pages** — if the policy fits an existing industry or bundle, list `<industry>` / `<bundle>` slugs in the policy's frontmatter **and** add a link from the matching landing page. Do not duplicate the policy body.
-4. **New apps, industries, or bundles** — create the corresponding directory and `README.md`; the manifest generator will add the top-level map entry.
    If the policy only works together with other policies, list their group in its frontmatter too (see [Policy groups](#policy-groups)).
+4. **New apps, industries, or bundles** — create the corresponding directory and `README.md`; the manifest generator will add the top-level map entry.
 5. **Tests** — add at least one positive and one negative test case to the policy's `tests.yaml` (see [Testing](#testing)).
 6. **Manifest generation** — run `pnpm manifest` and commit the generated `manifest.json`, then run `pnpm manifest:check` to confirm it is current (this is what CI enforces).
 7. **Run the policy tests** — `pnpm test` (requires the OPA CLI on your `PATH`). CI runs the same command.
